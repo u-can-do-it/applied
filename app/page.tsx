@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { AutoRefresh } from './auto-refresh';
 import { Controls, ControlsFallback } from './controls';
+import { NavProvider } from './nav';
 import { Results, ResultsSkeleton } from './results';
 import { ResultsBoundary } from './results-boundary';
 
@@ -16,16 +17,26 @@ export default function Page({ searchParams }: { searchParams: SearchParams }) {
         <AutoRefresh />
       </header>
 
-      {/* reads the URL on the client; resolves synchronously on client navigations */}
-      <Suspense fallback={<ControlsFallback />}>
-        <Controls />
-      </Suspense>
-
-      {/* the only part that waits for Supabase */}
-      <Suspense fallback={<ResultsSkeleton />}>
-        <ResultsBoundary fallback={<ResultsSkeleton />}>
-          <Results searchParams={searchParams} />
-        </ResultsBoundary>
+      {/* NavProvider reads the URL on the client, so the first HTML shows the fallback */}
+      <Suspense
+        fallback={
+          <>
+            <ControlsFallback />
+            <div className="results">
+              <ResultsSkeleton />
+            </div>
+          </>
+        }
+      >
+        <NavProvider>
+          <Controls />
+          <div className="results">
+            {/* the only part that waits for Supabase */}
+            <ResultsBoundary fallback={<ResultsSkeleton />}>
+              <Results searchParams={searchParams} />
+            </ResultsBoundary>
+          </div>
+        </NavProvider>
       </Suspense>
     </main>
   );

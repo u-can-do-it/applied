@@ -28,6 +28,10 @@
 
 html, body { margin: 0; }
 
+/* always reserve the scrollbar's width, so the layout doesn't shift sideways when the
+   list is swapped for the (shorter) skeleton and the scrollbar would otherwise vanish */
+html { scrollbar-gutter: stable; }
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -203,8 +207,12 @@ h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0; }
 }
 .live .dot.busy { animation: skeleton-pulse 0.8s ease-in-out infinite; }
 
+/* the list area never collapses while loading, so the page height (and your scroll
+   position on the chips) stays put when the rows are replaced by the skeleton */
+.results { min-height: 100vh; }
+
 /* results line above the list */
-.wrap > .count, .skeleton > .count { margin: 4px 0 0; font-size: 13px; min-height: 19px; }
+.results > .count, .skeleton > .count { margin: 4px 0 0; font-size: 13px; min-height: 19px; }
 
 /* skeleton: shown instantly while Supabase answers; fades in after 150ms so fast loads don't flash */
 .skeleton { animation: skeleton-in 0s 150ms both; }

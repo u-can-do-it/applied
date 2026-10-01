@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { getOffers, PAGE_SIZE, type Offer } from '@/lib/offers';
 import { href, SOURCES } from '@/lib/sources';
+import { NavLink } from './nav';
 
 const TZ = 'Europe/Warsaw';
 const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }); // YYYY-MM-DD
@@ -90,11 +90,23 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
 
       {pages > 1 && (
         <nav className="pager" aria-label="Pages">
-          {page > 0 ? <Link href={href({ q, src, page: page - 1 })}>← Newer</Link> : <span />}
+          {page > 0 ? (
+            <NavLink href={href({ q, src, page: page - 1 })} scrollTop>
+              ← Newer
+            </NavLink>
+          ) : (
+            <span />
+          )}
           <span>
             Page {page + 1} of {pages}
           </span>
-          {page + 1 < pages ? <Link href={href({ q, src, page: page + 1 })}>Older →</Link> : <span />}
+          {page + 1 < pages ? (
+            <NavLink href={href({ q, src, page: page + 1 })} scrollTop>
+              Older →
+            </NavLink>
+          ) : (
+            <span />
+          )}
         </nav>
       )}
     </>

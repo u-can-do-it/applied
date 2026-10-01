@@ -1,14 +1,16 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { href } from '@/lib/sources';
+import { useNav } from './nav';
 
 // Updates ?q= as you type (debounced). Without JS it still works as a plain GET form.
 export function SearchBox({ q, src }: { q: string; src: string }) {
-  const router = useRouter();
+  const { navigate } = useNav();
   const [value, setValue] = useState(q);
   const lastSent = useRef(q);
+  // reads the latest src/navigate without restarting the debounce on every render
+  const search = useEffectEvent((next: string) => navigate(href({ q: next, src }), { replace: true }));
 
   // follow the URL when it changes from outside (back/forward, a chip click keeps q)
   useEffect(() => {
@@ -23,10 +25,10 @@ export function SearchBox({ q, src }: { q: string; src: string }) {
     if (next === lastSent.current) return;
     const t = setTimeout(() => {
       lastSent.current = next;
-      router.replace(href({ q: next, src }), { scroll: false });
+      search(next);
     }, 250);
     return () => clearTimeout(t);
-  }, [value, src, router]);
+  }, [value]);
 
   return (
     <form className="search" action="/" method="get" role="search" onSubmit={(e) => e.preventDefault()}>

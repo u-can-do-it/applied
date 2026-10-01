@@ -1,35 +1,28 @@
 'use client';
 
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { href, SOURCES } from '@/lib/sources';
+import { NavLink, useNav } from './nav';
 import { SearchBox, SearchIcon } from './search-box';
 
 function Chips({ q, src }: { q: string; src: string }) {
   return (
     <nav className="chips" aria-label="Filter by source">
-      <Link className="chip" aria-current={!src ? 'true' : undefined} href={href({ q })} scroll={false}>
+      <NavLink className="chip" aria-current={!src ? 'true' : undefined} href={href({ q })}>
         All
-      </Link>
+      </NavLink>
       {Object.entries(SOURCES).map(([key, name]) => (
-        <Link
-          key={key}
-          className="chip"
-          aria-current={src === key ? 'true' : undefined}
-          href={href({ q, src: key })}
-          scroll={false}
-        >
+        <NavLink key={key} className="chip" aria-current={src === key ? 'true' : undefined} href={href({ q, src: key })}>
           {name}
-        </Link>
+        </NavLink>
       ))}
     </nav>
   );
 }
 
 export function Controls() {
-  const sp = useSearchParams();
-  const q = sp.get('q') ?? '';
-  const raw = sp.get('src') ?? '';
+  const { query } = useNav(); // optimistic: the chip lights up on the click frame
+  const q = query.get('q') ?? '';
+  const raw = query.get('src') ?? '';
   const src = raw in SOURCES ? raw : '';
   return (
     <>

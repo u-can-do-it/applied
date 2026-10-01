@@ -2,14 +2,19 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { useNav } from './nav';
 
-// A navigation is a transition, and React keeps an already-revealed boundary on screen
-// during transitions instead of showing its fallback again. Keying the boundary by the
-// query makes every new filter / page / search mount a fresh boundary -> skeleton at once.
 export function ResultsBoundary({ children, fallback }: { children: React.ReactNode; fallback: React.ReactNode }) {
-  const key = useSearchParams().toString();
+  const actual = useSearchParams().toString(); // the URL the server-rendered list belongs to
+  const { query } = useNav(); // what the user just asked for (optimistic, set on click)
+
+  // Clicked but the new list isn't here yet: drop the old rows right away.
+  if (query.toString() !== actual) return fallback;
+
+  // Keyed by URL so a new filter mounts a fresh boundary (React keeps an already-revealed
+  // boundary on screen during transitions). router.refresh() keeps the key -> swaps in place.
   return (
-    <Suspense key={key} fallback={fallback}>
+    <Suspense key={actual} fallback={fallback}>
       {children}
     </Suspense>
   );
