@@ -185,6 +185,24 @@ h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0; }
 
 .search input:disabled { cursor: progress; }
 
+/* auto-refresh status in the header */
+.live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.live .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.live .dot.busy { animation: skeleton-pulse 0.8s ease-in-out infinite; }
+
 /* results line above the list */
 .wrap > .count, .skeleton > .count { margin: 4px 0 0; font-size: 13px; min-height: 19px; }
 

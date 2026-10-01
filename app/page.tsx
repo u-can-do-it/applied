@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { AutoRefresh } from './auto-refresh';
 import { Controls, ControlsFallback } from './controls';
 import { Results, ResultsSkeleton } from './results';
 import { ResultsBoundary } from './results-boundary';
@@ -12,6 +13,7 @@ export default function Page({ searchParams }: { searchParams: SearchParams }) {
     <main className="wrap">
       <header className="top">
         <h1>Jobwatch</h1>
+        <AutoRefresh />
       </header>
 
       {/* reads the URL on the client; resolves synchronously on client navigations */}
