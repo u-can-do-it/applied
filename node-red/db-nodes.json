@@ -1,0 +1,128 @@
+[
+    {
+        "id": "ac47f3b477cfd38e",
+        "type": "function",
+        "z": "925b4b5e231836f3",
+        "name": "store_notifications",
+        "func": "const store  = flow.get('offers') || {};   // src:id  -> offer\nconst keys   = flow.get('seenKeys') || {}; // company|title -> first source that reported it\nconst marks  = flow.get('marks') || {};    // per-source watermark\nconst first  = Object.keys(store).length === 0;\nconst now    = Date.now();\nconst fresh  = [];\nconst added  = [];                         // every newly stored offer -> output 2 (database)\n\n// titles whose stack we don't want notified (still stored, so they never resurface)\nconst RE = /(?:^|[^a-z0-9+#])(\\.?net|dotnet|go|golang|java)(?![a-z0-9+#.])/i;\n\n// Cut DB if too big\nconst MAX = 10000;\nconst stored = Object.keys(store);\nif (stored.length > MAX) {\n    stored.sort((a, b) => store[a].firstSeen - store[b].firstSeen)\n          .slice(0, stored.length - MAX)\n          .forEach(id => { delete keys[store[id].key]; delete store[id]; });\n}\n\n// ---- TEST: forget the 3 newest offers of one source ------------------------\n// const SRC = 'eldorado';\n// const top = Object.values(store).filter(o => o.src === SRC)\n//                   .sort((a, b) => b.sortVal - a.sortVal).slice(0, 3);\n// top.forEach(o => { delete keys[o.key]; delete store[o.src + ':' + o.id]; });\n// marks[SRC] = Math.max(...Object.values(store).filter(o => o.src === SRC).map(o => o.sortVal));\n// flow.set('offers', store); flow.set('seenKeys', keys); flow.set('marks', marks);\n// node.warn('forgot ' + top.map(o => o.id).join(', ') + ' | ' + SRC + ' mark now ' + marks[SRC]);\n// return null;\n// ---------------------------------------------------------------------------\n\nconst list    = msg.payload || [];\nconst src     = list.length ? list[0].src : null;\nconst seeding = src !== null && marks[src] === undefined;  // first sight of this source\nconst mark    = marks[src] || 0;\nlet highest = mark, bubbled = 0, dupes = 0, excluded = 0;\n\nlist.forEach(o => {\n    if (!o || !o.id) return;\n    const ref = o.src + ':' + o.id;\n\n    if (o.sortVal > highest) highest = o.sortVal;\n\n    if (store[ref]) { store[ref].lastSeen = now; return; }\n\n    store[ref] = {\n        src: o.src, id: o.id, key: o.key,\n        title: o.title, company: o.company,\n        seniority: o.seniority, remote: o.remote, url: o.url,\n        sortVal: o.sortVal, firstSeen: now, lastSeen: now\n    };\n    added.push(store[ref]);\n\n    if (o.sortVal <= mark)     { bubbled++;  return; }   // older than watermark\n    if (keys[o.key])           { dupes++;    return; }   // already seen via other source\n    if (RE.test(o.title || '')){ excluded++; return; }   // wrong stack\n\n    keys[o.key] = o.src;\n    fresh.push(store[ref]);\n});\n\nif (src) marks[src] = highest;\nflow.set('offers', store);\nflow.set('seenKeys', keys);\nflow.set('marks', marks);\nnode.status({ text: `${src}: ${seeding ? 'SEEDED' : fresh.length + ' new'}, ${bubbled} old, ${dupes} dup, ${excluded} excl | ${Object.keys(store).length} stored` });\n\n// output 2: everything newly stored goes to the database, seeding runs included\nconst db = added.length ? { payload: added } : null;\n\n// a source's first run only seeds - never queue its whole first page\nif (first || seeding) return [null, db];\n\n// queue everything new; flush_queue decides when it actually goes out\nconst queue = flow.get('queued') || [];\nfresh.forEach(o => queue.push(o));\nflow.set('queued', queue);\n\nif (flow.get('paused')) {\n    node.status({ text: `${src}: ${fresh.length} queued (muted), ${queue.length} waiting` });\n    return [null, db];\n}\n\nreturn [fresh.length ? { manual: false } : null, db];\n",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 770,
+        "y": 300,
+        "wires": [
+            [
+                "422b705aaa86a1c8"
+            ],
+            [
+                "7d1c3e9a5b2f4e01"
+            ]
+        ]
+    },
+    {
+        "id": "7d1c3e9a5b2f4e01",
+        "type": "function",
+        "z": "925b4b5e231836f3",
+        "name": "to_db",
+        "func": "// store_notifications (output 2) / backfill_db -> Supabase upsert request\n// Needs env vars SUPABASE_URL and SUPABASE_SECRET_KEY (tab env or the Node-RED process env).\nconst base = env.get('SUPABASE_URL');\nconst key  = env.get('SUPABASE_SECRET_KEY');\nif (!base || !key) {\n    node.status({ fill: 'red', shape: 'ring', text: 'SUPABASE_URL / SUPABASE_SECRET_KEY missing' });\n    return null;\n}\n\n// Every row must carry exactly the same keys (PostgREST rejects the whole batch otherwise),\n// so missing values become null instead of undefined - JSON.stringify drops undefined keys.\nconst clean = v => (v === undefined || v === null) ? null\n                 : (String(v).replace(/\\u0000/g, '').trim() || null);\n\nconst rows = [];\nlet skipped = 0;\nfor (const o of msg.payload || []) {\n    const src = clean(o && o.src), id = clean(o && o.id), url = clean(o && o.url);\n    if (!src || !id || !url) { skipped++; continue; }\n    const t = new Date(o.firstSeen).getTime();\n    rows.push({\n        src:        src,\n        id:         id,\n        title:      clean(o.title) || '(no title)',\n        company:    clean(o.company),\n        seniority:  clean(o.seniority),\n        remote:     o.remote === 'yes' || o.remote === true,\n        url:        url,\n        first_seen: new Date(t > 0 ? t : Date.now()).toISOString()\n    });\n}\nif (skipped) node.warn('to_db: skipped ' + skipped + ' offer(s) without src/id/url');\nif (!rows.length) return null;\n\nconst headers = {\n    apikey: key,\n    'Content-Type': 'application/json',\n    Prefer: 'resolution=ignore-duplicates,return=minimal'\n};\n// legacy service_role keys are JWTs and also go in Authorization; new sb_secret_ keys must not\nif (key.startsWith('eyJ')) headers.Authorization = 'Bearer ' + key;\n\n// accept both https://x.supabase.co and the dashboard's https://x.supabase.co/rest/v1/\nconst url = base.replace(/\\/+$/, '').replace(/\\/rest\\/v1$/, '') + '/rest/v1/offers?on_conflict=src,id';\n\nmsg.method  = 'POST';\nmsg.url     = url;\nmsg.headers = headers;\nmsg.payload = rows;\nmsg.dbRows  = rows.length;\nmsg.dbReq   = { url, headers, body: rows };   // kept so check_db can resend on a transient error\nmsg.dbTry   = 0;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 990,
+        "y": 300,
+        "wires": [
+            [
+                "7d1c3e9a5b2f4e02"
+            ]
+        ]
+    },
+    {
+        "id": "7d1c3e9a5b2f4e02",
+        "type": "http request",
+        "z": "925b4b5e231836f3",
+        "name": "write_db",
+        "method": "use",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1160,
+        "y": 300,
+        "wires": [
+            [
+                "7d1c3e9a5b2f4e03"
+            ]
+        ]
+    },
+    {
+        "id": "7d1c3e9a5b2f4e03",
+        "type": "function",
+        "z": "925b4b5e231836f3",
+        "name": "check_db",
+        "func": "// write_db -> surface failures, retry transient ones; Supabase answers 201 on success\n// output 1 is wired back into write_db for retries\nconst code = msg.statusCode;\nconst body = String(msg.payload || '');\n\nif (code >= 200 && code < 300) {\n    node.status({ fill: 'green', shape: 'dot', text: `saved ${msg.dbRows} @ ${new Date().toLocaleTimeString()}` });\n    return null;\n}\n\n// network errors (statusCode is e.g. \"ECONNRESET\"), 5xx, rate limits and Supabase's\n// \"JWT issued at future\" clock-skew 401 are worth another go; anything else is a real bug\nconst transient = typeof code !== 'number' || code >= 500 || code === 429 ||\n                  (code === 401 && body.includes('PGRST303'));\nconst tries = msg.dbTry || 0;\n\nif (transient && msg.dbReq && tries < 3) {\n    const r = msg.dbReq;\n    const wait = 5000 * (tries + 1);\n    node.status({ fill: 'yellow', shape: 'ring', text: `retry ${tries + 1}/3 in ${wait / 1000}s (${code})` });\n    setTimeout(() => node.send({\n        method: 'POST', url: r.url, headers: r.headers, payload: r.body,\n        dbReq: r, dbRows: msg.dbRows, dbTry: tries + 1\n    }), wait);\n    return null;\n}\n\nnode.status({ fill: 'red', shape: 'ring', text: 'db error ' + (code || '?') });\nnode.error('supabase: status ' + code + (tries ? ' after ' + tries + ' retries' : '') + ': ' + body.slice(0, 500), msg);\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1330,
+        "y": 300,
+        "wires": [
+            [
+                "7d1c3e9a5b2f4e02"
+            ]
+        ]
+    },
+    {
+        "id": "7d1c3e9a5b2f4e04",
+        "type": "inject",
+        "z": "925b4b5e231836f3",
+        "name": "backfill (click once)",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 800,
+        "y": 220,
+        "wires": [
+            [
+                "7d1c3e9a5b2f4e05"
+            ]
+        ]
+    },
+    {
+        "id": "7d1c3e9a5b2f4e05",
+        "type": "function",
+        "z": "925b4b5e231836f3",
+        "name": "backfill_db",
+        "func": "// one-off: push every offer already held in flow context to the database.\n// Safe to click again - rows already in the table are ignored.\nconst CHUNK = 500;\n\n// older entries may predate some fields; the store key is always \"src:id\", so fill from it\nconst all = Object.entries(flow.get('offers') || {}).map(([ref, o]) => {\n    const i = ref.indexOf(':');\n    return Object.assign({}, o, {\n        src: (o && o.src) || ref.slice(0, i),\n        id:  (o && o.id !== undefined && o.id !== null) ? o.id : ref.slice(i + 1)\n    });\n});\n\n// one request every 2 s instead of all at once\nconst chunks = Math.ceil(all.length / CHUNK);\nfor (let c = 0; c < chunks; c++) {\n    setTimeout(() => node.send({ payload: all.slice(c * CHUNK, (c + 1) * CHUNK) }), c * 2000);\n}\nnode.status({ text: `sending ${all.length} in ${chunks} chunk(s)` });\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 990,
+        "y": 220,
+        "wires": [
+            [
+                "7d1c3e9a5b2f4e01"
+            ]
+        ]
+    }
+]
