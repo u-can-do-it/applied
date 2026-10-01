@@ -1,4 +1,5 @@
 import 'server-only';
+import { SOURCES } from './sources';
 
 export type Offer = {
   src: string;
@@ -12,16 +13,6 @@ export type Offer = {
 };
 
 export const PAGE_SIZE = 50;
-
-// keys must match the `src` values the Node-RED parsers emit
-export const SOURCES: Record<string, string> = {
-  justjoin: 'JustJoin',
-  nofluff: 'NoFluff',
-  solidjobs: 'Solid.jobs',
-  bulldog: 'Bulldog',
-  eldorado: 'Eldorado',
-  builtin: 'Built In',
-};
 
 const COLUMNS = 'src,id,title,company,seniority,remote,url,first_seen';
 
