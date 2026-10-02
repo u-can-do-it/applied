@@ -1,13 +1,14 @@
 'use client';
 
-import { startTransition, useOptimistic, useState, useTransition, type FormEvent } from 'react';
-import { formatDateTime, formatTime } from '@/lib/dates';
+import { startTransition, useMemo, useOptimistic, useState, useSyncExternalStore, useTransition, type FormEvent } from 'react';
+import { deviceTimeZone, timeZones } from '@/lib/dates';
 import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/scraping/kinds';
 import type { CronStatus, RunRow, ScrapeState } from '@/lib/scraping/store';
 import type { BotInfo } from '@/lib/telegram';
+import { useZone } from '../time-zone';
 import {
   cronConnectAction, cronDisconnectAction, saveFiltersAction, saveScheduleAction, sendQueueAction, setAiFilterAction,
-  setMutedAction, setNotifyAction, setScrapingPausedAction, telegramConnectAction, telegramDisconnectAction,
+  setMutedAction, setNotifyAction, setScrapingPausedAction, setTimeZoneAction, telegramConnectAction, telegramDisconnectAction,
   telegramTestAction, type ActionState,
 } from './actions';
 
@@ -80,17 +81,17 @@ export function Feedback({ state }: { state: ActionState | null | undefined }) {
 }
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
+const zoneName = (tz: string) => tz.replaceAll('_', ' '); // "America/New York"
 
 // ---- schedule + what calls the endpoint --------------------------------------------------
 
-export function SchedulePanel({ settings, state, running, runs, cron, endpoint, secret }: {
+export function SchedulePanel({ settings, state, running, runs, cron, endpoint }: {
   settings: ScrapeSettings;
   state: ScrapeState;
   running: boolean;
   runs: RunRow[];
   cron: CronStatus & { error?: string };
   endpoint: string;
-  secret: string | null;
 }) {
   const { form, setForm, dirty } = useServerForm({
     everyMinutes: settings.everyMinutes,
@@ -109,7 +110,7 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
   const act = useAction();
   const pause = useAction();
   const [paused, showPaused] = useOptimistic(!settings.enabled);
-  const [showSecret, setShowSecret] = useState(false);
+  const z = useZone();
 
   return (
     <section className="panel" aria-labelledby="schedule-h">
@@ -123,7 +124,7 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
           ) : (
             <>
               <strong className="ok-text">● Running</strong>: every {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
-              {settings.fromHour}:00–{settings.toHour}:00 Warsaw time.
+              {settings.fromHour}:00–{settings.toHour}:00 ({zoneName(z.tz)}).
             </>
           )}
         </p>
@@ -156,13 +157,14 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
           <input className="hour" type="number" min={0} max={24} value={form.fromHour} onChange={(e) => edit({ fromHour: e.target.value })} />
           to
           <input className="hour" type="number" min={0} max={24} value={form.toHour} onChange={(e) => edit({ toHour: e.target.value })} />
-          <span className="muted">o’clock, Warsaw time</span>
+          <span className="muted">o’clock</span>
         </label>
         <button type="submit" disabled={saving || !dirty} aria-busy={saving || undefined}>
           {saving ? 'Saving…' : 'Save'}
         </button>
         <Feedback state={result} />
       </form>
+      <TimeZoneField value={settings.timeZone} />
 
       <h3>Last runs</h3>
       {running && <p className="muted small">● A run is going right now.</p>}
@@ -170,7 +172,7 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
         <ol className="runs">
           {runs.map((r) => (
             <li key={r.id}>
-              <span className="run-time">{formatDateTime(r.started_at)}</span>
+              <span className="run-time">{z.formatDateTime(r.started_at)}</span>
               <span className="muted">{r.trigger}</span>
               {r.finished_at ? (
                 <span>
@@ -193,31 +195,51 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
       ) : (
         <p className="muted small">No runs yet. Use “↻ Scrape now” at the top.</p>
       )}
-      {state.last_call_at && <p className="muted small">Last call from a scheduler: {formatDateTime(state.last_call_at)}</p>}
+      {state.last_call_at && <p className="muted small">Last call from a scheduler: {z.formatDateTime(state.last_call_at)}</p>}
 
       <h3>What calls it</h3>
       <CronBox cron={cron} endpoint={endpoint} act={act} />
-      <details className="endpoint">
-        <summary>Another caller (Node-RED, cron-job.org, Vercel Cron on Pro)</summary>
-        <p>
-          Every 5 minutes: <code>GET {endpoint}</code> with the header{' '}
-          <code>Authorization: Bearer {secret ? (showSecret ? secret : '••••••••') : '(set APP_PASSWORD first)'}</code>
-          {secret && (
-            <button type="button" className="link" onClick={() => setShowSecret((v) => !v)}>
-              {showSecret ? 'hide' : 'show'}
-            </button>
-          )}
-        </p>
-        <p className="muted small">
-          It scrapes only when due (the interval and hours above) and answers right away. <code className="inline">?force=1</code> runs anyway,{' '}
-          <code className="inline">?wait=1</code> waits and answers with the result.
-        </p>
-      </details>
     </section>
   );
 }
 
+const noSubscribe = () => () => {};
+
+/** The app's time zone: this browser's (the default: it follows the browser you open the app in), or a fixed one. */
+function TimeZoneField({ value }: { value: string }) {
+  const save = useAction();
+  const [shown, show] = useOptimistic(value);
+  // only the browser knows its zone: none in the server's HTML, then this one's
+  const device = useSyncExternalStore(noSubscribe, deviceTimeZone, () => null);
+  const zones = useMemo(timeZones, []);
+  return (
+    <div className="tz-row">
+      <label className="inline">
+        Time zone
+        <select
+          value={shown}
+          aria-busy={save.busy || undefined}
+          onChange={(e) => {
+            const next = e.target.value;
+            save.run(() => setTimeZoneAction(next, device ?? ''), () => show(next));
+          }}
+        >
+          <option value="">This browser’s{device ? ` (${zoneName(device)})` : ''}</option>
+          {zones.map((tz) => (
+            <option key={tz} value={tz}>
+              {zoneName(tz)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Feedback state={save.state} />
+      <p className="muted small">For the hours above, and every day and time the app shows (lists, date filters, Telegram).</p>
+    </div>
+  );
+}
+
 function CronBox({ cron, endpoint, act }: { cron: CronStatus & { error?: string }; endpoint: string; act: ReturnType<typeof useAction> }) {
+  const { formatTime } = useZone();
   const connect = (label: string) => (
     <button type="button" onClick={() => act.run(cronConnectAction)} disabled={act.busy} aria-busy={act.busy || undefined}>
       {act.busy ? 'Working…' : label}
@@ -375,8 +397,9 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUr
         <h2 id="tg-h">Telegram</h2>
         <p className="small">
           Set <code className="inline">TELEGRAM_BOT_TOKEN</code> and <code className="inline">TELEGRAM_CHAT_ID</code> in Vercel → Settings → Environment
-          Variables and redeploy. The token: @BotFather → /mybots → your bot → API Token. The chat id: the <code className="inline">chatId</code> in
-          Node-RED’s flush_queue node.
+          Variables and redeploy. The token: @BotFather → /mybots → your bot → API Token. The chat id: write to the bot, open{' '}
+          <code className="inline">api.telegram.org/bot&lt;token&gt;/getUpdates</code> and copy <code className="inline">message.chat.id</code> (a
+          group’s starts with -).
         </p>
       </section>
     );
@@ -463,7 +486,7 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUr
           </button>
         )}
       </div>
-      {!hooked && <p className="muted small">Stop Node-RED’s Telegram receiver first: a bot gets commands either by webhook or by polling, not both.</p>}
+      {!hooked && <p className="muted small">A bot gets commands either by webhook or by polling, not both: nothing else may be reading this bot’s updates.</p>}
       <Feedback state={act.state} />
     </section>
   );

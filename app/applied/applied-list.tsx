@@ -3,16 +3,21 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, useTransition, type Ref } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
-import { formatDay, todayInWarsaw } from '@/lib/dates';
+import { formatDay } from '@/lib/dates';
 import {
   GHOST_AFTER_DAYS, isActive, isRejected, reached, STAGES, STATES, stageOf, stateHeading, stateLabel, statesFor, stats,
   type HistoryEntry, type StageId, type StateId,
 } from '@/lib/stages';
 import { refetchContentAction, removeStatusStepAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
 import { SearchIcon } from '../search-box';
+import { TimeZone, useZone } from '../time-zone';
 import { AddApplication, ApplicationForm } from './add-application';
 
-const day = (iso: string | null | undefined) => (iso ? formatDay(todayInWarsaw(Date.parse(iso))) : '');
+/** "02.10.2026" of an instant, in the app's time zone */
+const useDay = () => {
+  const z = useZone();
+  return (iso: string | null | undefined) => (iso ? z.formatDayOf(iso) : '');
+};
 const facts = (d: Application['details']) =>
   [d?.salary?.split('; ')[0], d?.contract, d?.remote ? 'Remote' : null, d?.location].filter(Boolean).join(' · ');
 const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : '–');
@@ -26,8 +31,18 @@ const CONTENT: Record<Application['content_status'], string> = {
 
 type Filter = { label: string; test: (a: Application) => boolean } | null;
 
-export function AppliedList({ apps: fromServer, labels }: { apps: Application[]; labels: Record<string, string> }) {
+/** tz: the app's time zone, for every day shown here and in the windows */
+export function AppliedList({ tz, ...props }: { apps: Application[]; labels: Record<string, string>; tz: string }) {
+  return (
+    <TimeZone tz={tz}>
+      <List {...props} />
+    </TimeZone>
+  );
+}
+
+function List({ apps: fromServer, labels }: { apps: Application[]; labels: Record<string, string> }) {
   const router = useRouter();
+  const day = useDay();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>(null);
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
@@ -264,6 +279,7 @@ function AdModal({ initial, labels, onClose }: {
   onClose: (note: string | null | undefined, key: string) => void;
 }) {
   const [key, setKey] = useState(initial.dup_key); // an edit can make it another job's (see updateApplication)
+  const day = useDay();
   const [editing, setEditing] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const note = useRef<NoteHandle>(null);
@@ -595,6 +611,7 @@ const NOTE_STATUS: Record<NoteStatus, string> = {
 };
 
 function NoteEditor({ appKey, initial, editedAt, ref }: { appKey: string; initial: string; editedAt: string | null; ref: Ref<NoteHandle> }) {
+  const day = useDay();
   // an unsaved draft of this note comes back, unless the note was changed somewhere else since
   const [restored] = useState(() => {
     const d = readDraft(appKey);

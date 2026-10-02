@@ -1,10 +1,10 @@
--- Scraping inside the app (replaces the Node-RED flow): the scrapers and their settings, a log
+-- Scraping inside the app: the scrapers and their settings, a log
 -- of runs, the Telegram queue, and the call from Supabase Cron to /api/cron/scrape.
 -- Needs supabase/ai-filter.sql first (offers.dup_key). Safe to re-run: only adds what's missing.
 
 -- ---- 1. Supabase Cron + pg_net: what calls the endpoint every few minutes ---------------------
 -- Both exist on every Supabase plan. Elsewhere (a local Postgres) they may not: then the app
--- still works, it just needs another caller (Node-RED, cron-job.org…) or the "Scrape now" button.
+-- still works, it just scrapes only on the "Scrape now" button.
 do $$
 begin
   -- only the first time: granting again fails on Supabase ("dependent privileges exist")
@@ -26,7 +26,7 @@ exception when others then
 end $$;
 
 -- ---- 2. scrapers: one row per search -----------------------------------------------------------
--- kind = the parser: the six boards Node-RED knew, or a generic one (JSON / HTML / RSS) set up
+-- kind = the parser: one of the built-in boards, or a generic one (JSON / HTML / RSS) set up
 -- in the app. src = the board as stored in offers.src; searches on the same board share it, so
 -- an offer found by two of them is still one row.
 create table if not exists public.scrapers (
@@ -39,7 +39,7 @@ create table if not exists public.scrapers (
   config      jsonb not null default '{}'::jsonb, -- url, headers, filters, field paths…
   -- newest "sort value" seen (publish time or the board's id counter). Offers older than this
   -- that show up later (bumped, renewed) are saved but not announced. null = never ran: the
-  -- first run only saves, like Node-RED's seeding, so a new scraper doesn't flood Telegram.
+  -- first run only saves, so a new scraper doesn't flood Telegram.
   mark        double precision,
   last_run_at timestamptz,
   last_status text,
@@ -59,7 +59,7 @@ alter table public.scrapers add constraint scrapers_kind_check
 alter table public.scrapers drop constraint if exists scrapers_status_check;
 alter table public.scrapers add constraint scrapers_status_check check (last_status in ('ok', 'error'));
 
--- ---- 3. settings (what Node-RED had in its function nodes) and machine state ----------------
+-- ---- 3. settings (keywords, cities, hours…) and machine state --------------------------------
 create table if not exists public.scrape_settings (
   id         boolean primary key default true check (id), -- a single row
   settings   jsonb not null default '{}'::jsonb,
@@ -75,12 +75,12 @@ create table if not exists public.scrape_state (
 );
 insert into public.scrape_state (id) values (true) on conflict (id) do nothing;
 
--- first install: the defaults and the six boards with Node-RED's URLs and filters
+-- first install: the defaults and the six boards with their searches and filters
 with created as (
   insert into public.scrape_settings (id, settings) values (true, jsonb_build_object(
     'enabled', true,          -- scheduled runs (the "Scrape now" button works either way)
     'everyMinutes', 5,
-    'fromHour', 7, 'toHour', 22, -- Warsaw time, like Node-RED's "0 */5 7-21 * * *"
+    'fromHour', 7, 'toHour', 22, -- in the app's time zone (Settings)
     'keywords', jsonb_build_array('React'),
     'cities', jsonb_build_array('warszaw', 'warsaw'),
     'remoteOk', true,
@@ -98,7 +98,7 @@ from (values
   (2, 'NoFluff', 'nofluff', 'nofluff',
    '{"url": "https://nofluffjobs.com/pl/praca-it/{keyword_slug}?sort=newest", "checkKeyword": true, "checkLocation": true}'),
   (3, 'Solid.jobs', 'solidjobs', 'solidjobs',
-   '{"url": "https://solid.jobs/public-api/offers/IT?campaign=nodered-jobwatch&search.searchTerm={keyword}&sortActive=validFrom&sortDirection=desc&pageSize=100", "headers": {"X-Api-Version": "1.0", "campaign": "44"}, "checkKeyword": true, "checkLocation": true}'),
+   '{"url": "https://solid.jobs/public-api/offers/IT?campaign=jobwatch&search.searchTerm={keyword}&sortActive=validFrom&sortDirection=desc&pageSize=100", "headers": {"X-Api-Version": "1.0", "campaign": "44"}, "checkKeyword": true, "checkLocation": true}'),
   (4, 'Bulldog', 'bulldog', 'bulldog',
    '{"url": "https://bulldogjob.pl/companies/jobs/s/skills,{keyword}/order,published,desc", "checkKeyword": false, "checkLocation": true}'),
   (5, 'Eldorado', 'eldorado', 'eldorado',
@@ -131,6 +131,16 @@ update public.scrapers set config = config || '{"url": "https://www.linkedin.com
 update public.scrapers set config = config || '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Poland&f_WT=2&f_TPR=r3600&start={start}", "pages": 2}'::jsonb
  where kind = 'linkedin' and config->>'url' = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Poland&f_WT=2&f_TPR=r86400&sortBy=DD&start=0';
 
+-- Solid.jobs' campaign tag (they put it in their offer links too) was "nodered-jobwatch": now
+-- "jobwatch", in the search and in the links already saved. Both open the same offer.
+update public.scrapers
+   set config = jsonb_set(config, '{url}', to_jsonb(replace(config->>'url', 'campaign=nodered-jobwatch', 'campaign=jobwatch')))
+ where config->>'url' like '%campaign=nodered-jobwatch%';
+update public.offers set url = replace(url, '/nodered-jobwatch', '/jobwatch')
+ where src = 'solidjobs' and url like 'https://solid.jobs/o/%/nodered-jobwatch';
+update public.applications set url = replace(url, '/nodered-jobwatch', '/jobwatch')
+ where url like 'https://solid.jobs/o/%/nodered-jobwatch';
+
 -- ---- 4. runs and the Telegram queue ---------------------------------------------------------
 create table if not exists public.scrape_runs (
   id          bigint generated always as identity primary key,
@@ -146,7 +156,7 @@ create table if not exists public.scrape_runs (
 );
 create index if not exists scrape_runs_started_idx on public.scrape_runs (started_at desc);
 
--- new jobs wait here until they're sent; while muted, they pile up (like Node-RED's queue)
+-- new jobs wait here until they're sent; while muted, they pile up
 create table if not exists public.notify_queue (
   src       text not null,
   id        text not null,
@@ -208,7 +218,7 @@ language sql stable set search_path = '' as $$
 $$;
 
 -- Supabase Cron: calls the app every 5 minutes; the app decides whether a run is due (its own
--- interval and hours, in Warsaw time). Called from Settings with the app's URL and secret.
+-- interval and hours, in the app's time zone). Called from Settings with the app's URL and secret.
 create or replace function public.jw_cron_connect(p_url text, p_secret text) returns text
 language plpgsql security definer set search_path = '' as $$
 begin

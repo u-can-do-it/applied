@@ -1,6 +1,6 @@
 import type { ScrapeSettings } from './kinds';
 
-// The filters Node-RED had in its parse_* and store_notifications nodes, driven by the settings.
+// The offer filters (keywords, titles to skip or keep quiet, cities), driven by the settings.
 
 /** One offer as a parser reads it from a board. */
 export type Found = {
@@ -34,7 +34,7 @@ export function keywordTest(keywords: string[]) {
 }
 
 /**
- * A whole word in a title, Node-RED's exclusion rule: "java" matches "Java Developer" but not
+ * A whole word in a title, for the titles to skip or keep quiet: "java" matches "Java Developer" but not
  * "JavaScript", "go" matches "Go / Golang" but not "Google", ".net" also matches "ASP.NET".
  */
 export function titleTest(terms: string[]) {

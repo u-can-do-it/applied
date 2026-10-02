@@ -1,7 +1,7 @@
 -- One-off cleanup of the offers table. Supabase -> SQL Editor -> paste -> Run.
--- Generated 2026-10-02T14:51Z from Node-RED's 1398 stored offers.
+-- Generated 2026-10-02T14:51Z from the 1398 stored offers.
 --
--- 1. Old Eldorado offers saved by an early flow version with a broken source (digits
+-- 1. Old Eldorado offers saved by an early scraper version with a broken source (digits
 --    instead of "eldorado"): drop the copy if the proper eldorado row exists, else fix src.
 -- 2. Duplicates (523): same company + title on another board, or re-posted on the
 --    same one. Keeps the earliest-seen copy of each job (875 jobs).

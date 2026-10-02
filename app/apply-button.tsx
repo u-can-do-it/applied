@@ -1,13 +1,17 @@
 'use client';
 
 import { startTransition, useOptimistic, useState, useTransition } from 'react';
-import { formatDay, todayInWarsaw } from '@/lib/dates';
+import { zone } from '@/lib/dates';
 import { applyAction, unapplyAction } from './actions';
 
-const warsawDay = (iso: string) => todayInWarsaw(Date.parse(iso)); // YYYY-MM-DD in Warsaw
-
 /** "Mark applied" / "✓ Applied 02.10.2026" - flips on the click frame, the server catches up. */
-export function ApplyButton({ jobKey, src, id, appliedAt }: { jobKey: string; src: string; id: string; appliedAt: string | null }) {
+export function ApplyButton({ jobKey, src, id, appliedAt, tz }: {
+  jobKey: string;
+  src: string;
+  id: string;
+  appliedAt: string | null;
+  tz: string; // the app's time zone, for the day
+}) {
   const [applied, setApplied] = useOptimistic(appliedAt);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +36,7 @@ export function ApplyButton({ jobKey, src, id, appliedAt }: { jobKey: string; sr
         aria-busy={pending || undefined}
         title={applied ? 'Click to unmark' : 'Saves that you applied, with the complete ad text'}
       >
-        {applied ? `✓ Applied ${formatDay(warsawDay(applied))}` : 'Mark applied'}
+        {applied ? `✓ Applied ${zone(tz).formatDayOf(applied)}` : 'Mark applied'}
       </button>
       {error && <span className="form-error small">{error}</span>}
     </>

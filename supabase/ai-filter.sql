@@ -9,7 +9,7 @@ create extension if not exists pg_trgm with schema extensions;   -- title simila
 grant usage on schema extensions to service_role;
 
 -- ---- 1. one key per job, whichever board it came from --------------------------------------
--- Same rules as Node-RED's store_notifications: company without legal suffix / country,
+-- The job's key: company without legal suffix / country,
 -- title without gender tags and ".js"; accents and punctuation ignored.
 create or replace function public.jw_unaccent(t text) returns text
 language sql immutable parallel safe set search_path = '' as $$

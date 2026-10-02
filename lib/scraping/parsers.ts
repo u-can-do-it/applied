@@ -2,8 +2,8 @@ import { parse as parseHtml, type HTMLElement } from 'node-html-parser';
 import type { FieldId, KindId, ScraperConfig } from './kinds';
 import type { Found } from './match';
 
-// Page / API body -> offers. The six boards are Node-RED's parse_* nodes (same ids and links,
-// so the database keeps matching); json / html / rss are driven by the scraper's settings.
+// Page / API body -> offers. The built-in boards have their own parser (their ids and links never
+// change, so the database keeps matching); json / html / rss are driven by the scraper's settings.
 // Filtering (keywords, cities) is not done here, see match.ts.
 
 export type Parsed = {

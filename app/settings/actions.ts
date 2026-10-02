@@ -2,6 +2,7 @@
 
 import { refresh } from 'next/cache';
 import { headers } from 'next/headers';
+import { isTimeZone } from '@/lib/dates';
 import {
   FIELDS, INTERVALS, JSON_SOURCES, KINDS, SRC_RE, isGeneric, isKind, normalizeList,
   type FieldId, type KindId, type ScraperConfig,
@@ -35,6 +36,16 @@ export async function scrapeNowAction(): Promise<RunSummary> {
 // ---- settings -----------------------------------------------------------------------------
 
 export type ScheduleInput = { everyMinutes: number; fromHour: number; toHour: number };
+
+/** The app's time zone: '' = the browser's (`browser`: the one it's in now), or a fixed one. */
+export async function setTimeZoneAction(tz: string, browser: string): Promise<ActionState> {
+  await requireLogin();
+  if (tz !== '' && !isTimeZone(tz)) return { error: 'Unknown time zone.' };
+  const s = await store.getSettings();
+  await store.saveSettings({ ...s, timeZone: tz, browserTimeZone: isTimeZone(browser) ? browser : s.browserTimeZone });
+  refresh();
+  return { ok: true, message: 'Saved.' };
+}
 
 /** Pause / resume the scheduled runs ("Scrape now" works either way). */
 export async function setScrapingPausedAction(paused: boolean): Promise<ActionState> {

@@ -1,10 +1,11 @@
-// Calendar days are Warsaw days: "1 Oct" means 1 Oct 00:00 to 2 Oct 00:00 Europe/Warsaw,
-// whatever the server's (UTC on Vercel) or the browser's timezone is.
-export const TZ = 'Europe/Warsaw';
+// Calendar days and clock times are in the app's time zone (Settings → Scraping; by default the
+// browser's), whatever the server's (UTC on Vercel) or the device's own is: "1 Oct" means 1 Oct
+// 00:00 to 2 Oct 00:00 there. zone(tz) has the helpers that depend on it; the rest here doesn't.
+
+/** Until the app knows the browser's: the zone it always had. */
+export const DEFAULT_TZ = 'Europe/Warsaw';
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }); // -> YYYY-MM-DD
-const offsetFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'longOffset' });
 
 const parts = (day: string) => day.split('-').map(Number) as [number, number, number];
 
@@ -21,42 +22,7 @@ export function addDays(day: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-export const todayInWarsaw = (now = Date.now()) => dayFmt.format(now);
-
-// Warsaw's UTC offset at a given instant, in ms (+1h in winter, +2h in summer)
-function offsetMs(utcMs: number): number {
-  const name = offsetFmt.formatToParts(utcMs).find((p) => p.type === 'timeZoneName')?.value ?? '';
-  const m = name.match(/GMT([+-])(\d{2}):(\d{2})/);
-  return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60_000 : 0;
-}
-
-/** The UTC instant of 00:00 Warsaw time on that day. DST switches at 02:00/03:00, so midnight's offset is the day's. */
-export function startOfDay(day: string): Date {
-  const [y, m, d] = parts(day);
-  const utcMidnight = Date.UTC(y, m - 1, d);
-  return new Date(utcMidnight - offsetMs(utcMidnight));
-}
-
 export type DateFilter = { days?: string; from?: string; to?: string };
-
-/** URL filter -> half-open UTC range [gte, lt) on first_seen. Bad input is ignored, a reversed range is swapped. */
-export function resolveRange({ days, from, to }: DateFilter, now = Date.now()): { gte?: string; lt?: string } {
-  if (days === 'yesterday') {
-    const today = todayInWarsaw(now);
-    return { gte: startOfDay(addDays(today, -1)).toISOString(), lt: startOfDay(today).toISOString() };
-  }
-  const n = Number(days);
-  if (Number.isInteger(n) && n >= 1 && n <= 366) {
-    return { gte: startOfDay(addDays(todayInWarsaw(now), -(n - 1))).toISOString() };
-  }
-  let f = validDay(from);
-  let t = validDay(to);
-  if (f && t && f > t) [f, t] = [t, f];
-  return {
-    gte: f ? startOfDay(f).toISOString() : undefined,
-    lt: t ? startOfDay(addDays(t, 1)).toISOString() : undefined,
-  };
-}
 
 /** "2026-10-02" -> "02.10.2026" ('' if not a real date) */
 export function formatDay(day: string | undefined | null): string {
@@ -88,8 +54,120 @@ export function describeRange({ days, from, to }: DateFilter): string {
   return '';
 }
 
-const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-/** "14:35", Warsaw time */
-export const formatTime = (at: string | number | Date) => timeFmt.format(new Date(at));
-/** "02.10.2026 14:35", Warsaw time */
-export const formatDateTime = (at: string | number | Date) => `${formatDay(todayInWarsaw(new Date(at).getTime()))} ${formatTime(at)}`;
+// ---- time zones ----------------------------------------------------------------------
+
+/** A zone name this runtime knows ("Europe/Warsaw", "UTC"). */
+export function isTimeZone(tz: unknown): tz is string {
+  if (typeof tz !== 'string' || !tz || tz.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Every zone, for a picker: UTC, then by name. */
+export function timeZones(): string[] {
+  const all = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [DEFAULT_TZ];
+  return ['UTC', ...all.filter((z) => z !== 'UTC')];
+}
+
+/** This device's zone (in the browser: the browser's). */
+export function deviceTimeZone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return isTimeZone(tz) ? tz : DEFAULT_TZ;
+  } catch {
+    return DEFAULT_TZ;
+  }
+}
+
+type Instant = string | number | Date;
+
+export type Zone = {
+  tz: string;
+  /** YYYY-MM-DD of an instant (now if none) */
+  day: (at?: Instant) => string;
+  /** "02.10.2026" */
+  formatDayOf: (at: Instant) => string;
+  /** "14:35" */
+  formatTime: (at: Instant) => string;
+  /** "02.10.2026 14:35" */
+  formatDateTime: (at: Instant) => string;
+  /** "Thu" */
+  weekday: (at: Instant) => string;
+  /** 0–23 */
+  hour: (at: Instant) => number;
+  /** The instant of 00:00 there on that day */
+  startOfDay: (day: string) => Date;
+  /** URL filter -> half-open UTC range [gte, lt) on first_seen. Bad input is ignored, a reversed range is swapped. */
+  resolveRange: (filter: DateFilter, now?: number) => { gte?: string; lt?: string };
+};
+
+function makeZone(tz: string): Zone {
+  const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz }); // -> YYYY-MM-DD
+  const offsetFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' });
+  const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' });
+  const weekdayFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'short' });
+
+  // the zone's UTC offset at an instant, in ms ("GMT+02:00"; plain "GMT" is UTC)
+  const offsetMs = (utcMs: number) => {
+    const name = offsetFmt.formatToParts(utcMs).find((p) => p.type === 'timeZoneName')?.value ?? '';
+    const m = name.match(/GMT([+-])(\d{2}):(\d{2})/);
+    return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60_000 : 0;
+  };
+  const day = (at: Instant = Date.now()) => dayFmt.format(new Date(at));
+  const startOfDay = (d: string) => {
+    const [y, m, dd] = parts(d);
+    const utcMidnight = Date.UTC(y, m - 1, dd);
+    // midnight there at the offset around it; where clocks change at midnight one of the two
+    // guesses lands on the day before, and where 00:00 is skipped the day starts at the jump
+    const a = utcMidnight - offsetMs(utcMidnight);
+    const b = utcMidnight - offsetMs(a);
+    const onDay = [a, b].filter((t) => day(t) === d);
+    return new Date(onDay.length ? Math.min(...onDay) : a);
+  };
+  const formatTime = (at: Instant) => timeFmt.format(new Date(at));
+  const formatDayOf = (at: Instant) => formatDay(day(at));
+
+  return {
+    tz,
+    day,
+    formatDayOf,
+    formatTime,
+    formatDateTime: (at) => `${formatDayOf(at)} ${formatTime(at)}`,
+    weekday: (at) => weekdayFmt.format(new Date(at)),
+    hour: (at) => Number(hourFmt.format(new Date(at))) % 24,
+    startOfDay,
+    resolveRange: ({ days, from, to }, now = Date.now()) => {
+      if (days === 'yesterday') {
+        const today = day(now);
+        return { gte: startOfDay(addDays(today, -1)).toISOString(), lt: startOfDay(today).toISOString() };
+      }
+      const n = Number(days);
+      if (Number.isInteger(n) && n >= 1 && n <= 366) return { gte: startOfDay(addDays(day(now), -(n - 1))).toISOString() };
+      let f = validDay(from);
+      let t = validDay(to);
+      if (f && t && f > t) [f, t] = [t, f];
+      return {
+        gte: f ? startOfDay(f).toISOString() : undefined,
+        lt: t ? startOfDay(addDays(t, 1)).toISOString() : undefined,
+      };
+    },
+  };
+}
+
+const zones = new Map<string, Zone>();
+
+/** The helpers for one zone (an unknown name gets DEFAULT_TZ's). */
+export function zone(tz: string): Zone {
+  let z = zones.get(tz);
+  if (!z) {
+    if (!isTimeZone(tz)) return tz === DEFAULT_TZ ? makeZone('UTC') : zone(DEFAULT_TZ);
+    z = makeZone(tz);
+    zones.set(tz, z);
+  }
+  return z;
+}

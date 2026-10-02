@@ -3,10 +3,11 @@
 import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
 import type { ApplicationWithContent } from '@/lib/applications';
 import { BOARD_SUGGESTIONS, boardOf, isLink } from '@/lib/boards';
-import { todayInWarsaw } from '@/lib/dates';
+import type { Zone } from '@/lib/dates';
 import { STAGES, statesFor, type StageId, type StateId } from '@/lib/stages';
 import { addApplicationAction, fillFromLinkAction, updateApplicationAction, type ApplicationInput } from '../actions';
 import { DateInput } from '../controls';
+import { useZone } from '../time-zone';
 
 // "+ Add application": an application you sent somewhere the scrapers don't see (or before they
 // did). Paste the link and "Fill in" reads the page (with the AI, if there's a key); everything
@@ -17,14 +18,14 @@ import { DateInput } from '../controls';
 type Draft = Omit<ApplicationInput, 'stage' | 'state'> & { stage: StageId; state: StateId };
 type Field = keyof Draft;
 
-const empty = (): Draft => ({
-  url: '', title: '', company: '', board: 'unknown', day: todayInWarsaw(), stage: 'submitted', state: 'pending',
+const empty = (z: Zone): Draft => ({
+  url: '', title: '', company: '', board: 'unknown', day: z.day(), stage: 'submitted', state: 'pending',
   salary: '', contract: '', location: '', remote: false, content: '', note: '',
 });
 
 /** An applied offer as the form shows it. */
-const draftOf = (a: ApplicationWithContent): Draft => ({
-  url: a.url ?? '', title: a.title, company: a.company ?? '', board: a.src, day: todayInWarsaw(Date.parse(a.applied_at)),
+const draftOf = (a: ApplicationWithContent, z: Zone): Draft => ({
+  url: a.url ?? '', title: a.title, company: a.company ?? '', board: a.src, day: z.day(a.applied_at),
   stage: a.stage, state: a.stage_state,
   salary: a.details?.salary ?? '', contract: a.details?.contract ?? '', location: a.details?.location ?? '', remote: Boolean(a.details?.remote),
   content: a.content ?? '', note: '',
@@ -69,7 +70,8 @@ type FormProps =
 /** The form without a window around it: a new application, or `app` to edit. */
 export function ApplicationForm(props: FormProps) {
   const editing = props.app !== undefined;
-  const [d, setD] = useState<Draft>(() => (props.app ? draftOf(props.app) : empty()));
+  const z = useZone();
+  const [d, setD] = useState<Draft>(() => (props.app ? draftOf(props.app, z) : empty(z)));
   const touched = useRef(new Set<Field>()); // what you typed: "Fill in" doesn't overwrite it
   const [filling, startFill] = useTransition();
   const [saving, startSave] = useTransition();
@@ -206,7 +208,7 @@ export function ApplicationForm(props: FormProps) {
               ))}
             </datalist>
           </label>
-          <DateInput label="Applied on" value={d.day} max={todayInWarsaw()} onCommit={(day) => edit({ day })} />
+          <DateInput label="Applied on" value={d.day} max={z.day()} onCommit={(day) => edit({ day })} />
         </div>
         {!editing && (
           <div className="field-row">

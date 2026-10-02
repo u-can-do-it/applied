@@ -13,7 +13,6 @@ import {
 
 // One run = every enabled scraper: fetch, parse, filter, save new offers, queue the new jobs
 // for Telegram, check them against the active AI profile and send the matches (unless muted).
-// What Node-RED's flow did on every tick, plus the AI filter.
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const TIMEOUT_MS = 20_000;
@@ -80,7 +79,7 @@ export type ScrapeResult = {
   kept: Found[];
   /** why the others were dropped */
   skipped: { keyword: number; area: number; ignored: number };
-  /** newest sort value over everything on the pages, kept or not (Node-RED's watermark) */
+  /** newest sort value over everything on the pages, kept or not (the scraper's watermark) */
   maxSort?: number;
   pages: PageResult[];
   sample?: string;
@@ -216,7 +215,7 @@ export async function runAll(
     });
     const added = await ingest([...owner.values()].map(({ o }) => row(o)));
 
-    // what's worth a message: Node-RED's store_notifications
+    // what's worth a message
     const muted = titleTest(settings.mute);
     const addedBy = new Map<string, number>();
     const jobs = new Set<string>();

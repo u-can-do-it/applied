@@ -1,7 +1,7 @@
 # Jobwatch
 
 Job offers from several boards, newest first, with search, filters, an AI filter and application tracking.
-The app scrapes the boards itself (it used to be a Node-RED flow) and sends new offers to Telegram.
+The app scrapes the boards itself and sends new offers to Telegram.
 
 ```
 Supabase Cron ──every 5 min──→ /api/cron/scrape (Vercel) ─→ scrapers → filters → Supabase (offers)
@@ -22,14 +22,16 @@ RLS is on with no policies, so the public/anon key can't read anything. Only the
 
 ## 2. Scraping (Settings tab)
 
-Everything Node-RED had in its nodes is in **Settings** now:
+All of it is set up in **Settings**:
 
 - **Scraping:** ⏸ Pause / ▶ Resume at the top (paused, nothing runs on its own; "Scrape now" still does), every
-  5–120 min, between which hours (Warsaw time). The last runs with what they found,
-  and the errors per board.
+  5–120 min, between which hours. The last runs with what they found, and the errors per board.
+- **Time zone** (under the hours): the app's, for those hours and every day and time it shows (lists, date filters,
+  "applied on", Telegram). By default *this browser's*: it follows the browser you open the app in (the cron and
+  Telegram use the one last seen; Europe/Warsaw until then). Or pick a fixed one.
 - **Filters:** keywords (searched on every board through `{keyword}` in the links, and required in the offer's
   title or skills), cities ("warszaw" matches Warszawa and Warszawie), remote OK, titles to skip, and titles to save
-  without a Telegram message (Node-RED's `.net, dotnet, go, golang, java`).
+  without a Telegram message (by default `.net, dotnet, go, golang, java`).
 - **Telegram:** mute / unmute (new offers wait in a queue meanwhile), send the queue, a test message, and the chat
   commands `/mute /resume /send /scrape /status`.
 - **AI filter for Telegram** (on by default): new offers are checked against the active AI profile right after
@@ -38,8 +40,8 @@ Everything Node-RED had in its nodes is in **Settings** now:
   While OpenAI doesn't answer, the offers wait; after 20 minutes they're sent anyway, marked "not checked". Without a
   usable profile or `OPENAI_API_KEY`, everything is sent as before. "Scrape now" doesn't wait for the AI: the check
   and the message follow in the background.
-- **Scrapers:** the six boards with Node-RED's links, parsers and filters (they give the same offers, ids and links,
-  so nothing gets duplicated), and LinkedIn's public job search (no login; two searches: Warszawa, and remote in
+- **Scrapers:** the six built-in boards, each with its own parser (an offer keeps its id and link, so nothing gets
+  duplicated), and LinkedIn's public job search (no login; two searches: Warszawa, and remote in
   Poland). LinkedIn's search isn't sorted by date, so its searches take what was posted in the last hour
   (`f_TPR=r3600`), two pages each (`{start}` in a link + Pages in the scraper: 0, 10, 20…; `{page}`: 1, 2, 3…). LinkedIn's cards have no skills, so its keyword check looks at the title only: untick it in the scraper to
   get everything LinkedIn's search finds (it also matches descriptions). LinkedIn doesn't allow scraping in its terms
@@ -48,7 +50,7 @@ Everything Node-RED had in its nodes is in **Settings** now:
   JSON-LD, a `<script id>`), **HTML** (CSS selectors) or **RSS/Atom**. **Test** shows what a scraper finds, which of
   it is new, and the first offer's raw JSON/HTML to find the paths or selectors. Nothing is saved by a test.
 
-How a run decides what to send, like `store_notifications` did: an offer is new if its board + id isn't in the
+How a run decides what to send: an offer is new if its board + id isn't in the
 database; it's announced if it's also newer than anything that scraper saw before (bumped old offers aren't), the
 same job (company + title) isn't already known from another board, and its title isn't muted. A scraper's first run
 only saves, so a new or changed scraper doesn't flood Telegram.
@@ -58,21 +60,17 @@ only saves, so a new or changed scraper doesn't flood Telegram.
 1. `scripts/db-migrate.sh` (adds the tables, the six scrapers and the default settings, and turns on `pg_cron` +
    `pg_net` for Supabase Cron).
 2. Vercel → Settings → Environment Variables: `TELEGRAM_BOT_TOKEN` (@BotFather → /mybots → API Token) and
-   `TELEGRAM_CHAT_ID` (the `chatId` in Node-RED's `flush_queue`). Redeploy.
+   `TELEGRAM_CHAT_ID` (write to the bot, then copy `message.chat.id` from `api.telegram.org/bot<token>/getUpdates`; a
+   group's starts with `-`). Redeploy.
 3. Open Settings → **↻ Scrape now** at the top. Check that every board shows ✓ (sites can block Vercel's servers;
    the error says so).
-4. **Stop Node-RED**, or it sends its own messages for the same offers.
-5. Settings → **Connect Supabase Cron**: Supabase calls `/api/cron/scrape` every 5 minutes, the app decides if a
-   run is due (interval, hours, on/off). Vercel's own cron can't do this on the free plan: Hobby allows one run a day.
-6. Settings → Telegram → **Connect commands** (after Node-RED is off: a bot gets commands by webhook or by
-   polling, not both).
+4. Settings → **Connect Supabase Cron**: Supabase calls `/api/cron/scrape` every 5 minutes, the app decides if a
+   run is due (interval, hours, pause). Vercel's own cron can't do this on the free plan: Hobby allows one run a day.
+5. Settings → Telegram → **Connect commands** (a bot gets commands by webhook or by polling, not both).
 
-Any other scheduler works too (Node-RED's inject node, cron-job.org, Vercel Cron on Pro): `GET /api/cron/scrape`
-with `Authorization: Bearer <secret>`, shown in Settings. The secret is `CRON_SECRET` if set, otherwise derived from
-`APP_PASSWORD` (changing the password changes it: reconnect Supabase Cron then). `?force=1` runs even if not due,
+The cron sends `Authorization: Bearer <secret>`: `CRON_SECRET` if set, otherwise derived from `APP_PASSWORD`
+(changing the password changes it: reconnect Supabase Cron then). By hand, `?force=1` runs even if not due and
 `?wait=1` answers with the result.
-
-The old flow is still in [`node-red/`](node-red/) for reference.
 
 ## 3. Vercel
 

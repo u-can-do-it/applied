@@ -1,5 +1,6 @@
 import 'server-only';
-import { resolveRange, type DateFilter } from './dates';
+import type { DateFilter, Zone } from './dates';
+import { appZone } from './time-zone';
 import type { Check } from './openai';
 import { rangeTotal, rest, restUrl, rpcUrl } from './supabase';
 
@@ -54,12 +55,12 @@ let viewMissing = false;
 // (HEAD responses have no body, so a missing view only shows as 404)
 const isMissingRelation = (e: unknown) => e instanceof Error && /Supabase 404|PGRST205|42P01|Could not find/.test(e.message);
 
-function applyFilters(url: URL, opts: Query, unique: boolean) {
+function applyFilters(url: URL, opts: Query, unique: boolean, z: Zone) {
   if (opts.src) url.searchParams.set(unique ? 'sources' : 'src', unique ? `cs.{${opts.src}}` : `eq.${opts.src}`);
   const filter = searchFilter(opts.q);
   if (filter) url.searchParams.set('and', filter);
   // two filters on the same column are ANDed: first_seen >= gte AND first_seen < lt
-  const range = resolveRange(opts);
+  const range = z.resolveRange(opts);
   if (range.gte) url.searchParams.append('first_seen', `gte.${range.gte}`);
   if (range.lt) url.searchParams.append('first_seen', `lt.${range.lt}`);
   url.searchParams.set('order', 'first_seen.desc,src.asc,id.asc');
@@ -86,20 +87,21 @@ const toOffer = (r: Row): Offer => ({
 });
 
 export async function getOffers(opts: Query): Promise<{ offers: Offer[]; total: number }> {
+  const z = await appZone(); // "today", "last 7 days": days there
   let url: URL;
   if (opts.ai) {
     url = rpcUrl('ai_results', { p_profile: opts.ai.profileId, p_version: opts.ai.version });
     url.searchParams.set('select', AI_COLUMNS);
     url.searchParams.set('match', `is.${opts.ai.rejected ? 'false' : 'true'}`);
-    applyFilters(url, opts, true);
+    applyFilters(url, opts, true, z);
   } else if (!viewMissing) {
     url = restUrl('offers_unique');
     url.searchParams.set('select', UNIQUE_COLUMNS);
-    applyFilters(url, opts, true);
+    applyFilters(url, opts, true, z);
   } else {
     url = restUrl('offers');
     url.searchParams.set('select', BASE_COLUMNS);
-    applyFilters(url, opts, false);
+    applyFilters(url, opts, false, z);
   }
 
   try {

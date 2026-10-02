@@ -3,9 +3,9 @@ import { LOCK_SECONDS, runAll } from '@/lib/scraping/run';
 import { checkDue, isCronRequest } from '@/lib/scraping/schedule';
 import { lock } from '@/lib/scraping/store';
 
-// GET or POST /api/cron/scrape with "Authorization: Bearer <secret>" (shown in Settings).
-// Supabase Cron calls it every 5 minutes; Node-RED, cron-job.org or Vercel Cron (Pro) can too.
-// Interval, hours and the on/off switch come from Settings, so the caller can be dumb.
+// GET or POST /api/cron/scrape with "Authorization: Bearer <secret>" (see lib/scraping/schedule.ts).
+// Supabase Cron calls it every 5 minutes (Settings → Scraping → Connect). Interval, hours and the
+// pause come from Settings, so the caller just knocks.
 //   ?force=1  run even if not due     ?wait=1  answer with the result instead of right away
 // Every answer has "jobwatch" in it: Settings finds Supabase Cron's last call by that.
 export const maxDuration = 300;

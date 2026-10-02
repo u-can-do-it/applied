@@ -2,12 +2,14 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
-import { appOrigin, cronSecret } from '@/lib/scraping/schedule';
+import { appOrigin } from '@/lib/scraping/schedule';
 import { isUsable, listProfiles } from '@/lib/profiles';
+import { effectiveTimeZone } from '@/lib/scraping/kinds';
 import * as store from '@/lib/scraping/store';
 import { botInfo, telegramReady } from '@/lib/telegram';
 import { Header } from '../header';
 import { Tabs, TabsFallback } from '../tabs';
+import { TimeZone } from '../time-zone';
 import { FiltersPanel, SchedulePanel, TelegramPanel } from './panels';
 import { ScrapersPanel } from './scrapers';
 
@@ -51,10 +53,9 @@ async function Settings() {
       </div>
     );
   }
-  const [cron, bot, secret, h, profiles] = await Promise.all([
+  const [cron, bot, h, profiles] = await Promise.all([
     store.cronStatus().catch((e): store.CronStatus & { error: string } => ({ available: false, error: message(e) })),
     telegramReady() ? botInfo().catch((e) => ({ error: message(e) })) : Promise.resolve(null),
-    cronSecret(),
     headers(),
     listProfiles().catch(() => []),
   ]);
@@ -65,7 +66,8 @@ async function Settings() {
   const { settings, scrapers, state, runs, queued, counts } = data;
 
   return (
-    <>
+    // times in the app's time zone (a new pick shows once the page is refreshed with it)
+    <TimeZone tz={effectiveTimeZone(settings)}>
       <SchedulePanel
         settings={settings}
         state={state}
@@ -73,7 +75,6 @@ async function Settings() {
         runs={runs}
         cron={cron}
         endpoint={`${origin}/api/cron/scrape`}
-        secret={secret}
       />
       <FiltersPanel settings={settings} />
       <TelegramPanel
@@ -86,7 +87,7 @@ async function Settings() {
         webhookUrl={`${origin}/api/telegram`}
       />
       <ScrapersPanel scrapers={scrapers} counts={counts} keywords={settings.keywords} />
-    </>
+    </TimeZone>
   );
 }
 

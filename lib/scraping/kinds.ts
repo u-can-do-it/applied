@@ -1,15 +1,17 @@
 // What a scraper can be and what the scraping settings hold. Shared by the server and the
 // Settings page (no secrets here).
 
+import { DEFAULT_TZ, isTimeZone } from '../dates';
+
 export const KIND_IDS = ['justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'json', 'html', 'rss'] as const;
 export type KindId = (typeof KIND_IDS)[number];
 
 type Kind = {
   label: string;
-  /** boards Node-RED knew: a fixed parser and a fixed src, so their offers keep matching the database */
+  /** the built-in boards: a fixed parser and a fixed src, so their offers keep matching the database */
   src?: string;
   hint: string;
-  /** a new scraper of this kind starts with Node-RED's search (the same as supabase/scraping.sql seeds) */
+  /** a new scraper of this kind starts with this search (the same as supabase/scraping.sql seeds) */
   defaults?: Pick<ScraperConfig, 'url' | 'pages' | 'headers' | 'checkKeyword' | 'checkLocation'>;
 };
 
@@ -35,7 +37,7 @@ export const KINDS: Record<KindId, Kind> = {
     src: 'solidjobs',
     hint: 'solid.jobs public API; needs the X-Api-Version and campaign headers.',
     defaults: {
-      url: 'https://solid.jobs/public-api/offers/IT?campaign=nodered-jobwatch&search.searchTerm={keyword}&sortActive=validFrom&sortDirection=desc&pageSize=100',
+      url: 'https://solid.jobs/public-api/offers/IT?campaign=jobwatch&search.searchTerm={keyword}&sortActive=validFrom&sortDirection=desc&pageSize=100',
       headers: { 'X-Api-Version': '1.0', campaign: '44' },
       checkKeyword: true,
       checkLocation: true,
@@ -155,7 +157,7 @@ export type ScrapeSettings = {
   /** scheduled runs (the endpoint skips while off); "Scrape now" works either way */
   enabled: boolean;
   everyMinutes: number;
-  /** Warsaw time: runs from fromHour:00 until toHour:00 */
+  /** in the app's time zone (timeZone): runs from fromHour:00 until toHour:00 */
   fromHour: number;
   toHour: number;
   keywords: string[];
@@ -171,6 +173,10 @@ export type ScrapeSettings = {
   notify: boolean;
   /** check new offers against the active AI profile first; Telegram gets only the matches */
   aiFilter: boolean;
+  /** the app's time zone (days, times, date filters, the hours above): '' = the browser's, else a fixed one */
+  timeZone: string;
+  /** the zone of the browser the app was last opened in (what '' follows) */
+  browserTimeZone: string;
 };
 
 export const DEFAULT_SETTINGS: ScrapeSettings = {
@@ -185,6 +191,8 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
   mute: ['.net', 'dotnet', 'go', 'golang', 'java'],
   notify: true,
   aiFilter: true,
+  timeZone: '',
+  browserTimeZone: '',
 };
 
 export const INTERVALS = [5, 10, 15, 30, 60, 120] as const;
@@ -209,8 +217,14 @@ export function normalizeSettings(raw: unknown): ScrapeSettings {
     mute: words(r.mute, d.mute),
     notify: typeof r.notify === 'boolean' ? r.notify : d.notify,
     aiFilter: typeof r.aiFilter === 'boolean' ? r.aiFilter : d.aiFilter,
+    timeZone: isTimeZone(r.timeZone) ? r.timeZone : d.timeZone,
+    browserTimeZone: isTimeZone(r.browserTimeZone) ? r.browserTimeZone : d.browserTimeZone,
   };
 }
+
+/** The zone the app runs in: the one picked, else the browser's (as last reported), else DEFAULT_TZ. */
+export const effectiveTimeZone = (s: Pick<ScrapeSettings, 'timeZone' | 'browserTimeZone'> | null | undefined) =>
+  s?.timeZone || s?.browserTimeZone || DEFAULT_TZ;
 
 /** "a, b ,c" -> ['a', 'b', 'c'] */
 export const splitList = (s: string) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);

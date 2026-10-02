@@ -1,12 +1,13 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
 import { sameString } from '@/lib/auth';
-import { formatDateTime } from '@/lib/dates';
+import { zone } from '@/lib/dates';
 import { listProfiles } from '@/lib/profiles';
 import { notify, runAll } from '@/lib/scraping/run';
+import { effectiveTimeZone } from '@/lib/scraping/kinds';
 import { getSettings, getState, listRuns, queueSize, setMuted, sourceCounts } from '@/lib/scraping/store';
 import { ownerChat, sendMessage, telegramReady, webhookSecret } from '@/lib/telegram';
 
-// Telegram webhook: Node-RED's tg_command. Connected from Settings; Telegram sends the secret
+// Telegram webhook: the bot's commands. Connected from Settings; Telegram sends the secret
 // back in a header, and only your own chat (TELEGRAM_CHAT_ID) may give commands.
 export const maxDuration = 300;
 
@@ -64,9 +65,10 @@ export async function POST(request: NextRequest) {
     const [state, n, counts, runs, settings, profiles] = await Promise.all([getState(), queued(), sourceCounts(), listRuns(1), getSettings(), listProfiles()]);
     const total = Object.values(counts).reduce((s, c) => s + c.offers, 0);
     const per = Object.keys(counts).sort().map((s) => `  ${s}: ${counts[s].offers}`);
-    const last = runs[0] ? `${formatDateTime(runs[0].started_at)} (${runs[0].trigger}, ${runs[0].added} new)` : 'unknown';
+    const z = zone(effectiveTimeZone(settings));
+    const last = runs[0] ? `${z.formatDateTime(runs[0].started_at)} (${runs[0].trigger}, ${runs[0].added} new)` : 'unknown';
     const ai = !settings.aiFilter ? 'off' : !process.env.OPENAI_API_KEY ? 'on, but no OPENAI_API_KEY (all sent)' : profiles[0] ? `“${profiles[0].name}”` : 'on, but no profile (all sent)';
-    const scraping = settings.enabled ? `every ${settings.everyMinutes} min, ${settings.fromHour}–${settings.toHour}` : '⏸ paused';
+    const scraping = settings.enabled ? `every ${settings.everyMinutes} min, ${settings.fromHour}–${settings.toHour} (${z.tz})` : '⏸ paused';
     await reply(
       `${state.muted ? '🔕 muted' : '🔔 active'}\n${n} queued\n🔎 scraping: ${scraping}\n✦ AI filter: ${ai}\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`,
     );

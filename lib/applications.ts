@@ -1,6 +1,6 @@
 import 'server-only';
 import { boardIdOf, boardOf, cleanLink } from './boards';
-import { formatDay, startOfDay, todayInWarsaw } from './dates';
+import type { Zone } from './dates';
 import { scrapeOfferFull, type JobDetails } from './scrape';
 import { GHOST_AFTER_DAYS, type HistoryEntry, type StageId, type StateId } from './stages';
 import { rest, restUrl } from './supabase';
@@ -214,21 +214,20 @@ export type NewApplication = {
   note: string | null;
 };
 
-/** When you applied, from the day: now if it's today, else that day's noon (Warsaw time). */
-export const appliedAtOf = (day: string) =>
-  day === todayInWarsaw() ? new Date().toISOString() : new Date(startOfDay(day).getTime() + 12 * 3600_000).toISOString();
+/** When you applied, from the day: now if it's today, else that day's noon (in the app's time zone). */
+export const appliedAtOf = (day: string, z: Zone) =>
+  day === z.day() ? new Date().toISOString() : new Date(z.startOfDay(day).getTime() + 12 * 3600_000).toISOString();
 
 const newId = () => `manual-${crypto.randomUUID().slice(0, 12)}`;
 const NO_TEXT = 'Added by hand, without the ad text.';
-const alreadyThere = (a: Application) =>
-  `Already in your applications: “${a.title}”, applied ${formatDay(todayInWarsaw(Date.parse(a.applied_at)))}.`;
+const alreadyThere = (a: Application, z: Zone) => `Already in your applications: “${a.title}”, applied ${z.formatDayOf(a.applied_at)}.`;
 
 /** Saves an application typed in by hand; an error if the job already has one. */
-export async function addApplication(a: NewApplication): Promise<{ key?: string; error?: string }> {
+export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?: string; error?: string }> {
   const offer = a.url ? await findOfferByLink(a.url).catch(() => null) : null;
   const key = await jobKeyFor(offer?.company ?? a.company, offer?.title ?? a.title, offer?.dup_key);
   const existing = await getApplication(key);
-  if (existing) return { error: alreadyThere(existing) };
+  if (existing) return { error: alreadyThere(existing, z) };
   const id = offer?.id ?? (boardIdOf(a.src, a.url) || newId());
   const history: HistoryEntry[] = [{ stage: 'submitted', state: 'pending', at: a.appliedAt }];
   if (a.stage !== 'submitted' || a.state !== 'pending') history.push({ stage: a.stage, state: a.state, at: new Date().toISOString() });
@@ -268,7 +267,7 @@ export type ApplicationEdit = {
   title: string;
   company: string | null;
   src: string;
-  day: string; // YYYY-MM-DD, Warsaw: the day you applied
+  day: string; // YYYY-MM-DD in the app's time zone: the day you applied
   details: JobDetails | null; // salary, contract, location, remote as typed
   content: string; // the ad text
 };
@@ -280,7 +279,11 @@ export type ApplicationEdit = {
  * new title or company gives it the key those make, unless it's one of the scraped jobs already.
  * `fetch`: the ad text is to be fetched from the link (it was left empty).
  */
-export async function updateApplication(key: string, e: ApplicationEdit): Promise<{ app?: ApplicationWithContent; fetch?: boolean; error?: string }> {
+export async function updateApplication(
+  key: string,
+  e: ApplicationEdit,
+  z: Zone,
+): Promise<{ app?: ApplicationWithContent; fetch?: boolean; error?: string }> {
   const app = await getApplication(key);
   if (!app) return { error: 'This application no longer exists.' };
   const typedUrl = e.url === app.url ? app.url : e.url ? cleanLink(e.url) : '';
@@ -290,7 +293,7 @@ export async function updateApplication(key: string, e: ApplicationEdit): Promis
   else if ((e.title !== app.title || e.company !== app.company) && !(await findJob(key).catch(() => null))) target = await jobKeyFor(e.company, e.title);
   if (target !== key) {
     const other = await getApplication(target);
-    if (other) return { error: alreadyThere(other) };
+    if (other) return { error: alreadyThere(other, z) };
   }
 
   const fields: Partial<ApplicationWithContent> = { title: e.title, company: e.company };
@@ -305,12 +308,10 @@ export async function updateApplication(key: string, e: ApplicationEdit): Promis
 
   // another day: the first step (applying) moves with it, and so does "no news since" if nothing changed since
   const history = [...(app.history ?? [])];
-  if (e.day !== todayInWarsaw(Date.parse(app.applied_at))) {
+  if (e.day !== z.day(app.applied_at)) {
     const next = history[1];
-    if (next && e.day > todayInWarsaw(Date.parse(next.at))) {
-      return { error: `The status changed on ${formatDay(todayInWarsaw(Date.parse(next.at)))}: you applied that day or earlier.` };
-    }
-    const at = appliedAtOf(e.day);
+    if (next && e.day > z.day(next.at)) return { error: `The status changed on ${z.formatDayOf(next.at)}: you applied that day or earlier.` };
+    const at = appliedAtOf(e.day, z);
     fields.applied_at = at;
     if (history[0]?.stage === 'submitted' && history[0].state === 'pending') {
       history[0] = { ...history[0], at };

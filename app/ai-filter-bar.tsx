@@ -1,9 +1,10 @@
 import { after } from 'next/server';
 import { countPending, continueRun, latestRun, needsWorker } from '@/lib/ai-runs';
-import { describeRange, resolveRange, validDay } from '@/lib/dates';
+import { describeRange, validDay } from '@/lib/dates';
 import { aiConfig } from '@/lib/openai';
 import { isUsable, listProfiles } from '@/lib/profiles';
 import { DAY_PRESETS } from '@/lib/sources';
+import { appZone } from '@/lib/time-zone';
 import { AiControls } from './ai-controls';
 import type { SearchParams } from './offers-view';
 
@@ -23,10 +24,11 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
     let todayNew = 0;
     let rangeNew = 0;
     if (active && isUsable(active)) {
+      const z = await appZone();
       [run, todayNew, rangeNew] = await Promise.all([
         latestRun(active.id),
-        countPending(active, resolveRange({ days: '1' })),
-        days === '1' ? Promise.resolve(-1) : countPending(active, resolveRange({ days, from, to })),
+        countPending(active, z.resolveRange({ days: '1' })),
+        days === '1' ? Promise.resolve(-1) : countPending(active, z.resolveRange({ days, from, to })),
       ]);
       // an open run whose worker stopped (time limit, closed tab): continue it after this response
       if (needsWorker(run)) after(() => continueRun(run!.id));

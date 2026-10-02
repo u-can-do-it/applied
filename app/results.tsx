@@ -1,36 +1,33 @@
 import { rangeStats } from '@/lib/ai-runs';
-import { addDays, describeRange, resolveRange, todayInWarsaw, TZ, validDay } from '@/lib/dates';
+import { addDays, describeRange, validDay, type Zone } from '@/lib/dates';
 import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
 import { isUsable, listProfiles } from '@/lib/profiles';
 import { SRC_RE } from '@/lib/scraping/kinds';
 import { labelsOf, type SourceOption } from '@/lib/source-list';
 import { DAY_PRESETS, withParams } from '@/lib/sources';
+import { appZone } from '@/lib/time-zone';
 import { ApplyButton } from './apply-button';
 import { FitScore } from './fit-score';
 import { NavLink } from './nav';
 
-const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }); // YYYY-MM-DD
-const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short' });
-const dmy = new Intl.DateTimeFormat('pl-PL', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' }); // 02.10.2026
-const dayLabel = { format: (d: Date) => `${weekday.format(d)} ${dmy.format(d)}` }; // "Thu 02.10.2026"
-const timeLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-const fullLabel = { format: (d: Date) => `${dayLabel.format(d)}, ${timeLabel.format(d)}` }; // "Thu 02.10.2026, 14:05"
+// days and times in the app's time zone
+const dayLabel = (z: Zone, at: string) => `${z.weekday(at)} ${z.formatDayOf(at)}`; // "Thu 02.10.2026"
+const fullLabel = (z: Zone, at: string) => `${dayLabel(z, at)}, ${z.formatTime(at)}`; // "Thu 02.10.2026, 14:05"
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
 const fmt = (n: number) => n.toLocaleString('en-GB');
 
-function groupByDay(offers: Offer[]) {
-  const today = todayInWarsaw();
+function groupByDay(offers: Offer[], z: Zone) {
+  const today = z.day();
   const yesterday = addDays(today, -1);
   const groups: { key: string; label: string; offers: Offer[] }[] = [];
   for (const o of offers) {
-    const d = new Date(o.first_seen);
-    const key = dayKey.format(d);
+    const key = z.day(o.first_seen);
     let g = groups.at(-1);
     if (!g || g.key !== key) {
-      const label = key === today ? 'Today' : key === yesterday ? 'Yesterday' : dayLabel.format(d);
+      const label = key === today ? 'Today' : key === yesterday ? 'Yesterday' : dayLabel(z, o.first_seen);
       g = { key, label, offers: [] };
       groups.push(g);
     }
@@ -71,6 +68,7 @@ export async function Results({ searchParams, mode = 'all', sources }: {
   const rejected = mode === 'ai' && one(sp.rejected) === '1';
   const filtered = Boolean(q || src || days || from || to);
   const range = describeRange({ days, from, to });
+  const z = await appZone();
 
   // the URL as the list understands it, for the pager links
   const current = new URLSearchParams();
@@ -91,7 +89,7 @@ export async function Results({ searchParams, mode = 'all', sources }: {
       }
       [data, stats] = await Promise.all([
         getOffers({ q, src, page, days, from, to, ai: { profileId: profile.id, version: profile.version, rejected } }),
-        rangeStats(profile, resolveRange({ days, from, to })),
+        rangeStats(profile, z.resolveRange({ days, from, to })),
       ]);
     } else {
       // in parallel: the filtered page and (if filtered) the unfiltered count
@@ -150,14 +148,14 @@ export async function Results({ searchParams, mode = 'all', sources }: {
         </p>
       )}
 
-      {groupByDay(data.offers).map((g) => (
+      {groupByDay(data.offers, z).map((g) => (
         <section key={g.key} className="day">
           <h2>{g.label}</h2>
           <ol>
             {g.offers.map((o) => (
               <li key={o.src + ':' + o.id} className="offer">
-                <time dateTime={o.first_seen} title={fullLabel.format(new Date(o.first_seen))}>
-                  {timeLabel.format(new Date(o.first_seen))}
+                <time dateTime={o.first_seen} title={fullLabel(z, o.first_seen)}>
+                  {z.formatTime(o.first_seen)}
                 </time>
                 <div className="body">
                   <a href={o.url} target="_blank" rel="noopener noreferrer" className="title">
@@ -181,7 +179,7 @@ export async function Results({ searchParams, mode = 'all', sources }: {
                     />
                   )}
                   <Sources offer={o} labels={labels} />
-                  {o.key && <ApplyButton jobKey={o.key} src={o.src} id={o.id} appliedAt={o.applied_at} />}
+                  {o.key && <ApplyButton jobKey={o.key} src={o.src} id={o.id} appliedAt={o.applied_at} tz={z.tz} />}
                 </div>
               </li>
             ))}

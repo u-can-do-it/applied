@@ -1,15 +1,15 @@
 'use client';
 
 import { startTransition, useEffect, useEffectEvent, useOptimistic, useRef, useState, useTransition } from 'react';
-import { formatTime } from '@/lib/dates';
 import {
   FIELDS, JSON_SOURCES, KIND_IDS, KINDS, isGeneric,
   type FieldId, type JsonSource, type KindId, type Scraper,
 } from '@/lib/scraping/kinds';
 import { deleteScraperAction, saveScraperAction, testScraperAction, toggleScraperAction, type ScraperForm, type TestResult } from './actions';
+import { useZone } from '../time-zone';
 import { Feedback, useAction } from './panels';
 
-// The scrapers: Node-RED's six boards, plus your own (JSON / HTML / RSS) set up here.
+// The scrapers: the built-in boards, plus your own (JSON / HTML / RSS) set up here.
 
 type Draft = {
   id?: string;
@@ -57,7 +57,7 @@ function toDraft(s: Scraper): Draft {
   };
 }
 
-/** A new scraper of a kind: the built-in boards start with Node-RED's search. */
+/** A new scraper of a kind: the built-in boards start with their usual search. */
 function blank(kind: KindId, keep?: Partial<Draft>): Draft {
   const d = KINDS[kind].defaults;
   return {
@@ -165,6 +165,7 @@ export function ScrapersPanel({ scrapers, counts, keywords }: {
 }
 
 function ScraperStatus({ s }: { s: Scraper }) {
+  const { formatTime } = useZone();
   if (!s.last_run_at) return <p className="muted small">Not run yet{s.mark === null ? ' · its first run only saves (no Telegram)' : ''}</p>;
   const when = formatTime(s.last_run_at);
   if (s.last_status === 'error' && !s.last_found) {

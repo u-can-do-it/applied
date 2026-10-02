@@ -3,6 +3,7 @@ import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { ghostStale, listApplications } from '@/lib/applications';
 import { labelsOf, sourceOptions } from '@/lib/source-list';
+import { appTimeZone } from '@/lib/time-zone';
 import { Header } from '../header';
 import { ResultsSkeleton } from '../results';
 import { Tabs, TabsFallback } from '../tabs';
@@ -30,8 +31,8 @@ async function Applications() {
   try {
     // a month without news turns "in progress" into "ghosted"; done on the way in, so the list is current
     await ghostStale().catch((e) => console.error('[applied] ghosting failed:', e));
-    const [apps, sources] = await Promise.all([listApplications(), sourceOptions()]);
-    return <AppliedList apps={apps} labels={labelsOf(sources)} />;
+    const [apps, sources, tz] = await Promise.all([listApplications(), sourceOptions(), appTimeZone()]);
+    return <AppliedList apps={apps} labels={labelsOf(sources)} tz={tz} />;
   } catch (e) {
     return (
       <div className="notice">

@@ -2,7 +2,7 @@ import 'server-only';
 import { hmac } from './auth';
 import type { Queued } from './scraping/store';
 
-// Telegram bot: the messages Node-RED's flush_queue built, and the /mute /resume /send /status
+// Telegram bot: the messages about new offers, and the /mute /resume /send /status
 // commands (they arrive at /api/telegram once the webhook is connected in Settings).
 // TELEGRAM_BOT_TOKEN (from @BotFather) and TELEGRAM_CHAT_ID (your chat with the bot).
 
@@ -46,7 +46,7 @@ const offerText = (o: Outgoing) => {
   return `🆕 ${o.title}\n${[o.company, o.seniority, where].filter(Boolean).join(' · ')}${ai}\n${o.url}`;
 };
 
-/** Node-RED's format: one block per board, five offers per message. */
+/** One block per board, five offers per message. */
 function blocks(offers: Outgoing[], heading?: string): Message[] {
   const bySrc = new Map<string, Outgoing[]>();
   for (const o of offers) bySrc.set(o.src, [...(bySrc.get(o.src) ?? []), o]);

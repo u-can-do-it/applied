@@ -11,13 +11,15 @@ import {
 } from '@/lib/applications';
 import { BOARD_RE, boardIdOf, boardOf, cleanLink, isLink } from '@/lib/boards';
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
-import { describeRange, resolveRange, todayInWarsaw, validDay } from '@/lib/dates';
+import { describeRange, isTimeZone, validDay, type Zone } from '@/lib/dates';
 import { extractJob, type ExtractedJob } from '@/lib/openai';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
 import { readJobPage, type JobDetails } from '@/lib/scrape';
+import * as store from '@/lib/scraping/store';
 import { requireLogin } from '@/lib/session';
 import { DAY_PRESETS } from '@/lib/sources';
 import { isStage, isState } from '@/lib/stages';
+import { appZone } from '@/lib/time-zone';
 
 export type FormState = { error?: string; ok?: boolean; id?: string; message?: string };
 
@@ -106,7 +108,7 @@ export async function startRunAction(input: { profileId: string; days?: string; 
 
   const days = DAY_PRESETS.some((p) => p.days && p.days === input.days) ? input.days : undefined;
   const filter = days ? { days } : { from: input.from, to: input.to };
-  const { gte, lt } = resolveRange(filter);
+  const { gte, lt } = (await appZone()).resolveRange(filter);
   const label = describeRange(filter) || 'all offers';
 
   const run = await startRun(profile!, { gte, lt, label });
@@ -243,7 +245,7 @@ export type ApplicationInput = {
   title: string;
   company: string;
   board: string;
-  day: string; // YYYY-MM-DD, Warsaw
+  day: string; // YYYY-MM-DD in the app's time zone
   stage: string;
   state: string;
   salary: string;
@@ -260,7 +262,7 @@ export type ApplicationEditInput = Omit<ApplicationInput, 'stage' | 'state' | 'n
 type FormFields = { title: string; url: string; board: string; day: string; company: string | null; details: JobDetails | null; content: string };
 
 /** The form's fields checked, the same for adding and editing. */
-function readForm(input: Partial<ApplicationEditInput> | undefined): FormFields | { error: string } {
+function readForm(input: Partial<ApplicationEditInput> | undefined, z: Zone): FormFields | { error: string } {
   const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
   const title = str(input?.title, 200);
   if (!title) return { error: 'The title is needed.' };
@@ -269,7 +271,7 @@ function readForm(input: Partial<ApplicationEditInput> | undefined): FormFields 
   const board = str(input?.board, 30).toLowerCase() || (url ? boardOf(url) : 'unknown');
   if (!BOARD_RE.test(board)) return { error: 'Board: lowercase letters, digits, - or _ (e.g. "linkedin").' };
   const day = validDay(str(input?.day, 10));
-  if (!day || day > todayInWarsaw()) return { error: 'Pick the day you applied (not in the future).' };
+  if (!day || day > z.day()) return { error: 'Pick the day you applied (not in the future).' };
   const details: JobDetails = {};
   for (const [k, max] of [['salary', 200], ['contract', 100], ['location', 200]] as const) {
     const v = str(input?.[k], max);
@@ -289,7 +291,8 @@ function readForm(input: Partial<ApplicationEditInput> | undefined): FormFields 
 
 export async function addApplicationAction(input: ApplicationInput): Promise<FormState> {
   await requireLogin();
-  const f = readForm(input);
+  const z = await appZone();
+  const f = readForm(input, z);
   if ('error' in f) return f;
   if (!isStage(input.stage) || !isState(input.state)) return { error: 'Unknown status.' };
   try {
@@ -298,13 +301,13 @@ export async function addApplicationAction(input: ApplicationInput): Promise<For
       title: f.title,
       company: f.company,
       src: f.board,
-      appliedAt: appliedAtOf(f.day),
+      appliedAt: appliedAtOf(f.day, z),
       stage: input.stage,
       state: input.state,
       details: f.details,
       content: f.content.trim() || null,
       note: (typeof input.note === 'string' ? input.note.trim().slice(0, NOTE_MAX) : '') || null,
-    });
+    }, z);
     if (r.error) return { error: r.error };
     // no ad text but a link: fetch it after the answer, like "Mark applied" does
     if (!f.content.trim() && f.url) after(() => saveContent(r.key!));
@@ -319,10 +322,11 @@ export async function addApplicationAction(input: ApplicationInput): Promise<For
 export async function updateApplicationAction(key: string, input: ApplicationEditInput): Promise<{ error?: string; app?: ApplicationWithContent }> {
   await requireLogin();
   if (typeof key !== 'string' || !key) return { error: 'Bad request.' };
-  const f = readForm(input);
+  const z = await appZone();
+  const f = readForm(input, z);
   if ('error' in f) return f;
   try {
-    const r = await updateApplication(key, { url: f.url, title: f.title, company: f.company, src: f.board, day: f.day, details: f.details, content: f.content });
+    const r = await updateApplication(key, { url: f.url, title: f.title, company: f.company, src: f.board, day: f.day, details: f.details, content: f.content }, z);
     if (r.error || !r.app) return { error: r.error ?? 'This application no longer exists.' };
     const saved = r.app.dup_key;
     // what you typed stays over what the board says
@@ -332,4 +336,21 @@ export async function updateApplicationAction(key: string, input: ApplicationEdi
   } catch (e) {
     return { error: message(e) };
   }
+}
+
+// ---- time zone ---------------------------------------------------------------------------
+
+/**
+ * The browser says which zone it's in. Kept as the zone that "the browser's" (the default) means,
+ * so the cron and Telegram use it too; the page shows it at once if that's what the app follows.
+ */
+export async function reportBrowserTimeZoneAction(tz: string): Promise<void> {
+  await requireLogin();
+  if (!isTimeZone(tz)) return;
+  // not appSettings(): the page refreshed below is rendered in this same request, and it must
+  // read the settings as saved here, not as cached from before
+  const s = await store.getSettings().catch(() => null);
+  if (!s || s.browserTimeZone === tz) return;
+  await store.saveSettings({ ...s, browserTimeZone: tz });
+  if (!s.timeZone) refresh();
 }
