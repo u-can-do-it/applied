@@ -14,6 +14,7 @@ export const SOURCES: Record<string, string> = {
 export const DAY_PRESETS = [
   { days: '', label: 'Any time' },
   { days: '1', label: 'Today' },
+  { days: 'yesterday', label: 'Yesterday' }, // a single closed day, not "up to now"
   { days: '3', label: '3 days' },
   { days: '7', label: '7 days' },
   { days: '30', label: '30 days' },

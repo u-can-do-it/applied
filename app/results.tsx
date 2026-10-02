@@ -133,6 +133,7 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
 function rangeLabel(days: string, from: string, to: string) {
   const fmt = (d: string) => shortDay.format(new Date(d + 'T00:00:00Z'));
   if (days === '1') return ' · today';
+  if (days === 'yesterday') return ' · yesterday';
   if (days) return ` · last ${days} days`;
   if (from && to) {
     const [a, b] = from <= to ? [from, to] : [to, from];

@@ -41,6 +41,10 @@ export type DateFilter = { days?: string; from?: string; to?: string };
 
 /** URL filter -> half-open UTC range [gte, lt) on first_seen. Bad input is ignored, a reversed range is swapped. */
 export function resolveRange({ days, from, to }: DateFilter, now = Date.now()): { gte?: string; lt?: string } {
+  if (days === 'yesterday') {
+    const today = todayInWarsaw(now);
+    return { gte: startOfDay(addDays(today, -1)).toISOString(), lt: startOfDay(today).toISOString() };
+  }
   const n = Number(days);
   if (Number.isInteger(n) && n >= 1 && n <= 366) {
     return { gte: startOfDay(addDays(todayInWarsaw(now), -(n - 1))).toISOString() };
