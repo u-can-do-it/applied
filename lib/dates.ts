@@ -57,3 +57,21 @@ export function resolveRange({ days, from, to }: DateFilter, now = Date.now()): 
     lt: t ? startOfDay(addDays(t, 1)).toISOString() : undefined,
   };
 }
+
+const shortDay = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' });
+
+/** "today", "last 7 days", "20 Sept – 28 Sept", "since 20 Sept", "until 28 Sept", "" (no range) */
+export function describeRange({ days, from, to }: DateFilter): string {
+  const fmt = (d: string) => shortDay.format(new Date(d + 'T00:00:00Z'));
+  if (days === '1') return 'today';
+  if (days === 'yesterday') return 'yesterday';
+  if (days) return `last ${days} days`;
+  const f = validDay(from), t = validDay(to);
+  if (f && t) {
+    const [a, b] = f <= t ? [f, t] : [t, f];
+    return a === b ? fmt(a) : `${fmt(a)} – ${fmt(b)}`;
+  }
+  if (f) return `since ${fmt(f)}`;
+  if (t) return `until ${fmt(t)}`;
+  return '';
+}

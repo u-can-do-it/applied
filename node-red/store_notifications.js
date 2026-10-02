@@ -1,13 +1,37 @@
 const store  = flow.get('offers') || {};   // src:id  -> offer
-const keys   = flow.get('seenKeys') || {}; // company|title -> first source that reported it
 const marks  = flow.get('marks') || {};    // per-source watermark
 const first  = Object.keys(store).length === 0;
 const now    = Date.now();
 const fresh  = [];
-const added  = [];                         // every newly stored offer -> output 2 (database)
 
 // titles whose stack we don't want notified (still stored, so they never resurface)
 const RE = /(?:^|[^a-z0-9+#])(\.?net|dotnet|go|golang|java)(?![a-z0-9+#.])/i;
+
+// ---- duplicate detection across job boards ---------------------------------
+// Same job on two boards = same company + same title, ignoring what boards add on their own:
+// legal suffixes / country ("7N Sp. z o. o." = "7N", "emagine Polska" = "emagine"),
+// gender tags ("(k/m)", "(m/f/d)") and ".js" ("Node.js" = "Node"). Text in brackets that
+// names the stack is kept, so "(Java)" and "(.NET)" at the same company stay separate.
+const deacc  = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L');
+const LEGAL  = /\b(sp\.?\s*z\.?\s*o\.?\s*o\.?|sp\.?\s*k\.?|sp\.?\s*j\.?|s\.?\s*a\.?|s\.?\s*c\.?|spolka\s+(z\s+ograniczona\s+odpowiedzialnoscia|akcyjna|komandytowa|jawna)|inc\.?|ltd\.?|llc|gmbh|s\.?r\.?o\.?|b\.?v\.?|polska|poland)(?=\W|$)/g;
+const GENDER = /\(\s*(?:[kmfdx]\s*\/\s*[kmfdx](?:\s*\/\s*[kmfdx])?|all genders?|any gender)\s*\)|\b[kmfdx]\s*\/\s*[kmfdx](?:\s*\/\s*[kmfdx])?\b/g;
+const flat   = s => s.replace(/[^a-z0-9]+/g, '');
+const dupKey = o => flat(deacc(o.company).toLowerCase().replace(LEGAL, ' ')) + '|' +
+                    flat(deacc(o.title).toLowerCase().replace(GENDER, ' ').replace(/\.js\b/g, ''));
+
+// key -> first source that reported it. Rebuilt once from everything stored when the key
+// format changes, so the switch doesn't re-notify offers we've already seen.
+const KEYS_VERSION = 2;
+let keys = flow.get('seenKeys') || {};
+if (flow.get('seenKeysVersion') !== KEYS_VERSION) {
+    keys = {};
+    Object.values(store).sort((a, b) => a.firstSeen - b.firstSeen).forEach(o => {
+        o.key = dupKey(o);
+        if (!keys[o.key]) keys[o.key] = o.src;
+    });
+    flow.set('seenKeysVersion', KEYS_VERSION);
+    node.warn(`dedup keys rebuilt from ${Object.keys(store).length} stored offers -> ${Object.keys(keys).length} keys`);
+}
 
 // Cut DB if too big
 const MAX = 10000;
@@ -17,17 +41,6 @@ if (stored.length > MAX) {
           .slice(0, stored.length - MAX)
           .forEach(id => { delete keys[store[id].key]; delete store[id]; });
 }
-
-// ---- TEST: forget the 3 newest offers of one source ------------------------
-// const SRC = 'eldorado';
-// const top = Object.values(store).filter(o => o.src === SRC)
-//                   .sort((a, b) => b.sortVal - a.sortVal).slice(0, 3);
-// top.forEach(o => { delete keys[o.key]; delete store[o.src + ':' + o.id]; });
-// marks[SRC] = Math.max(...Object.values(store).filter(o => o.src === SRC).map(o => o.sortVal));
-// flow.set('offers', store); flow.set('seenKeys', keys); flow.set('marks', marks);
-// node.warn('forgot ' + top.map(o => o.id).join(', ') + ' | ' + SRC + ' mark now ' + marks[SRC]);
-// return null;
-// ---------------------------------------------------------------------------
 
 const list    = msg.payload || [];
 const src     = list.length ? list[0].src : null;
@@ -43,19 +56,23 @@ list.forEach(o => {
 
     if (store[ref]) { store[ref].lastSeen = now; return; }
 
+    const key = dupKey(o);
     store[ref] = {
-        src: o.src, id: o.id, key: o.key,
+        src: o.src, id: o.id, key: key,
         title: o.title, company: o.company,
         seniority: o.seniority, remote: o.remote, url: o.url,
         sortVal: o.sortVal, firstSeen: now, lastSeen: now
     };
-    added.push(store[ref]);
+
+    // remember the job even when it isn't notified (old or wrong stack), so the same
+    // job showing up later on another board isn't treated as new
+    const seenBefore = Boolean(keys[key]);
+    if (!seenBefore) keys[key] = o.src;
 
     if (o.sortVal <= mark)     { bubbled++;  return; }   // older than watermark
-    if (keys[o.key])           { dupes++;    return; }   // already seen via other source
+    if (seenBefore)            { dupes++;    return; }   // already seen (any board)
     if (RE.test(o.title || '')){ excluded++; return; }   // wrong stack
 
-    keys[o.key] = o.src;
     fresh.push(store[ref]);
 });
 
@@ -65,11 +82,10 @@ flow.set('seenKeys', keys);
 flow.set('marks', marks);
 node.status({ text: `${src}: ${seeding ? 'SEEDED' : fresh.length + ' new'}, ${bubbled} old, ${dupes} dup, ${excluded} excl | ${Object.keys(store).length} stored` });
 
-// output 2: everything newly stored goes to the database, seeding runs included
-const db = added.length ? { payload: added } : null;
+// the database is fed by sync_recent from the stored offers, not from here
 
 // a source's first run only seeds - never queue its whole first page
-if (first || seeding) return [null, db];
+if (first || seeding) return null;
 
 // queue everything new; flush_queue decides when it actually goes out
 const queue = flow.get('queued') || [];
@@ -78,7 +94,7 @@ flow.set('queued', queue);
 
 if (flow.get('paused')) {
     node.status({ text: `${src}: ${fresh.length} queued (muted), ${queue.length} waiting` });
-    return [null, db];
+    return null;
 }
 
-return [fresh.length ? { manual: false } : null, db];
+return fresh.length ? { manual: false } : null;

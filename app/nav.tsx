@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createContext, use, useOptimistic, useTransition } from 'react';
 
 // Client-side navigation state shared by the chips, search box, pager and the result list.
@@ -12,6 +12,8 @@ import { createContext, use, useOptimistic, useTransition } from 'react';
 // the UI reacts instantly even before the server has answered (or anything was prefetched).
 
 type Nav = {
+  /** current tab: "/" or "/ai" - links built with withParams(..., path) stay on it */
+  path: string;
   query: URLSearchParams;
   pending: boolean;
   navigate: (href: string, opts?: { replace?: boolean; scrollTop?: boolean }) => void;
@@ -27,6 +29,7 @@ export function useNav() {
 
 export function NavProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const path = usePathname();
   const actual = useSearchParams().toString();
   const [optimistic, setOptimistic] = useOptimistic(actual);
   const [pending, startTransition] = useTransition();
@@ -42,7 +45,7 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const nav: Nav = { query: new URLSearchParams(optimistic), pending: pending || optimistic !== actual, navigate };
+  const nav: Nav = { path, query: new URLSearchParams(optimistic), pending: pending || optimistic !== actual, navigate };
 
   return <NavContext value={nav}>{children}</NavContext>;
 }

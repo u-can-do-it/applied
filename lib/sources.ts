@@ -20,12 +20,13 @@ export const DAY_PRESETS = [
   { days: '30', label: '30 days' },
 ] as const;
 
-export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page';
+export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'rejected';
 type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
 
 // Builds a link from the current query, changing only the given keys
 // (empty value = remove). Any filter change goes back to the first page.
-export function withParams(current: URLSearchParams | string, changes: Changes) {
+// `path` keeps you on the tab you're on ("/" or "/ai").
+export function withParams(current: URLSearchParams | string, changes: Changes, path = '/') {
   const sp = new URLSearchParams(current);
   if (!('page' in changes)) sp.delete('page');
   for (const [key, value] of Object.entries(changes)) {
@@ -34,5 +35,5 @@ export function withParams(current: URLSearchParams | string, changes: Changes) 
     else sp.set(key, v);
   }
   const s = sp.toString();
-  return s ? `/?${s}` : '/';
+  return s ? `${path}?${s}` : path;
 }

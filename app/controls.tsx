@@ -6,12 +6,12 @@ import { DAY_PRESETS, SOURCES, withParams } from '@/lib/sources';
 import { NavLink, useNav } from './nav';
 import { SearchBox, SearchIcon } from './search-box';
 
-function SourceChips({ query }: { query: URLSearchParams }) {
+function SourceChips({ query, path }: { query: URLSearchParams; path: string }) {
   const raw = query.get('src') ?? '';
   const src = raw in SOURCES ? raw : '';
   return (
     <nav className="chips" aria-label="Filter by source">
-      <NavLink className="chip" aria-current={!src ? 'true' : undefined} href={withParams(query, { src: null })}>
+      <NavLink className="chip" aria-current={!src ? 'true' : undefined} href={withParams(query, { src: null }, path)}>
         All
       </NavLink>
       {Object.entries(SOURCES).map(([key, name]) => (
@@ -19,7 +19,7 @@ function SourceChips({ query }: { query: URLSearchParams }) {
           key={key}
           className="chip"
           aria-current={src === key ? 'true' : undefined}
-          href={withParams(query, { src: key })}
+          href={withParams(query, { src: key }, path)}
         >
           {name}
         </NavLink>
@@ -57,7 +57,7 @@ function DateInput({ label, value, min, max, onCommit }: {
   );
 }
 
-function DateFilter({ query }: { query: URLSearchParams }) {
+function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
   const { navigate } = useNav();
   const days = query.get('days') ?? '';
   const from = validDay(query.get('from'));
@@ -73,7 +73,7 @@ function DateFilter({ query }: { query: URLSearchParams }) {
             className="chip"
             aria-current={!custom && days === p.days ? 'true' : undefined}
             // a preset replaces any custom range
-            href={withParams(query, { days: p.days, from: null, to: null })}
+            href={withParams(query, { days: p.days, from: null, to: null }, path)}
           >
             {p.label}
           </NavLink>
@@ -81,10 +81,10 @@ function DateFilter({ query }: { query: URLSearchParams }) {
       </nav>
       <div className={`range${custom ? ' active' : ''}`}>
         {/* a custom date replaces the preset */}
-        <DateInput label="From" value={from} max={to || undefined} onCommit={(d) => navigate(withParams(query, { from: d, days: null }))} />
-        <DateInput label="to" value={to} min={from || undefined} onCommit={(d) => navigate(withParams(query, { to: d, days: null }))} />
+        <DateInput label="From" value={from} max={to || undefined} onCommit={(d) => navigate(withParams(query, { from: d, days: null }, path))} />
+        <DateInput label="to" value={to} min={from || undefined} onCommit={(d) => navigate(withParams(query, { to: d, days: null }, path))} />
         {custom && (
-          <NavLink className="clear" href={withParams(query, { from: null, to: null })} aria-label="Clear date range">
+          <NavLink className="clear" href={withParams(query, { from: null, to: null }, path)} aria-label="Clear date range">
             ×
           </NavLink>
         )}
@@ -94,12 +94,12 @@ function DateFilter({ query }: { query: URLSearchParams }) {
 }
 
 export function Controls() {
-  const { query } = useNav(); // optimistic: chips light up on the click frame
+  const { query, path } = useNav(); // optimistic: chips light up on the click frame
   return (
     <>
       <SearchBox query={query} />
-      <SourceChips query={query} />
-      <DateFilter query={query} />
+      <SourceChips query={query} path={path} />
+      <DateFilter query={query} path={path} />
     </>
   );
 }

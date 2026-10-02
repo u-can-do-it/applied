@@ -1,10 +1,11 @@
-import { addDays, todayInWarsaw, TZ, validDay } from '@/lib/dates';
+import { rangeStats } from '@/lib/ai-runs';
+import { addDays, describeRange, resolveRange, todayInWarsaw, TZ, validDay } from '@/lib/dates';
 import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
+import { isUsable, listProfiles } from '@/lib/profiles';
 import { DAY_PRESETS, SOURCES, withParams } from '@/lib/sources';
 import { NavLink } from './nav';
 
 const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }); // YYYY-MM-DD
-const shortDay = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' });
 const dayLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
 const timeLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
 const fullLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, dateStyle: 'full', timeStyle: 'short' });
@@ -12,6 +13,7 @@ const fullLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, dateStyle: 'f
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
+const fmt = (n: number) => n.toLocaleString('en-GB');
 
 function groupByDay(offers: Offer[]) {
   const today = todayInWarsaw();
@@ -31,7 +33,53 @@ function groupByDay(offers: Offer[]) {
   return groups;
 }
 
-export async function Results({ searchParams }: { searchParams: SearchParams }) {
+/** The boards this job was posted on, one link each (earliest first). */
+function Sources({ offer }: { offer: Offer }) {
+  const seen = new Set<string>();
+  const links = offer.copies.filter((c) => !seen.has(c.src) && seen.add(c.src));
+  return (
+    <span className="sources">
+      {links.map((c) => (
+        <a key={c.src} className="src" href={c.url} target="_blank" rel="noopener noreferrer" title={`Open on ${SOURCES[c.src] ?? c.src}`}>
+          {SOURCES[c.src] ?? c.src}
+        </a>
+      ))}
+    </span>
+  );
+}
+
+/** "82% ⓘ" with the requirement checklist on hover / focus / tap. */
+function FitScore({ offer }: { offer: Offer }) {
+  const ai = offer.ai!;
+  const tier = ai.score >= 70 ? 'high' : ai.score >= 40 ? 'mid' : 'low';
+  const met = ai.checks.filter((c) => c.met).length;
+  const tipId = `fit-${offer.src}-${offer.id}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return (
+    <span className={`fit fit-${tier}`} tabIndex={0} aria-describedby={tipId}>
+      {ai.score}%<span className="fit-info" aria-hidden="true">ⓘ</span>
+      <span className="fit-tip" role="tooltip" id={tipId}>
+        <strong>
+          {ai.score}% fit{ai.checks.length > 0 && ` · ${met}/${ai.checks.length} requirements met`}
+        </strong>
+        {ai.summary && <span className="fit-summary">{ai.summary}</span>}
+        {ai.checks.length > 0 && (
+          <span className="fit-checks">
+            {ai.checks.map((c, i) => (
+              <span key={i} className={c.met ? 'met' : 'miss'}>
+                <span aria-hidden="true">{c.met ? '✓' : '✗'}</span> {c.item}
+                <span className="sr-only">{c.met ? ' (you have it)' : ' (missing)'}</span>
+              </span>
+            ))}
+          </span>
+        )}
+        {!ai.had_description && <span className="fit-note">Judged on the title only – the ad text couldn&apos;t be read.</span>}
+      </span>
+    </span>
+  );
+}
+
+export async function Results({ searchParams, mode = 'all' }: { searchParams: SearchParams; mode?: 'all' | 'ai' }) {
+  const path = mode === 'ai' ? '/ai' : '/';
   const sp = await searchParams;
   const q = one(sp.q).slice(0, 200);
   const rawSrc = one(sp.src);
@@ -40,20 +88,38 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
   const days = DAY_PRESETS.some((p) => p.days && p.days === one(sp.days)) ? one(sp.days) : '';
   const from = days ? '' : validDay(one(sp.from));
   const to = days ? '' : validDay(one(sp.to));
+  const rejected = mode === 'ai' && one(sp.rejected) === '1';
   const filtered = Boolean(q || src || days || from || to);
+  const range = describeRange({ days, from, to });
 
   // the URL as the list understands it, for the pager links
   const current = new URLSearchParams();
-  for (const [k, v] of Object.entries({ q, src, days, from, to })) if (v) current.set(k, v);
+  for (const [k, v] of Object.entries({ q, src, days, from, to, rejected: rejected ? '1' : '' })) if (v) current.set(k, v);
 
   let data: Awaited<ReturnType<typeof getOffers>>;
   let all: number | null = null; // whole table, only needed when something is filtered
+  let stats: { total: number; checked: number; matched: number } | null = null; // AI: this date range
   try {
-    // in parallel: the filtered page and (if filtered) the unfiltered count
-    [data, all] = await Promise.all([
-      getOffers({ q, src, page, days, from, to }),
-      filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
-    ]);
+    if (mode === 'ai') {
+      const profile = (await listProfiles())[0];
+      if (!isUsable(profile)) {
+        return (
+          <p className="empty">
+            No profile yet. Click <strong>✦ Profile</strong> above, describe what you&apos;re looking for and add your CV.
+          </p>
+        );
+      }
+      [data, stats] = await Promise.all([
+        getOffers({ q, src, page, days, from, to, ai: { profileId: profile.id, version: profile.version, rejected } }),
+        rangeStats(profile, resolveRange({ days, from, to })),
+      ]);
+    } else {
+      // in parallel: the filtered page and (if filtered) the unfiltered count
+      [data, all] = await Promise.all([
+        getOffers({ q, src, page, days, from, to }),
+        filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
+      ]);
+    }
   } catch (e) {
     return (
       <div className="notice">
@@ -64,18 +130,43 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
   }
 
   const pages = Math.ceil(data.total / PAGE_SIZE);
+  const unchecked = stats ? stats.total - stats.checked : 0;
 
   return (
     <>
-      <p className="count">
-        {/* "42 of 1,279 offers · last 7 days" when filtered, "1,279 offers" otherwise */}
-        <strong>{data.total.toLocaleString('en-GB')}</strong>
-        {filtered && all !== null && <> of {all.toLocaleString('en-GB')}</>} offers
-        {rangeLabel(days, from, to)}
-      </p>
+      {mode === 'ai' && stats ? (
+        <p className="count">
+          {/* "9 match of 14 checked · 6 not checked yet · today · show 5 rejected" */}
+          <strong>{fmt(stats.matched)}</strong> match of {fmt(stats.checked)} checked
+          {unchecked > 0 && <span className="warn"> · {fmt(unchecked)} not checked yet</span>}
+          {range && ` · ${range}`}
+          {(q || src) && <> · {fmt(data.total)} shown</>}
+          {' · '}
+          <NavLink href={withParams(current, { rejected: rejected ? null : '1' }, path)}>
+            {rejected ? 'show matches' : `show ${fmt(stats.checked - stats.matched)} rejected`}
+          </NavLink>
+        </p>
+      ) : (
+        <p className="count">
+          {/* "42 of 1,279 offers · last 7 days" when filtered, "1,279 offers" otherwise */}
+          <strong>{fmt(data.total)}</strong>
+          {filtered && all !== null && <> of {fmt(all)}</>} offers
+          {range && ` · ${range}`}
+        </p>
+      )}
 
       {data.offers.length === 0 && (
-        <p className="empty">{filtered ? 'Nothing matches these filters.' : 'No offers yet. Node-RED will fill this in on its next run.'}</p>
+        <p className="empty">
+          {mode === 'ai'
+            ? stats && stats.checked === 0
+              ? `Nothing ${range ? `from ${range} ` : ''}has been checked with this profile yet. Use the buttons above.`
+              : rejected
+                ? 'Nothing was rejected here.'
+                : 'No matches here. Check the rejected ones, or loosen the profile.'
+            : filtered
+              ? 'Nothing matches these filters.'
+              : 'No offers yet. Node-RED will fill this in on its next run.'}
+        </p>
       )}
 
       {groupByDay(data.offers).map((g) => (
@@ -96,8 +187,12 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
                     {o.seniority && o.seniority !== 'unknown' && <span>{o.seniority}</span>}
                     <span className={o.remote ? 'remote' : undefined}>{o.remote ? 'Remote' : 'Warsaw'}</span>
                   </div>
+                  {o.ai?.summary && <p className="ai-reason">✦ {o.ai.summary}</p>}
                 </div>
-                <span className="src">{SOURCES[o.src] ?? o.src}</span>
+                <div className="side">
+                  {o.ai && <FitScore offer={o} />}
+                  <Sources offer={o} />
+                </div>
               </li>
             ))}
           </ol>
@@ -107,7 +202,7 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
       {pages > 1 && (
         <nav className="pager" aria-label="Pages">
           {page > 0 ? (
-            <NavLink href={withParams(current, { page: page - 1 })} scrollTop>
+            <NavLink href={withParams(current, { page: page - 1 }, path)} scrollTop>
               ← Newer
             </NavLink>
           ) : (
@@ -117,7 +212,7 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
             Page {page + 1} of {pages}
           </span>
           {page + 1 < pages ? (
-            <NavLink href={withParams(current, { page: page + 1 })} scrollTop>
+            <NavLink href={withParams(current, { page: page + 1 }, path)} scrollTop>
               Older →
             </NavLink>
           ) : (
@@ -127,21 +222,6 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
       )}
     </>
   );
-}
-
-// " · last 7 days", " · 20 Sep – 28 Sep", " · since 20 Sep", " · until 28 Sep"
-function rangeLabel(days: string, from: string, to: string) {
-  const fmt = (d: string) => shortDay.format(new Date(d + 'T00:00:00Z'));
-  if (days === '1') return ' · today';
-  if (days === 'yesterday') return ' · yesterday';
-  if (days) return ` · last ${days} days`;
-  if (from && to) {
-    const [a, b] = from <= to ? [from, to] : [to, from];
-    return a === b ? ` · ${fmt(a)}` : ` · ${fmt(a)} – ${fmt(b)}`;
-  }
-  if (from) return ` · since ${fmt(from)}`;
-  if (to) return ` · until ${fmt(to)}`;
-  return '';
 }
 
 export function ResultsSkeleton() {

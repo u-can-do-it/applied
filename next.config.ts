@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   // the offer list streams into its <Suspense> fallback, so clicks commit immediately.
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    // the AI filter's file upload (5 MB max) goes through a server action; default is 1 MB
+    serverActions: { bodySizeLimit: '6mb' },
+  },
 };
 
 export default nextConfig;

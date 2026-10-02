@@ -8,12 +8,12 @@ const KEPT = ['src', 'days', 'from', 'to'] as const; // other filters survive a 
 
 // Updates ?q= as you type (debounced). Without JS it still works as a plain GET form.
 export function SearchBox({ query }: { query: URLSearchParams }) {
-  const { navigate } = useNav();
+  const { navigate, path } = useNav();
   const q = query.get('q') ?? '';
   const [value, setValue] = useState(q);
   const lastSent = useRef(q);
   // reads the latest filters/navigate without restarting the debounce on every render
-  const search = useEffectEvent((next: string) => navigate(withParams(query, { q: next }), { replace: true }));
+  const search = useEffectEvent((next: string) => navigate(withParams(query, { q: next }, path), { replace: true }));
 
   // follow the URL when it changes from outside (back/forward, a chip click keeps q)
   useEffect(() => {
@@ -34,7 +34,7 @@ export function SearchBox({ query }: { query: URLSearchParams }) {
   }, [value]);
 
   return (
-    <form className="search" action="/" method="get" role="search" onSubmit={(e) => e.preventDefault()}>
+    <form className="search" action={path} method="get" role="search" onSubmit={(e) => e.preventDefault()}>
       <SearchIcon />
       <input
         type="search"

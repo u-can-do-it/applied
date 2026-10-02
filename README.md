@@ -54,14 +54,53 @@ To deploy, push this folder to a GitHub repo, then **Vercel → Add New → Proj
 Add the same two env vars under **Settings → Environment Variables**, and deploy.
 Alternatively, run `npx vercel` from this folder.
 
+## 4. Password and AI filter
+
+1. **Database:** run `scripts/db-migrate.sh`, which applies [`supabase/ai-filter.sql`](supabase/ai-filter.sql) using
+   `SUPABASE_DB_URL` from `.env`. You can also paste the file into Supabase → SQL Editor. Either way is safe to re-run.
+   It adds:
+   - `offers.dup_key` (the same job on any board) and the `offers_unique` view: both tabs show each job once,
+     with links to every board it was posted on;
+   - `job_links` and `ai_dup_pairs`: duplicates the AI confirmed, and every pair it was asked about;
+   - `ai_profiles`, `ai_runs`, `ai_verdicts` and `offer_details` (the scraped ad text, cached per offer).
+2. **Vercel → Settings → Environment Variables**, the same as in `.env`:
+   - `APP_PASSWORD`: required. Without it every page in production answers 503, so the CV can't end up public.
+     Log in once per browser; the cookie lasts 400 days.
+   - `OPENAI_API_KEY`
+   - `OPENAI_MODEL=gpt-6-luna`, `OPENAI_ASSESS_EFFORT=high`, `OPENAI_DEDUP_EFFORT=low` (these are also the defaults).
+     `OPENAI_ASSESS_MODEL` / `OPENAI_DEDUP_MODEL` can set a different model for each job.
+   - `OPENAI_BASE_URL`: optional, for a proxy or Azure-compatible endpoint.
+3. Locally, without `APP_PASSWORD`, `npm run dev` stays open with no login.
+
+How the **AI filter** tab works:
+- **Profiles:** each one has a name, criteria text and an optional CV (PDF / TXT / MD). Pick or create one in the
+  dropdown in the modal. The most recently used profile is the active one.
+- **Runs are manual:** "Check today", or "Check <range>" for the dates picked in the filter row. A run only sends jobs
+  this profile hasn't judged yet, so running "today" again costs nothing.
+- **Duplicates, step 1 of every run:** the database proposes pairs the plain key misses: same company, or one name
+  a prefix of the other ("EPAM" / "EPAM Systems"), similar titles (pg_trgm), at most 45 days apart. So today's offer
+  is compared with last month's. The AI (low effort) decides each pair; when unsure it keeps them apart.
+  Decisions are stored and never asked twice. Same pairs become one job (`job_links`), the earliest copy leads,
+  and verdicts move with it.
+- **Assessment, step 2:** each remaining job is compared with the profile (high effort).
+- **When verdicts are reused:** they're stored per profile version and per job. Editing a profile's text or file starts
+  a new version, so its offers get re-checked. Renaming or switching profiles keeps what's already checked.
+  The same job on two boards is judged once.
+- **Ad text:** before judging, each offer's full ad is fetched once and cached. Sources: schema.org JobPosting on
+  JustJoin, Eldorado, Bulldog and Solid.jobs, NoFluff's public API, and Built In's ad body.
+  If an ad can't be read, the offer is judged on its title, and the tooltip says so.
+- **What you see per offer:** match yes/no, a 0–100 % skills fit and a ✓/✗ checklist of key requirements in the
+  ⓘ tooltip. "show N rejected" lists what didn't match.
+- **Background work:** runs execute in `after()` in slices of about 3 minutes under a lock (Vercel's 300 s limit).
+  While a run is open, the page refreshes and starts the next slice, so a long run continues as long as the tab
+  stays open.
+
 ## Notes
 
 - **Search:** each word must appear in the title or the company (`senior react` matches
   "Senior Frontend Developer (React)"). Case-insensitive, updates as you type.
-- **Duplicates across sources:** the same job listed on two boards shows up twice, once per source,
-  because the database stores every source's copy (`store_notifications` only skips the duplicate for Telegram).
-- **Privacy:** the Vercel production URL is public. The page is set to `noindex`, but anyone with the
-  link can see the list. On the free plan, Vercel's Deployment Protection covers only preview URLs, so
-  hiding production would need a password check in the app.
+- **Duplicates across sources:** the database keeps every board's copy, and `offers_unique` shows each job once.
+  `store_notifications` uses the same rules to skip duplicates on Telegram.
+- **Privacy:** the whole app is behind `APP_PASSWORD` (see step 4), and pages are also set to `noindex`.
 - **Size:** the database isn't capped at 10,000 like the flow context is. A row is ~300 bytes,
   so Supabase's 500 MB free tier lasts a very long time.
