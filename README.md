@@ -39,7 +39,8 @@ Everything Node-RED had in its nodes is in **Settings** now:
   and the message follow in the background.
 - **Scrapers:** the six boards with Node-RED's links, parsers and filters (they give the same offers, ids and links,
   so nothing gets duplicated), and LinkedIn's public job search (no login; two searches: Warszawa, and remote in
-  Poland). LinkedIn's cards have no skills, so its keyword check looks at the title only: untick it in the scraper to
+  Poland). LinkedIn's search isn't sorted by date, so its searches take what was posted in the last hour
+  (`f_TPR=r3600`), two pages each (`{start}` in a link + Pages in the scraper: 0, 10, 20…; `{page}`: 1, 2, 3…). LinkedIn's cards have no skills, so its keyword check looks at the title only: untick it in the scraper to
   get everything LinkedIn's search finds (it also matches descriptions). LinkedIn doesn't allow scraping in its terms
   and may refuse requests from servers; the scraper then shows the error. Each can be switched off, edited (link, headers, keyword / city check) or copied,
   e.g. a second JustJoin search. Add your own: **JSON** (any API, or the JSON inside a page: `__NEXT_DATA__`,

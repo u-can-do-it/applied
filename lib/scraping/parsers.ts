@@ -256,7 +256,9 @@ function linkedin(body: string, { src, url }: Ctx): Parsed {
   const root = parseHtml(body);
   const cards = root.querySelectorAll('[data-entity-urn]').filter((c) => c.getAttribute('data-entity-urn')?.includes('jobPosting:'));
   if (!cards.length) {
-    if (!body.trim() || body.includes('base-card')) return { total: 0, items: [] }; // no results
+    // past the last page LinkedIn answers a bare "<!DOCTYPE html><!---->": no results, not a block
+    const bare = body.replace(/<!DOCTYPE[^>]*>|<!--[\s\S]*?-->/gi, '').trim();
+    if (!bare || body.includes('base-card')) return { total: 0, items: [] };
     throw new Error('LinkedIn: no job cards (it asks to log in, or blocks this server)');
   }
   const remoteOnly = /[?&]f_WT=2(?:&|$)/.test(url); // the search itself asked for remote only
@@ -278,8 +280,10 @@ function linkedin(body: string, { src, url }: Ctx): Parsed {
         url: `https://www.linkedin.com/jobs/view/${id}`, // without the per-request tracking parameters
         skills: [],
         locations: location ? [location] : [],
-        // job ids grow over time; the card's date is only a day, too coarse to tell new from bumped
-        sort: num(id),
+        // no "newer than what was seen" check: LinkedIn's ids don't follow posting time (an offer
+        // from 20 minutes ago can have a lower id than one from 4 hours ago) and its date is only a
+        // day; what's new is decided by the database (board + id) and the company + title check
+        sort: undefined,
       };
     }),
   };

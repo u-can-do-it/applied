@@ -6,6 +6,7 @@ import {
   FIELDS, INTERVALS, JSON_SOURCES, KINDS, SRC_RE, isGeneric, isKind, normalizeList,
   type FieldId, type KindId, type ScraperConfig,
 } from '@/lib/scraping/kinds';
+import { MAX_PAGES } from '@/lib/scraping/match';
 import { notify, runAll, scrape, type PageResult, type RunSummary } from '@/lib/scraping/run';
 import { appOrigin, cronSecret } from '@/lib/scraping/schedule';
 import * as store from '@/lib/scraping/store';
@@ -110,6 +111,7 @@ function checkScraper(input: ScraperForm): { value?: store.ScraperInput; error?:
     headers[k] = String(v).slice(0, 500);
   }
   const config: ScraperConfig = { url, headers, checkKeyword: Boolean(c.checkKeyword), checkLocation: Boolean(c.checkLocation) };
+  if (/\{(start|page)\}/.test(url)) config.pages = Math.max(1, Math.min(MAX_PAGES, Math.floor(Number(c.pages)) || 1));
 
   if (kind === 'json' || kind === 'html') {
     const fields: Partial<Record<FieldId, string>> = {};

@@ -118,11 +118,18 @@ insert into public.scrapers (position, name, src, kind, config)
 select v.position, v.name, 'linkedin', 'linkedin', v.config::jsonb
 from (values
   (7, 'LinkedIn – Warszawa',
-   '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r86400&sortBy=DD&start=0", "checkKeyword": true, "checkLocation": true}'),
+   '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r3600&start={start}", "pages": 2, "checkKeyword": true, "checkLocation": true}'),
   (8, 'LinkedIn – remote',
-   '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Poland&f_WT=2&f_TPR=r86400&sortBy=DD&start=0", "checkKeyword": true, "checkLocation": true}')
+   '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Poland&f_WT=2&f_TPR=r3600&start={start}", "pages": 2, "checkKeyword": true, "checkLocation": true}')
 ) as v(position, name, config)
 where exists (select 1 from first_time);
+
+-- LinkedIn's search isn't sorted by date (it ignores sortBy): the newest come from the last hour, two
+-- pages. The two searches added with the first version get that, unless you changed their link.
+update public.scrapers set config = config || '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r3600&start={start}", "pages": 2}'::jsonb
+ where kind = 'linkedin' and config->>'url' = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r86400&sortBy=DD&start=0';
+update public.scrapers set config = config || '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Poland&f_WT=2&f_TPR=r3600&start={start}", "pages": 2}'::jsonb
+ where kind = 'linkedin' and config->>'url' = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Poland&f_WT=2&f_TPR=r86400&sortBy=DD&start=0';
 
 -- ---- 4. runs and the Telegram queue ---------------------------------------------------------
 create table if not exists public.scrape_runs (

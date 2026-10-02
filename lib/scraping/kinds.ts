@@ -10,7 +10,7 @@ type Kind = {
   src?: string;
   hint: string;
   /** a new scraper of this kind starts with Node-RED's search (the same as supabase/scraping.sql seeds) */
-  defaults?: Pick<ScraperConfig, 'url' | 'headers' | 'checkKeyword' | 'checkLocation'>;
+  defaults?: Pick<ScraperConfig, 'url' | 'pages' | 'headers' | 'checkKeyword' | 'checkLocation'>;
 };
 
 export const KINDS: Record<KindId, Kind> = {
@@ -68,10 +68,12 @@ export const KINDS: Record<KindId, Kind> = {
     label: 'LinkedIn search (public, no login)',
     src: 'linkedin',
     hint:
-      'LinkedIn’s logged-out job search, 10 newest per page. location= a city or a country; f_WT=2 remote only (1 office, 3 hybrid); ' +
-      'f_TPR=r86400 the last 24 h; start=10 the next page. Its cards have no skills, so the keyword check looks at the title only.',
+      'LinkedIn’s logged-out job search, 10 offers per page, sorted by relevance (it ignores sortBy), so the newest come from a short ' +
+      'window: f_TPR=r3600 = posted in the last hour (r86400 = 24 h), over 2 pages. location= a city or a country; f_WT=2 remote only ' +
+      '(1 office, 3 hybrid). Its cards have no skills, so the keyword check looks at the title only.',
     defaults: {
-      url: 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r86400&sortBy=DD&start=0',
+      url: 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r3600&start={start}',
+      pages: 2,
       checkKeyword: true,
       checkLocation: true,
     },
@@ -115,6 +117,8 @@ export type JsonSource = (typeof JSON_SOURCES)[number]['id'];
 export type ScraperConfig = {
   /** {keyword} / {keyword_slug} = each keyword from the settings, so one search per keyword */
   url: string;
+  /** with {start} (0, 10, 20…) or {page} (1, 2, 3…) in the link: how many pages to fetch */
+  pages?: number;
   headers?: Record<string, string>;
   /** the offer (title or skills) must mention one of the keywords */
   checkKeyword?: boolean;

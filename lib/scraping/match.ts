@@ -66,12 +66,24 @@ export function placeOf(o: Found, cities: string[]) {
 
 const slug = (k: string) => fold(k).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-/** A URL with {keyword} / {keyword_slug} becomes one URL per keyword; without them, just itself. */
-export function expandUrl(url: string, keywords: string[]): { url: string; keyword: string | null }[] {
-  if (!/\{keyword(?:_slug)?\}/.test(url)) return [{ url, keyword: null }];
-  if (!keywords.length) throw new Error('The link has {keyword} but there are no keywords in the filters.');
-  return keywords.map((k) => ({
-    keyword: k,
-    url: url.replaceAll('{keyword_slug}', slug(k)).replaceAll('{keyword}', encodeURIComponent(k)),
-  }));
+export const MAX_PAGES = 5;
+
+/**
+ * A URL with {keyword} / {keyword_slug} becomes one URL per keyword; with {start} (0, 10, 20…) or
+ * {page} (1, 2, 3…) also one per page, `pages` of them. Without placeholders, just itself.
+ */
+export function expandUrl(url: string, keywords: string[], pages = 1): { url: string; keyword: string | null; page: number }[] {
+  const hasKeyword = /\{keyword(?:_slug)?\}/.test(url);
+  if (hasKeyword && !keywords.length) throw new Error('The link has {keyword} but there are no keywords in the filters.');
+  const paged = /\{(?:start|page)\}/.test(url);
+  const n = paged ? Math.max(1, Math.min(MAX_PAGES, Math.floor(pages) || 1)) : 1;
+  const out: { url: string; keyword: string | null; page: number }[] = [];
+  for (const k of hasKeyword ? keywords : [null]) {
+    for (let i = 0; i < n; i++) {
+      let u = url.replaceAll('{start}', String(i * 10)).replaceAll('{page}', String(i + 1));
+      if (k !== null) u = u.replaceAll('{keyword_slug}', slug(k)).replaceAll('{keyword}', encodeURIComponent(k));
+      out.push({ url: u, keyword: k, page: i + 1 });
+    }
+  }
+  return out;
 }

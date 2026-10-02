@@ -70,7 +70,7 @@ export async function fetchPage(url: string, headers: Record<string, string> = {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export type PageResult = { keyword: string | null; url: string; ok: boolean; error?: string; total: number; kept: number };
+export type PageResult = { keyword: string | null; page: number; url: string; ok: boolean; error?: string; total: number; kept: number };
 export type ScrapeResult = {
   ok: boolean;
   error: string | null;
@@ -102,7 +102,7 @@ export async function scrape(s: Pick<Scraper, 'kind' | 'src' | 'config'>, settin
 
   let urls: ReturnType<typeof expandUrl>;
   try {
-    urls = expandUrl(s.config.url, settings.keywords);
+    urls = expandUrl(s.config.url, settings.keywords, s.config.pages);
   } catch (e) {
     return { ok: false, error: message(e), found: 0, kept: [], skipped, pages, ms: 0 };
   }
@@ -122,15 +122,17 @@ export async function scrape(s: Pick<Scraper, 'kind' | 'src' | 'config'>, settin
           kept.set(o.id, o);
         }
       }
-      pages.push({ keyword: u.keyword, url: u.url, ok: true, total: parsed.total, kept: pageKept });
+      pages.push({ keyword: u.keyword, page: u.page, url: u.url, ok: true, total: parsed.total, kept: pageKept });
     } catch (e) {
-      pages.push({ keyword: u.keyword, url: u.url, ok: false, error: message(e), total: 0, kept: 0 });
+      pages.push({ keyword: u.keyword, page: u.page, url: u.url, ok: false, error: message(e), total: 0, kept: 0 });
     }
   }
   const failed = pages.filter((p) => !p.ok);
   return {
     ok: failed.length < pages.length,
-    error: failed.length ? failed.map((p) => (p.keyword ? `${p.keyword}: ${p.error}` : p.error)).join('; ') : null,
+    error: failed.length
+      ? failed.map((p) => `${[p.keyword, urls.length > 1 && p.page > 1 && `page ${p.page}`].filter(Boolean).join(' ')}${p.keyword || p.page > 1 ? ': ' : ''}${p.error}`).join('; ')
+      : null,
     found,
     kept: [...kept.values()],
     skipped,
@@ -252,24 +254,38 @@ export async function runAll(
     };
     await finishRun(runId, { found: summary.found, kept: summary.kept, added: summary.added, fresh: summary.fresh, notified: 0, errors });
 
-    // new jobs: checked by the AI, then the matches to Telegram (the queue keeps them meanwhile)
+    // every new job (not another board's copy of a known one) gets the AI's verdict, also the ones
+    // that aren't announced (a scraper's first run, a muted title): the AI tab has them checked
+    const newJobs = [...new Set(added.filter((a) => !a.seen_before).map((a) => a.dup_key))];
+    // the announced ones wait in the queue; Telegram gets the matches
     const send = settings.notify && telegramReady();
     if (send) await enqueue(fresh);
     const id = runId;
     const deadline = t0 + AI_BUDGET_MS;
     const tail = async () => {
-      const n = send ? await notify({ deadline }) : await assessOnly(settings, fresh, deadline);
-      const more = n.error ? [{ scraper: send ? 'AI / Telegram' : 'AI', error: n.error }] : [];
-      if (send || more.length) await updateRun(id, { notified: n.sent, matched: n.matched, errors: [...errors, ...more] });
-      return { n, more };
+      const more: RunSummary['errors'] = [];
+      const note = (scraper: string, error?: string | null) => {
+        if (error && !more.some((m) => m.error === error)) more.push({ scraper, error });
+      };
+      let matched: number | null = null;
+      const profile = newJobs.length ? await aiProfile(settings).catch((e) => (note('AI', message(e)), null)) : null;
+      if (profile) {
+        const r = await assessJobs(profile, newJobs, deadline).catch((e) => ({ verdicts: new Map<string, Verdict>(), error: message(e) }));
+        matched = newJobs.filter((k) => r.verdicts.get(k)?.match).length;
+        note('AI', r.error);
+      }
+      const n = send ? await notify({ deadline }) : { sent: 0 };
+      note('AI / Telegram', 'error' in n ? n.error : null);
+      if (profile || send || more.length) await updateRun(id, { notified: n.sent, matched, errors: [...errors, ...more] });
+      return { sent: n.sent, more };
     };
-    if (opts.background && (send || settings.aiFilter) && fresh.length) {
+    if (opts.background && (newJobs.length || fresh.length)) {
       unlockLater = true;
       after(() => tail().catch((e) => console.error('[scrape] AI / Telegram failed:', e)).finally(() => unlock().catch(() => {})));
       return { ...summary, notifyLater: true };
     }
-    const { n, more } = await tail();
-    return { ...summary, notified: n.sent, errors: [...errors, ...more], ms: Date.now() - t0 };
+    const { sent, more } = await tail();
+    return { ...summary, notified: sent, errors: [...errors, ...more], ms: Date.now() - t0 };
   } catch (e) {
     // the database or something unexpected: keep it in the run log, so Settings shows it
     const errors = [{ scraper: 'Run', error: message(e) }];
@@ -293,14 +309,6 @@ async function aiProfile(settings: ScrapeSettings): Promise<ProfileWithFile | nu
   const active = (await listProfiles())[0];
   if (!isUsable(active)) return null;
   return getProfile(active.id);
-}
-
-/** Without Telegram the new offers still get their verdicts, for the AI tab. */
-async function assessOnly(settings: ScrapeSettings, fresh: Queued[], deadline: number): Promise<Notified> {
-  const profile = fresh.length ? await aiProfile(settings).catch(() => null) : null;
-  if (!profile) return { sent: 0, matched: null };
-  const { verdicts, error } = await assessJobs(profile, [...new Set(fresh.flatMap((f) => f.dup_key ?? []))], deadline);
-  return { sent: 0, matched: [...verdicts.values()].filter((v) => v.match).length, ...(error ? { error } : {}) };
 }
 
 const appLink = () =>

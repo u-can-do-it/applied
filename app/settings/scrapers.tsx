@@ -18,6 +18,7 @@ type Draft = {
   kind: KindId;
   enabled: boolean;
   url: string;
+  pages: number;
   headers: string; // "Name: value" per line
   checkKeyword: boolean;
   checkLocation: boolean;
@@ -45,6 +46,7 @@ function toDraft(s: Scraper): Draft {
     kind: s.kind,
     enabled: s.enabled,
     url: s.config.url,
+    pages: s.config.pages ?? 1,
     headers: headerText(s.config.headers),
     checkKeyword: Boolean(s.config.checkKeyword),
     checkLocation: Boolean(s.config.checkLocation),
@@ -64,6 +66,7 @@ function blank(kind: KindId, keep?: Partial<Draft>): Draft {
     kind,
     enabled: true,
     url: d?.url ?? keep?.url ?? '',
+    pages: d?.pages ?? 1,
     headers: headerText(d?.headers),
     checkKeyword: d?.checkKeyword ?? true,
     checkLocation: d?.checkLocation ?? true,
@@ -82,6 +85,7 @@ const toForm = (d: Draft): ScraperForm => ({
   enabled: d.enabled,
   config: {
     url: d.url.trim(),
+    pages: d.pages,
     headers: parseHeaders(d.headers),
     checkKeyword: d.checkKeyword,
     checkLocation: d.checkLocation,
@@ -246,6 +250,7 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
   const generic = isGeneric(d.kind);
   const mapped = d.kind === 'json' || d.kind === 'html';
   const usesKeyword = /\{keyword(_slug)?\}/.test(d.url);
+  const paged = /\{(start|page)\}/.test(d.url);
 
   return (
     <dialog
@@ -297,9 +302,17 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
             <textarea rows={2} value={d.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://…" spellCheck={false} />
             <small>
               <code className="inline">{'{keyword}'}</code> and <code className="inline">{'{keyword_slug}'}</code> become each keyword from Filters (
-              {keywords.join(', ') || 'none set'}): one search per keyword.{!usesKeyword && ' Without them the link is fetched as it is.'}
+              {keywords.join(', ') || 'none set'}): one search per keyword.{!usesKeyword && ' Without them the link is fetched as it is.'}{' '}
+              <code className="inline">{'{start}'}</code> (0, 10, 20…) or <code className="inline">{'{page}'}</code> (1, 2, 3…) fetch several pages.
             </small>
           </label>
+          {paged && (
+            <label className="field pages-field">
+              <span>Pages</span>
+              <input type="number" min={1} max={5} value={d.pages} onChange={(e) => set({ pages: Math.max(1, Math.min(5, Number(e.target.value) || 1)) })} />
+              <small>per keyword, per run</small>
+            </label>
+          )}
           <label className="field">
             <span>Headers</span>
             <textarea rows={2} value={d.headers} onChange={(e) => set({ headers: e.target.value })} placeholder="X-Api-Version: 1.0" spellCheck={false} />
@@ -436,7 +449,8 @@ function TestView({ test }: { test: TestResult | { error: string } }) {
         <ul className="test-pages">
           {t.pages.map((p) => (
             <li key={p.url}>
-              {p.keyword ?? 'page'}: {p.ok ? `${p.total} → ${p.kept}` : <span className="warn">{p.error}</span>}{' '}
+              {[p.keyword, t.pages.some((x) => x.page > 1) && `page ${p.page}`].filter(Boolean).join(', ') || 'page'}:{' '}
+              {p.ok ? `${p.total} → ${p.kept}` : <span className="warn">{p.error}</span>}{' '}
               <a href={p.url} target="_blank" rel="noopener noreferrer">
                 open ↗
               </a>

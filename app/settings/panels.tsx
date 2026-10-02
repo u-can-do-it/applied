@@ -151,7 +151,7 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
                 <span>
                   {seconds(Date.parse(r.finished_at) - Date.parse(r.started_at))} · {r.found} on the pages · {r.kept} kept ·{' '}
                   <strong>{r.added} new</strong>
-                  {r.matched !== null && r.fresh > 0 && ` · ✦ ${r.matched} of ${r.fresh} matched`}
+                  {r.matched !== null && ` · ✦ ${r.matched} matched`}
                   {r.notified ? ` · ${r.notified} sent` : ''}
                 </span>
               ) : (
@@ -415,7 +415,7 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUr
             ? 'Set OPENAI_API_KEY to use it: until then every new offer is sent.'
             : !ai.profile
               ? 'No AI profile yet (AI filter tab → ✦ Profile): until then every new offer is sent.'
-              : 'New offers are checked right after scraping (as the AI tab would). The message lists the matches with their fit; if none match, it just says how many new offers there are. One the AI can’t check for 20 minutes is sent anyway, marked.'}
+              : 'Every new offer is checked right after scraping (as the AI tab would; also the ones that aren’t sent, like a new scraper’s first run). The message lists the matches with their fit; if none match, it just says how many new offers there are. One the AI can’t check for 20 minutes is sent anyway, marked.'}
       </p>
       <p className="small">
         Commands in the chat (/mute, /resume, /send, /scrape, /status):{' '}
