@@ -4,10 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, useTransition, type Ref } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 import { formatDay, todayInWarsaw } from '@/lib/dates';
-import { GHOST_AFTER_DAYS, reached, STAGES, STATES, stageOf, stateOf, stats, type HistoryEntry, type StageId, type StateId } from '@/lib/stages';
+import {
+  GHOST_AFTER_DAYS, isActive, isRejected, reached, STAGES, STATES, stageOf, stateHeading, stateLabel, statesFor, stats,
+  type HistoryEntry, type StageId, type StateId,
+} from '@/lib/stages';
 import { refetchContentAction, removeStatusStepAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
 import { SearchIcon } from '../search-box';
-import { AddApplication } from './add-application';
+import { AddApplication, ApplicationForm } from './add-application';
 
 const day = (iso: string | null | undefined) => (iso ? formatDay(todayInWarsaw(Date.parse(iso))) : '');
 const facts = (d: Application['details']) =>
@@ -122,10 +125,10 @@ export function AppliedList({ apps: fromServer, labels }: { apps: Application[];
         <AdModal
           key={open.dup_key}
           initial={open}
-          sourceLabel={labels[open.src] ?? open.src}
-          onClose={(note) => {
+          labels={labels}
+          onClose={(note, key) => {
             setOpen(null);
-            if (note !== undefined && note !== open.note) setNotes((cur) => ({ ...cur, [open.dup_key]: note }));
+            if (note !== undefined && note !== open.note) setNotes((cur) => ({ ...cur, [key]: note }));
           }}
         />
       )}
@@ -136,7 +139,7 @@ export function AppliedList({ apps: fromServer, labels }: { apps: Application[];
 function StatusChip({ stage, state }: { stage: StageId; state: StateId }) {
   return (
     <span className={`stage-chip state-${state}`}>
-      {stageOf(stage).short} · {stateOf(state).label}
+      {stageOf(stage).short} · {stateLabel(stage, state)}
     </span>
   );
 }
@@ -150,11 +153,12 @@ function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter
 
   const tiles = [
     { label: 'Sent', value: s.sent, sub: '', test: () => true, cls: '' },
-    { label: 'Positive replies', value: s.positive, sub: pct(s.positive, s.sent), test: (a: Application) => reached(a).has('invited'), cls: 'good' },
-    { label: 'Offers', value: s.offers, sub: pct(s.offers, s.sent), test: (a: Application) => reached(a).has('offer'), cls: 'good' },
-    { label: 'In progress', value: s.active, sub: '', test: (a: Application) => a.stage_state === 'pending' || a.stage_state === 'passed', cls: '' },
-    { label: 'Rejected', value: s.rejected, sub: pct(s.rejected, s.sent), test: (a: Application) => a.stage_state === 'failed', cls: 'bad' },
+    { label: 'Positive replies', value: s.positive, sub: pct(s.positive, s.sent), test: (a: Application) => a.stage !== 'submitted', cls: 'good' },
+    { label: 'Offers', value: s.offers, sub: pct(s.offers, s.sent), test: (a: Application) => a.stage === 'offer', cls: 'good' },
+    { label: 'In progress', value: s.active, sub: '', test: (a: Application) => isActive(a), cls: '' },
+    { label: 'Rejected', value: s.rejected, sub: pct(s.rejected, s.sent), test: (a: Application) => isRejected(a), cls: 'bad' },
     { label: 'Ghosted', value: s.ghosted, sub: pct(s.ghosted, s.sent), test: (a: Application) => a.stage_state === 'ghosted', cls: 'bad' },
+    { label: stateHeading('pool'), value: s.pool, sub: pct(s.pool, s.sent), test: (a: Application) => a.stage_state === 'pool', cls: 'bad' },
   ];
 
   return (
@@ -175,18 +179,18 @@ function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter
         ))}
       </div>
 
-      {/* how far applications got: each stage counts everyone who reached it. Shares are of all sent,
-          because technical and HR come in either order depending on the company */}
-      <ol className="funnel" aria-label="Funnel">
-        {s.funnel.map((f, i) => {
-          const label = `Reached: ${stageOf(f.stage).label}`;
+      {/* where applications are: each one at the stage of its last status (a stage it was taken back
+          from doesn't count), as a share of all sent */}
+      <ol className="funnel" aria-label="By stage, as they are now">
+        {s.now.map((f) => {
+          const label = stageOf(f.stage).label;
           return (
             <li key={f.stage}>
-              <button type="button" aria-pressed={on(label)} onClick={pick(label, (a) => reached(a).has(f.stage))}>
+              <button type="button" aria-pressed={on(label)} onClick={pick(label, (a) => a.stage === f.stage)}>
                 <span className="funnel-bar" style={{ width: `${s.sent ? Math.max(4, (f.count / s.sent) * 100) : 0}%` }} />
                 <span className="funnel-text">
-                  <strong>{f.count}</strong> {stageOf(f.stage).label}
-                  {i > 0 && <span className="muted"> · {pct(f.count, s.sent)} of sent</span>}
+                  <strong>{f.count}</strong> {label}
+                  <span className="muted"> · {pct(f.count, s.sent)} of sent</span>
                 </span>
               </button>
             </li>
@@ -202,7 +206,7 @@ function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter
               <th scope="col">Stage</th>
               {STATES.map((x) => (
                 <th key={x.id} scope="col" className={`state-${x.id}`}>
-                  {x.label}
+                  {stateHeading(x.id)}
                 </th>
               ))}
             </tr>
@@ -213,7 +217,9 @@ function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter
                 <th scope="row">{st.label}</th>
                 {STATES.map((x) => {
                   const n = s.byStage[st.id][x.id];
-                  const label = `${st.short} · ${x.label}`;
+                  const label = `${st.short} · ${stateLabel(st.id, x.id)}`;
+                  // an offer has its own outcomes (Received / Accepted / Rejected) and is never ghosted
+                  if (!statesFor(st.id).some((y) => y.id === x.id)) return <td key={x.id} className="muted">–</td>;
                   return (
                     <td key={x.id}>
                       {n ? (
@@ -223,6 +229,7 @@ function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter
                       ) : (
                         <span className="muted">0</span>
                       )}
+                      {st.id === 'offer' && <small className="muted"> {stateLabel(st.id, x.id).toLowerCase()}</small>}
                     </td>
                   );
                 })}
@@ -238,7 +245,7 @@ function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter
 // ---- one application: status, timeline, note, saved ad ---------------------------------
 // Opens with what the list already has (title, status, details, note) and keeps one height:
 // only the ad text loads, into its own box, and everything between the title and the buttons
-// scrolls inside the window.
+// scrolls inside the window. "✎ Edit" shows the "Add application" form in its place.
 
 type Shown = Application & { content?: string | null }; // no content yet = still loading
 
@@ -251,8 +258,13 @@ async function loadApplication(key: string) {
   return (await res.json()) as ApplicationWithContent;
 }
 
-function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sourceLabel: string; onClose: (note: string | null | undefined) => void }) {
-  const key = initial.dup_key;
+function AdModal({ initial, labels, onClose }: {
+  initial: Application;
+  labels: Record<string, string>;
+  onClose: (note: string | null | undefined, key: string) => void;
+}) {
+  const [key, setKey] = useState(initial.dup_key); // an edit can make it another job's (see updateApplication)
+  const [editing, setEditing] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const note = useRef<NoteHandle>(null);
   const [app, setApp] = useState<Shown>(initial);
@@ -263,11 +275,11 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
   const gone = useRef(false); // unmarked: there's no note to save any more
 
   // the saved ad and the current status; while the ad is still being fetched, look again every 3 s
-  const follow = async () => {
+  const follow = async (k = key) => {
     const me = ++run.current;
     try {
       for (;;) {
-        const data = await loadApplication(key);
+        const data = await loadApplication(k);
         if (me !== run.current) return;
         setApp(data);
         setLoadError(null);
@@ -310,10 +322,15 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
     });
   };
 
-  // a step clicked by mistake: out of the history, the status goes back to the step before
-  const removeStep = (h: HistoryEntry) => {
+  // a step clicked by mistake: out of the history with every step after it, the status goes back
+  // to the step before
+  const removeStep = (i: number) => {
+    const all = app.history ?? [];
+    const h = all[i];
+    const later = all.length - 1 - i;
+    if (later > 0 && !confirm(`Remove “${stageOf(h.stage).label} · ${stateLabel(h.stage, h.state)}” of ${day(h.at)} and the ${later === 1 ? 'step' : `${later} steps`} after it?`)) return;
     run.current++;
-    const history = (app.history ?? []).filter((x) => x !== h);
+    const history = all.slice(0, i);
     const last = history[history.length - 1];
     setApp({ ...app, history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending' }); // instant
     act(async () => {
@@ -321,6 +338,18 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
       if (res.error) throw new Error(res.error);
       await follow();
     });
+  };
+
+  // saved in the form: back to the window with it (under its new key, if it's another job's now)
+  const saved = (fresh: ApplicationWithContent) => {
+    if (fresh.dup_key !== key) {
+      moveDraft(key, fresh.dup_key);
+      setKey(fresh.dup_key);
+    }
+    run.current++; // a load on its way would bring the old details back
+    setApp(fresh);
+    setEditing(false);
+    if (fresh.content_status === 'pending') follow(fresh.dup_key);
   };
 
   const close = () => dialog.current?.close();
@@ -340,17 +369,25 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
     <dialog
       ref={dialog}
       className="modal modal-wide modal-sheet"
-      aria-labelledby="ad-title"
+      aria-labelledby={editing ? 'edit-title' : 'ad-title'}
       // Esc, a click outside and Close all end here; the note's last words are saved on the way out
-      onClose={() => onClose(gone.current ? undefined : note.current?.flush())}
-      onClick={(e) => e.target === dialog.current && close()}
+      onClose={() => onClose(gone.current ? undefined : note.current?.flush(), key)}
+      // editing: Esc goes back to the window, and a click outside does nothing (the form would be lost)
+      onCancel={(e) => {
+        if (!editing) return;
+        e.preventDefault();
+        setEditing(false);
+      }}
+      onClick={(e) => e.target === dialog.current && !editing && close()}
     >
-      <div className="modal-body">
+      {editing && <ApplicationForm app={app as ApplicationWithContent} onCancel={() => setEditing(false)} onSaved={saved} />}
+      {/* hidden, not gone, while editing: the note keeps what you typed */}
+      <div className="modal-body" style={editing ? { display: 'none' } : undefined}>
         <div className="sheet-head">
           <h2 id="ad-title">{app.title}</h2>
           <p className="muted">
             {app.company && <>{app.company} · </>}
-            {sourceLabel} · applied {day(app.applied_at)}
+            {labels[app.src] ?? app.src} · applied {day(app.applied_at)}
           </p>
         </div>
 
@@ -372,12 +409,13 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
               ))}
             </div>
             <div className="state-steps" role="group" aria-label="Outcome of this stage">
-              {STATES.map((x) => (
+              {statesFor(app.stage).map((x) => (
                 <button
                   key={x.id}
                   type="button"
                   className={`state-btn state-${x.id}`}
                   aria-pressed={app.stage_state === x.id}
+                  title={x.hint}
                   onClick={() => setStatus(app.stage, x.id)}
                 >
                   {x.label}
@@ -385,26 +423,31 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
               ))}
             </div>
             {(app.history ?? []).length > 0 && (
+              // newest first; × takes a step away with the ones after it (above it here), not the first one: applying
               <ol className="timeline" aria-label="History">
-                {[...app.history].reverse().map((h, i) => (
-                  <li key={`${h.at}|${h.stage}|${h.state}|${i}`}>
-                    <time dateTime={h.at}>{day(h.at)}</time> {stageOf(h.stage).label} ·{' '}
-                    <span className={`state-text state-${h.state}`}>{stateOf(h.state).label}</span>
-                    {h.auto && <span className="muted" title={`No news for ${GHOST_AFTER_DAYS} days`}>(auto)</span>}
-                    {app.history.length > 1 && (
-                      <button
-                        type="button"
-                        className="step-remove"
-                        title="Remove this step (clicked by mistake)"
-                        aria-label={`Remove “${stageOf(h.stage).label} · ${stateOf(h.state).label}” of ${day(h.at)}`}
-                        disabled={busy}
-                        onClick={() => removeStep(h)}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </li>
-                ))}
+                {app.history.map((h, i) => ({ h, i })).reverse().map(({ h, i }) => {
+                  const later = app.history.length - 1 - i;
+                  return (
+                    <li key={`${h.at}|${h.stage}|${h.state}|${i}`}>
+                      <time dateTime={h.at}>{day(h.at)}</time>
+                      <span>{stageOf(h.stage).label} ·</span>
+                      <span className={`state-text state-${h.state}`}>{stateLabel(h.stage, h.state)}</span>
+                      {h.auto && <span className="muted" title={`No news for ${GHOST_AFTER_DAYS} days`}>(auto)</span>}
+                      {i > 0 && (
+                        <button
+                          type="button"
+                          className="step-remove"
+                          title={later ? 'Remove this step and the ones after it' : 'Remove this step (clicked by mistake)'}
+                          aria-label={`Remove “${stageOf(h.stage).label} · ${stateLabel(h.stage, h.state)}” of ${day(h.at)}${later ? ` and the ${later} after it` : ''}`}
+                          disabled={busy}
+                          onClick={() => removeStep(i)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </section>
@@ -471,6 +514,15 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
               Unmark applied
             </button>
             <span className="spacer" />
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || waiting}
+              title={waiting ? 'Once the ad text is in' : undefined}
+              onClick={() => setEditing(true)}
+            >
+              ✎ Edit
+            </button>
             {!waiting && !hasText && (
               <button
                 type="button"
@@ -518,6 +570,12 @@ function readDraft(key: string): Draft | null {
   } catch {
     return null;
   }
+}
+function moveDraft(from: string, to: string) {
+  const d = readDraft(from);
+  if (!d) return;
+  writeDraft(to, d);
+  writeDraft(from, null);
 }
 function writeDraft(key: string, draft: Draft | null) {
   try {

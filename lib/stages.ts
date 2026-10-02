@@ -1,6 +1,6 @@
 // Application pipeline, shared by server and client. Stage = how far it got; state = the
-// outcome of that stage. Order of technical / HR differs per company, so "reached" comes from
-// the history, not from the position in this list.
+// outcome of that stage. The statistics go by the last status; the ✓ in the window by the
+// history (technical / HR come in either order, so not by the position in this list).
 
 // "invited" is the id of Initial contact (its first name): kept, so stored statuses stay valid
 export const STAGES = [
@@ -17,6 +17,9 @@ export const STATES = [
   { id: 'passed', label: 'Passed' },
   { id: 'failed', label: 'Rejected' },
   { id: 'ghosted', label: 'Ghosted' },
+  // "we'll keep your CV in our talent pool": an answer, so it never turns into "ghosted" by itself.
+  // short: where it heads a column or a tile
+  { id: 'pool', label: 'CV do bazy, ty do dupy', short: 'Talent pool', hint: 'Talent pool: they keep your CV, there’s no job' },
 ] as const;
 
 export type StageId = (typeof STAGES)[number]['id'];
@@ -26,6 +29,29 @@ export type HistoryEntry = { stage: StageId; state: StateId; at: string; auto?: 
 /** No news this long since the last status change: ghosted (jw_ghost_stale_applications). */
 export const GHOST_AFTER_DAYS = 30;
 export type WithStatus = { stage: StageId; stage_state: StateId; history: HistoryEntry[] | null };
+
+// The Offer stage has outcomes of its own: received (still deciding), accepted, rejected. It's
+// never "ghosted": the decision is yours. Same ids underneath (pending / passed / failed).
+const OFFER_LABELS: Partial<Record<StateId, string>> = { pending: 'Received', passed: 'Accepted', failed: 'Rejected' };
+
+/** The outcomes a stage can have, by their name there (an offer has no talent pool either). */
+export function statesFor(stage: StageId): { id: StateId; label: string; hint?: string }[] {
+  return stage === 'offer'
+    ? STATES.filter((x) => OFFER_LABELS[x.id]).map((x) => ({ id: x.id, label: OFFER_LABELS[x.id]! }))
+    : STATES.map((x) => ({ id: x.id, label: x.label, hint: 'hint' in x ? x.hint : undefined }));
+}
+/** An outcome's name as a heading (a column, a tile). */
+export const stateHeading = (id: StateId) => {
+  const x = stateOf(id);
+  return 'short' in x ? x.short : x.label;
+};
+export const stateLabel = (stage: StageId, state: StateId) => (stage === 'offer' ? OFFER_LABELS[state] : undefined) ?? stateOf(state).label;
+
+/** Still going somewhere: in progress, or passed and waiting for the next step; an offer not decided yet. */
+export const isActive = (a: { stage: StageId; stage_state: StateId }) =>
+  a.stage === 'offer' ? a.stage_state === 'pending' : a.stage_state === 'pending' || a.stage_state === 'passed';
+/** They said no (an offer you turned down isn't that). */
+export const isRejected = (a: { stage: StageId; stage_state: StateId }) => a.stage_state === 'failed' && a.stage !== 'offer';
 
 export const isStage = (v: unknown): v is StageId => STAGES.some((s) => s.id === v);
 export const isState = (v: unknown): v is StateId => STATES.some((s) => s.id === v);
@@ -43,34 +69,38 @@ export function reached(a: WithStatus): Set<StageId> {
 
 export type Stats = {
   sent: number;
-  positive: number; // reached initial contact ("invited") or later
-  offers: number; // reached "offer"
-  active: number; // current stage in progress, or passed and waiting for the next step
-  rejected: number;
+  positive: number; // the last status is past Submitted: they got back to you
+  offers: number; // the last status is at the Offer
+  active: number; // current stage in progress, or passed and waiting for the next step (isActive)
+  rejected: number; // they said no (isRejected)
   ghosted: number;
-  funnel: { stage: StageId; count: number }[];
+  pool: number; // kept "in the talent pool"
+  /** how many are at each stage now (their last status) */
+  now: { stage: StageId; count: number }[];
   byStage: Record<StageId, Record<StateId, number>>;
 };
 
 export function stats(apps: WithStatus[]): Stats {
   const byStage = Object.fromEntries(STAGES.map((s) => [s.id, Object.fromEntries(STATES.map((x) => [x.id, 0]))])) as Stats['byStage'];
-  const funnel = Object.fromEntries(STAGES.map((s) => [s.id, 0])) as Record<StageId, number>;
-  let active = 0, rejected = 0, ghosted = 0;
+  const now = Object.fromEntries(STAGES.map((s) => [s.id, 0])) as Record<StageId, number>;
+  let active = 0, rejected = 0, ghosted = 0, pool = 0;
   for (const a of apps) {
     byStage[a.stage][a.stage_state]++;
-    for (const s of reached(a)) funnel[s]++;
-    if (a.stage_state === 'failed') rejected++;
+    now[a.stage]++;
+    if (isActive(a)) active++;
+    else if (isRejected(a)) rejected++;
     else if (a.stage_state === 'ghosted') ghosted++;
-    else active++;
+    else if (a.stage_state === 'pool') pool++;
   }
   return {
     sent: apps.length,
-    positive: funnel.invited,
-    offers: funnel.offer,
+    positive: apps.length - now.submitted,
+    offers: now.offer,
     active,
     rejected,
     ghosted,
-    funnel: STAGES.map((s) => ({ stage: s.id, count: funnel[s.id] })),
+    pool,
+    now: STAGES.map((s) => ({ stage: s.id, count: now[s.id] })),
     byStage,
   };
 }

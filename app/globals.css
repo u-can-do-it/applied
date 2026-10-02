@@ -128,7 +128,8 @@ h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0; }
 .range.active .date-field input { border-color: var(--text); }
 /* dd.mm.rrrr text field + calendar button; the native date input only provides the picker */
 .date-box { position: relative; display: inline-flex; align-items: center; }
-.date-box input[type='text'] { width: 10.5ch; padding-right: 30px; font-variant-numeric: tabular-nums; }
+/* 10 characters plus the padding (10px, 30px for the calendar) and the border: boxes here include their padding */
+.date-box input[type='text'] { width: calc(10ch + 42px); padding-right: 30px; font-variant-numeric: tabular-nums; }
 .date-box.invalid input[type='text'] { border-color: #c0362c; }
 .date-box .cal {
   position: absolute; right: 4px;
@@ -469,6 +470,9 @@ button.apply.applied { color: var(--ok); border-color: var(--ok); }
 @media (max-width: 560px) {
   .applied-row { grid-template-columns: 1fr auto; }
   .applied-row time { grid-column: 1 / -1; }
+  /* a long status ("HR · CV do bazy, ty do dupy") takes two lines rather than the title's room */
+  .applied-row .side { max-width: 42vw; }
+  .applied-row .stage-chip { white-space: normal; text-align: right; border-radius: 10px; }
 }
 
 .modal-wide { width: min(760px, calc(100vw - 32px)); }
@@ -532,11 +536,14 @@ a.button-link:hover { border-color: var(--muted); }
 .stage-chip.state-passed { color: var(--ok); border-color: var(--ok); }
 .stage-chip.state-failed { color: #c0362c; border-color: #e5b5b0; }
 .stage-chip.state-ghosted { color: var(--muted); border-style: dashed; }
+.stage-chip.state-pool { color: #7d4fc4; border-color: #c9b5ec; }
 .state-text.state-passed { color: var(--ok); }
 .state-text.state-failed { color: #c0362c; }
 .state-text.state-ghosted, .state-text.state-pending { color: var(--muted); }
+.state-text.state-pool { color: #7d4fc4; }
 @media (prefers-color-scheme: dark) {
   .stage-chip.state-failed, .state-text.state-failed { color: #ff8a80; border-color: #6b3a36; }
+  .stage-chip.state-pool, .state-text.state-pool { color: #c3a6f5; border-color: #4f3f6e; }
 }
 
 .app-stats { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
@@ -568,6 +575,9 @@ a.button-link:hover { border-color: var(--muted); }
 .stage-table summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .stage-table table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .stage-table th, .stage-table td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--line); }
+/* six outcome columns: on a phone, tighter, and the table scrolls in its box rather than the page */
+.stage-table { overflow-x: auto; }
+@media (max-width: 480px) { .stage-table th, .stage-table td { padding: 5px 4px; } }
 .stage-table th[scope='row'], .stage-table thead th:first-child { text-align: left; font-weight: 500; }
 .stage-table thead th { font-size: 12px; color: var(--muted); font-weight: 500; }
 .stage-table button.link { padding: 0; font-size: 13px; }
@@ -587,6 +597,7 @@ a.button-link:hover { border-color: var(--muted); }
 .state-btn[aria-pressed='true'].state-passed { background: var(--ok); border-color: var(--ok); color: #fff; }
 .state-btn[aria-pressed='true'].state-failed { background: #c0362c; border-color: #c0362c; color: #fff; }
 .state-btn[aria-pressed='true'].state-ghosted { background: var(--muted); border-color: var(--muted); color: var(--bg); }
+.state-btn[aria-pressed='true'].state-pool { background: #7d4fc4; border-color: #7d4fc4; color: #fff; }
 .timeline { list-style: none; margin: 0; padding: 0; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
 .timeline time { font-variant-numeric: tabular-nums; margin-right: 4px; }
 .timeline li { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
@@ -595,6 +606,14 @@ button.step-remove {
   background: none; color: var(--muted);
 }
 button.step-remove:hover:not(:disabled) { color: #c0362c; background: var(--bg); }
+/* × shows on the step under the pointer (or with the keyboard); a touch screen can't hover: always there */
+@media (hover: hover) {
+  .timeline button.step-remove { opacity: 0; transition: opacity 0.12s; }
+  .timeline li:hover button.step-remove, .timeline button.step-remove:focus-visible { opacity: 1; }
+}
+/* what that × takes away: its step and the later ones, listed above it */
+.timeline li:has(.step-remove:hover:not(:disabled)) > :not(button),
+.timeline li:has(~ li .step-remove:hover:not(:disabled)) > :not(button) { text-decoration: line-through #c0362c; }
 
 /* ---- header: scrape now ------------------------------------------------------------ */
 .top-side { display: flex; align-items: center; gap: 12px; }
@@ -695,3 +714,13 @@ button.add-app { white-space: nowrap; }
 @media (max-width: 560px) {
   .applied-tools, .link-row { flex-direction: column; align-items: stretch; }
 }
+
+/* ---- settings: pause scraping --------------------------------------------------------- */
+.pause-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.pause-row p { margin: 0; }
+.pause-row .form-ok, .pause-row .form-error { flex-basis: 100%; }
+.pause-row.is-paused { border-color: #b26b00; }
+@media (prefers-color-scheme: dark) { .pause-row.is-paused { border-color: #ffb74d; } }

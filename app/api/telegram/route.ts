@@ -66,7 +66,10 @@ export async function POST(request: NextRequest) {
     const per = Object.keys(counts).sort().map((s) => `  ${s}: ${counts[s].offers}`);
     const last = runs[0] ? `${formatDateTime(runs[0].started_at)} (${runs[0].trigger}, ${runs[0].added} new)` : 'unknown';
     const ai = !settings.aiFilter ? 'off' : !process.env.OPENAI_API_KEY ? 'on, but no OPENAI_API_KEY (all sent)' : profiles[0] ? `“${profiles[0].name}”` : 'on, but no profile (all sent)';
-    await reply(`${state.muted ? '🔕 muted' : '🔔 active'}\n${n} queued\n✦ AI filter: ${ai}\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`);
+    const scraping = settings.enabled ? `every ${settings.everyMinutes} min, ${settings.fromHour}–${settings.toHour}` : '⏸ paused';
+    await reply(
+      `${state.muted ? '🔕 muted' : '🔔 active'}\n${n} queued\n🔎 scraping: ${scraping}\n✦ AI filter: ${ai}\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`,
+    );
   } else {
     await reply(`❓ Unknown command "${text.slice(0, 50)}"\n\n${HELP}`);
   }

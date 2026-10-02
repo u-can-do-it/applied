@@ -7,7 +7,8 @@ import type { CronStatus, RunRow, ScrapeState } from '@/lib/scraping/store';
 import type { BotInfo } from '@/lib/telegram';
 import {
   cronConnectAction, cronDisconnectAction, saveFiltersAction, saveScheduleAction, sendQueueAction, setAiFilterAction,
-  setMutedAction, setNotifyAction, telegramConnectAction, telegramDisconnectAction, telegramTestAction, type ActionState,
+  setMutedAction, setNotifyAction, setScrapingPausedAction, telegramConnectAction, telegramDisconnectAction,
+  telegramTestAction, type ActionState,
 } from './actions';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -92,7 +93,6 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
   secret: string | null;
 }) {
   const { form, setForm, dirty } = useServerForm({
-    enabled: settings.enabled,
     everyMinutes: settings.everyMinutes,
     fromHour: String(settings.fromHour),
     toHour: String(settings.toHour),
@@ -107,15 +107,40 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
     save(() => saveScheduleAction({ ...form, fromHour: Number(form.fromHour), toHour: Number(form.toHour) }));
   };
   const act = useAction();
+  const pause = useAction();
+  const [paused, showPaused] = useOptimistic(!settings.enabled);
   const [showSecret, setShowSecret] = useState(false);
 
   return (
     <section className="panel" aria-labelledby="schedule-h">
       <h2 id="schedule-h">Scraping</h2>
+      <div className={`pause-row${paused ? ' is-paused' : ''}`}>
+        <p className="small">
+          {paused ? (
+            <>
+              <strong className="warn">⏸ Paused</strong>: nothing scrapes on its own; “↻ Scrape now” still works.
+            </>
+          ) : (
+            <>
+              <strong className="ok-text">● Running</strong>: every {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
+              {settings.fromHour}:00–{settings.toHour}:00 Warsaw time.
+            </>
+          )}
+        </p>
+        <button
+          type="button"
+          className={paused ? undefined : 'secondary'}
+          aria-busy={pause.busy || undefined}
+          onClick={() => {
+            const next = !paused;
+            pause.run(() => setScrapingPausedAction(next), () => showPaused(next));
+          }}
+        >
+          {paused ? '▶ Resume scraping' : '⏸ Pause scraping'}
+        </button>
+        <Feedback state={pause.state} />
+      </div>
       <form onSubmit={submit} className="form-line">
-        <label className="check">
-          <input type="checkbox" checked={form.enabled} onChange={(e) => edit({ enabled: e.target.checked })} /> On a schedule
-        </label>
         <label className="inline">
           every
           <select value={form.everyMinutes} onChange={(e) => edit({ everyMinutes: Number(e.target.value) })}>

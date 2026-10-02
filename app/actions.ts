@@ -5,13 +5,16 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { continueRun, startRun } from '@/lib/ai-runs';
-import { addApplication, findOfferByLink, markApplied, NOTE_MAX, removeStatusStep, saveContent, setNote, setStatus, unmarkApplied } from '@/lib/applications';
+import {
+  addApplication, appliedAtOf, findOfferByLink, jobKeyFor, markApplied, NOTE_MAX, removeStatusStep, saveContent, setNote, setStatus,
+  unmarkApplied, updateApplication, type ApplicationWithContent,
+} from '@/lib/applications';
 import { BOARD_RE, boardIdOf, boardOf, cleanLink, isLink } from '@/lib/boards';
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
-import { describeRange, resolveRange, startOfDay, todayInWarsaw, validDay } from '@/lib/dates';
+import { describeRange, resolveRange, todayInWarsaw, validDay } from '@/lib/dates';
 import { extractJob, type ExtractedJob } from '@/lib/openai';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
-import { readJobPage } from '@/lib/scrape';
+import { readJobPage, type JobDetails } from '@/lib/scrape';
 import { requireLogin } from '@/lib/session';
 import { DAY_PRESETS } from '@/lib/sources';
 import { isStage, isState } from '@/lib/stages';
@@ -188,6 +191,8 @@ export type JobDraft = {
   content: string;
   /** the link is an offer the scrapers already have: the application joins it */
   known: string | null;
+  /** that offer's job (an application being edited may be it already) */
+  knownKey: string | null;
   warning?: string;
 };
 
@@ -214,6 +219,7 @@ export async function fillFromLinkAction(link: string): Promise<{ draft?: JobDra
     }
   }
   const d = read?.details ?? {};
+  const knownKey = offer ? await jobKeyFor(offer.company, offer.title, offer.dup_key).catch(() => offer.dup_key) : null;
   return {
     draft: {
       url: offer?.url ?? cleanLink(link),
@@ -226,6 +232,7 @@ export async function fillFromLinkAction(link: string): Promise<{ draft?: JobDra
       contract: ai?.contract || d.contract || '',
       content: read?.text ?? '',
       known: offer ? `${offer.title}${offer.company ? ` · ${offer.company}` : ''} (scraped from ${offer.src})` : null,
+      knownKey,
       warning,
     },
   };
@@ -247,43 +254,81 @@ export type ApplicationInput = {
   note: string;
 };
 
-export async function addApplicationAction(input: ApplicationInput): Promise<FormState> {
-  await requireLogin();
+/** What "✎ Edit" sends: the form of "Add application" without the status and the note. */
+export type ApplicationEditInput = Omit<ApplicationInput, 'stage' | 'state' | 'note'>;
+
+type FormFields = { title: string; url: string; board: string; day: string; company: string | null; details: JobDetails | null; content: string };
+
+/** The form's fields checked, the same for adding and editing. */
+function readForm(input: Partial<ApplicationEditInput> | undefined): FormFields | { error: string } {
   const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
   const title = str(input?.title, 200);
   if (!title) return { error: 'The title is needed.' };
-  const url = str(input.url, 2000);
+  const url = str(input?.url, 2000);
   if (url && !isLink(url)) return { error: 'The link must start with https://' };
-  const board = str(input.board, 30).toLowerCase() || (url ? boardOf(url) : 'unknown');
+  const board = str(input?.board, 30).toLowerCase() || (url ? boardOf(url) : 'unknown');
   if (!BOARD_RE.test(board)) return { error: 'Board: lowercase letters, digits, - or _ (e.g. "linkedin").' };
-  const day = validDay(str(input.day, 10));
+  const day = validDay(str(input?.day, 10));
   if (!day || day > todayInWarsaw()) return { error: 'Pick the day you applied (not in the future).' };
+  const details: JobDetails = {};
+  for (const [k, max] of [['salary', 200], ['contract', 100], ['location', 200]] as const) {
+    const v = str(input?.[k], max);
+    if (v) details[k] = v;
+  }
+  if (input?.remote) details.remote = true;
+  return {
+    title,
+    url,
+    board,
+    day,
+    company: str(input?.company, 200) || null,
+    details: Object.keys(details).length ? details : null,
+    content: typeof input?.content === 'string' ? input.content.slice(0, 200_000) : '',
+  };
+}
+
+export async function addApplicationAction(input: ApplicationInput): Promise<FormState> {
+  await requireLogin();
+  const f = readForm(input);
+  if ('error' in f) return f;
   if (!isStage(input.stage) || !isState(input.state)) return { error: 'Unknown status.' };
-  // today: now; an earlier day: its noon, Warsaw time
-  const appliedAt = day === todayInWarsaw() ? new Date().toISOString() : new Date(startOfDay(day).getTime() + 12 * 3600_000).toISOString();
-  const details = Object.fromEntries(
-    Object.entries({ salary: str(input.salary, 200), contract: str(input.contract, 100), location: str(input.location, 200) }).filter(([, v]) => v),
-  ) as { salary?: string; contract?: string; location?: string; remote?: boolean };
-  if (input.remote) details.remote = true;
-  const content = typeof input.content === 'string' ? input.content.slice(0, 200_000) : '';
   try {
     const r = await addApplication({
-      url: url ? cleanLink(url) : '',
-      title,
-      company: str(input.company, 200) || null,
-      src: board,
-      appliedAt,
+      url: f.url ? cleanLink(f.url) : '',
+      title: f.title,
+      company: f.company,
+      src: f.board,
+      appliedAt: appliedAtOf(f.day),
       stage: input.stage,
       state: input.state,
-      details: Object.keys(details).length ? details : null,
-      content: content.trim() || null,
-      note: str(input.note, NOTE_MAX) || null,
+      details: f.details,
+      content: f.content.trim() || null,
+      note: (typeof input.note === 'string' ? input.note.trim().slice(0, NOTE_MAX) : '') || null,
     });
     if (r.error) return { error: r.error };
     // no ad text but a link: fetch it after the answer, like "Mark applied" does
-    if (!content.trim() && url) after(() => saveContent(r.key!));
+    if (!f.content.trim() && f.url) after(() => saveContent(r.key!));
     refresh();
     return { ok: true, id: r.key };
+  } catch (e) {
+    return { error: message(e) };
+  }
+}
+
+/** Saves an application's edited details; answers with it as saved (its key may be new: see updateApplication). */
+export async function updateApplicationAction(key: string, input: ApplicationEditInput): Promise<{ error?: string; app?: ApplicationWithContent }> {
+  await requireLogin();
+  if (typeof key !== 'string' || !key) return { error: 'Bad request.' };
+  const f = readForm(input);
+  if ('error' in f) return f;
+  try {
+    const r = await updateApplication(key, { url: f.url, title: f.title, company: f.company, src: f.board, day: f.day, details: f.details, content: f.content });
+    if (r.error || !r.app) return { error: r.error ?? 'This application no longer exists.' };
+    const saved = r.app.dup_key;
+    // what you typed stays over what the board says
+    if (r.fetch) after(() => saveContent(saved, { typed: f.details }));
+    refresh();
+    return { app: r.app };
   } catch (e) {
     return { error: message(e) };
   }

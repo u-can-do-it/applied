@@ -34,7 +34,15 @@ export async function scrapeNowAction(): Promise<RunSummary> {
 
 // ---- settings -----------------------------------------------------------------------------
 
-export type ScheduleInput = { enabled: boolean; everyMinutes: number; fromHour: number; toHour: number };
+export type ScheduleInput = { everyMinutes: number; fromHour: number; toHour: number };
+
+/** Pause / resume the scheduled runs ("Scrape now" works either way). */
+export async function setScrapingPausedAction(paused: boolean): Promise<ActionState> {
+  await requireLogin();
+  await store.saveSettings({ ...(await store.getSettings()), enabled: !paused });
+  refresh();
+  return { ok: true, message: 'Saved.' };
+}
 
 export async function saveScheduleAction(input: ScheduleInput): Promise<ActionState> {
   await requireLogin();
@@ -44,7 +52,7 @@ export async function saveScheduleAction(input: ScheduleInput): Promise<ActionSt
   if (!INTERVALS.includes(every as (typeof INTERVALS)[number])) return { error: 'Pick an interval from the list.' };
   if (![from, to].every((h) => Number.isInteger(h) && h >= 0 && h <= 24)) return { error: 'Hours are 0–24.' };
   const s = await store.getSettings();
-  await store.saveSettings({ ...s, enabled: Boolean(input.enabled), everyMinutes: every, fromHour: from, toHour: to });
+  await store.saveSettings({ ...s, everyMinutes: every, fromHour: from, toHour: to });
   refresh();
   return { ok: true, message: 'Saved.' };
 }

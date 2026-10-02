@@ -26,7 +26,7 @@ export const inHours = (h: number, from: number, to: number) => from === to || (
 
 export async function checkDue(now = new Date()): Promise<{ due: boolean; reason?: string }> {
   const [settings, state] = await Promise.all([getSettings(), getState(), markCall()]);
-  if (!settings.enabled) return { due: false, reason: 'scheduled runs are off in Settings' };
+  if (!settings.enabled) return { due: false, reason: 'scraping is paused in Settings' };
   if (!inHours(warsawHour(now), settings.fromHour, settings.toHour)) {
     return { due: false, reason: `outside ${settings.fromHour}:00–${settings.toHour}:00 Warsaw time` };
   }

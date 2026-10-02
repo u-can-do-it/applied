@@ -24,7 +24,8 @@ RLS is on with no policies, so the public/anon key can't read anything. Only the
 
 Everything Node-RED had in its nodes is in **Settings** now:
 
-- **Scraping:** on/off, every 5–120 min, between which hours (Warsaw time). The last runs with what they found,
+- **Scraping:** ⏸ Pause / ▶ Resume at the top (paused, nothing runs on its own; "Scrape now" still does), every
+  5–120 min, between which hours (Warsaw time). The last runs with what they found,
   and the errors per board.
 - **Filters:** keywords (searched on every board through `{keyword}` in the links, and required in the offer's
   title or skills), cities ("warszaw" matches Warszawa and Warszawie), remote OK, titles to skip, and titles to save
@@ -144,21 +145,30 @@ How the **AI filter** tab works:
   salary, contract and location; everything stays editable, with the board, the day you applied and the status. A
   link the scrapers already have joins that offer (the lists show it as applied). Without ad text, it's fetched from
   the link after saving.
+- **✎ Edit** in an application's window: the same form, filled in (title, company, link, board, the day you applied,
+  salary, contract, location, ad text). "Fill in from the link" fills only the empty fields there. A link the
+  scrapers have joins that offer, as when adding; a job that already has an application is refused. The status and
+  the note are set in the window itself.
 - **Note:** free text per application (recruiter, salary you asked for, interview questions, next steps…), up to
   10 000 characters. It saves itself as you type and when you close the window. Until it's saved it's also kept in
   the browser, so a dropped connection doesn't lose it. The list shows its first line.
 - **Status:** every application starts as *Submitted · In progress*.
   - Stages: Submitted → Initial contact (they got back to you) → Screening / online test → Technical interview →
     HR interview → Offer. Reaching a later stage counts the earlier contact as made.
-  - Each stage's outcome: In progress, Passed, Rejected, Ghosted.
+  - Each stage's outcome: In progress, Passed, Rejected, Ghosted, and *CV do bazy, ty do dupy* (the talent pool:
+    "we'll keep your CV"). An offer has its own: Received, Accepted, Rejected (an accepted offer isn't "in
+    progress", one you turned down isn't a rejection).
   - Set both in the window; every change goes into the history with its date. A step clicked by mistake goes with
-    its ×.
+    its × (shown on hover), together with every step after it; the status goes back to the step before. The first
+    step, applying, stays.
   - No news for 30 days since the last change (or since applying): it becomes *Ghosted* by itself, at the same
-    stage (in progress, or passed and waiting for the next step; not an accepted offer). The step says "(auto)".
+    stage (in progress, or passed and waiting for the next step; not a rejection, the talent pool or an offer).
+    The step says "(auto)".
 - **Statistics** at the top of the tab:
-  - Tiles: sent, positive replies, offers, in progress, rejected, ghosted.
-  - A funnel of how many reached each stage, as % of all sent. It's not "% of the previous stage", because technical
-    and HR come in either order.
+  - Everything goes by each application's last status (a stage you went back from doesn't count).
+  - Tiles: sent, positive replies (the last status is past Submitted), offers, in progress, rejected, ghosted,
+    talent pool.
+  - Bars: how many are at each stage now, as % of all sent.
   - A stage × outcome table.
   - Click a tile, a funnel bar or a number to filter the list.
 - The table is `applications`, created by `scripts/db-migrate.sh`. When the AI merges duplicates, the mark, its

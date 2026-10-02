@@ -89,7 +89,7 @@ alter table public.applications add constraint applications_stage_check
   check (stage in ('submitted', 'invited', 'screening', 'technical', 'hr', 'offer'));
 alter table public.applications drop constraint if exists applications_stage_state_check;
 alter table public.applications add constraint applications_stage_state_check
-  check (stage_state in ('pending', 'passed', 'failed', 'ghosted'));
+  check (stage_state in ('pending', 'passed', 'failed', 'ghosted', 'pool')); -- pool: "we'll keep your CV in our talent pool"
 update public.applications
    set history = jsonb_build_array(jsonb_build_object('stage', 'submitted', 'state', 'pending', 'at', applied_at))
  where history = '[]'::jsonb;
@@ -111,7 +111,8 @@ $$;
 
 -- No news for p_days since the last status change (or since applying): ghosted, at the same
 -- stage. Only what still waits for an answer: in progress, or passed and waiting for the next step
--- (not an accepted offer). The history entry says it was automatic, so it can be taken back.
+-- (not rejected, not the talent pool: those are answers). Never an offer (the decision is yours).
+-- The history entry says it was automatic, to take it back.
 create or replace function public.jw_ghost_stale_applications(p_days integer) returns integer
 language sql set search_path = '' as $$
   with stale as (
@@ -119,7 +120,7 @@ language sql set search_path = '' as $$
        set stage_state = 'ghosted',
            stage_updated_at = now(),
            history = a.history || jsonb_build_array(jsonb_build_object('stage', a.stage, 'state', 'ghosted', 'at', now(), 'auto', true))
-     where (a.stage_state = 'pending' or (a.stage_state = 'passed' and a.stage <> 'offer'))
+     where a.stage_state in ('pending', 'passed') and a.stage <> 'offer'
        and coalesce(a.stage_updated_at, a.applied_at) < now() - make_interval(days => p_days)
     returning 1
   )
