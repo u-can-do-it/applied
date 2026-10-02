@@ -31,6 +31,12 @@ Everything Node-RED had in its nodes is in **Settings** now:
   without a Telegram message (Node-RED's `.net, dotnet, go, golang, java`).
 - **Telegram:** mute / unmute (new offers wait in a queue meanwhile), send the queue, a test message, and the chat
   commands `/mute /resume /send /scrape /status`.
+- **AI filter for Telegram** (on by default): new offers are checked against the active AI profile right after
+  scraping, the way the AI tab does it (the verdicts show up there too). The message lists only the matches, with
+  their fit; when nothing matches it just says how many new offers there are, with a link to the rejected ones.
+  While OpenAI doesn't answer, the offers wait; after 20 minutes they're sent anyway, marked "not checked". Without a
+  usable profile or `OPENAI_API_KEY`, everything is sent as before. "Scrape now" doesn't wait for the AI: the check
+  and the message follow in the background.
 - **Scrapers:** the six boards with Node-RED's links, parsers and filters (they give the same offers, ids and links,
   so nothing gets duplicated), and LinkedIn's public job search (no login; two searches: Warszawa, and remote in
   Poland). LinkedIn's cards have no skills, so its keyword check looks at the title only: untick it in the scraper to

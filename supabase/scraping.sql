@@ -7,17 +7,22 @@
 -- still works, it just needs another caller (Node-RED, cron-job.org…) or the "Scrape now" button.
 do $$
 begin
-  create extension if not exists pg_cron with schema pg_catalog;
-  grant usage on schema cron to postgres;
-  grant all privileges on all tables in schema cron to postgres;
+  -- only the first time: granting again fails on Supabase ("dependent privileges exist")
+  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
+    create extension pg_cron with schema pg_catalog;
+    grant usage on schema cron to postgres;
+    grant all privileges on all tables in schema cron to postgres;
+  end if;
 exception when others then
-  raise notice 'pg_cron is not available here (%), call /api/cron/scrape from somewhere else', sqlerrm;
+  raise notice 'pg_cron could not be enabled here (%): enable Cron in Supabase (Integrations → Cron), or call /api/cron/scrape from somewhere else', sqlerrm;
 end $$;
 do $$
 begin
-  create extension if not exists pg_net with schema extensions;
+  if not exists (select 1 from pg_extension where extname = 'pg_net') then
+    create extension pg_net with schema extensions;
+  end if;
 exception when others then
-  raise notice 'pg_net is not available here (%)', sqlerrm;
+  raise notice 'pg_net could not be enabled here (%): enable it in Supabase (Database → Extensions)', sqlerrm;
 end $$;
 
 -- ---- 2. scrapers: one row per search -----------------------------------------------------------
@@ -147,6 +152,11 @@ create table if not exists public.notify_queue (
   queued_at timestamptz not null default now(),
   primary key (src, id)
 );
+
+-- the AI filter (Telegram gets only the offers the active AI profile matches): the queue knows
+-- each offer's job, to find its verdict, and a run logs how many matched (null = no AI filter)
+alter table public.notify_queue add column if not exists dup_key text;
+alter table public.scrape_runs add column if not exists matched integer;
 
 -- ---- 5. functions -------------------------------------------------------------------------
 -- Saves what a run found. Returns only the rows that were really new, each with whether the same

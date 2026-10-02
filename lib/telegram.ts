@@ -37,26 +37,59 @@ async function call<T>(method: string, body: Record<string, unknown> = {}): Prom
 export const sendMessage = (text: string, chatId = ownerChat()) =>
   call('sendMessage', { chat_id: chatId, text: text.slice(0, 4096) });
 
+export type Outgoing = Queued & { verdict?: { score: number; summary: string | null } };
+export type Message = { text: string; offers: Queued[] };
+
+const offerText = (o: Outgoing) => {
+  const where = o.remote ? 'zdalnie' : o.location || 'stacjonarnie';
+  const ai = o.verdict ? `\n✦ ${o.verdict.score}%${o.verdict.summary ? ` · ${o.verdict.summary.slice(0, 160)}` : ''}` : '';
+  return `🆕 ${o.title}\n${[o.company, o.seniority, where].filter(Boolean).join(' · ')}${ai}\n${o.url}`;
+};
+
 /** Node-RED's format: one block per board, five offers per message. */
-export function formatQueue(offers: Queued[], heldWhileMuted = false) {
-  const bySrc = new Map<string, Queued[]>();
+function blocks(offers: Outgoing[], heading?: string): Message[] {
+  const bySrc = new Map<string, Outgoing[]>();
   for (const o of offers) bySrc.set(o.src, [...(bySrc.get(o.src) ?? []), o]);
-  const out: { text: string; offers: Queued[] }[] = [];
+  const out: Message[] = [];
   for (const src of [...bySrc.keys()].sort()) {
     const list = bySrc.get(src)!;
     for (let i = 0; i < list.length; i += BATCH) {
       const part = list.slice(i, i + BATCH);
-      let text = part
-        .map((o) => {
-          const where = o.remote ? 'zdalnie' : o.location || 'stacjonarnie';
-          return `🆕 ${o.title}\n${[o.company, o.seniority, where].filter(Boolean).join(' · ')}\n${o.url}`;
-        })
-        .join('\n\n');
+      let text = part.map(offerText).join('\n\n');
       if (i === 0) text = `---------------------- ${src} ----------------------\n${text}`;
       out.push({ text, offers: part });
     }
   }
-  if (heldWhileMuted && out.length) out.unshift({ text: `📬 ${offers.length} offer(s) held while muted`, offers: [] });
+  if (heading && out.length) out[0] = { ...out[0], text: `${heading}\n${out[0].text}` };
+  return out;
+}
+
+/**
+ * What goes to the chat. With the AI filter, only the matches are listed; the others are just
+ * counted ("3 new offers, none matched"), and offers the AI couldn't check in time are listed
+ * with a warning, so nothing is lost when OpenAI is down.
+ */
+export function formatNotification(n: {
+  matched: Outgoing[]; // everything new when the AI filter is off
+  unmatched: Queued[];
+  unchecked: Queued[];
+  profile: string | null; // the AI profile's name when the AI filter decided
+  held: boolean; // sent by hand after a mute
+  link: string | null; // the app's AI tab, to look at what didn't match
+}): Message[] {
+  const total = n.matched.length + n.unmatched.length + n.unchecked.length;
+  const out = [...blocks(n.matched), ...blocks(n.unchecked, '⚠ Not checked by the AI (it failed for a while):')];
+  if (n.unmatched.length) {
+    const what = `${n.unmatched.length} new offer(s)`;
+    if (out.length) {
+      // a line under the last message, so it doesn't cost a message of its own
+      const last = out[out.length - 1];
+      out[out.length - 1] = { text: `${last.text}\n\n+ ${what} didn't match “${n.profile}”.`, offers: [...last.offers, ...n.unmatched] };
+    } else {
+      out.push({ text: `🆕 ${what}, none matched “${n.profile}”.${n.link ? `\n${n.link}` : ''}`, offers: n.unmatched });
+    }
+  }
+  if (n.held && out.length) out.unshift({ text: `📬 ${total} offer(s) held while muted`, offers: [] });
   return out;
 }
 

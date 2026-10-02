@@ -1,7 +1,7 @@
 import 'server-only';
 import { dedupRound } from './dedup';
 import { assessOffers, type OfferForAi } from './openai';
-import { getProfile, type Profile } from './profiles';
+import { getProfile, type Profile, type ProfileWithFile } from './profiles';
 import { scrapeOffer } from './scrape';
 import { rangeTotal, rest, restUrl, rpcUrl } from './supabase';
 
@@ -184,6 +184,52 @@ async function assessBatch(profile: NonNullable<Awaited<ReturnType<typeof getPro
     await rest(url, { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: JSON.stringify(rows) });
   }
   return { saved: rows.length, answered: new Set(rows.map((r) => r.dup_key)) };
+}
+
+// ---- new offers, before Telegram --------------------------------------------------------
+
+export type Verdict = { match: boolean; score: number; summary: string | null };
+
+/** Verdicts this profile version already has for these jobs. */
+async function verdictsFor(p: Pick<Profile, 'id' | 'version'>, keys: string[]) {
+  const out = new Map<string, Verdict>();
+  for (let i = 0; i < keys.length; i += 40) {
+    const url = restUrl('ai_verdicts');
+    url.searchParams.set('select', 'dup_key,match,score,summary');
+    url.searchParams.set('profile_id', `eq.${p.id}`);
+    url.searchParams.set('version', `eq.${p.version}`);
+    url.searchParams.set('dup_key', `in.(${keys.slice(i, i + 40).map(pgQuote).join(',')})`);
+    for (const r of (await (await rest(url)).json()) as (Verdict & { dup_key: string })[]) {
+      out.set(r.dup_key, { match: r.match, score: r.score, summary: r.summary });
+    }
+  }
+  return out;
+}
+
+/**
+ * The verdicts for these jobs, assessing the ones this profile hasn't judged yet. No run and no
+ * browser tab needed; stops starting new batches at the deadline (a batch can take up to two
+ * minutes), so whatever is left gets its turn next time.
+ */
+export async function assessJobs(profile: ProfileWithFile, keys: string[], deadline: number) {
+  const verdicts = await verdictsFor(profile, keys);
+  const missing = keys.filter((k) => !verdicts.has(k));
+  let error: string | null = null;
+  if (missing.length) {
+    const url = restUrl('offers_unique'); // one row per job, with all its copies (the ad may be on any)
+    url.searchParams.set('select', 'src,id,title,company,seniority,remote,url,first_seen,dup_key,copies');
+    url.searchParams.set('dup_key', `in.(${missing.slice(0, 120).map(pgQuote).join(',')})`);
+    const jobs = (await (await rest(url)).json()) as Pending[];
+    for (let i = 0; i < jobs.length && Date.now() < deadline; i += BATCH * PARALLEL) {
+      const round = jobs.slice(i, i + BATCH * PARALLEL);
+      const batches = Array.from({ length: Math.ceil(round.length / BATCH) }, (_, b) => round.slice(b * BATCH, b * BATCH + BATCH));
+      for (const s of await Promise.allSettled(batches.map((b) => assessBatch(profile, b)))) {
+        if (s.status === 'rejected') error = s.reason instanceof Error ? s.reason.message : String(s.reason);
+      }
+    }
+    for (const [k, v] of await verdictsFor(profile, missing)) verdicts.set(k, v);
+  }
+  return { verdicts, error };
 }
 
 /** Processes one slice of a run. Safe to call often: only one caller gets the lock. */

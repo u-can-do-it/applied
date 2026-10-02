@@ -6,8 +6,8 @@ import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/scraping/ki
 import type { CronStatus, RunRow, ScrapeState } from '@/lib/scraping/store';
 import type { BotInfo } from '@/lib/telegram';
 import {
-  cronConnectAction, cronDisconnectAction, saveFiltersAction, saveScheduleAction, sendQueueAction, setMutedAction,
-  setNotifyAction, telegramConnectAction, telegramDisconnectAction, telegramTestAction, type ActionState,
+  cronConnectAction, cronDisconnectAction, saveFiltersAction, saveScheduleAction, sendQueueAction, setAiFilterAction,
+  setMutedAction, setNotifyAction, telegramConnectAction, telegramDisconnectAction, telegramTestAction, type ActionState,
 } from './actions';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -151,6 +151,7 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
                 <span>
                   {seconds(Date.parse(r.finished_at) - Date.parse(r.started_at))} · {r.found} on the pages · {r.kept} kept ·{' '}
                   <strong>{r.added} new</strong>
+                  {r.matched !== null && r.fresh > 0 && ` · ✦ ${r.matched} of ${r.fresh} matched`}
                   {r.notified ? ` · ${r.notified} sent` : ''}
                 </span>
               ) : (
@@ -329,20 +330,20 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
 
 // ---- Telegram -----------------------------------------------------------------------------
 
-export function TelegramPanel({ ready, bot, notify, muted, queued, webhookUrl }: {
+export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUrl }: {
   ready: boolean;
   bot: (BotInfo & { error?: undefined }) | { error: string } | null;
   notify: boolean;
   muted: boolean;
   queued: number;
+  /** the AI filter: on in settings, the active profile (if usable), whether OPENAI_API_KEY is set */
+  ai: { on: boolean; profile: string | null; keySet: boolean };
   webhookUrl: string;
 }) {
   const act = useAction();
   // what the buttons show right away; the refreshed page brings the real values
-  const [view, show] = useOptimistic({ notify, muted, queued }, (cur, patch: Partial<{ notify: boolean; muted: boolean; queued: number }>) => ({
-    ...cur,
-    ...patch,
-  }));
+  type View = { notify: boolean; muted: boolean; queued: number; aiOn: boolean };
+  const [view, show] = useOptimistic<View, Partial<View>>({ notify, muted, queued, aiOn: ai.on }, (cur, patch) => ({ ...cur, ...patch }));
   if (!ready) {
     return (
       <section className="panel" aria-labelledby="tg-h">
@@ -396,6 +397,26 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, webhookUrl }:
           Test message
         </button>
       </div>
+      <label className="check ai-filter">
+        <input
+          type="checkbox"
+          checked={view.aiOn}
+          onChange={(e) => {
+            const on = e.target.checked;
+            act.run(() => setAiFilterAction(on), () => show({ aiOn: on }));
+          }}
+        />{' '}
+        ✦ Only offers the AI profile matches{ai.profile ? ` (“${ai.profile}”)` : ''}
+      </label>
+      <p className="muted small field-note-under">
+        {!view.aiOn
+          ? 'Off: every new offer is sent.'
+          : !ai.keySet
+            ? 'Set OPENAI_API_KEY to use it: until then every new offer is sent.'
+            : !ai.profile
+              ? 'No AI profile yet (AI filter tab → ✦ Profile): until then every new offer is sent.'
+              : 'New offers are checked right after scraping (as the AI tab would). The message lists the matches with their fit; if none match, it just says how many new offers there are. One the AI can’t check for 20 minutes is sent anyway, marked.'}
+      </p>
       <p className="small">
         Commands in the chat (/mute, /resume, /send, /scrape, /status):{' '}
         {hooked ? (

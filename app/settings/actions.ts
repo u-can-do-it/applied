@@ -6,7 +6,7 @@ import {
   FIELDS, INTERVALS, JSON_SOURCES, KINDS, SRC_RE, isGeneric, isKind, normalizeList,
   type FieldId, type KindId, type ScraperConfig,
 } from '@/lib/scraping/kinds';
-import { flushQueue, runAll, scrape, type PageResult, type RunSummary } from '@/lib/scraping/run';
+import { notify, runAll, scrape, type PageResult, type RunSummary } from '@/lib/scraping/run';
 import { appOrigin, cronSecret } from '@/lib/scraping/schedule';
 import * as store from '@/lib/scraping/store';
 import { requireLogin } from '@/lib/session';
@@ -22,10 +22,11 @@ async function origin() {
 
 // ---- runs -------------------------------------------------------------------------------
 
-/** The "Scrape now" button: a full run, whatever the schedule says. */
+/** The "Scrape now" button: a full run, whatever the schedule says. The AI check and Telegram
+ * continue after the answer, so the button doesn't wait for OpenAI. */
 export async function scrapeNowAction(): Promise<RunSummary> {
   await requireLogin();
-  const r = await runAll('manual');
+  const r = await runAll('manual', { background: true });
   refresh();
   return r;
 }
@@ -71,9 +72,16 @@ export async function saveFiltersAction(input: FiltersInput): Promise<ActionStat
   return { ok: true, message: 'Saved. The next run uses them.' };
 }
 
-export async function setNotifyAction(notify: boolean): Promise<ActionState> {
+export async function setNotifyAction(on: boolean): Promise<ActionState> {
   await requireLogin();
-  await store.saveSettings({ ...(await store.getSettings()), notify });
+  await store.saveSettings({ ...(await store.getSettings()), notify: Boolean(on) });
+  refresh();
+  return { ok: true };
+}
+
+export async function setAiFilterAction(on: boolean): Promise<ActionState> {
+  await requireLogin();
+  await store.saveSettings({ ...(await store.getSettings()), aiFilter: Boolean(on) });
   refresh();
   return { ok: true };
 }
@@ -215,20 +223,20 @@ export async function testScraperAction(input: ScraperForm): Promise<TestResult 
 export async function setMutedAction(muted: boolean): Promise<ActionState> {
   await requireLogin();
   await store.setMuted(Boolean(muted));
-  let sent = 0;
-  let error: string | undefined;
-  if (!muted && telegramReady()) sent = await flushQueue(true).catch((e) => ((error = message(e)), 0));
+  const r: { sent: number; error?: string } =
+    !muted && telegramReady() ? await notify({ manual: true }).catch((e) => ({ sent: 0, error: message(e) })) : { sent: 0 };
   refresh();
-  if (error) return { error: `Unmuted, but sending failed: ${error}` };
-  return { ok: true, message: muted ? 'Muted: new offers wait in the queue.' : sent ? `Unmuted, sent ${sent}.` : 'Unmuted.' };
+  if (r.error) return { error: `Unmuted, but: ${r.error}` };
+  return { ok: true, message: muted ? 'Muted: new offers wait in the queue.' : r.sent ? `Unmuted, sent ${r.sent}.` : 'Unmuted.' };
 }
 
 export async function sendQueueAction(): Promise<ActionState> {
   await requireLogin();
   try {
-    const n = await flushQueue(true);
+    const r = await notify({ manual: true });
     refresh();
-    return { ok: true, message: n ? `Sent ${n}.` : 'Nothing queued.' };
+    if (r.error) return { error: r.error };
+    return { ok: true, message: r.sent ? `Sent ${r.sent}.` : r.matched === 0 ? 'Sent: none of them matched the AI profile.' : 'Nothing to send yet.' };
   } catch (e) {
     return { error: message(e) };
   }

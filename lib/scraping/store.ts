@@ -130,6 +130,8 @@ export type RunRow = {
   added: number;
   fresh: number;
   notified: number;
+  /** offers the AI matched (null: sent without the AI filter) */
+  matched: number | null;
   errors: { scraper: string; error: string }[];
 };
 
@@ -138,7 +140,7 @@ export async function startRun(trigger: string): Promise<number> {
   return ((await res.json()) as { id: number }[])[0].id;
 }
 
-export async function finishRun(id: number, fields: Omit<RunRow, 'id' | 'started_at' | 'finished_at' | 'trigger'>) {
+export async function finishRun(id: number, fields: Omit<RunRow, 'id' | 'started_at' | 'finished_at' | 'trigger' | 'matched'>) {
   const url = restUrl('scrape_runs');
   url.searchParams.set('id', `eq.${id}`);
   await rest(url, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify({ ...fields, finished_at: new Date().toISOString() }) });
@@ -148,9 +150,16 @@ export async function finishRun(id: number, fields: Omit<RunRow, 'id' | 'started
   await rest(old, { method: 'DELETE', prefer: 'return=minimal' });
 }
 
+/** What the AI check and Telegram did, after the run itself (they can finish later). */
+export async function updateRun(id: number, fields: Partial<Pick<RunRow, 'notified' | 'matched' | 'errors'>>) {
+  const url = restUrl('scrape_runs');
+  url.searchParams.set('id', `eq.${id}`);
+  await rest(url, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify(fields) });
+}
+
 export async function listRuns(limit = 12): Promise<RunRow[]> {
   const url = restUrl('scrape_runs');
-  url.searchParams.set('select', 'id,started_at,finished_at,trigger,found,kept,added,fresh,notified,errors');
+  url.searchParams.set('select', 'id,started_at,finished_at,trigger,found,kept,added,fresh,notified,matched,errors');
   url.searchParams.set('order', 'started_at.desc');
   url.searchParams.set('limit', String(limit));
   return (await rest(url)).json();
@@ -193,7 +202,13 @@ export type Queued = {
   remote: boolean;
   location: string | null;
   url: string;
+  /** the job (company + title), whose AI verdict decides if it's sent */
+  dup_key: string | null;
 };
+export type QueuedAt = Queued & { queued_at: string };
+
+const QUEUE_COLS = 'src,id,title,company,seniority,remote,location,url,dup_key,queued_at';
+const quote = (v: string) => `"${v.replace(/["\\]/g, '\\$&')}"`;
 
 export async function enqueue(rows: Queued[]) {
   if (!rows.length) return;
@@ -202,13 +217,26 @@ export async function enqueue(rows: Queued[]) {
   await rest(url, { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: JSON.stringify(rows) });
 }
 
-/** Takes everything out of the queue at once, so two senders never send the same offer. */
-export async function claimQueue(): Promise<Queued[]> {
+export async function listQueue(): Promise<QueuedAt[]> {
   const url = restUrl('notify_queue');
-  url.searchParams.set('select', 'src,id,title,company,seniority,remote,location,url,queued_at');
-  url.searchParams.set('src', 'not.is.null');
-  const rows = (await (await rest(url, { method: 'DELETE', prefer: 'return=representation' })).json()) as (Queued & { queued_at: string })[];
-  return rows.sort((a, b) => a.queued_at.localeCompare(b.queued_at)).map(({ queued_at: _, ...q }) => q);
+  url.searchParams.set('select', QUEUE_COLS);
+  url.searchParams.set('order', 'queued_at.asc');
+  return (await rest(url)).json();
+}
+
+/**
+ * Takes these offers out of the queue and returns the ones it got: two senders at once never
+ * get the same offer, so nothing is sent twice.
+ */
+export async function claimQueue(rows: { src: string; id: string }[]): Promise<QueuedAt[]> {
+  const out: QueuedAt[] = [];
+  for (let i = 0; i < rows.length; i += 40) {
+    const url = restUrl('notify_queue');
+    url.searchParams.set('select', QUEUE_COLS);
+    url.searchParams.set('or', `(${rows.slice(i, i + 40).map((r) => `and(src.eq.${quote(r.src)},id.eq.${quote(r.id)})`).join(',')})`);
+    out.push(...((await (await rest(url, { method: 'DELETE', prefer: 'return=representation' })).json()) as QueuedAt[]));
+  }
+  return out.sort((a, b) => a.queued_at.localeCompare(b.queued_at));
 }
 
 export async function queueSize(): Promise<number> {

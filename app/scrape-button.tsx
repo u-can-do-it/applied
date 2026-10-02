@@ -26,7 +26,9 @@ export function ScrapeButton() {
           ? { text: r.skipped }
           : {
               text: `${r.added ? `${r.added} new` : 'nothing new'}${r.errors.length ? ` · ⚠ ${r.errors.length}` : ''}`,
-              title: `${r.found} on the pages, ${r.kept} after filters, ${r.added} new, ${r.notified} sent to Telegram${errors ? `\n\n${errors}` : ''}`,
+              title: `${r.found} on the pages, ${r.kept} after filters, ${r.added} new${
+                r.notifyLater ? ' · the AI check and Telegram run in the background' : `, ${r.notified} sent to Telegram`
+              }${errors ? `\n\n${errors}` : ''}`,
               bad: r.errors.length > 0,
             };
       } catch (e) {

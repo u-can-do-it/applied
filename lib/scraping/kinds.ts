@@ -165,6 +165,8 @@ export type ScrapeSettings = {
   mute: string[];
   /** send new offers to Telegram */
   notify: boolean;
+  /** check new offers against the active AI profile first; Telegram gets only the matches */
+  aiFilter: boolean;
 };
 
 export const DEFAULT_SETTINGS: ScrapeSettings = {
@@ -178,6 +180,7 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
   ignore: [],
   mute: ['.net', 'dotnet', 'go', 'golang', 'java'],
   notify: true,
+  aiFilter: true,
 };
 
 export const INTERVALS = [5, 10, 15, 30, 60, 120] as const;
@@ -201,6 +204,7 @@ export function normalizeSettings(raw: unknown): ScrapeSettings {
     ignore: words(r.ignore, d.ignore),
     mute: words(r.mute, d.mute),
     notify: typeof r.notify === 'boolean' ? r.notify : d.notify,
+    aiFilter: typeof r.aiFilter === 'boolean' ? r.aiFilter : d.aiFilter,
   };
 }
 

@@ -1,8 +1,9 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
 import { sameString } from '@/lib/auth';
 import { formatDateTime } from '@/lib/dates';
-import { flushQueue, runAll } from '@/lib/scraping/run';
-import { getState, listRuns, queueSize, setMuted, sourceCounts } from '@/lib/scraping/store';
+import { listProfiles } from '@/lib/profiles';
+import { notify, runAll } from '@/lib/scraping/run';
+import { getSettings, getState, listRuns, queueSize, setMuted, sourceCounts } from '@/lib/scraping/store';
 import { ownerChat, sendMessage, telegramReady, webhookSecret } from '@/lib/telegram';
 
 // Telegram webhook: Node-RED's tg_command. Connected from Settings; Telegram sends the secret
@@ -26,6 +27,12 @@ export async function POST(request: NextRequest) {
   const reply = (t: string) => sendMessage(t, chatId);
   const cmd = text.split(/\s+/)[0].replace(/@\w+$/, ''); // "/status@my_bot" in groups
   const queued = () => queueSize();
+  // what waited goes out after the AI check (that can take a while, so after the answer)
+  const deliver = () =>
+    after(async () => {
+      const r = await notify({ manual: true }).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+      if (r.error) await reply(`⚠️ ${r.error}`);
+    });
 
   if (['/mute', '/pause', '/stop'].includes(cmd)) {
     const was = (await getState()).muted;
@@ -38,13 +45,13 @@ export async function POST(request: NextRequest) {
     const n = await queued();
     const t = was ? '🔔 Unmuted.' : '🔔 Already active.';
     await reply(n ? `${t}\nDelivering ${n} queued offer(s)...` : `${t}\nNothing queued.`);
-    if (n) after(() => flushQueue(true).catch((e) => reply(`⚠️ ${e instanceof Error ? e.message : e}`)));
+    if (n) deliver();
   } else if (['/send', '/flush'].includes(cmd)) {
     const n = await queued();
     if (!n) await reply('📭 Nothing queued.');
     else {
       await reply(`📤 Sending ${n} queued offer(s)...`);
-      after(() => flushQueue(true).catch((e) => reply(`⚠️ ${e instanceof Error ? e.message : e}`)));
+      deliver();
     }
   } else if (['/scrape', '/run'].includes(cmd)) {
     await reply('🔎 Scraping…');
@@ -54,11 +61,12 @@ export async function POST(request: NextRequest) {
       await reply(r.skipped ? `⏳ ${r.skipped}` : `✅ ${r.found} on the pages, ${r.added} new saved, ${r.notified} sent${errors}`);
     });
   } else if (cmd === '/status') {
-    const [state, n, counts, runs] = await Promise.all([getState(), queued(), sourceCounts(), listRuns(1)]);
+    const [state, n, counts, runs, settings, profiles] = await Promise.all([getState(), queued(), sourceCounts(), listRuns(1), getSettings(), listProfiles()]);
     const total = Object.values(counts).reduce((s, c) => s + c.offers, 0);
     const per = Object.keys(counts).sort().map((s) => `  ${s}: ${counts[s].offers}`);
     const last = runs[0] ? `${formatDateTime(runs[0].started_at)} (${runs[0].trigger}, ${runs[0].added} new)` : 'unknown';
-    await reply(`${state.muted ? '🔕 muted' : '🔔 active'}\n${n} queued\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`);
+    const ai = !settings.aiFilter ? 'off' : !process.env.OPENAI_API_KEY ? 'on, but no OPENAI_API_KEY (all sent)' : profiles[0] ? `“${profiles[0].name}”` : 'on, but no profile (all sent)';
+    await reply(`${state.muted ? '🔕 muted' : '🔔 active'}\n${n} queued\n✦ AI filter: ${ai}\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`);
   } else {
     await reply(`❓ Unknown command "${text.slice(0, 50)}"\n\n${HELP}`);
   }

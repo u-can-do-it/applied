@@ -1,15 +1,19 @@
 import 'server-only';
-import { formatQueue, sendMessage, telegramReady } from '../telegram';
+import { after } from 'next/server';
+import { assessJobs, type Verdict } from '../ai-runs';
+import { getProfile, isUsable, listProfiles, type ProfileWithFile } from '../profiles';
+import { formatNotification, sendMessage, telegramReady, type Outgoing } from '../telegram';
 import type { ScrapeSettings, Scraper } from './kinds';
 import { areaTest, expandUrl, keywordTest, placeOf, titleTest, type Found } from './match';
 import { parseBody } from './parsers';
 import {
-  claimQueue, enqueue, finishRun, getSettings, getState, ingest, listScrapers, lock, saveOutcome, startRun, unlock,
-  type IngestRow, type Queued,
+  claimQueue, enqueue, finishRun, getSettings, getState, ingest, listQueue, listScrapers, lock, saveOutcome, startRun,
+  unlock, updateRun, type IngestRow, type Queued, type QueuedAt,
 } from './store';
 
 // One run = every enabled scraper: fetch, parse, filter, save new offers, queue the new jobs
-// for Telegram and send the queue (unless muted). What Node-RED's flow did on every tick.
+// for Telegram, check them against the active AI profile and send the matches (unless muted).
+// What Node-RED's flow did on every tick, plus the AI filter.
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const TIMEOUT_MS = 20_000;
@@ -168,21 +172,29 @@ export type RunSummary = {
   added: number;
   fresh: number;
   notified: number;
+  /** the AI check and Telegram still run, in the background */
+  notifyLater?: boolean;
   errors: { scraper: string; error: string }[];
-  notifyError?: string;
   ms: number;
 };
 
 const EMPTY = { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] as RunSummary['errors'], ms: 0 };
+// the AI starts no new batch after this much of a run (a batch can take two minutes; functions stop at 300 s)
+const AI_BUDGET_MS = 150_000;
 
 /**
  * Runs every enabled scraper. `locked`: the caller already took the lock (the endpoint does,
- * so it can answer "busy" right away).
+ * so it can answer "busy" right away). `background`: the AI check and Telegram go on after the
+ * answer (the "Scrape now" button doesn't wait for OpenAI).
  */
-export async function runAll(trigger: 'cron' | 'manual' | 'telegram', opts: { locked?: boolean } = {}): Promise<RunSummary> {
+export async function runAll(
+  trigger: 'cron' | 'manual' | 'telegram',
+  opts: { locked?: boolean; background?: boolean } = {},
+): Promise<RunSummary> {
   if (!opts.locked && !(await lock(LOCK_SECONDS))) return { ...EMPTY, skipped: 'Another run is still going.' };
   const t0 = Date.now();
   let runId: number | null = null;
+  let unlockLater = false;
   try {
     const [settings, scrapers] = await Promise.all([getSettings(), listScrapers()]);
     runId = await startRun(trigger);
@@ -216,7 +228,7 @@ export async function runAll(trigger: 'cron' | 'manual' | 'telegram', opts: { lo
       if (a.seen_before || jobs.has(a.dup_key)) continue; // the same job, already seen on another board
       if (muted(own.o.title)) continue; // a stack you don't want to hear about
       jobs.add(a.dup_key);
-      fresh.push({ ...row(own.o), location: placeOf(own.o, settings.cities) });
+      fresh.push({ ...row(own.o), location: placeOf(own.o, settings.cities), dup_key: a.dup_key });
     }
 
     await Promise.all(
@@ -228,58 +240,126 @@ export async function runAll(trigger: 'cron' | 'manual' | 'telegram', opts: { lo
       }),
     );
 
-    const send = settings.notify && telegramReady();
-    if (send) await enqueue(fresh);
-    let notified = 0;
-    let notifyError: string | undefined;
-    if (send && !(await getState()).muted) {
-      try {
-        notified = await flushQueue();
-      } catch (e) {
-        notifyError = message(e);
-      }
-    }
-
     const errors = results.flatMap((r, i) => (r.error ? [{ scraper: active[i].name, error: r.error }] : []));
-    if (notifyError) errors.push({ scraper: 'Telegram', error: notifyError });
     const summary: RunSummary = {
       found: results.reduce((n, r) => n + r.found, 0),
       kept: owner.size,
       added: added.length,
       fresh: fresh.length,
-      notified,
+      notified: 0,
       errors,
-      notifyError,
       ms: Date.now() - t0,
     };
-    await finishRun(runId, { found: summary.found, kept: summary.kept, added: summary.added, fresh: summary.fresh, notified, errors });
-    return summary;
+    await finishRun(runId, { found: summary.found, kept: summary.kept, added: summary.added, fresh: summary.fresh, notified: 0, errors });
+
+    // new jobs: checked by the AI, then the matches to Telegram (the queue keeps them meanwhile)
+    const send = settings.notify && telegramReady();
+    if (send) await enqueue(fresh);
+    const id = runId;
+    const deadline = t0 + AI_BUDGET_MS;
+    const tail = async () => {
+      const n = send ? await notify({ deadline }) : await assessOnly(settings, fresh, deadline);
+      const more = n.error ? [{ scraper: send ? 'AI / Telegram' : 'AI', error: n.error }] : [];
+      if (send || more.length) await updateRun(id, { notified: n.sent, matched: n.matched, errors: [...errors, ...more] });
+      return { n, more };
+    };
+    if (opts.background && (send || settings.aiFilter) && fresh.length) {
+      unlockLater = true;
+      after(() => tail().catch((e) => console.error('[scrape] AI / Telegram failed:', e)).finally(() => unlock().catch(() => {})));
+      return { ...summary, notifyLater: true };
+    }
+    const { n, more } = await tail();
+    return { ...summary, notified: n.sent, errors: [...errors, ...more], ms: Date.now() - t0 };
   } catch (e) {
     // the database or something unexpected: keep it in the run log, so Settings shows it
     const errors = [{ scraper: 'Run', error: message(e) }];
     if (runId !== null) await finishRun(runId, { ...EMPTY, errors }).catch(() => {});
     return { ...EMPTY, errors, ms: Date.now() - t0 };
   } finally {
-    await unlock().catch(() => {});
+    if (!unlockLater) await unlock().catch(() => {});
   }
 }
 
-/** Sends everything queued; whatever couldn't be sent goes back into the queue. */
-export async function flushQueue(heldWhileMuted = false): Promise<number> {
-  const queued = await claimQueue();
-  if (!queued.length) return 0;
-  const messages = formatQueue(queued, heldWhileMuted);
+// ---- the AI filter and Telegram ------------------------------------------------------------
+
+/** an offer the AI couldn't check for this long goes out anyway, marked, instead of waiting forever */
+const UNCHECKED_AFTER_MS = 20 * 60_000;
+
+type Notified = { sent: number; matched: number | null; error?: string };
+
+/** The active AI profile, if the AI filter can work: on in Settings, a usable profile, an OpenAI key. */
+async function aiProfile(settings: ScrapeSettings): Promise<ProfileWithFile | null> {
+  if (!settings.aiFilter || !process.env.OPENAI_API_KEY) return null;
+  const active = (await listProfiles())[0];
+  if (!isUsable(active)) return null;
+  return getProfile(active.id);
+}
+
+/** Without Telegram the new offers still get their verdicts, for the AI tab. */
+async function assessOnly(settings: ScrapeSettings, fresh: Queued[], deadline: number): Promise<Notified> {
+  const profile = fresh.length ? await aiProfile(settings).catch(() => null) : null;
+  if (!profile) return { sent: 0, matched: null };
+  const { verdicts, error } = await assessJobs(profile, [...new Set(fresh.flatMap((f) => f.dup_key ?? []))], deadline);
+  return { sent: 0, matched: [...verdicts.values()].filter((v) => v.match).length, ...(error ? { error } : {}) };
+}
+
+const appLink = () =>
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/ai?days=1&rejected=1` : null;
+
+/**
+ * Checks what's queued against the AI profile and sends what's ready: the matches listed, the
+ * rest as a count. Offers still waiting for a verdict stay queued for the next run. While muted
+ * (and not sent by hand) nothing is sent, but the verdicts are made, so /send is quick.
+ */
+export async function notify(opts: { manual?: boolean; deadline?: number } = {}): Promise<Notified> {
+  const queued = await listQueue();
+  if (!queued.length) return { sent: 0, matched: null };
+  const settings = await getSettings();
+  let error: string | undefined;
+  const profile = await aiProfile(settings).catch((e) => ((error = message(e)), null));
+  let verdicts = new Map<string, Verdict>();
+  if (profile) {
+    try {
+      const r = await assessJobs(profile, [...new Set(queued.flatMap((q) => q.dup_key ?? []))], opts.deadline ?? Date.now() + AI_BUDGET_MS);
+      verdicts = r.verdicts;
+      if (r.error) error = r.error;
+    } catch (e) {
+      error = message(e);
+    }
+  }
+  const muted = (await getState()).muted;
+  if (muted && !opts.manual) return { sent: 0, matched: null, ...(error ? { error } : {}) };
+
+  const waited = (q: QueuedAt) => Date.now() - Date.parse(q.queued_at) > UNCHECKED_AFTER_MS;
+  const ready = queued.filter((q) => !profile || !q.dup_key || verdicts.has(q.dup_key) || waited(q));
+  // nothing decided yet (e.g. OpenAI is down): no "0 matched" in the log, just the error
+  if (!ready.length) return { sent: 0, matched: null, ...(error ? { error } : {}) };
+  const claimed = await claimQueue(ready); // only the ones no other sender took meanwhile
+
+  const matched: Outgoing[] = [];
+  const unmatched: QueuedAt[] = [];
+  const unchecked: QueuedAt[] = [];
+  for (const q of claimed) {
+    const v = profile && q.dup_key ? verdicts.get(q.dup_key) : undefined;
+    if (!profile) matched.push(q);
+    else if (!v) unchecked.push(q);
+    else if (v.match) matched.push({ ...q, verdict: { score: v.score, summary: v.summary } });
+    else unmatched.push(q);
+  }
+  const messages = formatNotification({ matched, unmatched, unchecked, profile: profile?.name ?? null, held: Boolean(opts.manual && muted), link: appLink() });
   let sent = 0;
   for (let i = 0; i < messages.length; i++) {
     try {
       await sendMessage(messages[i].text);
     } catch (e) {
-      await enqueue(messages.slice(i).flatMap((m) => m.offers)).catch(() => {});
-      throw e;
+      // back into the queue with their own time, so they're tried again (and still count as waiting)
+      const left = new Set(messages.slice(i).flatMap((m) => m.offers.map((o) => `${o.src}\n${o.id}`)));
+      await enqueue(claimed.filter((q) => left.has(`${q.src}\n${q.id}`))).catch(() => {});
+      return { sent, matched: profile ? matched.length : null, error: message(e) };
     }
     sent += messages[i].offers.length;
     if (i < messages.length - 1) await new Promise((r) => setTimeout(r, 400)); // Telegram: about 1 message/s per chat
   }
-  return sent;
+  return { sent: matched.length + unchecked.length, matched: profile ? matched.length : null, ...(error ? { error } : {}) };
 }
 
