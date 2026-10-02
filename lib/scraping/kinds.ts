@@ -194,5 +194,7 @@ export function normalizeSettings(raw: unknown): ScrapeSettings {
 
 /** "a, b ,c" -> ['a', 'b', 'c'] */
 export const splitList = (s: string) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+/** what a typed list is saved as: at most 50 words of 60 characters */
+export const normalizeList = (s: string) => splitList(s).slice(0, 50).map((w) => w.slice(0, 60));
 
 export const SRC_RE = /^[a-z0-9][a-z0-9_-]{0,29}$/;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useEffectEvent, useRef, useState, useTransition } from 'react';
+import { startTransition, useEffect, useEffectEvent, useOptimistic, useRef, useState, useTransition } from 'react';
 import { formatTime } from '@/lib/dates';
 import {
   FIELDS, JSON_SOURCES, KIND_IDS, KINDS, isGeneric,
@@ -100,6 +100,10 @@ export function ScrapersPanel({ scrapers, counts, keywords }: {
   const [open, setOpen] = useState<{ draft: Draft; test: boolean; n: number } | null>(null);
   const act = useAction();
   const edit = (draft: Draft, test = false) => setOpen((o) => ({ draft, test, n: (o?.n ?? 0) + 1 }));
+  // a switched checkbox shows at once; the refreshed page brings the real list
+  const [list, toggle] = useOptimistic(scrapers, (cur, t: { id: string; enabled: boolean }) =>
+    cur.map((s) => (s.id === t.id ? { ...s, enabled: t.enabled } : s)),
+  );
 
   return (
     <section className="panel" aria-labelledby="scrapers-h">
@@ -110,14 +114,16 @@ export function ScrapersPanel({ scrapers, counts, keywords }: {
         </button>
       </div>
       <ul className="scrapers">
-        {scrapers.map((s) => (
+        {list.map((s) => (
           <li key={s.id} className={s.enabled ? undefined : 'off'}>
             <input
               type="checkbox"
               checked={s.enabled}
-              disabled={act.busy}
               aria-label={`${s.name} on`}
-              onChange={(e) => act.run(() => toggleScraperAction(s.id, e.target.checked))}
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                act.run(() => toggleScraperAction(s.id, enabled), () => toggle({ id: s.id, enabled }));
+              }}
             />
             <div className="scraper-main">
               <div>
@@ -211,19 +217,24 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
   });
   useEffect(() => opened(), []);
 
-  const save = () =>
+  // the dialog stays open (Saving…) until the server answers, then closes together with the
+  // refreshed list, so the list never shows the old values after it closed
+  const commit = (fn: () => Promise<{ error?: string }>) => {
+    setError(null);
     startSave(async () => {
-      setError(null);
-      const r = await saveScraperAction(toForm(d));
-      if (r.error) setError(r.error);
-      else dialog.current?.close();
+      let r: { error?: string };
+      try {
+        r = await fn();
+      } catch (e) {
+        r = { error: e instanceof Error ? e.message : String(e) };
+      }
+      startTransition(() => (r.error ? setError(r.error) : onClose()));
     });
+  };
+  const save = () => commit(() => saveScraperAction(toForm(d)));
   const remove = () => {
     if (!d.id || !confirm(`Delete “${d.name}”? Offers it already saved stay.`)) return;
-    startSave(async () => {
-      await deleteScraperAction(d.id!);
-      dialog.current?.close();
-    });
+    commit(() => deleteScraperAction(d.id!));
   };
   const changeKind = (kind: KindId) => {
     // a built-in board brings its own link and source id; between generic kinds keep what's typed
@@ -391,7 +402,7 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
               Cancel
             </button>
             <button type="button" onClick={save} disabled={saving} aria-busy={saving || undefined}>
-              Save
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>

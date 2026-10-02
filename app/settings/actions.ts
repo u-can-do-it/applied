@@ -2,9 +2,8 @@
 
 import { refresh } from 'next/cache';
 import { headers } from 'next/headers';
-import { after } from 'next/server';
 import {
-  FIELDS, INTERVALS, JSON_SOURCES, KINDS, SRC_RE, isGeneric, isKind, splitList,
+  FIELDS, INTERVALS, JSON_SOURCES, KINDS, SRC_RE, isGeneric, isKind, normalizeList,
   type FieldId, type KindId, type ScraperConfig,
 } from '@/lib/scraping/kinds';
 import { flushQueue, runAll, scrape, type PageResult, type RunSummary } from '@/lib/scraping/run';
@@ -33,23 +32,28 @@ export async function scrapeNowAction(): Promise<RunSummary> {
 
 // ---- settings -----------------------------------------------------------------------------
 
-export async function saveScheduleAction(_: ActionState, form: FormData): Promise<ActionState> {
+export type ScheduleInput = { enabled: boolean; everyMinutes: number; fromHour: number; toHour: number };
+
+export async function saveScheduleAction(input: ScheduleInput): Promise<ActionState> {
   await requireLogin();
-  const every = Number(form.get('everyMinutes'));
-  const from = Number(form.get('fromHour'));
-  const to = Number(form.get('toHour'));
+  const every = Number(input?.everyMinutes);
+  const from = Number(input?.fromHour);
+  const to = Number(input?.toHour);
   if (!INTERVALS.includes(every as (typeof INTERVALS)[number])) return { error: 'Pick an interval from the list.' };
   if (![from, to].every((h) => Number.isInteger(h) && h >= 0 && h <= 24)) return { error: 'Hours are 0–24.' };
   const s = await store.getSettings();
-  await store.saveSettings({ ...s, enabled: form.get('enabled') === 'on', everyMinutes: every, fromHour: from, toHour: to });
+  await store.saveSettings({ ...s, enabled: Boolean(input.enabled), everyMinutes: every, fromHour: from, toHour: to });
   refresh();
   return { ok: true, message: 'Saved.' };
 }
 
-export async function saveFiltersAction(_: ActionState, form: FormData): Promise<ActionState> {
+/** The lists come as typed ("React, Vue"); normalizeList (kinds.ts) is what's kept, on both sides. */
+export type FiltersInput = { keywords: string; cities: string; remoteOk: boolean; ignore: string; mute: string };
+const listOf = (text: unknown) => normalizeList(String(text ?? ''));
+
+export async function saveFiltersAction(input: FiltersInput): Promise<ActionState> {
   await requireLogin();
-  const list = (name: string) => splitList(String(form.get(name) ?? '')).slice(0, 50).map((w) => w.slice(0, 60));
-  const keywords = list('keywords');
+  const keywords = listOf(input?.keywords);
   if (!keywords.length) {
     const uses = (await store.listScrapers()).find((x) => x.enabled && /\{keyword(_slug)?\}/.test(x.config.url));
     if (uses) return { error: `Add at least one keyword: ${uses.name}'s link has {keyword} in it.` };
@@ -58,10 +62,10 @@ export async function saveFiltersAction(_: ActionState, form: FormData): Promise
   await store.saveSettings({
     ...s,
     keywords,
-    cities: list('cities'),
-    remoteOk: form.get('remoteOk') === 'on',
-    ignore: list('ignore'),
-    mute: list('mute'),
+    cities: listOf(input.cities),
+    remoteOk: Boolean(input.remoteOk),
+    ignore: listOf(input.ignore),
+    mute: listOf(input.mute),
   });
   refresh();
   return { ok: true, message: 'Saved. The next run uses them.' };
@@ -207,12 +211,16 @@ export async function testScraperAction(input: ScraperForm): Promise<TestResult 
 
 // ---- Telegram -------------------------------------------------------------------------------
 
+/** Unmuting sends what waited right away (not after the answer), so the page shows an empty queue. */
 export async function setMutedAction(muted: boolean): Promise<ActionState> {
   await requireLogin();
   await store.setMuted(Boolean(muted));
-  if (!muted && telegramReady()) after(() => flushQueue(true).catch(() => {}));
+  let sent = 0;
+  let error: string | undefined;
+  if (!muted && telegramReady()) sent = await flushQueue(true).catch((e) => ((error = message(e)), 0));
   refresh();
-  return { ok: true };
+  if (error) return { error: `Unmuted, but sending failed: ${error}` };
+  return { ok: true, message: muted ? 'Muted: new offers wait in the queue.' : sent ? `Unmuted, sent ${sent}.` : 'Unmuted.' };
 }
 
 export async function sendQueueAction(): Promise<ActionState> {

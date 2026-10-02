@@ -1,8 +1,8 @@
 'use client';
 
-import { useActionState, useState, useTransition } from 'react';
+import { startTransition, useOptimistic, useState, useTransition, type FormEvent } from 'react';
 import { formatDateTime, formatTime } from '@/lib/dates';
-import { INTERVALS, type ScrapeSettings } from '@/lib/scraping/kinds';
+import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/scraping/kinds';
 import type { CronStatus, RunRow, ScrapeState } from '@/lib/scraping/store';
 import type { BotInfo } from '@/lib/telegram';
 import {
@@ -12,20 +12,64 @@ import {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** A button-driven action with its own busy state and answer. */
+// How every change here behaves (the Next.js "interactive apps" patterns):
+// - toggles show the new value at once (useOptimistic) until the refreshed page has it;
+// - forms keep what you typed (controlled, no automatic form reset) and take the server's values
+//   only where you haven't typed since;
+// - answers ("Saved.") and closing a dialog are wrapped in startTransition after the await, so
+//   they land in the same frame as the refreshed data instead of a moment before it.
+
+/** A button-driven action: busy state, an optimistic update to show right away, and its answer. */
 export function useAction() {
   const [busy, start] = useTransition();
   const [state, setState] = useState<ActionState | null>(null);
-  const run = (fn: () => Promise<ActionState>) =>
+  const run = (fn: () => Promise<ActionState>, optimistic?: () => void) => {
+    setState(null);
     start(async () => {
-      setState(null);
+      optimistic?.();
+      let r: ActionState;
       try {
-        setState(await fn());
+        r = await fn();
       } catch (e) {
-        setState({ error: message(e) });
+        r = { error: message(e) };
       }
+      startTransition(() => setState(r));
     });
+  };
   return { busy, state, run };
+}
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** A form over server data: shows what you type; new server data replaces only untouched values. */
+function useServerForm<T extends object>(server: T) {
+  const [base, setBase] = useState(server);
+  const [form, setForm] = useState(server);
+  if (!same(server, base)) {
+    // the page was refreshed with other values (saved here, or changed elsewhere)
+    setBase(server);
+    if (same(form, base)) setForm(server);
+  }
+  return { form, setForm, dirty: !same(form, server) };
+}
+
+/** Runs a save; the answer shows with the refreshed page. */
+function useSave() {
+  const [saving, start] = useTransition();
+  const [result, setResult] = useState<ActionState | null>(null);
+  const save = (fn: () => Promise<ActionState>) => {
+    setResult(null);
+    start(async () => {
+      let r: ActionState;
+      try {
+        r = await fn();
+      } catch (e) {
+        r = { error: message(e) };
+      }
+      startTransition(() => setResult(r));
+    });
+  };
+  return { saving, result, save, clear: () => setResult(null) };
 }
 
 export function Feedback({ state }: { state: ActionState | null | undefined }) {
@@ -47,20 +91,34 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
   endpoint: string;
   secret: string | null;
 }) {
-  const [saved, save, saving] = useActionState<ActionState, FormData>(saveScheduleAction, {});
+  const { form, setForm, dirty } = useServerForm({
+    enabled: settings.enabled,
+    everyMinutes: settings.everyMinutes,
+    fromHour: String(settings.fromHour),
+    toHour: String(settings.toHour),
+  });
+  const { saving, result, save, clear } = useSave();
+  const edit = (patch: Partial<typeof form>) => {
+    clear();
+    setForm((f) => ({ ...f, ...patch }));
+  };
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    save(() => saveScheduleAction({ ...form, fromHour: Number(form.fromHour), toHour: Number(form.toHour) }));
+  };
   const act = useAction();
   const [showSecret, setShowSecret] = useState(false);
 
   return (
     <section className="panel" aria-labelledby="schedule-h">
       <h2 id="schedule-h">Scraping</h2>
-      <form action={save} className="form-line">
+      <form onSubmit={submit} className="form-line">
         <label className="check">
-          <input type="checkbox" name="enabled" defaultChecked={settings.enabled} /> On a schedule
+          <input type="checkbox" checked={form.enabled} onChange={(e) => edit({ enabled: e.target.checked })} /> On a schedule
         </label>
         <label className="inline">
           every
-          <select name="everyMinutes" defaultValue={settings.everyMinutes}>
+          <select value={form.everyMinutes} onChange={(e) => edit({ everyMinutes: Number(e.target.value) })}>
             {INTERVALS.map((m) => (
               <option key={m} value={m}>
                 {m < 60 ? `${m} min` : `${m / 60} h`}
@@ -70,15 +128,15 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
         </label>
         <label className="inline">
           from
-          <input className="hour" type="number" name="fromHour" min={0} max={24} defaultValue={settings.fromHour} />
+          <input className="hour" type="number" min={0} max={24} value={form.fromHour} onChange={(e) => edit({ fromHour: e.target.value })} />
           to
-          <input className="hour" type="number" name="toHour" min={0} max={24} defaultValue={settings.toHour} />
+          <input className="hour" type="number" min={0} max={24} value={form.toHour} onChange={(e) => edit({ toHour: e.target.value })} />
           <span className="muted">o’clock, Warsaw time</span>
         </label>
-        <button type="submit" disabled={saving} aria-busy={saving || undefined}>
-          Save
+        <button type="submit" disabled={saving || !dirty} aria-busy={saving || undefined}>
+          {saving ? 'Saving…' : 'Save'}
         </button>
-        <Feedback state={saved} />
+        <Feedback state={result} />
       </form>
 
       <h3>Last runs</h3>
@@ -136,7 +194,7 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
 function CronBox({ cron, endpoint, act }: { cron: CronStatus & { error?: string }; endpoint: string; act: ReturnType<typeof useAction> }) {
   const connect = (
     <button type="button" onClick={() => act.run(cronConnectAction)} disabled={act.busy} aria-busy={act.busy || undefined}>
-      {cron.scheduled ? 'Reconnect' : 'Connect Supabase Cron'}
+      {act.busy ? 'Working…' : cron.scheduled ? 'Reconnect' : 'Connect Supabase Cron'}
     </button>
   );
   return (
@@ -178,16 +236,41 @@ function CronBox({ cron, endpoint, act }: { cron: CronStatus & { error?: string 
 
 // ---- filters ------------------------------------------------------------------------------
 
+const join = (xs: string[]) => xs.join(', ');
+const LISTS = ['keywords', 'cities', 'ignore', 'mute'] as const;
+
 export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
-  const [saved, save, saving] = useActionState<ActionState, FormData>(saveFiltersAction, {});
-  const join = (xs: string[]) => xs.join(', ');
+  const { form, setForm, dirty } = useServerForm({
+    keywords: join(settings.keywords),
+    cities: join(settings.cities),
+    remoteOk: settings.remoteOk,
+    ignore: join(settings.ignore),
+    mute: join(settings.mute),
+  });
+  const { saving, result, save, clear } = useSave();
+  const edit = (patch: Partial<typeof form>) => {
+    clear();
+    setForm((f) => ({ ...f, ...patch }));
+  };
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    // shown the way it's saved ("React,Vue " -> "React, Vue"), so it matches the refreshed page
+    const normalized = { ...form };
+    for (const k of LISTS) normalized[k] = join(normalizeList(form[k]));
+    save(async () => {
+      const r = await saveFiltersAction(normalized);
+      if (r.ok) startTransition(() => setForm(normalized));
+      return r;
+    });
+  };
+  const text = (k: (typeof LISTS)[number]) => ({ value: form[k], onChange: (e: { target: { value: string } }) => edit({ [k]: e.target.value }) });
   return (
     <section className="panel" aria-labelledby="filters-h">
       <h2 id="filters-h">Filters</h2>
-      <form action={save} className="form-stack">
+      <form onSubmit={submit} className="form-stack">
         <label className="field">
           <span>Keywords</span>
-          <input name="keywords" defaultValue={join(settings.keywords)} placeholder="React, Next.js" />
+          <input {...text('keywords')} placeholder="React, Next.js" />
           <small>
             Searched on every board (<code className="inline">{'{keyword}'}</code> in a scraper’s link) and, where a scraper checks it, required in the
             offer’s title or skills. A keyword starts a word: “react” matches ReactJS, not Preact.
@@ -195,27 +278,28 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
         </label>
         <label className="field">
           <span>Cities</span>
-          <input name="cities" defaultValue={join(settings.cities)} placeholder="warszaw, warsaw" />
+          <input {...text('cities')} placeholder="warszaw, warsaw" />
           <small>Part of a name is enough: “warszaw” matches Warszawa and Warszawie. Empty = anywhere. Offers that don’t say where pass.</small>
         </label>
         <label className="check">
-          <input type="checkbox" name="remoteOk" defaultChecked={settings.remoteOk} /> Remote offers are fine wherever they are
+          <input type="checkbox" checked={form.remoteOk} onChange={(e) => edit({ remoteOk: e.target.checked })} /> Remote offers are fine wherever
+          they are
         </label>
         <label className="field">
           <span>Skip titles with</span>
-          <input name="ignore" defaultValue={join(settings.ignore)} placeholder="PHP, Angular" />
+          <input {...text('ignore')} placeholder="PHP, Angular" />
           <small>Not saved at all.</small>
         </label>
         <label className="field">
           <span>Save, but don’t send to Telegram</span>
-          <input name="mute" defaultValue={join(settings.mute)} />
+          <input {...text('mute')} />
           <small>Whole words: “java” doesn’t hit JavaScript, “.net” also hits ASP.NET.</small>
         </label>
         <div className="button-row">
-          <button type="submit" disabled={saving} aria-busy={saving || undefined}>
-            Save filters
+          <button type="submit" disabled={saving || !dirty} aria-busy={saving || undefined}>
+            {saving ? 'Saving…' : 'Save filters'}
           </button>
-          <Feedback state={saved} />
+          <Feedback state={result} />
         </div>
       </form>
     </section>
@@ -233,6 +317,11 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, webhookUrl }:
   webhookUrl: string;
 }) {
   const act = useAction();
+  // what the buttons show right away; the refreshed page brings the real values
+  const [view, show] = useOptimistic({ notify, muted, queued }, (cur, patch: Partial<{ notify: boolean; muted: boolean; queued: number }>) => ({
+    ...cur,
+    ...patch,
+  }));
   if (!ready) {
     return (
       <section className="panel" aria-labelledby="tg-h">
@@ -255,16 +344,31 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, webhookUrl }:
       </p>
       <div className="form-line">
         <label className="check">
-          <input type="checkbox" checked={notify} disabled={act.busy} onChange={(e) => act.run(() => setNotifyAction(e.target.checked))} /> Send new
-          offers
+          <input
+            type="checkbox"
+            checked={view.notify}
+            onChange={(e) => {
+              const on = e.target.checked;
+              act.run(() => setNotifyAction(on), () => show({ notify: on }));
+            }}
+          />{' '}
+          Send new offers
         </label>
-        <span className="small">{muted ? `🔕 Muted, ${queued} waiting` : queued ? `🔔 On, ${queued} waiting` : '🔔 On'}</span>
-        <button type="button" className="secondary" disabled={act.busy} onClick={() => act.run(() => setMutedAction(!muted))}>
-          {muted ? 'Unmute and send' : 'Mute'}
+        <span className="small">{view.muted ? `🔕 Muted, ${view.queued} waiting` : view.queued ? `🔔 On, ${view.queued} waiting` : '🔔 On'}</span>
+        <button
+          type="button"
+          className="secondary"
+          aria-busy={act.busy || undefined}
+          onClick={() => {
+            const mute = !view.muted;
+            act.run(() => setMutedAction(mute), () => show(mute ? { muted: true } : { muted: false, queued: 0 }));
+          }}
+        >
+          {view.muted ? 'Unmute and send' : 'Mute'}
         </button>
-        {queued > 0 && (
-          <button type="button" className="secondary" disabled={act.busy} onClick={() => act.run(sendQueueAction)}>
-            Send the {queued} now
+        {view.queued > 0 && (
+          <button type="button" className="secondary" aria-busy={act.busy || undefined} onClick={() => act.run(sendQueueAction, () => show({ queued: 0 }))}>
+            Send the {view.queued} now
           </button>
         )}
         <button type="button" className="secondary" disabled={act.busy} onClick={() => act.run(telegramTestAction)}>
@@ -284,7 +388,7 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, webhookUrl }:
       </p>
       <div className="button-row">
         <button type="button" className={hooked ? 'secondary' : undefined} disabled={act.busy} onClick={() => act.run(telegramConnectAction)}>
-          {hooked ? 'Reconnect commands' : 'Connect commands'}
+          {act.busy ? 'Working…' : hooked ? 'Reconnect commands' : 'Connect commands'}
         </button>
         {info?.webhook && (
           <button type="button" className="secondary" disabled={act.busy} onClick={() => act.run(telegramDisconnectAction)}>

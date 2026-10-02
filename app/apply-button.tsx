@@ -1,6 +1,6 @@
 'use client';
 
-import { useOptimistic, useState, useTransition } from 'react';
+import { startTransition, useOptimistic, useState, useTransition } from 'react';
 import { formatDay, todayInWarsaw } from '@/lib/dates';
 import { applyAction, unapplyAction } from './actions';
 
@@ -14,11 +14,11 @@ export function ApplyButton({ jobKey, src, id, appliedAt }: { jobKey: string; sr
 
   const toggle = () => {
     if (applied && !confirm('Unmark as applied? The saved ad text is deleted too.')) return;
+    setError(null);
     start(async () => {
-      setError(null);
       setApplied(applied ? null : new Date().toISOString());
       const res = applied ? await unapplyAction(jobKey) : await applyAction({ key: jobKey, src, id });
-      if (res.error) setError(res.error);
+      if (res.error) startTransition(() => setError(res.error!));
     });
   };
 

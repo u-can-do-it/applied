@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
 import { startRunAction } from './actions';
 import { ProfileDialog, type ProfileOption } from './profile-dialog';
 
@@ -48,12 +48,14 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
     return () => clearTimeout(t);
   }, [running, run?.done, run?.pairsChecked, run?.phase, router]);
 
-  const runFor = (input: { days?: string; from?: string; to?: string }) =>
+  const runFor = (input: { days?: string; from?: string; to?: string }) => {
+    setMessage(null);
     start(async () => {
-      setMessage(null);
       const res = await startRunAction({ profileId: activeId!, ...input });
-      setMessage(res.error ?? (res.message?.startsWith('Nothing') ? res.message : null));
+      // with the refreshed progress bar, not a frame before it
+      startTransition(() => setMessage(res.error ?? (res.message?.startsWith('Nothing') ? res.message : null)));
     });
+  };
 
   const disabled = !usable || !aiConfigured || running || starting;
   const doneShown = run ? Math.min(run.done, run.total) : 0;

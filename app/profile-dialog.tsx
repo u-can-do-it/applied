@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useImperativeHandle, useRef, useState, useTransition, type Ref } from 'react';
+import { startTransition, useEffect, useImperativeHandle, useRef, useState, useTransition, type FormEvent, type Ref } from 'react';
 import { deleteProfileAction, saveProfileAction, selectProfileAction, type FormState } from './actions';
 
 export type ProfileOption = { id: string; name: string; prompt: string; fileName: string | null; version: number };
@@ -14,7 +14,24 @@ export function ProfileDialog({ profiles, activeId, ref }: {
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [selected, setSelected] = useState<string>(activeId ?? NEW);
-  const [state, save, saving] = useActionState<FormState, FormData>(saveProfileAction, {});
+  // onSubmit, not <form action>: React resets a form after its action, which would throw away
+  // what you typed whenever the save fails (e.g. a file that's too big)
+  const [state, setState] = useState<FormState>({});
+  const [saving, startSave] = useTransition();
+  const save = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    setState({});
+    startSave(async () => {
+      let r: FormState;
+      try {
+        r = await saveProfileAction({}, data);
+      } catch (err) {
+        r = { error: err instanceof Error ? err.message : String(err) };
+      }
+      startTransition(() => setState(r)); // lands with the refreshed page; then the effect below closes
+    });
+  };
   const [busy, startBusy] = useTransition();
   const [removeFile, setRemoveFile] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
@@ -26,6 +43,7 @@ export function ProfileDialog({ profiles, activeId, ref }: {
     setSelected(id);
     setRemoveFile(false);
     setPicked(null);
+    setState({}); // no message from the last save
     setFormKey((k) => k + 1);
   };
 
@@ -45,7 +63,7 @@ export function ProfileDialog({ profiles, activeId, ref }: {
 
   return (
     <dialog ref={dialog} className="modal" onClick={(e) => e.target === dialog.current && close()}>
-      <form action={save} className="modal-body" key={formKey}>
+      <form onSubmit={save} className="modal-body" key={formKey}>
         <div className="modal-head">
           <h2>AI profile</h2>
           <select
