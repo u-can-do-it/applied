@@ -258,14 +258,23 @@ export type CronStatus = {
   lastStatus?: number | null;
   lastError?: string | null;
   lastAt?: string | null;
+  /** what the app answered: "started", "skipped" (lastReason says why), "done" */
+  lastResult?: string | null;
+  lastReason?: string | null;
 };
 
 export async function cronStatus(): Promise<CronStatus> {
   return (await rest(restUrl('rpc/jw_cron_status'), { method: 'POST', body: '{}' })).json();
 }
 
-export async function cronConnect(endpoint: string, secret: string): Promise<string> {
-  return (await rest(restUrl('rpc/jw_cron_connect'), { method: 'POST', body: JSON.stringify({ p_url: endpoint, p_secret: secret }) })).json();
+export async function cronConnect(endpoint: string, secret: string, schedule: string, active: boolean): Promise<string> {
+  const body = { p_url: endpoint, p_secret: secret, p_schedule: schedule, p_active: active };
+  return (await rest(restUrl('rpc/jw_cron_connect'), { method: 'POST', body: JSON.stringify(body) })).json();
+}
+
+/** The connected job's schedule and on/off: 'ok', or 'not connected'. */
+export async function cronReschedule(schedule: string, active: boolean): Promise<string> {
+  return (await rest(restUrl('rpc/jw_cron_reschedule'), { method: 'POST', body: JSON.stringify({ p_schedule: schedule, p_active: active }) })).json();
 }
 
 export async function cronDisconnect(): Promise<string> {

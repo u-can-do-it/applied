@@ -5,11 +5,12 @@ import { headers } from 'next/headers';
 import { isTimeZone } from '@/lib/dates';
 import {
   FIELDS, INTERVALS, JSON_SOURCES, KINDS, SRC_RE, isGeneric, isKind, normalizeList,
-  type FieldId, type KindId, type ScraperConfig,
+  type FieldId, type KindId, type ScrapeSettings, type ScraperConfig,
 } from '@/lib/scraping/kinds';
 import { MAX_PAGES } from '@/lib/scraping/match';
 import { notify, runAll, scrape, type PageResult, type RunSummary } from '@/lib/scraping/run';
-import { appOrigin, cronSecret } from '@/lib/scraping/schedule';
+import { cronSchedule } from '@/lib/scraping/cron';
+import { appOrigin, cronSecret, syncCron } from '@/lib/scraping/schedule';
 import * as store from '@/lib/scraping/store';
 import { requireLogin } from '@/lib/session';
 import { connectWebhook, disconnectWebhook, sendMessage, telegramReady } from '@/lib/telegram';
@@ -37,22 +38,26 @@ export async function scrapeNowAction(): Promise<RunSummary> {
 
 export type ScheduleInput = { everyMinutes: number; fromHour: number; toHour: number };
 
+/** Saves settings that make Supabase Cron's schedule, and gives it the new one (if it's connected). */
+async function saveSchedule(next: ScrapeSettings): Promise<ActionState> {
+  await store.saveSettings(next);
+  const cronError = await syncCron(next);
+  refresh();
+  return cronError ? { ok: true, message: `Saved, but Supabase Cron kept its old schedule: ${cronError}` } : { ok: true, message: 'Saved.' };
+}
+
 /** The app's time zone: '' = the browser's (`browser`: the one it's in now), or a fixed one. */
 export async function setTimeZoneAction(tz: string, browser: string): Promise<ActionState> {
   await requireLogin();
   if (tz !== '' && !isTimeZone(tz)) return { error: 'Unknown time zone.' };
   const s = await store.getSettings();
-  await store.saveSettings({ ...s, timeZone: tz, browserTimeZone: isTimeZone(browser) ? browser : s.browserTimeZone });
-  refresh();
-  return { ok: true, message: 'Saved.' };
+  return saveSchedule({ ...s, timeZone: tz, browserTimeZone: isTimeZone(browser) ? browser : s.browserTimeZone });
 }
 
-/** Pause / resume the scheduled runs ("Scrape now" works either way). */
+/** Pause / resume the scheduled runs ("Scrape now" works either way); paused, Supabase Cron is off too. */
 export async function setScrapingPausedAction(paused: boolean): Promise<ActionState> {
   await requireLogin();
-  await store.saveSettings({ ...(await store.getSettings()), enabled: !paused });
-  refresh();
-  return { ok: true, message: 'Saved.' };
+  return saveSchedule({ ...(await store.getSettings()), enabled: !paused });
 }
 
 export async function saveScheduleAction(input: ScheduleInput): Promise<ActionState> {
@@ -63,9 +68,7 @@ export async function saveScheduleAction(input: ScheduleInput): Promise<ActionSt
   if (!INTERVALS.includes(every as (typeof INTERVALS)[number])) return { error: 'Pick an interval from the list.' };
   if (![from, to].every((h) => Number.isInteger(h) && h >= 0 && h <= 24)) return { error: 'Hours are 0–24.' };
   const s = await store.getSettings();
-  await store.saveSettings({ ...s, everyMinutes: every, fromHour: from, toHour: to });
-  refresh();
-  return { ok: true, message: 'Saved.' };
+  return saveSchedule({ ...s, everyMinutes: every, fromHour: from, toHour: to });
 }
 
 /** The lists come as typed ("React, Vue"); normalizeList (kinds.ts) is what's kept, on both sides. */
@@ -302,9 +305,11 @@ export async function cronConnectAction(): Promise<ActionState> {
   const secret = await cronSecret();
   if (!secret) return { error: 'Set APP_PASSWORD (or CRON_SECRET) first: the endpoint needs a secret.' };
   try {
-    const r = await store.cronConnect(`${await origin()}/api/cron/scrape`, secret);
+    const s = await store.getSettings();
+    const r = await store.cronConnect(`${await origin()}/api/cron/scrape`, secret, cronSchedule(s), s.enabled);
     refresh();
-    return r === 'ok' ? { ok: true, message: 'Supabase now calls the app every 5 minutes.' } : { error: r };
+    // the box above says when it calls; that changes with the settings, this answer wouldn't
+    return r === 'ok' ? { ok: true, message: 'Connected.' } : { error: r };
   } catch (e) {
     return { error: message(e) };
   }

@@ -2,6 +2,7 @@
 
 import { startTransition, useMemo, useOptimistic, useState, useSyncExternalStore, useTransition, type FormEvent } from 'react';
 import { deviceTimeZone, timeZones } from '@/lib/dates';
+import { cronSchedule, describeSchedule } from '@/lib/scraping/cron';
 import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/scraping/kinds';
 import type { CronStatus, RunRow, ScrapeState } from '@/lib/scraping/store';
 import type { BotInfo } from '@/lib/telegram';
@@ -198,7 +199,7 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint }
       {state.last_call_at && <p className="muted small">Last call from a scheduler: {z.formatDateTime(state.last_call_at)}</p>}
 
       <h3>What calls it</h3>
-      <CronBox cron={cron} endpoint={endpoint} act={act} />
+      <CronBox cron={cron} settings={settings} endpoint={endpoint} act={act} />
     </section>
   );
 }
@@ -238,7 +239,20 @@ function TimeZoneField({ value }: { value: string }) {
   );
 }
 
-function CronBox({ cron, endpoint, act }: { cron: CronStatus & { error?: string }; endpoint: string; act: ReturnType<typeof useAction> }) {
+/** What the app answered the cron's last call, in words. */
+function lastAnswer(cron: CronStatus) {
+  if (cron.lastResult === 'skipped') return `skipped${cron.lastReason ? `, ${cron.lastReason}` : ''}`;
+  if (cron.lastResult === 'started') return 'a run started';
+  if (cron.lastResult === 'done') return 'a run went through';
+  return `answered ${cron.lastStatus}`;
+}
+
+function CronBox({ cron, settings, endpoint, act }: {
+  cron: CronStatus & { error?: string };
+  settings: ScrapeSettings;
+  endpoint: string;
+  act: ReturnType<typeof useAction>;
+}) {
   const { formatTime } = useZone();
   const connect = (label: string) => (
     <button type="button" onClick={() => act.run(cronConnectAction)} disabled={act.busy} aria-busy={act.busy || undefined}>
@@ -259,36 +273,49 @@ function CronBox({ cron, endpoint, act }: { cron: CronStatus & { error?: string 
     return (
       <div className="cron-box">
         <p className="small">
-          <span className="status-off">○ Not connected</span>: nothing scrapes on its own, only “↻ Scrape now”. Connecting makes Supabase call{' '}
-          {endpoint} every 5 minutes; the app decides whether a run is due.
+          <span className="status-off">○ Not connected</span>: nothing scrapes on its own, only “↻ Scrape now”. Connecting makes Supabase call the app{' '}
+          {describeSchedule(settings)}; the app decides whether a run is due.
         </p>
         <div className="button-row">{connect('Connect Supabase Cron')}</div>
         <Feedback state={act.state} />
       </div>
     );
   }
-  // connected: Reconnect is only offered when something needs it
+  // connected: Reconnect is only offered when something needs it. The job follows the settings
+  // above (each change there reschedules it); one set up before a change, or switched off in
+  // Supabase, doesn't.
+  const paused = !settings.enabled;
   const problem =
-    cron.active === false
-      ? 'The job is paused in Supabase (Integrations → Cron): switch it on there.'
-      : cron.url && cron.url !== endpoint
-        ? `It calls another address than this app’s (${endpoint}). Reconnect to point it here.`
-        : cron.lastStatus === 401
-          ? 'The app refused the last call (401): the secret changed (APP_PASSWORD or CRON_SECRET). Reconnect to update it.'
-          : cron.lastError
-            ? `The last call failed: ${cron.lastError}. If it keeps failing, try Reconnect.`
-            : null;
+    cron.url && cron.url !== endpoint
+      ? `It calls another address than this app’s (${endpoint}). Reconnect to point it here.`
+      : cron.active === false && !paused
+        ? 'The job is switched off in Supabase. Reconnect to switch it on.'
+        : cron.schedule !== cronSchedule(settings) || cron.active !== !paused
+          ? 'Its schedule isn’t the one the settings above make (it was set up before they changed). Reconnect to update it.'
+          : cron.lastStatus === 401
+            ? 'The app refused the last call (401): the secret changed (APP_PASSWORD or CRON_SECRET). Reconnect to update it.'
+            : cron.lastError
+              ? `The last call failed: ${cron.lastError}. If it keeps failing, try Reconnect.`
+              : null;
   return (
     <div className="cron-box">
       <p className="small">
-        {problem ? <span className="warn">● Connected, with a problem</span> : <span className="ok-text">● Connected</span>}: Supabase Cron calls{' '}
-        <code className="inline">{cron.url}</code> {cron.schedule === '*/5 * * * *' ? 'every 5 minutes' : `on ${cron.schedule}`}, and the app scrapes
-        when a run is due (the interval and hours above).
-        {cron.lastAt && !cron.lastError && ` Last call ${formatTime(cron.lastAt)}, answered ${cron.lastStatus}.`}
+        {problem ? (
+          <span className="warn">● Connected, with a problem</span>
+        ) : paused ? (
+          <span className="status-off">● Connected, paused</span>
+        ) : (
+          <span className="ok-text">● Connected</span>
+        )}
+        : {paused ? 'Supabase doesn’t call the app until you resume scraping.' : `Supabase calls the app ${describeSchedule(settings)}, and it scrapes when a run is due.`}
+        {cron.lastAt && !cron.lastError && ` Last call ${formatTime(cron.lastAt)}: ${lastAnswer(cron)}.`}
+      </p>
+      <p className="muted small">
+        The job (UTC, so an hour wider where clocks change): <code className="inline">{cron.schedule}</code> → <code className="inline">{cron.url}</code>
       </p>
       {problem && <p className="small warn">{problem}</p>}
       <div className="button-row">
-        {problem && cron.active !== false && connect('Reconnect')}
+        {problem && connect('Reconnect')}
         <button
           type="button"
           className="secondary"

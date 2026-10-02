@@ -99,6 +99,8 @@ export type Zone = {
   weekday: (at: Instant) => string;
   /** 0–23 */
   hour: (at: Instant) => number;
+  /** minutes ahead of UTC at that instant (120 for Warsaw in summer) */
+  offset: (at: Instant) => number;
   /** The instant of 00:00 there on that day */
   startOfDay: (day: string) => Date;
   /** URL filter -> half-open UTC range [gte, lt) on first_seen. Bad input is ignored, a reversed range is swapped. */
@@ -140,6 +142,7 @@ function makeZone(tz: string): Zone {
     formatDateTime: (at) => `${formatDayOf(at)} ${formatTime(at)}`,
     weekday: (at) => weekdayFmt.format(new Date(at)),
     hour: (at) => Number(hourFmt.format(new Date(at))) % 24,
+    offset: (at) => offsetMs(new Date(at).getTime()) / 60_000,
     startOfDay,
     resolveRange: ({ days, from, to }, now = Date.now()) => {
       if (days === 'yesterday') {

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 
-const EVERY_MS = 60_000; // scraping runs every 5 min, so asking once a minute is plenty
+const EVERY_MS = 60_000; // scraping runs every 5 min at most, so asking once a minute is plenty
 const ON_RETURN_MS = 15_000; // back in the browser tab: ask right away if the last answer is older
 
 const timeLabel = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });

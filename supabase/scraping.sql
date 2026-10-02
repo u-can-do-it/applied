@@ -217,19 +217,38 @@ language sql stable set search_path = '' as $$
   select o.src, count(*), max(o.first_seen) from public.offers o group by o.src
 $$;
 
--- Supabase Cron: calls the app every 5 minutes; the app decides whether a run is due (its own
--- interval and hours, in the app's time zone). Called from Settings with the app's URL and secret.
-create or replace function public.jw_cron_connect(p_url text, p_secret text) returns text
-language plpgsql security definer set search_path = '' as $$
+-- Supabase Cron: calls the app on the schedule Settings makes (lib/scraping/cron.ts: the interval,
+-- within the hours, in UTC) and is switched off while scraping is paused; the app still decides
+-- whether a run is due. Called from Settings with the app's URL and secret, and again whenever the
+-- interval, the hours, the time zone or the pause change (jw_cron_reschedule).
+drop function if exists public.jw_cron_connect(text, text);
+create or replace function public.jw_cron_connect(p_url text, p_secret text, p_schedule text default '*/5 * * * *', p_active boolean default true)
+returns text language plpgsql security definer set search_path = '' as $$
+declare
+  id bigint;
 begin
   if to_regnamespace('cron') is null then return 'pg_cron is not enabled (Supabase → Integrations → Cron)'; end if;
   if to_regnamespace('net') is null then return 'pg_net is not enabled (Supabase → Database → Extensions)'; end if;
-  perform cron.schedule('jobwatch-scrape', '*/5 * * * *', format(
+  id := cron.schedule('jobwatch-scrape', p_schedule, format(
     'select net.http_get(url := %L, headers := jsonb_build_object(%L, %L), timeout_milliseconds := 20000)',
     p_url, 'Authorization', 'Bearer ' || p_secret));
+  perform cron.alter_job(id, active := p_active);
   -- cron keeps every run's details forever; keep a week
   perform cron.schedule('jobwatch-cron-cleanup', '17 3 * * *',
     $c$delete from cron.job_run_details where end_time < now() - interval '7 days'$c$);
+  return 'ok';
+end $$;
+
+-- the connected job's new schedule, or off / on again; 'not connected' if there's none
+create or replace function public.jw_cron_reschedule(p_schedule text, p_active boolean) returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  id bigint;
+begin
+  if to_regnamespace('cron') is null then return 'not connected'; end if;
+  select j.jobid into id from cron.job j where j.jobname = 'jobwatch-scrape';
+  if not found then return 'not connected'; end if;
+  perform cron.alter_job(id, schedule := p_schedule, active := p_active);
   return 'ok';
 end $$;
 
@@ -241,7 +260,7 @@ begin
   return 'ok';
 end $$;
 
--- what Settings shows: is the job there, and how did its last call go
+-- what Settings shows: is the job there, and how did its last call go (and what the app said)
 create or replace function public.jw_cron_status() returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -257,12 +276,16 @@ begin
     'url', substring(job.command from 'url := ''([^'']+)'''));
   begin
     -- pg_net keeps responses for a few hours; ours are the ones that came back from /api/cron/scrape
-    select r.status_code, r.error_msg, r.created into res
+    select r.status_code, r.error_msg, r.created, r.content into res
       from net._http_response r
      where r.content like '%"jobwatch"%' or r.error_msg is not null
      order by r.created desc limit 1;
     if found then
       out := out || jsonb_build_object('lastStatus', res.status_code, 'lastError', res.error_msg, 'lastAt', res.created);
+      begin -- {"jobwatch": "skipped", "reason": "outside 7:00–22:00 …"} or "started"
+        out := out || jsonb_build_object('lastResult', res.content::jsonb ->> 'jobwatch', 'lastReason', res.content::jsonb ->> 'reason');
+      exception when others then null;
+      end;
     end if;
   exception when others then null; -- no access to pg_net's table: show the job only
   end;
@@ -285,13 +308,15 @@ grant usage, select on all sequences in schema public to service_role;
 revoke execute on function public.jw_ingest_offers(jsonb) from public, anon, authenticated;
 revoke execute on function public.jw_scrape_lock(integer) from public, anon, authenticated;
 revoke execute on function public.jw_source_counts() from public, anon, authenticated;
-revoke execute on function public.jw_cron_connect(text, text) from public, anon, authenticated;
+revoke execute on function public.jw_cron_connect(text, text, text, boolean) from public, anon, authenticated;
+revoke execute on function public.jw_cron_reschedule(text, boolean) from public, anon, authenticated;
 revoke execute on function public.jw_cron_disconnect() from public, anon, authenticated;
 revoke execute on function public.jw_cron_status() from public, anon, authenticated;
 grant execute on function public.jw_ingest_offers(jsonb) to service_role;
 grant execute on function public.jw_scrape_lock(integer) to service_role;
 grant execute on function public.jw_source_counts() to service_role;
-grant execute on function public.jw_cron_connect(text, text) to service_role;
+grant execute on function public.jw_cron_connect(text, text, text, boolean) to service_role;
+grant execute on function public.jw_cron_reschedule(text, boolean) to service_role;
 grant execute on function public.jw_cron_disconnect() to service_role;
 grant execute on function public.jw_cron_status() to service_role;
 

@@ -4,8 +4,8 @@ import { checkDue, isCronRequest } from '@/lib/scraping/schedule';
 import { lock } from '@/lib/scraping/store';
 
 // GET or POST /api/cron/scrape with "Authorization: Bearer <secret>" (see lib/scraping/schedule.ts).
-// Supabase Cron calls it every 5 minutes (Settings → Scraping → Connect). Interval, hours and the
-// pause come from Settings, so the caller just knocks.
+// Supabase Cron calls it on the schedule Settings makes (the interval within the hours; paused =
+// no calls), and the app checks again whether a run is due (lib/scraping/schedule.ts).
 //   ?force=1  run even if not due     ?wait=1  answer with the result instead of right away
 // Every answer has "jobwatch" in it: Settings finds Supabase Cron's last call by that.
 export const maxDuration = 300;

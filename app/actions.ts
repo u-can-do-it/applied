@@ -15,6 +15,7 @@ import { describeRange, isTimeZone, validDay, type Zone } from '@/lib/dates';
 import { extractJob, type ExtractedJob } from '@/lib/openai';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
 import { readJobPage, type JobDetails } from '@/lib/scrape';
+import { syncCron } from '@/lib/scraping/schedule';
 import * as store from '@/lib/scraping/store';
 import { requireLogin } from '@/lib/session';
 import { DAY_PRESETS } from '@/lib/sources';
@@ -351,6 +352,9 @@ export async function reportBrowserTimeZoneAction(tz: string): Promise<void> {
   // read the settings as saved here, not as cached from before
   const s = await store.getSettings().catch(() => null);
   if (!s || s.browserTimeZone === tz) return;
-  await store.saveSettings({ ...s, browserTimeZone: tz });
-  if (!s.timeZone) refresh();
+  const next = { ...s, browserTimeZone: tz };
+  await store.saveSettings(next);
+  if (s.timeZone) return; // a zone of its own is picked: nothing that shows or runs changes
+  await syncCron(next); // the hours are this zone's now (if that fails, Settings shows it)
+  refresh();
 }

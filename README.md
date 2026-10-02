@@ -4,7 +4,7 @@ Job offers from several boards, newest first, with search, filters, an AI filter
 The app scrapes the boards itself and sends new offers to Telegram.
 
 ```
-Supabase Cron ──every 5 min──→ /api/cron/scrape (Vercel) ─→ scrapers → filters → Supabase (offers)
+Supabase Cron ─as in Settings→ /api/cron/scrape (Vercel) ─→ scrapers → filters → Supabase (offers)
 "↻ Scrape now" ───────────────────────────────────────────┘                    └→ Telegram (new jobs)
 Telegram /mute /send /status ─→ /api/telegram
 ```
@@ -64,8 +64,10 @@ only saves, so a new or changed scraper doesn't flood Telegram.
    group's starts with `-`). Redeploy.
 3. Open Settings → **↻ Scrape now** at the top. Check that every board shows ✓ (sites can block Vercel's servers;
    the error says so).
-4. Settings → **Connect Supabase Cron**: Supabase calls `/api/cron/scrape` every 5 minutes, the app decides if a
-   run is due (interval, hours, pause). Vercel's own cron can't do this on the free plan: Hobby allows one run a day.
+4. Settings → **Connect Supabase Cron**: Supabase calls `/api/cron/scrape` on the schedule from Settings (the
+   interval, only within the hours, none while paused; in UTC, an hour wider where clocks change) and the app checks
+   again whether a run is due. Changing the interval, hours, time zone or pause reschedules it. Vercel's own cron
+   can't do this on the free plan: Hobby allows one run a day.
 5. Settings → Telegram → **Connect commands** (a bot gets commands by webhook or by polling, not both).
 
 The cron sends `Authorization: Bearer <secret>`: `CRON_SECRET` if set, otherwise derived from `APP_PASSWORD`
