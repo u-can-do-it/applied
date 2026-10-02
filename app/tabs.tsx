@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 const TABS = [
   { path: '/', label: 'All offers' },
   { path: '/ai', label: 'AI filter' },
+  { path: '/applied', label: 'Applied' },
 ];
 
 // Switching tabs keeps search / source / dates, only the page number resets.
@@ -17,7 +18,12 @@ export function Tabs() {
   return (
     <nav className="tabs" aria-label="View">
       {TABS.map((t) => (
-        <Link key={t.path} href={qs ? `${t.path}?${qs}` : t.path} aria-current={pathname === t.path ? 'page' : undefined} className="tab">
+        <Link
+          key={t.path}
+          href={qs && t.path !== '/applied' ? `${t.path}?${qs}` : t.path}
+          aria-current={pathname === t.path ? 'page' : undefined}
+          className="tab"
+        >
           {t.label}
         </Link>
       ))}

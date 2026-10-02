@@ -95,6 +95,20 @@ How the **AI filter** tab works:
   While a run is open, the page refreshes and starts the next slice, so a long run continues as long as the tab
   stays open.
 
+## 5. Applied offers
+
+- **Mark applied** on any offer (All offers or AI filter) records that you applied. The mark is per job, so all its
+  boards show it. It keeps a snapshot of title, company and link, and in the background saves the **complete ad
+  text** plus what the board publishes about the job: salary per contract type, contract, location / remote, posted,
+  valid until. The ad stays readable after the board takes it down.
+- Sources: JustJoin and NoFluff from their public offer APIs (formatted text, skills, salary in the offer's own
+  currency); Eldorado, Bulldog and Solid.jobs from the page's JobPosting; Built In from the page body.
+  If the clicked copy can't be read, the job's other boards are tried.
+- **Applied tab:** your applications, newest first, with search. Click one for a window with the saved ad, its
+  details, "Open original", "Fetch again" (if fetching failed) and "Unmark applied".
+- The table is `applications`, created by `scripts/db-migrate.sh`. When the AI merges duplicates, the mark
+  moves with the job.
+
 ## Notes
 
 - **Search:** each word must appear in the title or the company (`senior react` matches

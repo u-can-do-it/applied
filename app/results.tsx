@@ -3,6 +3,7 @@ import { addDays, describeRange, resolveRange, todayInWarsaw, TZ, validDay } fro
 import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
 import { isUsable, listProfiles } from '@/lib/profiles';
 import { DAY_PRESETS, SOURCES, withParams } from '@/lib/sources';
+import { ApplyButton } from './apply-button';
 import { FitScore } from './fit-score';
 import { NavLink } from './nav';
 
@@ -173,6 +174,7 @@ export async function Results({ searchParams, mode = 'all' }: { searchParams: Se
                     />
                   )}
                   <Sources offer={o} />
+                  {o.key && <ApplyButton jobKey={o.key} src={o.src} id={o.id} appliedAt={o.applied_at} />}
                 </div>
               </li>
             ))}

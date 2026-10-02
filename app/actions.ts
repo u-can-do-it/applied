@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { continueRun, startRun } from '@/lib/ai-runs';
+import { markApplied, saveContent, unmarkApplied } from '@/lib/applications';
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword, isValidToken } from '@/lib/auth';
 import { describeRange, resolveRange } from '@/lib/dates';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
@@ -111,4 +112,35 @@ export async function startRunAction(input: { profileId: string; days?: string; 
   return run.status === 'running'
     ? { ok: true, message: `Checking ${run.total - run.done} offer(s) from ${label}…` }
     : { ok: true, message: `Nothing new to check in ${label}.` };
+}
+
+// ---- applications --------------------------------------------------------------------
+
+/** Marks the job applied and saves its complete ad text in the background. */
+export async function applyAction(input: { key: string; src: string; id: string }): Promise<FormState> {
+  await requireLogin();
+  try {
+    await markApplied(input.key, { src: input.src, id: input.id });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+  after(() => saveContent(input.key));
+  refresh();
+  return { ok: true };
+}
+
+/** Removes the mark and the saved ad text. */
+export async function unapplyAction(key: string): Promise<FormState> {
+  await requireLogin();
+  await unmarkApplied(key);
+  refresh();
+  return { ok: true };
+}
+
+/** Tries to fetch the ad text again (e.g. after a network error). */
+export async function refetchContentAction(key: string): Promise<FormState> {
+  await requireLogin();
+  await saveContent(key);
+  refresh();
+  return { ok: true };
 }

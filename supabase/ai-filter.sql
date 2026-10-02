@@ -1,4 +1,4 @@
--- AI filter: profiles, manual runs, verdicts, scraped ad text, duplicate handling.
+-- App tables: AI filter (profiles, runs, verdicts, scraped ad text, duplicates) and applications.
 -- Supabase -> SQL Editor -> paste -> Run (or: scripts/db-migrate.sh). Safe to re-run.
 
 create schema if not exists extensions;
@@ -59,13 +59,36 @@ create table if not exists public.ai_dup_pairs (
   check (key_a < key_b)
 );
 
+-- jobs you applied to; a snapshot of title / company / link, so the entry survives the offer row,
+-- plus the complete ad text and its details (salary, location, contract, dates) saved when marked
+create table if not exists public.applications (
+  dup_key        text        primary key,      -- the job (see offers_unique)
+  src            text        not null,         -- the copy it was marked on
+  id             text        not null,
+  title          text        not null,
+  company        text,
+  url            text        not null,
+  applied_at     timestamptz not null default now(),
+  content        text,
+  details        jsonb,
+  content_status text        not null default 'pending' check (content_status in ('pending', 'ok', 'empty', 'failed')),
+  content_error  text,
+  scraped_at     timestamptz
+);
+create index if not exists applications_applied_at_idx on public.applications (applied_at desc);
+
 -- derived objects are rebuilt on every run of this file (the functions below depend on the view)
+drop function if exists public.ai_results(uuid, integer);
+drop function if exists public.ai_pending(uuid, integer, timestamptz, timestamptz);
+drop function if exists public.ai_range_stats(uuid, integer, timestamptz, timestamptz);
+drop function if exists public.ai_dup_candidates(timestamptz, timestamptz, integer);
 drop view if exists public.offers_unique cascade;
 
 -- Each job once: its earliest copy, plus every board it was posted on.
 -- dup_key here is the job's key: the offer's own key, or its group's after an AI merge.
 create view public.offers_unique with (security_invoker = true) as
-select src, id, title, company, seniority, remote, url, first_seen, job_key as dup_key, sources, copies, company_key
+select src, id, title, company, seniority, remote, url, first_seen, job_key as dup_key, sources, copies, company_key,
+       (select a.applied_at from public.applications a where a.dup_key = x.job_key) as applied_at
 from (
   select o.src, o.id, o.title, o.company, o.seniority, o.remote, o.url, o.first_seen,
     coalesce(l.job_key, o.dup_key) as job_key,
@@ -157,11 +180,11 @@ create table if not exists public.offer_details (
 -- ---- 6. queries the app calls (PostgREST RPC; filters/order/limit apply to their rows) -------
 create or replace function public.ai_results(p_profile uuid, p_version integer)
 returns table (src text, id text, title text, company text, seniority text, remote boolean, url text,
-               first_seen timestamptz, dup_key text, sources text[], copies jsonb,
+               first_seen timestamptz, dup_key text, sources text[], copies jsonb, applied_at timestamptz,
                match boolean, score integer, summary text, checks jsonb, had_description boolean)
 language sql stable set search_path = '' as $$
   select u.src, u.id, u.title, u.company, u.seniority, u.remote, u.url, u.first_seen, u.dup_key,
-         u.sources, u.copies, v.match, v.score, v.summary, v.checks, v.had_description
+         u.sources, u.copies, u.applied_at, v.match, v.score, v.summary, v.checks, v.had_description
   from public.offers_unique u
   join public.ai_verdicts v on v.dup_key = u.dup_key
   where v.profile_id = p_profile and v.version = p_version
@@ -252,6 +275,9 @@ begin
      and not exists (select 1 from public.ai_verdicts w
                      where w.profile_id = v.profile_id and w.version = v.version and w.dup_key = p_keep);
   delete from public.ai_verdicts where dup_key = p_alias;
+  update public.applications a set dup_key = p_keep
+   where a.dup_key = p_alias and not exists (select 1 from public.applications b where b.dup_key = p_keep);
+  delete from public.applications where dup_key = p_alias; -- both were marked: the kept job's entry stays
 end $$;
 
 -- ---- 7. access: only the server's secret key (the CV lives here) -----------------------------
@@ -261,9 +287,10 @@ alter table public.ai_runs enable row level security;
 alter table public.offer_details enable row level security;
 alter table public.job_links enable row level security;
 alter table public.ai_dup_pairs enable row level security;
+alter table public.applications enable row level security;
 
 grant select, insert, update, delete on public.ai_profiles, public.ai_verdicts, public.ai_runs,
-  public.offer_details, public.job_links, public.ai_dup_pairs to service_role;
+  public.offer_details, public.job_links, public.ai_dup_pairs, public.applications to service_role;
 grant select on public.offers to service_role;
 revoke all on public.offers_unique from anon, authenticated;
 grant select on public.offers_unique to service_role;

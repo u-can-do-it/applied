@@ -16,6 +16,10 @@ export type Offer = {
   first_seen: string;
   /** every board this job was posted on, earliest first */
   copies: Copy[];
+  /** the job's key (same for all its copies); missing before supabase/ai-filter.sql is run */
+  key: string | null;
+  /** when you marked it applied */
+  applied_at: string | null;
   /** AI tab only */
   ai?: { match: boolean; score: number; summary: string | null; checks: Check[]; had_description: boolean };
 };
@@ -23,7 +27,7 @@ export type Offer = {
 export const PAGE_SIZE = 50;
 
 const BASE_COLUMNS = 'src,id,title,company,seniority,remote,url,first_seen';
-const UNIQUE_COLUMNS = `${BASE_COLUMNS},copies`;
+const UNIQUE_COLUMNS = `${BASE_COLUMNS},copies,dup_key,applied_at`;
 const AI_COLUMNS = `${UNIQUE_COLUMNS},match,score,summary,checks,had_description`;
 
 // One PostgREST condition per word: every word must appear in the title or the company.
@@ -64,8 +68,10 @@ function applyFilters(url: URL, opts: Query, unique: boolean) {
   url.searchParams.set('offset', String(opts.page * PAGE_SIZE));
 }
 
-type Row = Omit<Offer, 'copies' | 'ai'> & {
+type Row = Omit<Offer, 'copies' | 'ai' | 'key' | 'applied_at'> & {
   copies?: Copy[];
+  dup_key?: string;
+  applied_at?: string | null;
   match?: boolean; score?: number; summary?: string | null; checks?: Check[]; had_description?: boolean;
 };
 
@@ -73,6 +79,8 @@ const toOffer = (r: Row): Offer => ({
   src: r.src, id: r.id, title: r.title, company: r.company, seniority: r.seniority, remote: r.remote,
   url: r.url, first_seen: r.first_seen,
   copies: r.copies?.length ? r.copies : [{ src: r.src, id: r.id, url: r.url }],
+  key: r.dup_key ?? null,
+  applied_at: r.applied_at ?? null,
   ai: r.score === undefined ? undefined : {
     match: Boolean(r.match), score: r.score ?? 0, summary: r.summary ?? null, checks: r.checks ?? [], had_description: Boolean(r.had_description),
   },
