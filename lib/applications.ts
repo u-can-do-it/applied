@@ -1,5 +1,6 @@
 import 'server-only';
 import { scrapeOfferFull, type JobDetails } from './scrape';
+import type { HistoryEntry, StageId, StateId } from './stages';
 import { rest, restUrl } from './supabase';
 
 // Jobs you applied to. Marking one keeps a snapshot (title, company, link) and, in the
@@ -17,10 +18,16 @@ export type Application = {
   content_status: 'pending' | 'ok' | 'empty' | 'failed';
   content_error: string | null;
   scraped_at: string | null;
+  stage: StageId;
+  stage_state: StateId;
+  stage_updated_at: string | null;
+  history: HistoryEntry[];
+  note: string | null;
+  note_updated_at: string | null;
 };
 export type ApplicationWithContent = Application & { content: string | null };
 
-const LIST_COLS = 'dup_key,src,id,title,company,url,applied_at,details,content_status,content_error,scraped_at';
+const LIST_COLS = 'dup_key,src,id,title,company,url,applied_at,details,content_status,content_error,scraped_at,stage,stage_state,stage_updated_at,history,note,note_updated_at';
 const keyFilter = (url: URL, key: string) => url.searchParams.set('dup_key', `eq.${key}`);
 
 export async function listApplications(): Promise<Application[]> {
@@ -57,8 +64,30 @@ export async function markApplied(key: string, clicked: { src: string; id: strin
   await rest(url, {
     method: 'POST',
     prefer: 'resolution=ignore-duplicates,return=minimal',
-    body: JSON.stringify({ dup_key: key, src: copy.src, id: copy.id, title: job.title, company: job.company, url: copy.url }),
+    body: JSON.stringify({
+      dup_key: key, src: copy.src, id: copy.id, title: job.title, company: job.company, url: copy.url,
+      stage: 'submitted', stage_state: 'pending',
+      history: [{ stage: 'submitted', state: 'pending', at: new Date().toISOString() }],
+    }),
   });
+}
+
+/** Moves the application to a stage / outcome; the change is added to its history. */
+export async function setStatus(key: string, stage: StageId, state: StateId) {
+  await rest(restUrl('rpc/jw_set_application_status'), {
+    method: 'POST',
+    body: JSON.stringify({ p_key: key, p_stage: stage, p_state: state }),
+  });
+}
+
+export const NOTE_MAX = 10_000;
+
+/** Saves your note for the application ('' clears it). */
+export async function setNote(key: string, note: string) {
+  const url = restUrl('applications');
+  keyFilter(url, key);
+  const text = note.trim() ? note.slice(0, NOTE_MAX) : null;
+  await rest(url, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify({ note: text, note_updated_at: new Date().toISOString() }) });
 }
 
 export async function unmarkApplied(key: string) {

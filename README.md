@@ -104,10 +104,24 @@ How the **AI filter** tab works:
 - Sources: JustJoin and NoFluff from their public offer APIs (formatted text, skills, salary in the offer's own
   currency); Eldorado, Bulldog and Solid.jobs from the page's JobPosting; Built In from the page body.
   If the clicked copy can't be read, the job's other boards are tried.
-- **Applied tab:** your applications, newest first, with search. Click one for a window with the saved ad, its
-  details, "Open original", "Fetch again" (if fetching failed) and "Unmark applied".
-- The table is `applications`, created by `scripts/db-migrate.sh`. When the AI merges duplicates, the mark
-  moves with the job.
+- **Applied tab:** your applications, newest first, with search (title, company and your note). Click one for a
+  window with the status, your note, the saved ad and its details, "Open original", "Fetch again" (if fetching
+  failed) and "Unmark applied". The window opens at once with what the list has; only the ad text loads.
+- **Note:** free text per application (recruiter, salary you asked for, interview questions, next steps…), up to
+  10 000 characters. It saves itself as you type and when you close the window. Until it's saved it's also kept in
+  the browser, so a dropped connection doesn't lose it. The list shows its first line.
+- **Status:** every application starts as *Submitted · In progress*.
+  - Stages: Submitted → Positive reply / invited (to an interview or a test) → Technical interview → HR interview → Offer.
+  - Each stage's outcome: In progress, Passed, Rejected, Ghosted.
+  - Set both in the window; every change goes into the history with its date.
+- **Statistics** at the top of the tab:
+  - Tiles: sent, positive replies, offers, in progress, rejected, ghosted.
+  - A funnel of how many reached each stage, as % of all sent. It's not "% of the previous stage", because technical
+    and HR come in either order.
+  - A stage × outcome table.
+  - Click a tile, a funnel bar or a number to filter the list.
+- The table is `applications`, created by `scripts/db-migrate.sh`. When the AI merges duplicates, the mark, its
+  status and the note move with the job (if both copies were marked, the notes are joined).
 
 ## Notes
 

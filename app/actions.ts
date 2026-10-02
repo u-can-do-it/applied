@@ -5,11 +5,12 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { continueRun, startRun } from '@/lib/ai-runs';
-import { markApplied, saveContent, unmarkApplied } from '@/lib/applications';
+import { markApplied, saveContent, setNote, setStatus, unmarkApplied } from '@/lib/applications';
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword, isValidToken } from '@/lib/auth';
 import { describeRange, resolveRange } from '@/lib/dates';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
 import { DAY_PRESETS } from '@/lib/sources';
+import { isStage, isState } from '@/lib/stages';
 
 export type FormState = { error?: string; ok?: boolean; id?: string; message?: string };
 
@@ -142,5 +143,22 @@ export async function refetchContentAction(key: string): Promise<FormState> {
   await requireLogin();
   await saveContent(key);
   refresh();
+  return { ok: true };
+}
+
+/** Sets where an application stands, e.g. technical interview / passed. */
+export async function setApplicationStatusAction(key: string, stage: string, state: string): Promise<FormState> {
+  await requireLogin();
+  if (!isStage(stage) || !isState(state)) return { error: 'Unknown status.' };
+  await setStatus(key, stage, state);
+  refresh();
+  return { ok: true };
+}
+
+/** Saves your note on an application. No page refresh: the window and the list keep their own copy. */
+export async function setApplicationNoteAction(key: string, note: string): Promise<FormState> {
+  await requireLogin();
+  if (typeof key !== 'string' || typeof note !== 'string') return { error: 'Bad request.' };
+  await setNote(key, note);
   return { ok: true };
 }

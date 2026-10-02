@@ -77,6 +77,37 @@ create table if not exists public.applications (
 );
 create index if not exists applications_applied_at_idx on public.applications (applied_at desc);
 
+-- where each application stands: stage (submitted -> invited -> technical / hr -> offer) and the
+-- stage's outcome; history keeps every change with its date (for the timeline and the funnel)
+alter table public.applications add column if not exists stage text not null default 'submitted';
+alter table public.applications add column if not exists stage_state text not null default 'pending';
+alter table public.applications add column if not exists stage_updated_at timestamptz;
+alter table public.applications add column if not exists history jsonb not null default '[]';
+alter table public.applications drop constraint if exists applications_stage_check;
+alter table public.applications add constraint applications_stage_check
+  check (stage in ('submitted', 'invited', 'technical', 'hr', 'offer'));
+alter table public.applications drop constraint if exists applications_stage_state_check;
+alter table public.applications add constraint applications_stage_state_check
+  check (stage_state in ('pending', 'passed', 'failed', 'ghosted'));
+update public.applications
+   set history = jsonb_build_array(jsonb_build_object('stage', 'submitted', 'state', 'pending', 'at', applied_at))
+ where history = '[]'::jsonb;
+
+-- your own notes about the application (recruiter's name, salary you asked for, next steps…)
+alter table public.applications add column if not exists note text;
+alter table public.applications add column if not exists note_updated_at timestamptz;
+alter table public.applications drop constraint if exists applications_note_length;
+alter table public.applications add constraint applications_note_length check (length(note) <= 10000);
+
+-- one status change, appended to the history in the same statement
+create or replace function public.jw_set_application_status(p_key text, p_stage text, p_state text) returns void
+language sql set search_path = '' as $$
+  update public.applications
+     set stage = p_stage, stage_state = p_state, stage_updated_at = now(),
+         history = history || jsonb_build_array(jsonb_build_object('stage', p_stage, 'state', p_state, 'at', now()))
+   where dup_key = p_key
+$$;
+
 -- derived objects are rebuilt on every run of this file (the functions below depend on the view)
 drop function if exists public.ai_results(uuid, integer);
 drop function if exists public.ai_pending(uuid, integer, timestamptz, timestamptz);
@@ -277,7 +308,11 @@ begin
   delete from public.ai_verdicts where dup_key = p_alias;
   update public.applications a set dup_key = p_keep
    where a.dup_key = p_alias and not exists (select 1 from public.applications b where b.dup_key = p_keep);
-  delete from public.applications where dup_key = p_alias; -- both were marked: the kept job's entry stays
+  -- both were marked: the kept job's entry stays, with the other one's note added to its own
+  update public.applications k set note = left(concat_ws(e'\n\n', k.note, a.note), 10000), note_updated_at = now()
+    from public.applications a
+   where k.dup_key = p_keep and a.dup_key = p_alias and a.note is not null and a.note is distinct from k.note;
+  delete from public.applications where dup_key = p_alias;
 end $$;
 
 -- ---- 7. access: only the server's secret key (the CV lives here) -----------------------------
@@ -300,10 +335,12 @@ revoke execute on function public.ai_pending(uuid, integer, timestamptz, timesta
 revoke execute on function public.ai_range_stats(uuid, integer, timestamptz, timestamptz) from public, anon, authenticated;
 revoke execute on function public.ai_dup_candidates(timestamptz, timestamptz, integer) from public, anon, authenticated;
 revoke execute on function public.jw_merge_jobs(text, text) from public, anon, authenticated;
+revoke execute on function public.jw_set_application_status(text, text, text) from public, anon, authenticated;
 grant execute on function public.ai_results(uuid, integer) to service_role;
 grant execute on function public.ai_pending(uuid, integer, timestamptz, timestamptz) to service_role;
 grant execute on function public.ai_range_stats(uuid, integer, timestamptz, timestamptz) to service_role;
 grant execute on function public.ai_dup_candidates(timestamptz, timestamptz, integer) to service_role;
 grant execute on function public.jw_merge_jobs(text, text) to service_role;
+grant execute on function public.jw_set_application_status(text, text, text) to service_role;
 
 notify pgrst, 'reload schema';

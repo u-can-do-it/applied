@@ -1,41 +1,62 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { formatDay, todayInWarsaw } from '@/lib/dates';
+import { useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, useTransition, type Ref } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
+import { formatDay, todayInWarsaw } from '@/lib/dates';
 import { SOURCES } from '@/lib/sources';
-import { refetchContentAction, unapplyAction } from '../actions';
+import { reached, STAGES, STATES, stageOf, stateOf, stats, type StageId, type StateId } from '@/lib/stages';
+import { refetchContentAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
 import { SearchIcon } from '../search-box';
 
 const day = (iso: string | null | undefined) => (iso ? formatDay(todayInWarsaw(Date.parse(iso))) : '');
 const facts = (d: Application['details']) =>
-  [d?.salary, d?.contract, d?.remote ? 'Remote' : null, d?.location].filter(Boolean).join(' · ');
+  [d?.salary?.split('; ')[0], d?.contract, d?.remote ? 'Remote' : null, d?.location].filter(Boolean).join(' · ');
+const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : '–');
 
-const STATUS: Record<Application['content_status'], string> = {
+const CONTENT: Record<Application['content_status'], string> = {
   pending: 'saving the ad…',
   ok: '📄 ad saved',
   empty: 'no ad text',
   failed: 'couldn’t fetch the ad',
 };
 
-export function AppliedList({ apps }: { apps: Application[] }) {
+type Filter = { label: string; test: (a: Application) => boolean } | null;
+
+export function AppliedList({ apps: fromServer }: { apps: Application[] }) {
   const router = useRouter();
   const [q, setQ] = useState('');
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const pending = apps.some((a) => a.content_status === 'pending');
+  const [filter, setFilter] = useState<Filter>(null);
+  const [open, setOpen] = useState<Application | null>(null); // the window shows this one
+  const pending = fromServer.some((a) => a.content_status === 'pending');
+
+  // notes written in the window show in the list at once; the next refresh brings them from the database
+  const [notes, setNotes] = useState<Record<string, string | null>>({});
+  const apps = useMemo(
+    () => fromServer.map((a) => (a.dup_key in notes ? { ...a, note: notes[a.dup_key] } : a)),
+    [fromServer, notes],
+  );
+  useEffect(() => {
+    setNotes((cur) => {
+      // keep only what the database doesn't have yet (and nothing for offers no longer applied)
+      const left = Object.fromEntries(Object.entries(cur).filter(([k, v]) => fromServer.some((a) => a.dup_key === k && a.note !== v)));
+      return Object.keys(left).length === Object.keys(cur).length ? cur : left;
+    });
+  }, [fromServer]);
 
   // ad texts are scraped in the background right after marking: refresh until they're in
   useEffect(() => {
     if (!pending) return;
     const t = setTimeout(() => router.refresh(), 3000);
     return () => clearTimeout(t);
-  }, [pending, apps, router]);
+  }, [pending, fromServer, router]);
 
   const shown = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    return apps.filter((a) => words.every((w) => `${a.title} ${a.company ?? ''}`.toLowerCase().includes(w)));
-  }, [apps, q]);
+    return apps.filter(
+      (a) => (!filter || filter.test(a)) && words.every((w) => `${a.title} ${a.company ?? ''} ${a.note ?? ''}`.toLowerCase().includes(w)),
+    );
+  }, [apps, q, filter]);
 
   if (!apps.length) {
     return (
@@ -47,19 +68,30 @@ export function AppliedList({ apps }: { apps: Application[] }) {
 
   return (
     <>
+      <AppliedStats apps={apps} filter={filter} setFilter={setFilter} />
+
       <div className="search">
         <SearchIcon />
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search applied offers…" aria-label="Search applied offers" />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title, company or note…" aria-label="Search applied offers" />
       </div>
       <p className="count">
         <strong>{shown.length}</strong>
         {shown.length !== apps.length && <> of {apps.length}</>} applied
+        {filter && (
+          <>
+            {' · '}
+            {filter.label}{' '}
+            <button type="button" className="link" onClick={() => setFilter(null)} aria-label="Clear the filter">
+              ✕
+            </button>
+          </>
+        )}
       </p>
 
       <ol className="applied-list">
         {shown.map((a) => (
           <li key={a.dup_key}>
-            <button type="button" className="applied-row" onClick={() => setOpenKey(a.dup_key)}>
+            <button type="button" className="applied-row" onClick={() => setOpen(a)}>
               <time dateTime={a.applied_at}>{day(a.applied_at)}</time>
               <span className="body">
                 <span className="title">{a.title}</span>
@@ -67,60 +99,211 @@ export function AppliedList({ apps }: { apps: Application[] }) {
                   {a.company && <span>{a.company}</span>}
                   {facts(a.details) && <span>{facts(a.details)}</span>}
                 </span>
+                {a.note?.trim() && <span className="note-line">📝 {a.note.trim().split('\n')[0]}</span>}
               </span>
               <span className="side">
+                <StatusChip stage={a.stage} state={a.stage_state} />
                 <span className="src">{SOURCES[a.src] ?? a.src}</span>
-                <span className={`status status-${a.content_status}`}>{STATUS[a.content_status]}</span>
+                <span className={`status status-${a.content_status}`}>{CONTENT[a.content_status]}</span>
               </span>
             </button>
           </li>
         ))}
       </ol>
 
-      <AdModal appKey={openKey} onClose={() => setOpenKey(null)} />
+      {open && (
+        <AdModal
+          key={open.dup_key}
+          initial={open}
+          onClose={(note) => {
+            setOpen(null);
+            if (note !== undefined && note !== open.note) setNotes((cur) => ({ ...cur, [open.dup_key]: note }));
+          }}
+        />
+      )}
     </>
   );
 }
 
-function AdModal({ appKey, onClose }: { appKey: string | null; onClose: () => void }) {
+function StatusChip({ stage, state }: { stage: StageId; state: StateId }) {
+  return (
+    <span className={`stage-chip state-${state}`}>
+      {stageOf(stage).short} · {stateOf(state).label}
+    </span>
+  );
+}
+
+// ---- statistics ----------------------------------------------------------------------
+
+function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter: Filter; setFilter: (f: Filter) => void }) {
+  const s = useMemo(() => stats(apps), [apps]);
+  const pick = (label: string, test: (a: Application) => boolean) => () => setFilter(filter?.label === label ? null : { label, test });
+  const on = (label: string) => (filter?.label === label ? 'true' : undefined);
+
+  const tiles = [
+    { label: 'Sent', value: s.sent, sub: '', test: () => true, cls: '' },
+    { label: 'Positive replies', value: s.positive, sub: pct(s.positive, s.sent), test: (a: Application) => reached(a).has('invited'), cls: 'good' },
+    { label: 'Offers', value: s.offers, sub: pct(s.offers, s.sent), test: (a: Application) => reached(a).has('offer'), cls: 'good' },
+    { label: 'In progress', value: s.active, sub: '', test: (a: Application) => a.stage_state === 'pending' || a.stage_state === 'passed', cls: '' },
+    { label: 'Rejected', value: s.rejected, sub: pct(s.rejected, s.sent), test: (a: Application) => a.stage_state === 'failed', cls: 'bad' },
+    { label: 'Ghosted', value: s.ghosted, sub: pct(s.ghosted, s.sent), test: (a: Application) => a.stage_state === 'ghosted', cls: 'bad' },
+  ];
+
+  return (
+    <section className="app-stats" aria-label="Application statistics">
+      <div className="stat-tiles">
+        {tiles.map((t) => (
+          <button
+            key={t.label}
+            type="button"
+            className={`stat-tile ${t.cls}`}
+            aria-pressed={on(t.label)}
+            onClick={t.label === 'Sent' ? () => setFilter(null) : pick(t.label, t.test)}
+          >
+            <span className="stat-value">{t.value}</span>
+            <span className="stat-label">{t.label}</span>
+            {t.sub && <span className="stat-sub">{t.sub}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* how far applications got: each stage counts everyone who reached it. Shares are of all sent,
+          because technical and HR come in either order depending on the company */}
+      <ol className="funnel" aria-label="Funnel">
+        {s.funnel.map((f, i) => {
+          const label = `Reached: ${stageOf(f.stage).label}`;
+          return (
+            <li key={f.stage}>
+              <button type="button" aria-pressed={on(label)} onClick={pick(label, (a) => reached(a).has(f.stage))}>
+                <span className="funnel-bar" style={{ width: `${s.sent ? Math.max(4, (f.count / s.sent) * 100) : 0}%` }} />
+                <span className="funnel-text">
+                  <strong>{f.count}</strong> {stageOf(f.stage).label}
+                  {i > 0 && <span className="muted"> · {pct(f.count, s.sent)} of sent</span>}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      <details className="stage-table">
+        <summary>Where they are now</summary>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Stage</th>
+              {STATES.map((x) => (
+                <th key={x.id} scope="col" className={`state-${x.id}`}>
+                  {x.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {STAGES.map((st) => (
+              <tr key={st.id}>
+                <th scope="row">{st.label}</th>
+                {STATES.map((x) => {
+                  const n = s.byStage[st.id][x.id];
+                  const label = `${st.short} · ${x.label}`;
+                  return (
+                    <td key={x.id}>
+                      {n ? (
+                        <button type="button" className="link" aria-pressed={on(label)} onClick={pick(label, (a) => a.stage === st.id && a.stage_state === x.id)}>
+                          {n}
+                        </button>
+                      ) : (
+                        <span className="muted">0</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </section>
+  );
+}
+
+// ---- one application: status, timeline, note, saved ad ---------------------------------
+// Opens with what the list already has (title, status, details, note) and keeps one height:
+// only the ad text loads, into its own box, and everything between the title and the buttons
+// scrolls inside the window.
+
+type Shown = Application & { content?: string | null }; // no content yet = still loading
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const noteValue = (text: string) => (text.trim() ? text : null); // as the database keeps it
+
+async function loadApplication(key: string) {
+  const res = await fetch(`/api/application?key=${encodeURIComponent(key)}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`);
+  return (await res.json()) as ApplicationWithContent;
+}
+
+function AdModal({ initial, onClose }: { initial: Application; onClose: (note: string | null | undefined) => void }) {
+  const key = initial.dup_key;
   const dialog = useRef<HTMLDialogElement>(null);
-  const [app, setApp] = useState<ApplicationWithContent | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const note = useRef<NoteHandle>(null);
+  const [app, setApp] = useState<Shown>(initial);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busy, start] = useTransition();
+  const run = useRef(0); // the newest load; answers to older ones are dropped
+  const gone = useRef(false); // unmarked: there's no note to save any more
 
-  // open / close follows appKey
-  useEffect(() => {
-    if (appKey) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [appKey]);
-
-  // load the text; while it's still being scraped, look again every 3 s
-  useEffect(() => {
-    if (!appKey) return;
-    let stop = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const load = async () => {
-      try {
-        const res = await fetch(`/api/application?key=${encodeURIComponent(appKey)}`, { cache: 'no-store' });
-        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`);
-        const data = (await res.json()) as ApplicationWithContent;
-        if (stop) return;
+  // the saved ad and the current status; while the ad is still being fetched, look again every 3 s
+  const follow = async () => {
+    const me = ++run.current;
+    try {
+      for (;;) {
+        const data = await loadApplication(key);
+        if (me !== run.current) return;
         setApp(data);
-        setError(null);
-        if (data.content_status === 'pending') timer = setTimeout(load, 3000);
-      } catch (e) {
-        if (!stop) setError(e instanceof Error ? e.message : String(e));
+        setLoadError(null);
+        if (data.content_status !== 'pending') return;
+        await new Promise((r) => setTimeout(r, 3000));
+        if (me !== run.current) return;
       }
-    };
-    setApp(null);
-    load();
-    return () => {
-      stop = true;
-      clearTimeout(timer);
-    };
-  }, [appKey]);
+    } catch (e) {
+      if (me === run.current) setLoadError(message(e));
+    }
+  };
 
-  const d = app?.details;
+  const opened = useEffectEvent(follow);
+  useEffect(() => {
+    if (!dialog.current?.open) dialog.current?.showModal();
+    opened();
+    return () => {
+      run.current++; // closed: stop looking
+    };
+  }, []);
+
+  const act = (fn: () => Promise<unknown>) =>
+    start(async () => {
+      setActionError(null);
+      try {
+        await fn();
+      } catch (e) {
+        setActionError(message(e));
+      }
+    });
+
+  const setStatus = (stage: StageId, state: StateId) => {
+    if (stage === app.stage && state === app.stage_state) return;
+    run.current++; // a load already on its way would bring the old status back
+    setApp({ ...app, stage, stage_state: state, history: [...(app.history ?? []), { stage, state, at: new Date().toISOString() }] });
+    act(async () => {
+      const res = await setApplicationStatusAction(key, stage, state);
+      if (res.error) throw new Error(res.error);
+      await follow();
+    });
+  };
+
+  const close = () => dialog.current?.close();
+  const d = app.details;
   const rows: [string, string | undefined][] = [
     ['Salary', d?.salary],
     ['Contract', d?.contract],
@@ -128,90 +311,271 @@ function AdModal({ appKey, onClose }: { appKey: string | null; onClose: () => vo
     ['Posted', d?.posted ? formatDay(d.posted) : undefined],
     ['Valid until', d?.validUntil ? formatDay(d.validUntil) : undefined],
   ];
+  const been = reached(app);
+  const waiting = app.content === undefined || app.content_status === 'pending';
+  const hasText = app.content_status === 'ok' && !!app.content;
 
   return (
-    <dialog ref={dialog} className="modal modal-wide" onClose={onClose} onClick={(e) => e.target === dialog.current && dialog.current.close()}>
+    <dialog
+      ref={dialog}
+      className="modal modal-wide modal-ad"
+      aria-labelledby="ad-title"
+      // Esc, a click outside and Close all end here; the note's last words are saved on the way out
+      onClose={() => onClose(gone.current ? undefined : note.current?.flush())}
+      onClick={(e) => e.target === dialog.current && close()}
+    >
       <div className="modal-body">
-        {!app && !error && <p className="muted">Loading…</p>}
-        {error && <p className="form-error">{error}</p>}
-        {app && (
-          <>
-            <div className="ad-head">
-              <h2>{app.title}</h2>
-              <p className="muted">
-                {app.company && <>{app.company} · </>}
-                {SOURCES[app.src] ?? app.src} · applied {day(app.applied_at)}
-              </p>
+        <div className="ad-head">
+          <h2 id="ad-title">{app.title}</h2>
+          <p className="muted">
+            {app.company && <>{app.company} · </>}
+            {SOURCES[app.src] ?? app.src} · applied {day(app.applied_at)}
+          </p>
+        </div>
+
+        <div className="ad-scroll">
+          <section className="status-editor" aria-label="Status" aria-busy={busy || undefined}>
+            <div className="stage-steps" role="group" aria-label="Stage">
+              {STAGES.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  className={`step${been.has(st.id) ? ' reached' : ''}`}
+                  aria-pressed={app.stage === st.id}
+                  title={'hint' in st ? `${st.label}: ${st.hint}` : st.label}
+                  // a new stage starts "in progress"; clicking the current one keeps its outcome
+                  onClick={() => setStatus(st.id, st.id === app.stage ? app.stage_state : 'pending')}
+                >
+                  {st.short}
+                </button>
+              ))}
             </div>
-
-            {rows.some(([, v]) => v) && (
-              <dl className="ad-facts">
-                {rows.filter(([, v]) => v).map(([k, v]) => (
-                  <div key={k} className={k === 'Salary' && v!.includes('; ') ? 'wide' : undefined}>
-                    <dt>{k}</dt>
-                    {/* one line per contract type: "14 000–18 000 PLN / month (B2B)" */}
-                    <dd>{v!.split('; ').map((line, i) => <span key={i} className="fact-line">{line}</span>)}</dd>
-                  </div>
+            <div className="state-steps" role="group" aria-label="Outcome of this stage">
+              {STATES.map((x) => (
+                <button
+                  key={x.id}
+                  type="button"
+                  className={`state-btn state-${x.id}`}
+                  aria-pressed={app.stage_state === x.id}
+                  onClick={() => setStatus(app.stage, x.id)}
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
+            {(app.history ?? []).length > 0 && (
+              <ol className="timeline" aria-label="History">
+                {[...app.history].reverse().map((h, i) => (
+                  <li key={i}>
+                    <time dateTime={h.at}>{day(h.at)}</time> {stageOf(h.stage).label} ·{' '}
+                    <span className={`state-text state-${h.state}`}>{stateOf(h.state).label}</span>
+                  </li>
                 ))}
-              </dl>
+              </ol>
             )}
+          </section>
 
-            {app.content_status === 'ok' && app.content ? (
-              <div className="ad-text">{app.content}</div>
-            ) : app.content_status === 'pending' ? (
-              <p className="muted">Saving the ad text…</p>
+          <NoteEditor ref={note} appKey={key} initial={initial.note ?? ''} editedAt={app.note_updated_at} />
+
+          {rows.some(([, v]) => v) && (
+            <dl className="ad-facts">
+              {rows.filter(([, v]) => v).map(([k, v]) => (
+                <div key={k} className={k === 'Salary' && v!.includes('; ') ? 'wide' : undefined}>
+                  <dt>{k}</dt>
+                  {/* one line per contract type: "14 000–18 000 PLN / month (B2B)" */}
+                  <dd>{v!.split('; ').map((line, i) => <span key={i} className="fact-line">{line}</span>)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {/* the ad text loads into this box, which has the same place and size before and after */}
+          <div className="ad-text" aria-busy={waiting || undefined}>
+            {waiting ? (
+              loadError ? (
+                <p className="form-error">Couldn’t load the ad: {loadError}</p>
+              ) : (
+                <div className="skeleton ad-skeleton" role="status" aria-label={app.content_status === 'pending' ? 'Saving the ad text' : 'Loading the ad text'}>
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <span key={i} className="bar" style={{ width: `${58 + ((i * 29) % 40)}%` }} />
+                  ))}
+                </div>
+              )
+            ) : hasText ? (
+              app.content
             ) : (
               <p className="form-error">
                 {app.content_status === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'} {app.content_error}
               </p>
             )}
+          </div>
+          {app.scraped_at && hasText && <p className="muted small ad-saved">Ad saved {day(app.scraped_at)}.</p>}
+        </div>
 
-            {app.scraped_at && app.content_status === 'ok' && <p className="muted small">Saved {day(app.scraped_at)}.</p>}
-
-            <div className="modal-actions">
+        <div className="ad-foot">
+          {actionError && (
+            <p className="form-error" role="alert">
+              {actionError}
+            </p>
+          )}
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="secondary danger"
+              disabled={busy}
+              aria-busy={busy || undefined}
+              onClick={() => {
+                if (!confirm('Unmark as applied? Its saved ad text, status history and note are deleted too.')) return;
+                act(async () => {
+                  await unapplyAction(key);
+                  gone.current = true;
+                  writeDraft(key, null);
+                  close();
+                });
+              }}
+            >
+              Unmark applied
+            </button>
+            <span className="spacer" />
+            {!waiting && !hasText && (
               <button
                 type="button"
-                className="secondary danger"
+                className="secondary"
                 disabled={busy}
                 aria-busy={busy || undefined}
                 onClick={() => {
-                  if (!confirm('Unmark as applied? The saved ad text is deleted too.')) return;
-                  start(async () => {
-                    await unapplyAction(app.dup_key);
-                    dialog.current?.close();
+                  setApp({ ...app, content: undefined }); // back to the placeholder while it fetches
+                  act(async () => {
+                    await refetchContentAction(key);
+                    await follow();
                   });
                 }}
               >
-                Unmark applied
+                Fetch again
               </button>
-              <span className="spacer" />
-              {app.content_status !== 'ok' && app.content_status !== 'pending' && (
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy}
-                  aria-busy={busy || undefined}
-                  onClick={() =>
-                    start(async () => {
-                      await refetchContentAction(app.dup_key);
-                      const res = await fetch(`/api/application?key=${encodeURIComponent(app.dup_key)}`, { cache: 'no-store' });
-                      if (res.ok) setApp(await res.json());
-                    })
-                  }
-                >
-                  Fetch again
-                </button>
-              )}
-              <a className="button-link" href={app.url} target="_blank" rel="noopener noreferrer">
-                Open original ↗
-              </a>
-              <button type="button" onClick={() => dialog.current?.close()}>
-                Close
-              </button>
-            </div>
-          </>
-        )}
+            )}
+            <a className="button-link" href={app.url} target="_blank" rel="noopener noreferrer">
+              Open original ↗
+            </a>
+            <button type="button" onClick={close}>
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     </dialog>
+  );
+}
+
+// ---- your note: saves itself when you stop typing, leave the box or close the window ------
+// Until the database has it, the text is also kept in this browser, so a dropped connection or
+// a closed tab doesn't lose it: it's back (and saved) the next time you open this application.
+
+type NoteHandle = { flush: () => string | null }; // saves what's left, returns the note
+type NoteStatus = 'idle' | 'typing' | 'saving' | 'saved' | 'error';
+type Draft = { text: string; base: string }; // base = the saved note it was written over
+
+const draftKey = (key: string) => `jobwatch:note:${key}`;
+function readDraft(key: string): Draft | null {
+  try {
+    return JSON.parse(localStorage.getItem(draftKey(key)) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+function writeDraft(key: string, draft: Draft | null) {
+  try {
+    if (draft) localStorage.setItem(draftKey(key), JSON.stringify(draft));
+    else localStorage.removeItem(draftKey(key));
+  } catch {
+    // storage blocked: autosave still works, there's just no copy in the browser
+  }
+}
+
+const NOTE_STATUS: Record<NoteStatus, string> = {
+  idle: '',
+  typing: '…',
+  saving: 'saving…',
+  saved: 'saved ✓',
+  error: 'not saved yet (kept in this browser, tries again on the next change)',
+};
+
+function NoteEditor({ appKey, initial, editedAt, ref }: { appKey: string; initial: string; editedAt: string | null; ref: Ref<NoteHandle> }) {
+  // an unsaved draft of this note comes back, unless the note was changed somewhere else since
+  const [restored] = useState(() => {
+    const d = readDraft(appKey);
+    return d && d.base === initial && d.text !== initial ? d.text : initial;
+  });
+  const [text, setText] = useState(restored);
+  const [status, setStatus] = useState<NoteStatus>(restored === initial ? 'idle' : 'typing');
+  const latest = useRef(restored); // what's in the box
+  const saved = useRef(initial); // what the database has
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const saving = useRef<Promise<void> | null>(null);
+
+  // one save at a time, always of the newest text
+  const save = (): Promise<void> => {
+    clearTimeout(timer.current);
+    if (saving.current) return saving.current.then(save);
+    const value = latest.current;
+    if (value === saved.current) return Promise.resolve();
+    setStatus('saving');
+    saving.current = setApplicationNoteAction(appKey, value)
+      .then((res) => {
+        if (res.error) throw new Error(res.error);
+        saved.current = value;
+        const now = latest.current;
+        writeDraft(appKey, now === value ? null : { text: now, base: value });
+        setStatus(now === value ? 'saved' : 'typing');
+      })
+      .catch(() => setStatus('error'))
+      .finally(() => {
+        saving.current = null;
+      });
+    return saving.current;
+  };
+
+  useImperativeHandle(ref, () => ({
+    flush: () => {
+      save();
+      return noteValue(latest.current);
+    },
+  }));
+
+  // a restored draft is saved right away; an outdated one is dropped
+  const mounted = useEffectEvent(() => (latest.current === saved.current ? writeDraft(appKey, null) : save()));
+  useEffect(() => {
+    mounted();
+  }, []);
+
+  const shownStatus = status === 'idle' && initial && editedAt ? `edited ${day(editedAt)}` : NOTE_STATUS[status];
+  return (
+    <label className="field note-field">
+      <span>
+        Note
+        {shownStatus && (
+          <span className={`note-status${status === 'error' ? ' warn' : ''}`} aria-live="polite">
+            {' · '}
+            {shownStatus}
+          </span>
+        )}
+      </span>
+      <textarea
+        rows={3}
+        maxLength={10_000}
+        value={text}
+        onChange={(e) => {
+          const value = e.target.value;
+          setText(value);
+          latest.current = value;
+          writeDraft(appKey, value === saved.current ? null : { text: value, base: saved.current });
+          setStatus(value === saved.current ? (status === 'idle' ? 'idle' : 'saved') : 'typing');
+          clearTimeout(timer.current);
+          timer.current = setTimeout(save, 700);
+        }}
+        onBlur={() => save()}
+        placeholder="Recruiter's name, the salary you asked for, what they asked in the interview, next steps…"
+      />
+    </label>
   );
 }
