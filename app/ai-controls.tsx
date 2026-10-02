@@ -114,7 +114,11 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
       ) : run && !run.stale && run.finishedAt ? (
         <p className={`muted small${run.status === 'failed' ? ' form-error' : ''}`}>
           Last run: {run.label} · {doneShown} checked
-          {run.merged > 0 && <> · {run.merged} duplicate{run.merged === 1 ? '' : 's'} merged</>} · {ago(run.finishedAt)}
+          {run.merged > 0 && <> · {run.merged} duplicate{run.merged === 1 ? '' : 's'} merged</>} ·{' '}
+          {/* "3 min ago" depends on the clock: server and browser may differ by a minute, the browser wins */}
+          <time dateTime={run.finishedAt} suppressHydrationWarning>
+            {ago(run.finishedAt)}
+          </time>
           {run.status === 'failed' && <> · failed: {run.error}</>}
           {run.status === 'cancelled' && <> · {run.error}</>}
           {run.status === 'done' && run.error && <> · {run.error}</>}

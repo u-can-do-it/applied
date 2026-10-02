@@ -58,11 +58,23 @@ export function resolveRange({ days, from, to }: DateFilter, now = Date.now()): 
   };
 }
 
-const shortDay = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' });
+/** "2026-10-02" -> "02.10.2026" ('' if not a real date) */
+export function formatDay(day: string | undefined | null): string {
+  const v = validDay(day);
+  if (!v) return '';
+  const [y, m, d] = v.split('-');
+  return `${d}.${m}.${y}`;
+}
 
-/** "today", "last 7 days", "20 Sept – 28 Sept", "since 20 Sept", "until 28 Sept", "" (no range) */
+/** "02.10.2026", "2.10.2026", "02/10/2026" or "02-10-2026" -> "2026-10-02" ('' if not a real date) */
+export function parseDay(text: string): string {
+  const m = text.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  return m ? validDay(`${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`) : '';
+}
+
+/** "today", "last 7 days", "20.09.2026 – 28.09.2026", "since 20.09.2026", "until 28.09.2026", "" (no range) */
 export function describeRange({ days, from, to }: DateFilter): string {
-  const fmt = (d: string) => shortDay.format(new Date(d + 'T00:00:00Z'));
+  const fmt = formatDay;
   if (days === '1') return 'today';
   if (days === 'yesterday') return 'yesterday';
   if (days) return `last ${days} days`;

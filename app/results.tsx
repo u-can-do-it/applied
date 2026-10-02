@@ -3,12 +3,15 @@ import { addDays, describeRange, resolveRange, todayInWarsaw, TZ, validDay } fro
 import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
 import { isUsable, listProfiles } from '@/lib/profiles';
 import { DAY_PRESETS, SOURCES, withParams } from '@/lib/sources';
+import { FitScore } from './fit-score';
 import { NavLink } from './nav';
 
 const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }); // YYYY-MM-DD
-const dayLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
+const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short' });
+const dmy = new Intl.DateTimeFormat('pl-PL', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' }); // 02.10.2026
+const dayLabel = { format: (d: Date) => `${weekday.format(d)} ${dmy.format(d)}` }; // "Thu 02.10.2026"
 const timeLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-const fullLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, dateStyle: 'full', timeStyle: 'short' });
+const fullLabel = { format: (d: Date) => `${dayLabel.format(d)}, ${timeLabel.format(d)}` }; // "Thu 02.10.2026, 14:05"
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -44,36 +47,6 @@ function Sources({ offer }: { offer: Offer }) {
           {SOURCES[c.src] ?? c.src}
         </a>
       ))}
-    </span>
-  );
-}
-
-/** "82% ⓘ" with the requirement checklist on hover / focus / tap. */
-function FitScore({ offer }: { offer: Offer }) {
-  const ai = offer.ai!;
-  const tier = ai.score >= 70 ? 'high' : ai.score >= 40 ? 'mid' : 'low';
-  const met = ai.checks.filter((c) => c.met).length;
-  const tipId = `fit-${offer.src}-${offer.id}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return (
-    <span className={`fit fit-${tier}`} tabIndex={0} aria-describedby={tipId}>
-      {ai.score}%<span className="fit-info" aria-hidden="true">ⓘ</span>
-      <span className="fit-tip" role="tooltip" id={tipId}>
-        <strong>
-          {ai.score}% fit{ai.checks.length > 0 && ` · ${met}/${ai.checks.length} requirements met`}
-        </strong>
-        {ai.summary && <span className="fit-summary">{ai.summary}</span>}
-        {ai.checks.length > 0 && (
-          <span className="fit-checks">
-            {ai.checks.map((c, i) => (
-              <span key={i} className={c.met ? 'met' : 'miss'}>
-                <span aria-hidden="true">{c.met ? '✓' : '✗'}</span> {c.item}
-                <span className="sr-only">{c.met ? ' (you have it)' : ' (missing)'}</span>
-              </span>
-            ))}
-          </span>
-        )}
-        {!ai.had_description && <span className="fit-note">Judged on the title only – the ad text couldn&apos;t be read.</span>}
-      </span>
     </span>
   );
 }
@@ -190,7 +163,15 @@ export async function Results({ searchParams, mode = 'all' }: { searchParams: Se
                   {o.ai?.summary && <p className="ai-reason">✦ {o.ai.summary}</p>}
                 </div>
                 <div className="side">
-                  {o.ai && <FitScore offer={o} />}
+                  {o.ai && (
+                    <FitScore
+                      tipId={`fit-${o.src}-${o.id}`.replace(/[^a-zA-Z0-9_-]/g, '_')}
+                      score={o.ai.score}
+                      summary={o.ai.summary}
+                      checks={o.ai.checks}
+                      hadDescription={o.ai.had_description}
+                    />
+                  )}
                   <Sources offer={o} />
                 </div>
               </li>
