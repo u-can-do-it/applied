@@ -2,7 +2,7 @@ import 'server-only';
 import { boardIdOf, boardOf, cleanLink } from './boards';
 import { formatDay, todayInWarsaw } from './dates';
 import { scrapeOfferFull, type JobDetails } from './scrape';
-import type { HistoryEntry, StageId, StateId } from './stages';
+import { GHOST_AFTER_DAYS, type HistoryEntry, type StageId, type StateId } from './stages';
 import { rest, restUrl } from './supabase';
 
 // Jobs you applied to. Marking one keeps a snapshot (title, company, link) and, in the
@@ -74,6 +74,12 @@ export async function markApplied(key: string, clicked: { src: string; id: strin
   });
 }
 
+/** Open applications without news for a month become ghosted. Returns how many just did. */
+export async function ghostStale(): Promise<number> {
+  const res = await rest(restUrl('rpc/jw_ghost_stale_applications'), { method: 'POST', body: JSON.stringify({ p_days: GHOST_AFTER_DAYS }) });
+  return Number(await res.json()) || 0;
+}
+
 /** Moves the application to a stage / outcome; the change is added to its history. */
 export async function setStatus(key: string, stage: StageId, state: StateId) {
   await rest(restUrl('rpc/jw_set_application_status'), {
@@ -96,7 +102,8 @@ export async function removeStatusStep(key: string, step: HistoryEntry): Promise
   if (i < 0) return { error: 'That step is no longer in the history.' };
   history.splice(i, 1);
   const last = history[history.length - 1];
-  await patch(key, { history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending', stage_updated_at: last?.at ?? null });
+  // counts as a change now: taking back an automatic "ghosted" doesn't bring it right back
+  await patch(key, { history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending', stage_updated_at: new Date().toISOString() });
   return {};
 }
 

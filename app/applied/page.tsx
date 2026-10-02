@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
-import { listApplications } from '@/lib/applications';
+import { ghostStale, listApplications } from '@/lib/applications';
 import { labelsOf, sourceOptions } from '@/lib/source-list';
 import { Header } from '../header';
 import { ResultsSkeleton } from '../results';
@@ -28,6 +28,8 @@ export default function AppliedPage() {
 async function Applications() {
   await connection(); // always fresh: this list changes whenever you mark an offer
   try {
+    // a month without news turns "in progress" into "ghosted"; done on the way in, so the list is current
+    await ghostStale().catch((e) => console.error('[applied] ghosting failed:', e));
     const [apps, sources] = await Promise.all([listApplications(), sourceOptions()]);
     return <AppliedList apps={apps} labels={labelsOf(sources)} />;
   } catch (e) {

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, useTransition, type Ref } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 import { formatDay, todayInWarsaw } from '@/lib/dates';
-import { reached, STAGES, STATES, stageOf, stateOf, stats, type HistoryEntry, type StageId, type StateId } from '@/lib/stages';
+import { GHOST_AFTER_DAYS, reached, STAGES, STATES, stageOf, stateOf, stats, type HistoryEntry, type StageId, type StateId } from '@/lib/stages';
 import { refetchContentAction, removeStatusStepAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
 import { SearchIcon } from '../search-box';
 import { AddApplication } from './add-application';
@@ -390,6 +390,7 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
                   <li key={`${h.at}|${h.stage}|${h.state}|${i}`}>
                     <time dateTime={h.at}>{day(h.at)}</time> {stageOf(h.stage).label} ·{' '}
                     <span className={`state-text state-${h.state}`}>{stateOf(h.state).label}</span>
+                    {h.auto && <span className="muted" title={`No news for ${GHOST_AFTER_DAYS} days`}>(auto)</span>}
                     {app.history.length > 1 && (
                       <button
                         type="button"

@@ -148,9 +148,13 @@ How the **AI filter** tab works:
   10 000 characters. It saves itself as you type and when you close the window. Until it's saved it's also kept in
   the browser, so a dropped connection doesn't lose it. The list shows its first line.
 - **Status:** every application starts as *Submitted · In progress*.
-  - Stages: Submitted → Positive reply / invited (to an interview or a test) → Technical interview → HR interview → Offer.
+  - Stages: Submitted → Initial contact (they got back to you) → Screening / online test → Technical interview →
+    HR interview → Offer. Reaching a later stage counts the earlier contact as made.
   - Each stage's outcome: In progress, Passed, Rejected, Ghosted.
-  - Set both in the window; every change goes into the history with its date.
+  - Set both in the window; every change goes into the history with its date. A step clicked by mistake goes with
+    its ×.
+  - No news for 30 days since the last change (or since applying): it becomes *Ghosted* by itself, at the same
+    stage (in progress, or passed and waiting for the next step; not an accepted offer). The step says "(auto)".
 - **Statistics** at the top of the tab:
   - Tiles: sent, positive replies, offers, in progress, rejected, ghosted.
   - A funnel of how many reached each stage, as % of all sent. It's not "% of the previous stage", because technical

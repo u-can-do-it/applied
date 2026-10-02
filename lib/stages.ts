@@ -2,9 +2,11 @@
 // outcome of that stage. Order of technical / HR differs per company, so "reached" comes from
 // the history, not from the position in this list.
 
+// "invited" is the id of Initial contact (its first name): kept, so stored statuses stay valid
 export const STAGES = [
   { id: 'submitted', label: 'Submitted', short: 'Submitted' },
-  { id: 'invited', label: 'Positive reply / invited', short: 'Invited', hint: 'invited to an interview or a test' },
+  { id: 'invited', label: 'Initial contact', short: 'Initial contact', hint: 'they got back to you: a call, a message, an invitation' },
+  { id: 'screening', label: 'Screening / online test', short: 'Screening / test', hint: 'a screening call, an online test or a task' },
   { id: 'technical', label: 'Technical interview', short: 'Technical' },
   { id: 'hr', label: 'HR interview', short: 'HR' },
   { id: 'offer', label: 'Offer', short: 'Offer' },
@@ -19,7 +21,10 @@ export const STATES = [
 
 export type StageId = (typeof STAGES)[number]['id'];
 export type StateId = (typeof STATES)[number]['id'];
-export type HistoryEntry = { stage: StageId; state: StateId; at: string };
+export type HistoryEntry = { stage: StageId; state: StateId; at: string; auto?: boolean }; // auto: set by the app (ghosted after a month)
+
+/** No news this long since the last status change: ghosted (jw_ghost_stale_applications). */
+export const GHOST_AFTER_DAYS = 30;
 export type WithStatus = { stage: StageId; stage_state: StateId; history: HistoryEntry[] | null };
 
 export const isStage = (v: unknown): v is StageId => STAGES.some((s) => s.id === v);
@@ -31,14 +36,14 @@ export const stateOf = (id: StateId) => STATES.find((s) => s.id === id)!;
 export function reached(a: WithStatus): Set<StageId> {
   const r = new Set<StageId>(['submitted', a.stage]);
   for (const h of a.history ?? []) r.add(h.stage);
-  // got to a later stage = there was a positive reply, even if "invited" was skipped in the app
-  if (r.has('technical') || r.has('hr') || r.has('offer')) r.add('invited');
+  // got to a later stage = there was an initial contact, even if it was skipped in the app
+  if (r.has('screening') || r.has('technical') || r.has('hr') || r.has('offer')) r.add('invited');
   return r;
 }
 
 export type Stats = {
   sent: number;
-  positive: number; // reached "invited" or later
+  positive: number; // reached initial contact ("invited") or later
   offers: number; // reached "offer"
   active: number; // current stage in progress, or passed and waiting for the next step
   rejected: number;
