@@ -321,7 +321,9 @@ button {
   color: var(--bg);
   cursor: pointer;
 }
-button:disabled { opacity: 0.6; cursor: progress; }
+/* disabled = nothing to do (e.g. "✓ Today checked"): normal cursor; the busy cursor only while work runs */
+button:disabled { opacity: 0.6; cursor: default; }
+button[aria-busy='true'] { cursor: progress; }
 button.secondary { background: transparent; color: var(--text); border-color: var(--line); }
 button.link { border: 0; background: none; color: var(--accent); padding: 0 0 0 8px; font-size: 13px; }
 

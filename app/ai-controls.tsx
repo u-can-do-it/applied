@@ -67,7 +67,13 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
         </button>
 
         {usable && (
-        <button type="button" className="secondary" disabled={disabled || todayNew === 0} onClick={() => runFor({ days: '1' })}>
+        <button
+          type="button"
+          className="secondary"
+          disabled={disabled || todayNew === 0}
+          aria-busy={running || starting || undefined}
+          onClick={() => runFor({ days: '1' })}
+        >
           {todayNew === 0 ? '✓ Today checked' : `Check today · ${todayNew} new`}
         </button>
         )}
@@ -77,6 +83,7 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
             type="button"
             className="secondary"
             disabled={disabled || range.newCount === 0}
+            aria-busy={running || starting || undefined}
             onClick={() => runFor({ days: range.days || undefined, from: range.from || undefined, to: range.to || undefined })}
             title="Uses the dates picked in the filter below"
           >

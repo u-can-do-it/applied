@@ -114,6 +114,7 @@ export function ProfileDialog({ profiles, activeId, ref }: {
               type="button"
               className="secondary danger"
               disabled={busy || saving}
+              aria-busy={busy || undefined}
               onClick={() => {
                 if (!confirm(`Delete “${profile.name}” and everything it has checked?`)) return;
                 startBusy(async () => {
@@ -131,6 +132,7 @@ export function ProfileDialog({ profiles, activeId, ref }: {
               type="button"
               className="secondary"
               disabled={busy || saving}
+              aria-busy={busy || undefined}
               onClick={() => startBusy(async () => {
                 await selectProfileAction(profile.id);
                 close();
@@ -142,7 +144,7 @@ export function ProfileDialog({ profiles, activeId, ref }: {
           <button type="button" className="secondary" onClick={close}>
             Cancel
           </button>
-          <button type="submit" disabled={saving || busy}>
+          <button type="submit" disabled={saving || busy} aria-busy={saving || undefined}>
             {saving ? 'Saving…' : profile ? 'Save & use' : 'Create & use'}
           </button>
         </div>

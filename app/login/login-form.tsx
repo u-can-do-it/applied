@@ -19,7 +19,7 @@ export function LoginForm() {
         autoFocus
         required
       />
-      <button type="submit" disabled={pending}>
+      <button type="submit" disabled={pending} aria-busy={pending || undefined}>
         {pending ? 'Checking…' : 'Log in'}
       </button>
       {state.error && <p className="form-error">{state.error}</p>}
