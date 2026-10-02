@@ -1,9 +1,10 @@
-import { getOffers, PAGE_SIZE, type Offer } from '@/lib/offers';
-import { href, SOURCES } from '@/lib/sources';
+import { addDays, todayInWarsaw, TZ, validDay } from '@/lib/dates';
+import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
+import { DAY_PRESETS, SOURCES, withParams } from '@/lib/sources';
 import { NavLink } from './nav';
 
-const TZ = 'Europe/Warsaw';
 const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }); // YYYY-MM-DD
+const shortDay = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' });
 const dayLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
 const timeLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
 const fullLabel = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, dateStyle: 'full', timeStyle: 'short' });
@@ -13,9 +14,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
 
 function groupByDay(offers: Offer[]) {
-  const now = Date.now();
-  const today = dayKey.format(now);
-  const yesterday = dayKey.format(now - 864e5);
+  const today = todayInWarsaw();
+  const yesterday = addDays(today, -1);
   const groups: { key: string; label: string; offers: Offer[] }[] = [];
   for (const o of offers) {
     const d = new Date(o.first_seen);
@@ -37,10 +37,23 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
   const rawSrc = one(sp.src);
   const src = rawSrc in SOURCES ? rawSrc : '';
   const page = Math.max(0, Math.floor(Number(one(sp.page)) || 0));
+  const days = DAY_PRESETS.some((p) => p.days && p.days === one(sp.days)) ? one(sp.days) : '';
+  const from = days ? '' : validDay(one(sp.from));
+  const to = days ? '' : validDay(one(sp.to));
+  const filtered = Boolean(q || src || days || from || to);
+
+  // the URL as the list understands it, for the pager links
+  const current = new URLSearchParams();
+  for (const [k, v] of Object.entries({ q, src, days, from, to })) if (v) current.set(k, v);
 
   let data: Awaited<ReturnType<typeof getOffers>>;
+  let all: number | null = null; // whole table, only needed when something is filtered
   try {
-    data = await getOffers({ q, src, page });
+    // in parallel: the filtered page and (if filtered) the unfiltered count
+    [data, all] = await Promise.all([
+      getOffers({ q, src, page, days, from, to }),
+      filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
+    ]);
   } catch (e) {
     return (
       <div className="notice">
@@ -55,11 +68,14 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
   return (
     <>
       <p className="count">
-        {data.total.toLocaleString('en-GB')} {q || src ? 'matching' : 'offers'}
+        {/* "42 of 1,279 offers · last 7 days" when filtered, "1,279 offers" otherwise */}
+        <strong>{data.total.toLocaleString('en-GB')}</strong>
+        {filtered && all !== null && <> of {all.toLocaleString('en-GB')}</>} offers
+        {rangeLabel(days, from, to)}
       </p>
 
       {data.offers.length === 0 && (
-        <p className="empty">{q || src ? 'Nothing matches that search.' : 'No offers yet. Node-RED will fill this in on its next run.'}</p>
+        <p className="empty">{filtered ? 'Nothing matches these filters.' : 'No offers yet. Node-RED will fill this in on its next run.'}</p>
       )}
 
       {groupByDay(data.offers).map((g) => (
@@ -91,7 +107,7 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
       {pages > 1 && (
         <nav className="pager" aria-label="Pages">
           {page > 0 ? (
-            <NavLink href={href({ q, src, page: page - 1 })} scrollTop>
+            <NavLink href={withParams(current, { page: page - 1 })} scrollTop>
               ← Newer
             </NavLink>
           ) : (
@@ -101,7 +117,7 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
             Page {page + 1} of {pages}
           </span>
           {page + 1 < pages ? (
-            <NavLink href={href({ q, src, page: page + 1 })} scrollTop>
+            <NavLink href={withParams(current, { page: page + 1 })} scrollTop>
               Older →
             </NavLink>
           ) : (
@@ -111,6 +127,20 @@ export async function Results({ searchParams }: { searchParams: SearchParams }) 
       )}
     </>
   );
+}
+
+// " · last 7 days", " · 20 Sep – 28 Sep", " · since 20 Sep", " · until 28 Sep"
+function rangeLabel(days: string, from: string, to: string) {
+  const fmt = (d: string) => shortDay.format(new Date(d + 'T00:00:00Z'));
+  if (days === '1') return ' · today';
+  if (days) return ` · last ${days} days`;
+  if (from && to) {
+    const [a, b] = from <= to ? [from, to] : [to, from];
+    return a === b ? ` · ${fmt(a)}` : ` · ${fmt(a)} – ${fmt(b)}`;
+  }
+  if (from) return ` · since ${fmt(from)}`;
+  if (to) return ` · until ${fmt(to)}`;
+  return '';
 }
 
 export function ResultsSkeleton() {

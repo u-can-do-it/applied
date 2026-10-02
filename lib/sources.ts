@@ -10,13 +10,28 @@ export const SOURCES: Record<string, string> = {
   builtin: 'Built In',
 };
 
-export type Filters = { q?: string; src?: string; page?: string | number };
+// relative presets live in the URL as ?days=N, so a bookmarked "7 days" stays relative
+export const DAY_PRESETS = [
+  { days: '', label: 'Any time' },
+  { days: '1', label: 'Today' },
+  { days: '3', label: '3 days' },
+  { days: '7', label: '7 days' },
+  { days: '30', label: '30 days' },
+] as const;
 
-export function href({ q, src, page }: Filters) {
-  const sp = new URLSearchParams();
-  if (q) sp.set('q', q);
-  if (src) sp.set('src', src);
-  if (page && String(page) !== '0') sp.set('page', String(page));
+export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page';
+type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
+
+// Builds a link from the current query, changing only the given keys
+// (empty value = remove). Any filter change goes back to the first page.
+export function withParams(current: URLSearchParams | string, changes: Changes) {
+  const sp = new URLSearchParams(current);
+  if (!('page' in changes)) sp.delete('page');
+  for (const [key, value] of Object.entries(changes)) {
+    const v = value === null || value === undefined ? '' : String(value);
+    if (!v || (key === 'page' && v === '0')) sp.delete(key);
+    else sp.set(key, v);
+  }
   const s = sp.toString();
   return s ? `/?${s}` : '/';
 }

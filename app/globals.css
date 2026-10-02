@@ -98,6 +98,42 @@ h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0; }
   background: var(--surface);
 }
 .chip:hover { color: var(--text); }
+
+/* date filter row: presets + custom range */
+.dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+.dates .chips { margin: 0; }
+.range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.date-field { display: flex; align-items: center; gap: 6px; }
+.date-field input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.date-field input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.range.active .date-field input { border-color: var(--text); }
+.range .clear {
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.range .clear:hover { color: var(--text); }
 .chip[aria-current='true'] { background: var(--text); border-color: var(--text); color: var(--bg); }
 
 .day h2 {
@@ -243,3 +279,5 @@ h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0; }
   .offer { grid-template-columns: 1fr auto; }
   .offer time { grid-column: 1 / -1; padding: 0; }
 }
+
+.count strong { color: var(--text); font-weight: 600; }

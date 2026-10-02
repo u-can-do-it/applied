@@ -1,16 +1,19 @@
 'use client';
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { href } from '@/lib/sources';
+import { withParams } from '@/lib/sources';
 import { useNav } from './nav';
 
+const KEPT = ['src', 'days', 'from', 'to'] as const; // other filters survive a no-JS submit
+
 // Updates ?q= as you type (debounced). Without JS it still works as a plain GET form.
-export function SearchBox({ q, src }: { q: string; src: string }) {
+export function SearchBox({ query }: { query: URLSearchParams }) {
   const { navigate } = useNav();
+  const q = query.get('q') ?? '';
   const [value, setValue] = useState(q);
   const lastSent = useRef(q);
-  // reads the latest src/navigate without restarting the debounce on every render
-  const search = useEffectEvent((next: string) => navigate(href({ q: next, src }), { replace: true }));
+  // reads the latest filters/navigate without restarting the debounce on every render
+  const search = useEffectEvent((next: string) => navigate(withParams(query, { q: next }), { replace: true }));
 
   // follow the URL when it changes from outside (back/forward, a chip click keeps q)
   useEffect(() => {
@@ -43,7 +46,10 @@ export function SearchBox({ q, src }: { q: string; src: string }) {
         autoComplete="off"
         autoFocus
       />
-      {src && <input type="hidden" name="src" value={src} />}
+      {KEPT.map((k) => {
+        const v = query.get(k);
+        return v ? <input key={k} type="hidden" name={k} value={v} /> : null;
+      })}
     </form>
   );
 }

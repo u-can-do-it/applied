@@ -1,4 +1,5 @@
 import 'server-only';
+import { resolveRange, type DateFilter } from './dates';
 import { SOURCES } from './sources';
 
 export type Offer = {
@@ -38,7 +39,7 @@ function headers(): HeadersInit {
   return key.startsWith('eyJ') ? { apikey: key, Authorization: `Bearer ${key}` } : { apikey: key };
 }
 
-export async function getOffers(opts: { q: string; src: string; page: number }) {
+export async function getOffers(opts: { q: string; src: string; page: number } & DateFilter) {
   const base = process.env.SUPABASE_URL;
   if (!base) throw new Error('SUPABASE_URL is not set');
 
@@ -50,6 +51,10 @@ export async function getOffers(opts: { q: string; src: string; page: number }) 
   if (opts.src in SOURCES) url.searchParams.set('src', `eq.${opts.src}`);
   const filter = searchFilter(opts.q);
   if (filter) url.searchParams.set('and', filter);
+  // two filters on the same column are ANDed: first_seen >= gte AND first_seen < lt
+  const range = resolveRange(opts);
+  if (range.gte) url.searchParams.append('first_seen', `gte.${range.gte}`);
+  if (range.lt) url.searchParams.append('first_seen', `lt.${range.lt}`);
 
   const res = await fetch(url, {
     headers: { ...headers(), Prefer: 'count=exact' },
@@ -60,7 +65,19 @@ export async function getOffers(opts: { q: string; src: string; page: number }) 
   }
 
   const offers = (await res.json()) as Offer[];
-  // Content-Range: 0-49/1234  (or */0 when empty)
-  const total = Number(res.headers.get('content-range')?.split('/')[1]) || 0;
-  return { offers, total };
+  return { offers, total: rangeTotal(res) };
+}
+
+// Content-Range: 0-49/1234  (or */0 when empty)
+const rangeTotal = (res: Response) => Number(res.headers.get('content-range')?.split('/')[1]) || 0;
+
+/** Number of offers in the table, ignoring every filter. HEAD = count only, no rows. */
+export async function getTotalCount(): Promise<number> {
+  const base = process.env.SUPABASE_URL;
+  if (!base) throw new Error('SUPABASE_URL is not set');
+  const url = new URL('/rest/v1/offers', base);
+  url.searchParams.set('select', 'id');
+  const res = await fetch(url, { method: 'HEAD', headers: { ...headers(), Prefer: 'count=exact' }, cache: 'no-store' });
+  if (!res.ok) throw new Error(`Supabase ${res.status} (count)`);
+  return rangeTotal(res);
 }
