@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { continueRun, startRun } from '@/lib/ai-runs';
-import { addApplication, findOfferByLink, markApplied, NOTE_MAX, saveContent, setNote, setStatus, unmarkApplied } from '@/lib/applications';
+import { addApplication, findOfferByLink, markApplied, NOTE_MAX, removeStatusStep, saveContent, setNote, setStatus, unmarkApplied } from '@/lib/applications';
 import { BOARD_RE, boardIdOf, boardOf, cleanLink, isLink } from '@/lib/boards';
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
 import { describeRange, resolveRange, startOfDay, todayInWarsaw, validDay } from '@/lib/dates';
@@ -150,6 +150,16 @@ export async function setApplicationStatusAction(key: string, stage: string, sta
   await requireLogin();
   if (!isStage(stage) || !isState(state)) return { error: 'Unknown status.' };
   await setStatus(key, stage, state);
+  refresh();
+  return { ok: true };
+}
+
+/** Removes one step of an application's status history, e.g. a stage clicked by mistake. */
+export async function removeStatusStepAction(key: string, step: { stage: string; state: string; at: string }): Promise<FormState> {
+  await requireLogin();
+  if (typeof key !== 'string' || !isStage(step?.stage) || !isState(step?.state) || typeof step.at !== 'string') return { error: 'Bad request.' };
+  const r = await removeStatusStep(key, { stage: step.stage, state: step.state, at: step.at });
+  if (r.error) return { error: r.error };
   refresh();
   return { ok: true };
 }

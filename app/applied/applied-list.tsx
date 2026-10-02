@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, useTransition, type Ref } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 import { formatDay, todayInWarsaw } from '@/lib/dates';
-import { reached, STAGES, STATES, stageOf, stateOf, stats, type StageId, type StateId } from '@/lib/stages';
-import { refetchContentAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
+import { reached, STAGES, STATES, stageOf, stateOf, stats, type HistoryEntry, type StageId, type StateId } from '@/lib/stages';
+import { refetchContentAction, removeStatusStepAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
 import { SearchIcon } from '../search-box';
 import { AddApplication } from './add-application';
 
@@ -310,6 +310,19 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
     });
   };
 
+  // a step clicked by mistake: out of the history, the status goes back to the step before
+  const removeStep = (h: HistoryEntry) => {
+    run.current++;
+    const history = (app.history ?? []).filter((x) => x !== h);
+    const last = history[history.length - 1];
+    setApp({ ...app, history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending' }); // instant
+    act(async () => {
+      const res = await removeStatusStepAction(key, h);
+      if (res.error) throw new Error(res.error);
+      await follow();
+    });
+  };
+
   const close = () => dialog.current?.close();
   const d = app.details;
   const rows: [string, string | undefined][] = [
@@ -374,9 +387,21 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
             {(app.history ?? []).length > 0 && (
               <ol className="timeline" aria-label="History">
                 {[...app.history].reverse().map((h, i) => (
-                  <li key={i}>
+                  <li key={`${h.at}|${h.stage}|${h.state}|${i}`}>
                     <time dateTime={h.at}>{day(h.at)}</time> {stageOf(h.stage).label} ·{' '}
                     <span className={`state-text state-${h.state}`}>{stateOf(h.state).label}</span>
+                    {app.history.length > 1 && (
+                      <button
+                        type="button"
+                        className="step-remove"
+                        title="Remove this step (clicked by mistake)"
+                        aria-label={`Remove “${stageOf(h.stage).label} · ${stateOf(h.state).label}” of ${day(h.at)}`}
+                        disabled={busy}
+                        onClick={() => removeStep(h)}
+                      >
+                        ×
+                      </button>
+                    )}
                   </li>
                 ))}
               </ol>

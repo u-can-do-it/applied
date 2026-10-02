@@ -82,6 +82,24 @@ export async function setStatus(key: string, stage: StageId, state: StateId) {
   });
 }
 
+/**
+ * Takes one step out of the status history (a mistaken click); the status becomes the last step
+ * left. "Reached" stages come from the history, so the ✓ goes with it.
+ */
+export async function removeStatusStep(key: string, step: HistoryEntry): Promise<{ error?: string }> {
+  const app = await getApplication(key);
+  if (!app) return { error: 'This application no longer exists.' };
+  const history = [...(app.history ?? [])];
+  let i = history.findIndex((h) => h.at === step.at && h.stage === step.stage && h.state === step.state);
+  // a step clicked a moment ago carries the browser's time, not the database's: the latest one like it
+  if (i < 0) i = history.map((h) => `${h.stage}/${h.state}`).lastIndexOf(`${step.stage}/${step.state}`);
+  if (i < 0) return { error: 'That step is no longer in the history.' };
+  history.splice(i, 1);
+  const last = history[history.length - 1];
+  await patch(key, { history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending', stage_updated_at: last?.at ?? null });
+  return {};
+}
+
 export const NOTE_MAX = 10_000;
 
 /** Saves your note for the application ('' clears it). */
