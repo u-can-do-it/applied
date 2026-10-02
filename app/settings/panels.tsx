@@ -192,43 +192,64 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint, 
 }
 
 function CronBox({ cron, endpoint, act }: { cron: CronStatus & { error?: string }; endpoint: string; act: ReturnType<typeof useAction> }) {
-  const connect = (
+  const connect = (label: string) => (
     <button type="button" onClick={() => act.run(cronConnectAction)} disabled={act.busy} aria-busy={act.busy || undefined}>
-      {act.busy ? 'Working…' : cron.scheduled ? 'Reconnect' : 'Connect Supabase Cron'}
+      {act.busy ? 'Working…' : label}
     </button>
   );
-  return (
-    <div className="cron-box">
-      {!cron.available ? (
+  if (!cron.available) {
+    return (
+      <div className="cron-box">
         <p className="small">
           Supabase Cron isn’t enabled in the database{cron.error ? ` (${cron.error})` : ''}. Run <code className="inline">scripts/db-migrate.sh</code>{' '}
           (it turns on pg_cron and pg_net), or enable Cron under Integrations in Supabase.
         </p>
-      ) : cron.scheduled ? (
-        <>
-          <p className="small">
-            <span className="ok-text">✓ Supabase Cron</span> calls <code className="inline">{cron.url}</code> {cron.schedule === '*/5 * * * *' ? 'every 5 minutes' : `on ${cron.schedule}`}
-            {cron.active === false && <strong className="warn"> (paused in Supabase)</strong>}.
-            {cron.lastAt && (
-              <>
-                {' '}Last answer: {cron.lastError ? <span className="warn">{cron.lastError}</span> : `HTTP ${cron.lastStatus}`} at {formatTime(cron.lastAt)}.
-              </>
-            )}
-          </p>
-          {cron.url && cron.url !== endpoint && <p className="small warn">It calls another address than this app’s ({endpoint}). Reconnect to fix.</p>}
-          <div className="button-row">
-            {connect}
-            <button type="button" className="secondary" onClick={() => act.run(cronDisconnectAction)} disabled={act.busy}>
-              Disconnect
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="small">Not connected. Supabase will call {endpoint} every 5 minutes; the app decides whether a run is due.</p>
-          <div className="button-row">{connect}</div>
-        </>
-      )}
+      </div>
+    );
+  }
+  if (!cron.scheduled) {
+    return (
+      <div className="cron-box">
+        <p className="small">
+          <span className="status-off">○ Not connected</span>: nothing scrapes on its own, only “↻ Scrape now”. Connecting makes Supabase call{' '}
+          {endpoint} every 5 minutes; the app decides whether a run is due.
+        </p>
+        <div className="button-row">{connect('Connect Supabase Cron')}</div>
+        <Feedback state={act.state} />
+      </div>
+    );
+  }
+  // connected: Reconnect is only offered when something needs it
+  const problem =
+    cron.active === false
+      ? 'The job is paused in Supabase (Integrations → Cron): switch it on there.'
+      : cron.url && cron.url !== endpoint
+        ? `It calls another address than this app’s (${endpoint}). Reconnect to point it here.`
+        : cron.lastStatus === 401
+          ? 'The app refused the last call (401): the secret changed (APP_PASSWORD or CRON_SECRET). Reconnect to update it.'
+          : cron.lastError
+            ? `The last call failed: ${cron.lastError}. If it keeps failing, try Reconnect.`
+            : null;
+  return (
+    <div className="cron-box">
+      <p className="small">
+        {problem ? <span className="warn">● Connected, with a problem</span> : <span className="ok-text">● Connected</span>}: Supabase Cron calls{' '}
+        <code className="inline">{cron.url}</code> {cron.schedule === '*/5 * * * *' ? 'every 5 minutes' : `on ${cron.schedule}`}, and the app scrapes
+        when a run is due (the interval and hours above).
+        {cron.lastAt && !cron.lastError && ` Last call ${formatTime(cron.lastAt)}, answered ${cron.lastStatus}.`}
+      </p>
+      {problem && <p className="small warn">{problem}</p>}
+      <div className="button-row">
+        {problem && cron.active !== false && connect('Reconnect')}
+        <button
+          type="button"
+          className="secondary"
+          disabled={act.busy}
+          onClick={() => confirm('Stop Supabase Cron? Nothing will scrape on its own until you connect it again.') && act.run(cronDisconnectAction)}
+        >
+          Disconnect
+        </button>
+      </div>
       <Feedback state={act.state} />
     </div>
   );
