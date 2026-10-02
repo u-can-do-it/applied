@@ -33,6 +33,11 @@ export const aiConfig = () => ({
     model: process.env.OPENAI_DEDUP_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
     effort: process.env.OPENAI_DEDUP_EFFORT || 'low',
   },
+  // "Add application": reading an offer's page into the form
+  extract: {
+    model: process.env.OPENAI_EXTRACT_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
+    effort: process.env.OPENAI_EXTRACT_EFFORT || 'low',
+  },
 });
 const FILE_CHARS = 15_000; // keep a long CV from dominating every request
 
@@ -176,4 +181,46 @@ export async function decideDuplicates(pairs: PairForAi[]) {
   return (parsed.results ?? [])
     .filter((r) => asked.has(r.p))
     .map((r) => ({ p: r.p, same: Boolean(r.same), reason: String(r.reason ?? '').slice(0, 160) }));
+}
+
+// ---- one offer's page -> the "Add application" form ---------------------------------------
+
+export type ExtractedJob = {
+  title: string;
+  company: string;
+  location: string;
+  remote: 'yes' | 'no' | 'unknown';
+  salary: string;
+  contract: string;
+  seniority: string;
+};
+
+const EXTRACT_SCHEMA = strictObject({
+  title: { type: 'string' },
+  company: { type: 'string' },
+  location: { type: 'string' },
+  remote: { type: 'string', enum: ['yes', 'no', 'unknown'] },
+  salary: { type: 'string' },
+  contract: { type: 'string' },
+  seniority: { type: 'string' },
+});
+
+const EXTRACT_SYSTEM = `You read the web page of one job offer and fill in a form about it. Use only what the page says; leave a field empty ("") when it doesn't say.
+title: the job title as written in the ad, without the company or the city.
+company: the employer; if only a recruitment agency is named, the agency.
+location: the city or cities ("Warszawa, Kraków"), or the country when that's all there is.
+remote: "yes" for fully remote work, "no" for office or hybrid, "unknown" when it doesn't say.
+salary: as written, with the currency, the period and the contract when given, e.g. "20 000–25 000 PLN / month (B2B)"; several on separate parts joined with "; ".
+contract: e.g. "B2B", "Permanent (UoP)", "B2B, Permanent".
+seniority: junior, mid, senior or lead, or "".`;
+
+export async function extractJob(page: { url: string; pageTitle: string; text: string }): Promise<ExtractedJob> {
+  const { model, effort } = aiConfig().extract;
+  return chat<ExtractedJob>({
+    model, effort,
+    system: EXTRACT_SYSTEM,
+    user: `URL: ${page.url}\nPAGE TITLE: ${page.pageTitle || '(none)'}\n\nPAGE TEXT:\n${page.text.slice(0, 14_000) || '(empty)'}`,
+    schemaName: 'job',
+    schema: EXTRACT_SCHEMA,
+  });
 }

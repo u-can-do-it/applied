@@ -138,6 +138,12 @@ How the **AI filter** tab works:
 - **Applied tab:** your applications, newest first, with search (title, company and your note). Click one for a
   window with the status, your note, the saved ad and its details, "Open original", "Fetch again" (if fetching
   failed) and "Unmark applied". The window opens at once with what the list has; only the ad text loads.
+- **Add application** (button next to the search): one you sent elsewhere. Paste the link and **✦ Fill in from the
+  link** reads the page (JustJoin, NoFluff and LinkedIn through their APIs, any other page by its text) and the AI
+  (`OPENAI_EXTRACT_MODEL` / `OPENAI_EXTRACT_EFFORT`, default the luna model at low effort) fills in title, company,
+  salary, contract and location; everything stays editable, with the board, the day you applied and the status. A
+  link the scrapers already have joins that offer (the lists show it as applied). Without ad text, it's fetched from
+  the link after saving.
 - **Note:** free text per application (recruiter, salary you asked for, interview questions, next steps…), up to
   10 000 characters. It saves itself as you type and when you close the window. Until it's saved it's also kept in
   the browser, so a dropped connection doesn't lose it. The list shows its first line.

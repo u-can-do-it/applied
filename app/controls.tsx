@@ -38,7 +38,7 @@ const mask = (text: string) => {
   return d.slice(0, 2) + (d.length > 2 ? '.' + d.slice(2, 4) : '') + (d.length > 4 ? '.' + d.slice(4) : '');
 };
 
-function DateInput({ label, value, min, max, onCommit }: {
+export function DateInput({ label, value, min, max, onCommit }: {
   label: string;
   value: string; // ISO day or ''
   min?: string;

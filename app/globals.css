@@ -677,3 +677,15 @@ code.inline { display: inline; margin: 0; padding: 1px 5px; font-size: 12px; bor
 .test-offers a { color: var(--text); }
 .sample summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .sample pre { max-height: 320px; overflow: auto; margin: 6px 0 0; padding: 8px; font-size: 12px; background: var(--surface); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ---- applied: add by hand -------------------------------------------------------------- */
+.applied-tools { display: flex; gap: 8px; align-items: stretch; }
+.applied-tools .search { flex: 1; min-width: 0; }
+button.add-app { white-space: nowrap; }
+.empty .add-app { margin-top: 8px; }
+.link-row { display: flex; gap: 8px; align-items: flex-end; }
+.link-row .field { flex: 1; min-width: 0; }
+.link-row button { white-space: nowrap; }
+@media (max-width: 560px) {
+  .applied-tools, .link-row { flex-direction: column; align-items: stretch; }
+}

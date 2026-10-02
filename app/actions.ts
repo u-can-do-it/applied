@@ -5,10 +5,13 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { continueRun, startRun } from '@/lib/ai-runs';
-import { markApplied, saveContent, setNote, setStatus, unmarkApplied } from '@/lib/applications';
+import { addApplication, findOfferByLink, markApplied, NOTE_MAX, saveContent, setNote, setStatus, unmarkApplied } from '@/lib/applications';
+import { BOARD_RE, boardIdOf, boardOf, cleanLink, isLink } from '@/lib/boards';
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
-import { describeRange, resolveRange } from '@/lib/dates';
+import { describeRange, resolveRange, startOfDay, todayInWarsaw, validDay } from '@/lib/dates';
+import { extractJob, type ExtractedJob } from '@/lib/openai';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
+import { readJobPage } from '@/lib/scrape';
 import { requireLogin } from '@/lib/session';
 import { DAY_PRESETS } from '@/lib/sources';
 import { isStage, isState } from '@/lib/stages';
@@ -157,4 +160,121 @@ export async function setApplicationNoteAction(key: string, note: string): Promi
   if (typeof key !== 'string' || typeof note !== 'string') return { error: 'Bad request.' };
   await setNote(key, note);
   return { ok: true };
+}
+
+// ---- applications added by hand ----------------------------------------------------------
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+export type JobDraft = {
+  url: string;
+  board: string;
+  title: string;
+  company: string;
+  location: string;
+  remote: boolean;
+  salary: string;
+  contract: string;
+  content: string;
+  /** the link is an offer the scrapers already have: the application joins it */
+  known: string | null;
+  warning?: string;
+};
+
+/** Reads the link's page (the board's API where there is one) and lets the AI fill in the form. */
+export async function fillFromLinkAction(link: string): Promise<{ draft?: JobDraft; error?: string }> {
+  await requireLogin();
+  if (typeof link !== 'string' || !isLink(link)) return { error: 'Paste a link that starts with https://' };
+  const board = boardOf(link);
+  const [offer, page] = await Promise.all([
+    findOfferByLink(link).catch(() => null),
+    readJobPage({ src: board, id: boardIdOf(board, link) ?? '', url: link.trim() }).catch((e) => ({ error: message(e) })),
+  ]);
+  const read = 'text' in page ? page : null;
+  if (!read?.text && !read?.pageTitle && !offer) return { error: `Couldn’t read the page: ${'error' in page ? page.error : 'it has no text (a login wall?)'}` };
+
+  let ai: ExtractedJob | null = null;
+  let warning: string | undefined;
+  if (!process.env.OPENAI_API_KEY) warning = 'No OPENAI_API_KEY: filled in only what the page says plainly.';
+  else if (read) {
+    try {
+      ai = await extractJob({ url: link, pageTitle: read.pageTitle, text: read.text });
+    } catch (e) {
+      warning = `The AI couldn’t read it (${message(e)}); filled in what the page says plainly.`;
+    }
+  }
+  const d = read?.details ?? {};
+  return {
+    draft: {
+      url: offer?.url ?? cleanLink(link),
+      board: offer?.src ?? board,
+      title: offer?.title || ai?.title || read?.pageTitle || '',
+      company: offer?.company || ai?.company || d.company || '',
+      location: ai?.location || d.location || '',
+      remote: ai ? ai.remote === 'yes' : Boolean(d.remote),
+      salary: ai?.salary || d.salary || '',
+      contract: ai?.contract || d.contract || '',
+      content: read?.text ?? '',
+      known: offer ? `${offer.title}${offer.company ? ` · ${offer.company}` : ''} (scraped from ${offer.src})` : null,
+      warning,
+    },
+  };
+}
+
+export type ApplicationInput = {
+  url: string;
+  title: string;
+  company: string;
+  board: string;
+  day: string; // YYYY-MM-DD, Warsaw
+  stage: string;
+  state: string;
+  salary: string;
+  contract: string;
+  location: string;
+  remote: boolean;
+  content: string;
+  note: string;
+};
+
+export async function addApplicationAction(input: ApplicationInput): Promise<FormState> {
+  await requireLogin();
+  const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const title = str(input?.title, 200);
+  if (!title) return { error: 'The title is needed.' };
+  const url = str(input.url, 2000);
+  if (url && !isLink(url)) return { error: 'The link must start with https://' };
+  const board = str(input.board, 30).toLowerCase() || (url ? boardOf(url) : 'unknown');
+  if (!BOARD_RE.test(board)) return { error: 'Board: lowercase letters, digits, - or _ (e.g. "linkedin").' };
+  const day = validDay(str(input.day, 10));
+  if (!day || day > todayInWarsaw()) return { error: 'Pick the day you applied (not in the future).' };
+  if (!isStage(input.stage) || !isState(input.state)) return { error: 'Unknown status.' };
+  // today: now; an earlier day: its noon, Warsaw time
+  const appliedAt = day === todayInWarsaw() ? new Date().toISOString() : new Date(startOfDay(day).getTime() + 12 * 3600_000).toISOString();
+  const details = Object.fromEntries(
+    Object.entries({ salary: str(input.salary, 200), contract: str(input.contract, 100), location: str(input.location, 200) }).filter(([, v]) => v),
+  ) as { salary?: string; contract?: string; location?: string; remote?: boolean };
+  if (input.remote) details.remote = true;
+  const content = typeof input.content === 'string' ? input.content.slice(0, 200_000) : '';
+  try {
+    const r = await addApplication({
+      url: url ? cleanLink(url) : '',
+      title,
+      company: str(input.company, 200) || null,
+      src: board,
+      appliedAt,
+      stage: input.stage,
+      state: input.state,
+      details: Object.keys(details).length ? details : null,
+      content: content.trim() || null,
+      note: str(input.note, NOTE_MAX) || null,
+    });
+    if (r.error) return { error: r.error };
+    // no ad text but a link: fetch it after the answer, like "Mark applied" does
+    if (!content.trim() && url) after(() => saveContent(r.key!));
+    refresh();
+    return { ok: true, id: r.key };
+  } catch (e) {
+    return { error: message(e) };
+  }
 }

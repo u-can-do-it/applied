@@ -284,6 +284,33 @@ export async function scrapeOffer(copy: { src: string; id: string; url: string }
   return result(await scrape(copy), AI_CHARS);
 }
 
+/**
+ * For "Add application": what a link's page says, for the AI to fill in the form. The boards with
+ * an API give their text; any page gives its <title>, its JobPosting or its main text.
+ */
+export async function readJobPage(copy: { src: string; id: string; url: string }) {
+  let r: { text: string; details: JobDetails } = { text: '', details: {} };
+  try {
+    if (copy.id) r = await scrape(copy);
+  } catch {
+    // the board's API didn't answer: the page below still can
+  }
+  let pageTitle = '';
+  try {
+    const html = await (await get(copy.url, 'text/html')).text();
+    pageTitle = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').replace(/\s+/g, ' ').trim();
+    if (r.text.trim().length < 80) {
+      const jp = findJobPosting(html);
+      r = jp
+        ? fromJobPosting(jp)
+        : { text: mainText(html) || htmlToText(html.match(/<body[\s\S]*<\/body>/i)?.[0] ?? html), details: r.details };
+    }
+  } catch (e) {
+    if (r.text.trim().length < 80) throw e; // nothing at all from this link
+  }
+  return { pageTitle, text: r.text.trim().slice(0, FULL_CHARS), details: r.details };
+}
+
 /** For applications: the complete ad text plus its details. */
 export async function scrapeOfferFull(copy: { src: string; id: string; url: string }): Promise<Scraped> {
   return result(await scrape(copy), FULL_CHARS);

@@ -6,3 +6,6 @@ out
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+
+# private data files (e.g. imported applications)
+/data/

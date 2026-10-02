@@ -7,6 +7,7 @@ import { formatDay, todayInWarsaw } from '@/lib/dates';
 import { reached, STAGES, STATES, stageOf, stateOf, stats, type StageId, type StateId } from '@/lib/stages';
 import { refetchContentAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
 import { SearchIcon } from '../search-box';
+import { AddApplication } from './add-application';
 
 const day = (iso: string | null | undefined) => (iso ? formatDay(todayInWarsaw(Date.parse(iso))) : '');
 const facts = (d: Application['details']) =>
@@ -59,9 +60,13 @@ export function AppliedList({ apps: fromServer, labels }: { apps: Application[];
 
   if (!apps.length) {
     return (
-      <p className="empty">
-        Nothing here yet. Use <strong>Mark applied</strong> on an offer: it shows up here with its complete ad text.
-      </p>
+      <div className="empty">
+        <p>
+          Nothing here yet. Use <strong>Mark applied</strong> on an offer: it shows up here with its complete ad text. Or add one you sent
+          elsewhere:
+        </p>
+        <AddApplication />
+      </div>
     );
   }
 
@@ -69,9 +74,12 @@ export function AppliedList({ apps: fromServer, labels }: { apps: Application[];
     <>
       <AppliedStats apps={apps} filter={filter} setFilter={setFilter} />
 
-      <div className="search">
-        <SearchIcon />
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title, company or note…" aria-label="Search applied offers" />
+      <div className="applied-tools">
+        <div className="search">
+          <SearchIcon />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title, company or note…" aria-label="Search applied offers" />
+        </div>
+        <AddApplication />
       </div>
       <p className="count">
         <strong>{shown.length}</strong>
@@ -454,9 +462,11 @@ function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sour
                 Fetch again
               </button>
             )}
-            <a className="button-link" href={app.url} target="_blank" rel="noopener noreferrer">
-              Open original ↗
-            </a>
+            {app.url && (
+              <a className="button-link" href={app.url} target="_blank" rel="noopener noreferrer">
+                Open original ↗
+              </a>
+            )}
             <button type="button" onClick={close}>
               Close
             </button>
