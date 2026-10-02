@@ -2,20 +2,19 @@ import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { listApplications } from '@/lib/applications';
-import { AutoRefresh } from '../auto-refresh';
+import { labelsOf, sourceOptions } from '@/lib/source-list';
+import { Header } from '../header';
 import { ResultsSkeleton } from '../results';
 import { Tabs, TabsFallback } from '../tabs';
 import { AppliedList } from './applied-list';
 
 export const metadata: Metadata = { title: 'Jobwatch · Applied' };
+export const maxDuration = 300; // "Scrape now" in the header
 
 export default function AppliedPage() {
   return (
     <main className="wrap">
-      <header className="top">
-        <h1>Jobwatch</h1>
-        <AutoRefresh />
-      </header>
+      <Header />
       <Suspense fallback={<TabsFallback />}>
         <Tabs />
       </Suspense>
@@ -29,7 +28,8 @@ export default function AppliedPage() {
 async function Applications() {
   await connection(); // always fresh: this list changes whenever you mark an offer
   try {
-    return <AppliedList apps={await listApplications()} />;
+    const [apps, sources] = await Promise.all([listApplications(), sourceOptions()]);
+    return <AppliedList apps={apps} labels={labelsOf(sources)} />;
   } catch (e) {
     return (
       <div className="notice">

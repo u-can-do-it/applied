@@ -6,9 +6,10 @@ import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { continueRun, startRun } from '@/lib/ai-runs';
 import { markApplied, saveContent, setNote, setStatus, unmarkApplied } from '@/lib/applications';
-import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword, isValidToken } from '@/lib/auth';
+import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
 import { describeRange, resolveRange } from '@/lib/dates';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
+import { requireLogin } from '@/lib/session';
 import { DAY_PRESETS } from '@/lib/sources';
 import { isStage, isState } from '@/lib/stages';
 
@@ -31,11 +32,6 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
   });
   const next = String(form.get('next') ?? '/');
   redirect(next.startsWith('/') && !next.startsWith('//') ? next : '/');
-}
-
-async function requireLogin() {
-  // proxy.ts already checks every request; server actions are public endpoints, so check again
-  if (!(await isValidToken((await cookies()).get(AUTH_COOKIE)?.value))) throw new Error('Not logged in');
 }
 
 // ---- profiles ------------------------------------------------------------------------

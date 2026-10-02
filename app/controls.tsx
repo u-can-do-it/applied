@@ -1,20 +1,21 @@
 'use client';
 
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { use, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { formatDay, parseDay, validDay } from '@/lib/dates';
 import { DAY_PRESETS, SOURCES, withParams } from '@/lib/sources';
+import type { SourceOption } from '@/lib/source-list';
 import { NavLink, useNav } from './nav';
 import { SearchBox, SearchIcon } from './search-box';
 
-function SourceChips({ query, path }: { query: URLSearchParams; path: string }) {
+function SourceChips({ query, path, sources }: { query: URLSearchParams; path: string; sources: SourceOption[] }) {
   const raw = query.get('src') ?? '';
-  const src = raw in SOURCES ? raw : '';
+  const src = sources.some((s) => s.id === raw) ? raw : '';
   return (
     <nav className="chips" aria-label="Filter by source">
       <NavLink className="chip" aria-current={!src ? 'true' : undefined} href={withParams(query, { src: null }, path)}>
         All
       </NavLink>
-      {Object.entries(SOURCES).map(([key, name]) => (
+      {sources.map(({ id: key, label: name }) => (
         <NavLink
           key={key}
           className="chip"
@@ -141,12 +142,12 @@ function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
   );
 }
 
-export function Controls() {
+export function Controls({ sources }: { sources: Promise<SourceOption[]> }) {
   const { query, path } = useNav(); // optimistic: chips light up on the click frame
   return (
     <>
       <SearchBox query={query} />
-      <SourceChips query={query} path={path} />
+      <SourceChips query={query} path={path} sources={use(sources)} />
       <DateFilter query={query} path={path} />
     </>
   );

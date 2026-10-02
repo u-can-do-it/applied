@@ -7,7 +7,7 @@ export const AUTH_MAX_AGE = 400 * 24 * 60 * 60; // the longest browsers keep a c
 
 export const authEnabled = () => Boolean(process.env.APP_PASSWORD);
 
-async function hmac(secret: string, message: string) {
+export async function hmac(secret: string, message: string) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
@@ -16,7 +16,7 @@ async function hmac(secret: string, message: string) {
 
 export const authToken = () => hmac(process.env.APP_PASSWORD ?? '', 'jobwatch-auth-v1');
 
-function sameString(a: string, b: string) {
+export function sameString(a: string, b: string) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);

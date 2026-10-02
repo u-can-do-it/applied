@@ -7,6 +7,7 @@ const TABS = [
   { path: '/', label: 'All offers' },
   { path: '/ai', label: 'AI filter' },
   { path: '/applied', label: 'Applied' },
+  { path: '/settings', label: 'Settings' },
 ];
 
 // Switching tabs keeps search / source / dates, only the page number resets.
@@ -20,7 +21,7 @@ export function Tabs() {
       {TABS.map((t) => (
         <Link
           key={t.path}
-          href={qs && t.path !== '/applied' ? `${t.path}?${qs}` : t.path}
+          href={qs && (t.path === '/' || t.path === '/ai') ? `${t.path}?${qs}` : t.path}
           aria-current={pathname === t.path ? 'page' : undefined}
           className="tab"
         >

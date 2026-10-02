@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
-const EVERY_MS = 60_000; // Node-RED scrapes every 5 min, so once a minute is plenty
+const EVERY_MS = 60_000; // scraping runs every 5 min, so once a minute is plenty
 const ON_RETURN_MS = 15_000; // coming back to the tab refreshes if the data is older than this
 
 const timeLabel = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });

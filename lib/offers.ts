@@ -1,7 +1,6 @@
 import 'server-only';
 import { resolveRange, type DateFilter } from './dates';
 import type { Check } from './openai';
-import { SOURCES } from './sources';
 import { rangeTotal, rest, restUrl, rpcUrl } from './supabase';
 
 export type Copy = { src: string; id: string; url: string };
@@ -56,7 +55,7 @@ let viewMissing = false;
 const isMissingRelation = (e: unknown) => e instanceof Error && /Supabase 404|PGRST205|42P01|Could not find/.test(e.message);
 
 function applyFilters(url: URL, opts: Query, unique: boolean) {
-  if (opts.src in SOURCES) url.searchParams.set(unique ? 'sources' : 'src', unique ? `cs.{${opts.src}}` : `eq.${opts.src}`);
+  if (opts.src) url.searchParams.set(unique ? 'sources' : 'src', unique ? `cs.{${opts.src}}` : `eq.${opts.src}`);
   const filter = searchFilter(opts.q);
   if (filter) url.searchParams.set('and', filter);
   // two filters on the same column are ANDed: first_seen >= gte AND first_seen < lt

@@ -1,16 +1,15 @@
 # Jobwatch
 
-A list of the job offers the Node-RED `scrap-offers` flow collects, newest first, with search by title or company and a filter by source.
+Job offers from several boards, newest first, with search, filters, an AI filter and application tracking.
+The app scrapes the boards itself (it used to be a Node-RED flow) and sends new offers to Telegram.
 
 ```
-cronplus → scrapers → parsers → store_notifications ─┬─→ flush_queue → Telegram   (unchanged)
-                                                     └─→ to_db → write_db → check_db
-                                                                    │
-                                                         Supabase (Postgres) ← Vercel app
+Supabase Cron ──every 5 min──→ /api/cron/scrape (Vercel) ─→ scrapers → filters → Supabase (offers)
+"↻ Scrape now" ───────────────────────────────────────────┘                    └→ Telegram (new jobs)
+Telegram /mute /send /status ─→ /api/telegram
 ```
 
-"Newest" means `first_seen`, the time Node-RED first saw the offer. It's the only timestamp all six sources share.
-(For eldorado, builtin and bulldog, `sortVal` is just an id counter, not a date.)
+"Newest" means `first_seen`, the time an offer was first scraped. It's the only timestamp all boards share.
 
 ## 1. Supabase
 
@@ -21,32 +20,54 @@ cronplus → scrapers → parsers → store_notifications ─┬─→ flush_que
 
 RLS is on with no policies, so the public/anon key can't read anything. Only the secret key can, and it's used only server-side.
 
-## 2. Node-RED
+## 2. Scraping (Settings tab)
 
-1. Make the secret available to Node-RED as env vars `SUPABASE_URL` and `SUPABASE_SECRET_KEY`.
-   You can set them in the systemd unit / docker `-e` / `.bashrc` of the process running Node-RED,
-   or open the `scrap-offers` tab → **Edit flow → Environment variables**. Note that tab env vars end up in flow exports.
-2. Open the `scrap-offers` tab, then **Import** [`node-red/db-nodes.json`](node-red/db-nodes.json).
-   When it reports a conflict on `store_notifications`, choose **Replace**. The import adds:
-   - `store_notifications`: same logic, plus a 2nd output carrying every newly stored offer
-     (seeding runs and excluded stacks included, muted or not)
-   - `to_db` → `write_db` (http request) → `check_db`: upsert on `(src, id)`, duplicates ignored
-   - `backfill (click once)` → `backfill_db`: pushes the offers already in flow context, 500 per request
-3. **Deploy**, then click the `backfill` inject node once. `check_db` should turn green with `saved N`.
+Everything Node-RED had in its nodes is in **Settings** now:
 
-**Replace** on import needs Node-RED 3.1+. On older versions, don't delete `store_notifications`, because that drops
-the wires coming from the six parsers. Instead, paste [`node-red/store_notifications.js`](node-red/store_notifications.js)
-into it, set **Outputs** to 2, then import the file and delete the duplicate `store_notifications` it creates.
-Finally, wire output 2 to `to_db`.
+- **Scraping:** on/off, every 5–120 min, between which hours (Warsaw time). The last runs with what they found,
+  and the errors per board.
+- **Filters:** keywords (searched on every board through `{keyword}` in the links, and required in the offer's
+  title or skills), cities ("warszaw" matches Warszawa and Warszawie), remote OK, titles to skip, and titles to save
+  without a Telegram message (Node-RED's `.net, dotnet, go, golang, java`).
+- **Telegram:** mute / unmute (new offers wait in a queue meanwhile), send the queue, a test message, and the chat
+  commands `/mute /resume /send /scrape /status`.
+- **Scrapers:** the six boards with Node-RED's links, parsers and filters (they give the same offers, ids and links,
+  so nothing gets duplicated). Each can be switched off, edited (link, headers, keyword / city check) or copied,
+  e.g. a second JustJoin search. Add your own: **JSON** (any API, or the JSON inside a page: `__NEXT_DATA__`,
+  JSON-LD, a `<script id>`), **HTML** (CSS selectors) or **RSS/Atom**. **Test** shows what a scraper finds, which of
+  it is new, and the first offer's raw JSON/HTML to find the paths or selectors. Nothing is saved by a test.
 
-If you'd rather edit by hand, the function bodies are in `node-red/*.js`.
-Rebuild the import file from them with `node scripts/build-flow.mjs`.
+How a run decides what to send, like `store_notifications` did: an offer is new if its board + id isn't in the
+database; it's announced if it's also newer than anything that scraper saw before (bumped old offers aren't), the
+same job (company + title) isn't already known from another board, and its title isn't muted. A scraper's first run
+only saves, so a new or changed scraper doesn't flood Telegram.
+
+**Setup:**
+
+1. `scripts/db-migrate.sh` (adds the tables, the six scrapers and the default settings, and turns on `pg_cron` +
+   `pg_net` for Supabase Cron).
+2. Vercel → Settings → Environment Variables: `TELEGRAM_BOT_TOKEN` (@BotFather → /mybots → API Token) and
+   `TELEGRAM_CHAT_ID` (the `chatId` in Node-RED's `flush_queue`). Redeploy.
+3. Open Settings → **↻ Scrape now** at the top. Check that every board shows ✓ (sites can block Vercel's servers;
+   the error says so).
+4. **Stop Node-RED**, or it sends its own messages for the same offers.
+5. Settings → **Connect Supabase Cron**: Supabase calls `/api/cron/scrape` every 5 minutes, the app decides if a
+   run is due (interval, hours, on/off). Vercel's own cron can't do this on the free plan: Hobby allows one run a day.
+6. Settings → Telegram → **Connect commands** (after Node-RED is off: a bot gets commands by webhook or by
+   polling, not both).
+
+Any other scheduler works too (Node-RED's inject node, cron-job.org, Vercel Cron on Pro): `GET /api/cron/scrape`
+with `Authorization: Bearer <secret>`, shown in Settings. The secret is `CRON_SECRET` if set, otherwise derived from
+`APP_PASSWORD` (changing the password changes it: reconnect Supabase Cron then). `?force=1` runs even if not due,
+`?wait=1` answers with the result.
+
+The old flow is still in [`node-red/`](node-red/) for reference.
 
 ## 3. Vercel
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in SUPABASE_URL + SUPABASE_SECRET_KEY
+cp .env.example .env.local   # fill in SUPABASE_URL + SUPABASE_SECRET_KEY (the rest is optional)
 npm run dev                  # http://localhost:3000
 ```
 
@@ -56,8 +77,8 @@ Alternatively, run `npx vercel` from this folder.
 
 ## 4. Password and AI filter
 
-1. **Database:** run `scripts/db-migrate.sh`, which applies [`supabase/ai-filter.sql`](supabase/ai-filter.sql) using
-   `SUPABASE_DB_URL` from `.env`. You can also paste the file into Supabase → SQL Editor. Either way is safe to re-run.
+1. **Database:** run `scripts/db-migrate.sh`, which applies [`supabase/ai-filter.sql`](supabase/ai-filter.sql) and
+   [`supabase/scraping.sql`](supabase/scraping.sql) using `SUPABASE_DB_URL` from `.env`. You can also paste the file into Supabase → SQL Editor. Either way is safe to re-run.
    It adds:
    - `offers.dup_key` (the same job on any board) and the `offers_unique` view: both tabs show each job once,
      with links to every board it was posted on;
@@ -128,7 +149,7 @@ How the **AI filter** tab works:
 - **Search:** each word must appear in the title or the company (`senior react` matches
   "Senior Frontend Developer (React)"). Case-insensitive, updates as you type.
 - **Duplicates across sources:** the database keeps every board's copy, and `offers_unique` shows each job once.
-  `store_notifications` uses the same rules to skip duplicates on Telegram.
+  Telegram gets a job once, whichever board had it first.
 - **Privacy:** the whole app is behind `APP_PASSWORD` (see step 4), and pages are also set to `noindex`.
-- **Size:** the database isn't capped at 10,000 like the flow context is. A row is ~300 bytes,
-  so Supabase's 500 MB free tier lasts a very long time.
+- **Size:** a row is ~300 bytes, so Supabase's 500 MB free tier lasts a very long time. The run log keeps two weeks,
+  Supabase Cron's own log a week.

@@ -1,6 +1,6 @@
 // Shared by server and client components (no secrets here).
 
-// keys must match the `src` values the Node-RED parsers emit
+// the built-in boards (keys = offers.src); your own scrapers add theirs, see lib/source-list.ts
 export const SOURCES: Record<string, string> = {
   justjoin: 'JustJoin',
   nofluff: 'NoFluff',

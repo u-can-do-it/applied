@@ -2,7 +2,9 @@ import { rangeStats } from '@/lib/ai-runs';
 import { addDays, describeRange, resolveRange, todayInWarsaw, TZ, validDay } from '@/lib/dates';
 import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
 import { isUsable, listProfiles } from '@/lib/profiles';
-import { DAY_PRESETS, SOURCES, withParams } from '@/lib/sources';
+import { SRC_RE } from '@/lib/scraping/kinds';
+import { labelsOf, type SourceOption } from '@/lib/source-list';
+import { DAY_PRESETS, withParams } from '@/lib/sources';
 import { ApplyButton } from './apply-button';
 import { FitScore } from './fit-score';
 import { NavLink } from './nav';
@@ -38,26 +40,30 @@ function groupByDay(offers: Offer[]) {
 }
 
 /** The boards this job was posted on, one link each (earliest first). */
-function Sources({ offer }: { offer: Offer }) {
+function Sources({ offer, labels }: { offer: Offer; labels: Record<string, string> }) {
   const seen = new Set<string>();
   const links = offer.copies.filter((c) => !seen.has(c.src) && seen.add(c.src));
   return (
     <span className="sources">
       {links.map((c) => (
-        <a key={c.src} className="src" href={c.url} target="_blank" rel="noopener noreferrer" title={`Open on ${SOURCES[c.src] ?? c.src}`}>
-          {SOURCES[c.src] ?? c.src}
+        <a key={c.src} className="src" href={c.url} target="_blank" rel="noopener noreferrer" title={`Open on ${labels[c.src] ?? c.src}`}>
+          {labels[c.src] ?? c.src}
         </a>
       ))}
     </span>
   );
 }
 
-export async function Results({ searchParams, mode = 'all' }: { searchParams: SearchParams; mode?: 'all' | 'ai' }) {
+export async function Results({ searchParams, mode = 'all', sources }: {
+  searchParams: SearchParams;
+  mode?: 'all' | 'ai';
+  sources: Promise<SourceOption[]>;
+}) {
   const path = mode === 'ai' ? '/ai' : '/';
   const sp = await searchParams;
   const q = one(sp.q).slice(0, 200);
   const rawSrc = one(sp.src);
-  const src = rawSrc in SOURCES ? rawSrc : '';
+  const src = SRC_RE.test(rawSrc) ? rawSrc : ''; // an unknown board just finds nothing
   const page = Math.max(0, Math.floor(Number(one(sp.page)) || 0));
   const days = DAY_PRESETS.some((p) => p.days && p.days === one(sp.days)) ? one(sp.days) : '';
   const from = days ? '' : validDay(one(sp.from));
@@ -105,6 +111,7 @@ export async function Results({ searchParams, mode = 'all' }: { searchParams: Se
 
   const pages = Math.ceil(data.total / PAGE_SIZE);
   const unchecked = stats ? stats.total - stats.checked : 0;
+  const labels = labelsOf(await sources); // fetched alongside, usually in by now
 
   return (
     <>
@@ -139,7 +146,7 @@ export async function Results({ searchParams, mode = 'all' }: { searchParams: Se
                 : 'No matches here. Check the rejected ones, or loosen the profile.'
             : filtered
               ? 'Nothing matches these filters.'
-              : 'No offers yet. Node-RED will fill this in on its next run.'}
+              : 'No offers yet. Use “↻ Scrape now” at the top, or wait for the next scheduled run.'}
         </p>
       )}
 
@@ -159,7 +166,7 @@ export async function Results({ searchParams, mode = 'all' }: { searchParams: Se
                   <div className="meta">
                     {o.company && <span>{o.company}</span>}
                     {o.seniority && o.seniority !== 'unknown' && <span>{o.seniority}</span>}
-                    <span className={o.remote ? 'remote' : undefined}>{o.remote ? 'Remote' : 'Warsaw'}</span>
+                    <span className={o.remote ? 'remote' : undefined}>{o.remote ? 'Remote' : 'Office / hybrid'}</span>
                   </div>
                   {o.ai?.summary && <p className="ai-reason">✦ {o.ai.summary}</p>}
                 </div>
@@ -173,7 +180,7 @@ export async function Results({ searchParams, mode = 'all' }: { searchParams: Se
                       hadDescription={o.ai.had_description}
                     />
                   )}
-                  <Sources offer={o} />
+                  <Sources offer={o} labels={labels} />
                   {o.key && <ApplyButton jobKey={o.key} src={o.src} id={o.id} appliedAt={o.applied_at} />}
                 </div>
               </li>

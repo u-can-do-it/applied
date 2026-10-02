@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { AUTH_COOKIE, authEnabled, isValidToken } from './lib/auth';
 
-// Every page and server action needs the login cookie, except the login page itself.
+// Every page and server action needs the login cookie, except the login page itself and the two
+// endpoints machines call (they check their own secret: the cron one, and Telegram's).
 export async function proxy(request: NextRequest) {
   if (!authEnabled()) {
     // fail closed in production: the AI filter stores a CV, it must not end up public
@@ -20,6 +21,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // everything except the login page, Next's own assets and the favicon
-  matcher: ['/((?!login|_next/static|_next/image|favicon.ico).*)'],
+  // everything except the login page, the cron + Telegram endpoints, Next's own assets and the favicon
+  matcher: ['/((?!login|api/cron/|api/telegram|_next/static|_next/image|favicon.ico).*)'],
 };

@@ -216,11 +216,18 @@ function builtinBody(html: string) {
   return htmlToText(end > 0 ? rest.slice(0, end) : rest.slice(0, 60_000));
 }
 
+// your own scrapers' boards: no known layout, so the page's <main> (or <article>) as text
+const BOARDS = new Set(['justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin']);
+function mainText(html: string) {
+  const m = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) ?? html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
+  return m ? htmlToText(m[1]) : '';
+}
+
 async function fromPage(copy: { src: string; url: string }) {
   const html = await (await get(copy.url, 'text/html')).text();
   const jp = findJobPosting(html);
   if (jp) return fromJobPosting(jp);
-  return { text: copy.src === 'builtin' ? builtinBody(html) : '', details: {} };
+  return { text: copy.src === 'builtin' ? builtinBody(html) : BOARDS.has(copy.src) ? '' : mainText(html), details: {} };
 }
 
 async function scrape(copy: { src: string; id: string; url: string }): Promise<{ text: string; details: JobDetails }> {

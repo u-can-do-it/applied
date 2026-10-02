@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, useTransition, type Ref } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 import { formatDay, todayInWarsaw } from '@/lib/dates';
-import { SOURCES } from '@/lib/sources';
 import { reached, STAGES, STATES, stageOf, stateOf, stats, type StageId, type StateId } from '@/lib/stages';
 import { refetchContentAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
 import { SearchIcon } from '../search-box';
@@ -23,7 +22,7 @@ const CONTENT: Record<Application['content_status'], string> = {
 
 type Filter = { label: string; test: (a: Application) => boolean } | null;
 
-export function AppliedList({ apps: fromServer }: { apps: Application[] }) {
+export function AppliedList({ apps: fromServer, labels }: { apps: Application[]; labels: Record<string, string> }) {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>(null);
@@ -103,7 +102,7 @@ export function AppliedList({ apps: fromServer }: { apps: Application[] }) {
               </span>
               <span className="side">
                 <StatusChip stage={a.stage} state={a.stage_state} />
-                <span className="src">{SOURCES[a.src] ?? a.src}</span>
+                <span className="src">{labels[a.src] ?? a.src}</span>
                 <span className={`status status-${a.content_status}`}>{CONTENT[a.content_status]}</span>
               </span>
             </button>
@@ -115,6 +114,7 @@ export function AppliedList({ apps: fromServer }: { apps: Application[] }) {
         <AdModal
           key={open.dup_key}
           initial={open}
+          sourceLabel={labels[open.src] ?? open.src}
           onClose={(note) => {
             setOpen(null);
             if (note !== undefined && note !== open.note) setNotes((cur) => ({ ...cur, [open.dup_key]: note }));
@@ -243,7 +243,7 @@ async function loadApplication(key: string) {
   return (await res.json()) as ApplicationWithContent;
 }
 
-function AdModal({ initial, onClose }: { initial: Application; onClose: (note: string | null | undefined) => void }) {
+function AdModal({ initial, sourceLabel, onClose }: { initial: Application; sourceLabel: string; onClose: (note: string | null | undefined) => void }) {
   const key = initial.dup_key;
   const dialog = useRef<HTMLDialogElement>(null);
   const note = useRef<NoteHandle>(null);
@@ -318,22 +318,22 @@ function AdModal({ initial, onClose }: { initial: Application; onClose: (note: s
   return (
     <dialog
       ref={dialog}
-      className="modal modal-wide modal-ad"
+      className="modal modal-wide modal-sheet"
       aria-labelledby="ad-title"
       // Esc, a click outside and Close all end here; the note's last words are saved on the way out
       onClose={() => onClose(gone.current ? undefined : note.current?.flush())}
       onClick={(e) => e.target === dialog.current && close()}
     >
       <div className="modal-body">
-        <div className="ad-head">
+        <div className="sheet-head">
           <h2 id="ad-title">{app.title}</h2>
           <p className="muted">
             {app.company && <>{app.company} · </>}
-            {SOURCES[app.src] ?? app.src} · applied {day(app.applied_at)}
+            {sourceLabel} · applied {day(app.applied_at)}
           </p>
         </div>
 
-        <div className="ad-scroll">
+        <div className="sheet-scroll">
           <section className="status-editor" aria-label="Status" aria-busy={busy || undefined}>
             <div className="stage-steps" role="group" aria-label="Stage">
               {STAGES.map((st) => (
@@ -412,7 +412,7 @@ function AdModal({ initial, onClose }: { initial: Application; onClose: (note: s
           {app.scraped_at && hasText && <p className="muted small ad-saved">Ad saved {day(app.scraped_at)}.</p>}
         </div>
 
-        <div className="ad-foot">
+        <div className="sheet-foot">
           {actionError && (
             <p className="form-error" role="alert">
               {actionError}

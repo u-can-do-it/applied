@@ -87,3 +87,9 @@ export function describeRange({ days, from, to }: DateFilter): string {
   if (t) return `until ${fmt(t)}`;
   return '';
 }
+
+const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+/** "14:35", Warsaw time */
+export const formatTime = (at: string | number | Date) => timeFmt.format(new Date(at));
+/** "02.10.2026 14:35", Warsaw time */
+export const formatDateTime = (at: string | number | Date) => `${formatDay(todayInWarsaw(new Date(at).getTime()))} ${formatTime(at)}`;

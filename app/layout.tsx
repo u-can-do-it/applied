@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Jobwatch',
-  description: 'React offers collected by Node-RED, newest first',
+  description: 'Job offers from several boards, newest first',
   robots: { index: false, follow: false },
 };
 

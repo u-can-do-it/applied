@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
+import { sourceOptions } from '@/lib/source-list';
 import { AiFilterBar } from './ai-filter-bar';
-import { AutoRefresh } from './auto-refresh';
 import { Controls, ControlsFallback } from './controls';
+import { Header } from './header';
 import { NavProvider } from './nav';
 import { Results, ResultsSkeleton } from './results';
 import { ResultsBoundary } from './results-boundary';
@@ -14,10 +15,7 @@ export type SearchParams = Promise<Record<string, string | string[] | undefined>
 export function OffersView({ searchParams, mode }: { searchParams: SearchParams; mode: 'all' | 'ai' }) {
   return (
     <main className="wrap">
-      <header className="top">
-        <h1>Jobwatch</h1>
-        <AutoRefresh />
-      </header>
+      <Header />
 
       {/* tab links keep the current filters, so they read the URL */}
       <Suspense fallback={<TabsFallback />}>
@@ -42,16 +40,25 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
           </>
         }
       >
-        <NavProvider>
-          <Controls />
-          <div className="results">
-            {/* the only part that waits for Supabase (and, on /ai, the verdicts) */}
-            <ResultsBoundary fallback={<ResultsSkeleton />}>
-              <Results searchParams={searchParams} mode={mode} />
-            </ResultsBoundary>
-          </div>
-        </NavProvider>
+        <OffersBody searchParams={searchParams} mode={mode} />
       </Suspense>
     </main>
+  );
+}
+
+// The source chips include your own scrapers: their list is fetched alongside the offers (not
+// before them), and the chips render once it's in.
+function OffersBody({ searchParams, mode }: { searchParams: SearchParams; mode: 'all' | 'ai' }) {
+  const sources = sourceOptions();
+  return (
+    <NavProvider>
+      <Controls sources={sources} />
+      <div className="results">
+        {/* the only part that waits for Supabase (and, on /ai, the verdicts) */}
+        <ResultsBoundary fallback={<ResultsSkeleton />}>
+          <Results searchParams={searchParams} mode={mode} sources={sources} />
+        </ResultsBoundary>
+      </div>
+    </NavProvider>
   );
 }
