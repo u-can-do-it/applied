@@ -1,7 +1,7 @@
 // What a scraper can be and what the scraping settings hold. Shared by the server and the
 // Settings page (no secrets here).
 
-export const KIND_IDS = ['justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'json', 'html', 'rss'] as const;
+export const KIND_IDS = ['justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'json', 'html', 'rss'] as const;
 export type KindId = (typeof KIND_IDS)[number];
 
 type Kind = {
@@ -62,6 +62,18 @@ export const KINDS: Record<KindId, Kind> = {
       headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.12.45 Mobile Safari/537.36' },
       checkKeyword: true,
       checkLocation: false,
+    },
+  },
+  linkedin: {
+    label: 'LinkedIn search (public, no login)',
+    src: 'linkedin',
+    hint:
+      'LinkedIn’s logged-out job search, 10 newest per page. location= a city or a country; f_WT=2 remote only (1 office, 3 hybrid); ' +
+      'f_TPR=r86400 the last 24 h; start=10 the next page. Its cards have no skills, so the keyword check looks at the title only.',
+    defaults: {
+      url: 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r86400&sortBy=DD&start=0',
+      checkKeyword: true,
+      checkLocation: true,
     },
   },
   json: {

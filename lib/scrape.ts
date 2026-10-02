@@ -3,6 +3,9 @@
 // JobPosting text has its list items glued together, NoFluff's only has the benefits.
 // Eldorado, Bulldog, Solid.jobs: the schema.org JobPosting on the page (what Google Jobs reads).
 // Built In: no JobPosting, so the ad body is cut out of the HTML.
+// LinkedIn: its public (logged-out) job posting fragment.
+
+import { parse as parseHtml } from 'node-html-parser';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const AI_CHARS = 8000; // per offer for the AI; requirements come first on every board
@@ -216,8 +219,30 @@ function builtinBody(html: string) {
   return htmlToText(end > 0 ? rest.slice(0, end) : rest.slice(0, 60_000));
 }
 
+// criteria come in the page's language (Accept-Language: pl first)
+const LI_CONTRACT = ['Employment type', 'Forma zatrudnienia', 'Rodzaj zatrudnienia'];
+
+async function linkedin(id: string) {
+  const html = await (await get(`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${encodeURIComponent(id)}`, 'text/html')).text();
+  const root = parseHtml(html);
+  const one = (sel: string) => root.querySelector(sel)?.text.replace(/\s+/g, ' ').trim() || undefined;
+  const criteria = root.querySelectorAll('.description__job-criteria-item').map((li) => [
+    li.querySelector('.description__job-criteria-subheader')?.text.trim() ?? '',
+    li.querySelector('.description__job-criteria-text')?.text.replace(/\s+/g, ' ').trim() ?? '',
+  ]);
+  const description = htmlToText(root.querySelector('.show-more-less-html__markup')?.innerHTML ?? '');
+  const details: JobDetails = {
+    company: one('.topcard__org-name-link'),
+    location: one('.topcard__flavor--bullet'),
+    salary: one('.compensation__salary'),
+    contract: criteria.find(([k]) => LI_CONTRACT.includes(k))?.[1],
+  };
+  const lines = criteria.filter(([k, v]) => k && v).map(([k, v]) => `${k}: ${v}`);
+  return { text: [lines.join('\n'), description].filter(Boolean).join('\n\n'), details };
+}
+
 // your own scrapers' boards: no known layout, so the page's <main> (or <article>) as text
-const BOARDS = new Set(['justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin']);
+const BOARDS = new Set(['justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin']);
 function mainText(html: string) {
   const m = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) ?? html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
   return m ? htmlToText(m[1]) : '';
@@ -232,6 +257,13 @@ async function fromPage(copy: { src: string; url: string }) {
 
 async function scrape(copy: { src: string; id: string; url: string }): Promise<{ text: string; details: JobDetails }> {
   if (copy.src === 'nofluff') return nofluff(copy.id);
+  if (copy.src === 'linkedin') {
+    try {
+      return await linkedin(copy.id);
+    } catch {
+      return fromPage(copy); // the job page has a JobPosting too, when LinkedIn shows it
+    }
+  }
   if (copy.src === 'justjoin') {
     try {
       return await justjoin(copy.id);

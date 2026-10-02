@@ -50,7 +50,7 @@ alter table public.scrapers drop constraint if exists scrapers_src_check;
 alter table public.scrapers add constraint scrapers_src_check check (src ~ '^[a-z0-9][a-z0-9_-]{0,29}$');
 alter table public.scrapers drop constraint if exists scrapers_kind_check;
 alter table public.scrapers add constraint scrapers_kind_check
-  check (kind in ('justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'json', 'html', 'rss'));
+  check (kind in ('justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'json', 'html', 'rss'));
 alter table public.scrapers drop constraint if exists scrapers_status_check;
 alter table public.scrapers add constraint scrapers_status_check check (last_status in ('ok', 'error'));
 
@@ -102,6 +102,22 @@ from (values
    '{"url": "https://builtin.com/jobs/remote?search={keyword}&daysSinceUpdated=1&city=&state=&country=POL&allLocations=true", "headers": {"User-Agent": "Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.12.45 Mobile Safari/537.36"}, "checkKeyword": true, "checkLocation": false}')
 ) as v(position, name, src, kind, config)
 where exists (select 1 from created);
+
+-- scrapers added in later versions: each one once, so one you deleted doesn't come back
+create table if not exists public.scrape_seeds (
+  name text primary key,
+  at   timestamptz not null default now()
+);
+with first_time as (insert into public.scrape_seeds (name) values ('linkedin') on conflict (name) do nothing returning 1)
+insert into public.scrapers (position, name, src, kind, config)
+select v.position, v.name, 'linkedin', 'linkedin', v.config::jsonb
+from (values
+  (7, 'LinkedIn – Warszawa',
+   '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r86400&sortBy=DD&start=0", "checkKeyword": true, "checkLocation": true}'),
+  (8, 'LinkedIn – remote',
+   '{"url": "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Poland&f_WT=2&f_TPR=r86400&sortBy=DD&start=0", "checkKeyword": true, "checkLocation": true}')
+) as v(position, name, config)
+where exists (select 1 from first_time);
 
 -- ---- 4. runs and the Telegram queue ---------------------------------------------------------
 create table if not exists public.scrape_runs (
@@ -232,6 +248,7 @@ alter table public.scrape_settings enable row level security;
 alter table public.scrape_state enable row level security;
 alter table public.scrape_runs enable row level security;
 alter table public.notify_queue enable row level security;
+alter table public.scrape_seeds enable row level security;
 
 grant select, insert, update, delete on public.scrapers, public.scrape_settings, public.scrape_state,
   public.scrape_runs, public.notify_queue to service_role;

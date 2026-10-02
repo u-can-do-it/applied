@@ -192,7 +192,13 @@ export async function runAll(trigger: 'cron' | 'manual' | 'telegram', opts: { lo
     // the first scraper that found an offer owns it (two searches on one board find the same ones)
     const owner = new Map<string, { o: Found; s: Scraper }>();
     results.forEach((r, i) => {
-      for (const o of r.kept) if (!owner.has(`${o.src}\n${o.id}`)) owner.set(`${o.src}\n${o.id}`, { o, s: active[i] });
+      for (const o of r.kept) {
+        const k = `${o.src}\n${o.id}`;
+        const had = owner.get(k);
+        if (!had) owner.set(k, { o, s: active[i] });
+        // e.g. LinkedIn's "Warszawa" search doesn't say remote, its "remote only" one does
+        else if (o.remote && !had.o.remote) had.o = { ...had.o, remote: true };
+      }
     });
     const added = await ingest([...owner.values()].map(({ o }) => row(o)));
 

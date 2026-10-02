@@ -251,6 +251,40 @@ function builtin(body: string, { src }: Ctx): Parsed {
   return { total: chunks.length, items, sample: chunks[0] ? `<div id="job-card-${chunks[0].slice(0, 3000)}` : undefined };
 }
 
+// LinkedIn's public (logged-out) search: an HTML fragment of up to 10 job cards
+function linkedin(body: string, { src, url }: Ctx): Parsed {
+  const root = parseHtml(body);
+  const cards = root.querySelectorAll('[data-entity-urn]').filter((c) => c.getAttribute('data-entity-urn')?.includes('jobPosting:'));
+  if (!cards.length) {
+    if (!body.trim() || body.includes('base-card')) return { total: 0, items: [] }; // no results
+    throw new Error('LinkedIn: no job cards (it asks to log in, or blocks this server)');
+  }
+  const remoteOnly = /[?&]f_WT=2(?:&|$)/.test(url); // the search itself asked for remote only
+  const text = (card: HTMLElement, sel: string) => card.querySelector(sel)?.text.replace(/\s+/g, ' ').trim() ?? '';
+  return {
+    total: cards.length,
+    sample: cards[0].outerHTML.slice(0, 3000),
+    items: cards.map((card) => {
+      const id = card.getAttribute('data-entity-urn')!.split(':').pop()!;
+      const title = text(card, '.base-search-card__title');
+      const location = text(card, '.job-search-card__location');
+      return {
+        src,
+        id,
+        title,
+        company: text(card, '.base-search-card__subtitle') || null,
+        seniority: /senior|lead|principal|staff/i.test(title) ? 'senior' : /junior|intern|trainee|stażyst/i.test(title) ? 'junior' : 'unknown',
+        remote: remoteOnly || /remote|zdaln/i.test(`${title} ${location}`),
+        url: `https://www.linkedin.com/jobs/view/${id}`, // without the per-request tracking parameters
+        skills: [],
+        locations: location ? [location] : [],
+        // job ids grow over time; the card's date is only a day, too coarse to tell new from bumped
+        sort: num(id),
+      };
+    }),
+  };
+}
+
 // ---- generic: JSON ---------------------------------------------------------------------------
 
 /**
@@ -417,7 +451,7 @@ function fromRss(body: string, { src, url }: Ctx): Parsed {
 }
 
 const PARSERS: Record<KindId, (body: string, ctx: Ctx) => Parsed> = {
-  justjoin, nofluff, solidjobs, bulldog, eldorado, builtin, json: fromJson, html: fromHtml, rss: fromRss,
+  justjoin, nofluff, solidjobs, bulldog, eldorado, builtin, linkedin, json: fromJson, html: fromHtml, rss: fromRss,
 };
 
 /** Offers without an id, title or link are dropped (the database needs all three). */
