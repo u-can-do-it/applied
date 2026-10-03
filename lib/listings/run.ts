@@ -72,7 +72,7 @@ export async function runAll(
     if (opts.background && (jobs.length || fresh.length)) {
       after(() =>
         tail()
-          .catch((e: unknown) => console.error('[scrape] AI / Telegram failed:', e))
+          .catch((failure: unknown) => console.error('[scrape] AI / Telegram failed:', failure))
           .finally(() => stateRepo.unlock().catch(() => {})),
       );
       unlockLater = true; // only once after() took it: if that throws, `finally` below unlocks
@@ -80,9 +80,9 @@ export async function runAll(
     }
     const { sent, more } = await tail();
     return { ...summary, notified: sent, errors: [...errors, ...more], ms: Date.now() - startedAt };
-  } catch (e) {
+  } catch (error) {
     // the database or something unexpected: keep it in the run log, so Settings shows it
-    const errors = [{ scraper: 'Run', error: message(e) }];
+    const errors = [{ scraper: 'Run', error: message(error) }];
     if (runId !== null) await runsRepo.finish(runId, { ...EMPTY, errors }).catch(() => {});
     return { ...EMPTY, errors, ms: Date.now() - startedAt };
   } finally {

@@ -2,25 +2,25 @@
 
 import { use, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { formatDay, parseDay, validDay } from '@/lib/dates';
-import type { SourceOption } from '@/lib/listings/sources';
+import type { BoardOption } from '@/lib/listings/board-filter';
 import { DAY_PRESETS, withParams } from '@/lib/shared/search-params';
 import { NavLink, useNav } from './nav';
 import { SearchBox, SearchIcon } from './search-box';
 
-function SourceChips({ query, path, sources }: { query: URLSearchParams; path: string; sources: SourceOption[] }) {
+function BoardChips({ query, path, boards }: { query: URLSearchParams; path: string; boards: BoardOption[] }) {
   const raw = query.get('src') ?? '';
-  const src = sources.some((s) => s.id === raw) ? raw : '';
+  const src = boards.some((board) => board.id === raw) ? raw : '';
   return (
     <nav className="chips" aria-label="Filter by source">
       <NavLink className="chip" aria-current={!src ? 'true' : undefined} href={withParams(query, { src: null }, path)}>
         All
       </NavLink>
-      {sources.map(({ id: key, label: name }) => (
+      {boards.map(({ id: board, label: name }) => (
         <NavLink
-          key={key}
+          key={board}
           className="chip"
-          aria-current={src === key ? 'true' : undefined}
-          href={withParams(query, { src: key }, path)}
+          aria-current={src === board ? 'true' : undefined}
+          href={withParams(query, { src: board }, path)}
         >
           {name}
         </NavLink>
@@ -34,8 +34,12 @@ function SourceChips({ query, path, sources }: { query: URLSearchParams; path: s
 // with the dots filled in automatically; the 📅 button opens the browser's calendar through a
 // hidden date input. The URL keeps ISO dates (2026-10-02).
 const mask = (text: string) => {
-  const d = text.replace(/\D/g, '').slice(0, 8);
-  return d.slice(0, 2) + (d.length > 2 ? '.' + d.slice(2, 4) : '') + (d.length > 4 ? '.' + d.slice(4) : '');
+  const digits = text.replace(/\D/g, '').slice(0, 8);
+  return (
+    digits.slice(0, 2) +
+    (digits.length > 2 ? '.' + digits.slice(2, 4) : '') +
+    (digits.length > 4 ? '.' + digits.slice(4) : '')
+  );
 };
 
 export function DateInput({
@@ -66,8 +70,8 @@ export function DateInput({
   useEffect(() => {
     const iso = text === '' ? '' : parseDay(text);
     if (iso === value || (text !== '' && !iso)) return; // unchanged, or half-typed
-    const t = setTimeout(() => commit(iso), 400);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => commit(iso), 400);
+    return () => clearTimeout(timer);
   }, [text, value]);
 
   const iso = parseDay(text);
@@ -85,7 +89,7 @@ export function DateInput({
           aria-invalid={invalid || undefined}
           maxLength={10}
           value={text}
-          onChange={(e) => setText(mask(e.target.value))}
+          onChange={(event) => setText(mask(event.target.value))}
         />
         <button
           type="button"
@@ -110,7 +114,7 @@ export function DateInput({
           value={iso || value}
           min={min}
           max={max}
-          onChange={(e) => setText(formatDay(e.target.value))}
+          onChange={(event) => setText(formatDay(event.target.value))}
         />
       </span>
     </label>
@@ -127,15 +131,15 @@ function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
   return (
     <div className="dates">
       <nav className="chips" aria-label="Filter by date">
-        {DAY_PRESETS.map((p) => (
+        {DAY_PRESETS.map((preset) => (
           <NavLink
-            key={p.label}
+            key={preset.label}
             className="chip"
-            aria-current={!custom && days === p.days ? 'true' : undefined}
+            aria-current={!custom && days === preset.days ? 'true' : undefined}
             // a preset replaces any custom range
-            href={withParams(query, { days: p.days, from: null, to: null }, path)}
+            href={withParams(query, { days: preset.days, from: null, to: null }, path)}
           >
-            {p.label}
+            {preset.label}
           </NavLink>
         ))}
       </nav>
@@ -145,13 +149,13 @@ function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
           label="From"
           value={from}
           max={to || undefined}
-          onCommit={(d) => navigate(withParams(query, { from: d, days: null }, path))}
+          onCommit={(day) => navigate(withParams(query, { from: day, days: null }, path))}
         />
         <DateInput
           label="to"
           value={to}
           min={from || undefined}
-          onCommit={(d) => navigate(withParams(query, { to: d, days: null }, path))}
+          onCommit={(day) => navigate(withParams(query, { to: day, days: null }, path))}
         />
         {custom && (
           <NavLink
@@ -167,12 +171,12 @@ function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
   );
 }
 
-export function Controls({ sources }: { sources: Promise<SourceOption[]> }) {
+export function Controls({ boards }: { boards: Promise<BoardOption[]> }) {
   const { query, path } = useNav(); // optimistic: chips light up on the click frame
   return (
     <>
       <SearchBox query={query} />
-      <SourceChips query={query} path={path} sources={use(sources)} />
+      <BoardChips query={query} path={path} boards={use(boards)} />
       <DateFilter query={query} path={path} />
     </>
   );
@@ -196,16 +200,16 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
       </nav>
       <div className="dates" aria-hidden="true">
         <nav className="chips">
-          {DAY_PRESETS.map((p) => (
-            <span key={p.label} className="chip">
-              {p.label}
+          {DAY_PRESETS.map((preset) => (
+            <span key={preset.label} className="chip">
+              {preset.label}
             </span>
           ))}
         </nav>
         <div className="range">
-          {['From', 'to'].map((l) => (
-            <label key={l} className="date-field">
-              <span>{l}</span>
+          {['From', 'to'].map((label) => (
+            <label key={label} className="date-field">
+              <span>{label}</span>
               <span className="date-box">
                 <input type="text" disabled placeholder="dd.mm.rrrr" />
                 <span className="cal" aria-hidden="true">

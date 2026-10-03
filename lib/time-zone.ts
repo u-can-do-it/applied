@@ -1,6 +1,6 @@
 import 'server-only';
 import { cache } from 'react';
-import { zone } from './dates';
+import { zoneOf } from './dates';
 import { effectiveTimeZone } from './listings/settings';
 import * as settingsRepo from './db/repos/scrape-settings';
 
@@ -11,4 +11,4 @@ export const appSettings = cache(() => settingsRepo.get());
 export const appTimeZone = cache(async () => effectiveTimeZone(await appSettings()));
 
 /** The date helpers in the app's time zone. */
-export const appZone = async () => zone(await appTimeZone());
+export const appZone = async () => zoneOf(await appTimeZone());

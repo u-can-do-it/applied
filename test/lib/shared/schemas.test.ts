@@ -71,7 +71,7 @@ const application: ApplicationInput = {
   board: '',
   day: '2026-10-01',
   stage: 'submitted',
-  state: 'pending',
+  outcome: 'pending',
   salary: '20k',
   contract: '',
   location: '',
@@ -91,7 +91,7 @@ describe('addApplicationSchema', () => {
       details: { salary: '20k', remote: true },
       content: '',
       stage: 'submitted',
-      state: 'pending',
+      outcome: 'pending',
       note: 'call back',
     });
   });
@@ -116,17 +116,17 @@ describe('addApplicationSchema', () => {
 });
 
 describe('updateApplicationSchema', () => {
-  it('needs the key', () => {
-    const { stage: _stage, state: _state, note: _note, ...input } = application;
-    expect(problem(updateApplicationSchema, { key: '', input })).toBe('Bad request.');
-    expect(updateApplicationSchema.parse({ key: 'k', input }).input.board).toBe('justjoin');
+  it('needs the job id', () => {
+    const { stage: _stage, outcome: _outcome, note: _note, ...input } = application;
+    expect(problem(updateApplicationSchema, { jobId: '', input })).toBe('Bad request.');
+    expect(updateApplicationSchema.parse({ jobId: 'k', input }).input.board).toBe('justjoin');
   });
 });
 
 describe('status schemas', () => {
   it('words a wrong status for the status picker, anything else is a bad request', () => {
-    expect(problem(setStatusSchema, { key: 'k', stage: 'submitted', state: 'nope' })).toBe('Unknown status.');
-    expect(problem(removeStepSchema, { key: 'k', step: { stage: 'nope', state: 'pending', at: '' } })).toBe(
+    expect(problem(setStatusSchema, { jobId: 'k', stage: 'submitted', outcome: 'nope' })).toBe('Unknown status.');
+    expect(problem(removeStepSchema, { jobId: 'k', step: { stage: 'nope', state: 'pending', at: '' } })).toBe(
       'Bad request.',
     );
   });
@@ -269,7 +269,7 @@ describe('scraperSchema', () => {
 });
 
 describe('setNoteSchema', () => {
-  const note = (seenAt: unknown) => setNoteSchema.safeParse({ key: 'acme|dev', note: 'hi', seenAt }).success;
+  const note = (seenAt: unknown) => setNoteSchema.safeParse({ jobId: 'acme|dev', note: 'hi', seenAt }).success;
 
   it('takes the note_updated_at the database gives (microseconds, +00:00), or null for a note never written', () => {
     expect(note('2026-10-03T12:34:56.123456+00:00')).toBe(true);

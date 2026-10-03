@@ -32,7 +32,7 @@ async function call<T>(method: string, body: Record<string, unknown> = {}): Prom
     // too many messages at once: Telegram says how long to wait
     const wait = data?.parameters?.retry_after;
     if (res.status === 429 && wait && wait <= 30 && attempt < 2) {
-      await new Promise((r) => setTimeout(r, wait * 1000));
+      await new Promise((resolve) => setTimeout(resolve, wait * 1000));
       continue;
     }
     throw new Error(`Telegram ${method}: ${data?.description ?? `HTTP ${res.status}`}`);
@@ -45,18 +45,18 @@ export const sendMessage = (text: string, chatId = ownerChat()) =>
 export type Outgoing = Queued & { verdict?: { score: number; summary: string | null } };
 export type Message = { text: string; offers: Queued[] };
 
-const offerText = (o: Outgoing) => {
-  const where = o.remote ? 'zdalnie' : o.location || 'stacjonarnie';
-  const ai = o.verdict
-    ? `\n✦ ${o.verdict.score}%${o.verdict.summary ? ` · ${o.verdict.summary.slice(0, 160)}` : ''}`
+const offerText = (offer: Outgoing) => {
+  const where = offer.remote ? 'zdalnie' : offer.location || 'stacjonarnie';
+  const ai = offer.verdict
+    ? `\n✦ ${offer.verdict.score}%${offer.verdict.summary ? ` · ${offer.verdict.summary.slice(0, 160)}` : ''}`
     : '';
-  return `🆕 ${o.title}\n${[o.company, o.seniority, where].filter(Boolean).join(' · ')}${ai}\n${o.url}`;
+  return `🆕 ${offer.title}\n${[offer.company, offer.seniority, where].filter(Boolean).join(' · ')}${ai}\n${offer.url}`;
 };
 
 /** One block per board, five offers per message. */
 function blocks(offers: Outgoing[], heading?: string): Message[] {
   const bySrc = new Map<string, Outgoing[]>();
-  for (const o of offers) bySrc.set(o.src, [...(bySrc.get(o.src) ?? []), o]);
+  for (const offer of offers) bySrc.set(offer.src, [...(bySrc.get(offer.src) ?? []), offer]);
   const out: Message[] = [];
   for (const src of [...bySrc.keys()].sort()) {
     const list = bySrc.get(src) ?? [];
@@ -76,7 +76,7 @@ function blocks(offers: Outgoing[], heading?: string): Message[] {
  * counted ("3 new offers, none matched"), and offers the AI couldn't check in time are listed
  * with a warning, so nothing is lost when OpenAI is down.
  */
-export function formatNotification(n: {
+export function formatNotification(notification: {
   matched: Outgoing[]; // everything new when the AI filter is off
   unmatched: Queued[];
   unchecked: Queued[];
@@ -84,22 +84,28 @@ export function formatNotification(n: {
   held: boolean; // sent by hand after a mute
   link: string | null; // the app's AI tab, to look at what didn't match
 }): Message[] {
-  const total = n.matched.length + n.unmatched.length + n.unchecked.length;
-  const out = [...blocks(n.matched), ...blocks(n.unchecked, '⚠ Not checked by the AI (it failed for a while):')];
-  if (n.unmatched.length) {
-    const what = `${n.unmatched.length} new offer(s)`;
+  const total = notification.matched.length + notification.unmatched.length + notification.unchecked.length;
+  const out = [
+    ...blocks(notification.matched),
+    ...blocks(notification.unchecked, '⚠ Not checked by the AI (it failed for a while):'),
+  ];
+  if (notification.unmatched.length) {
+    const what = `${notification.unmatched.length} new offer(s)`;
     if (out.length) {
       // a line under the last message, so it doesn't cost a message of its own
       const last = out[out.length - 1];
       out[out.length - 1] = {
-        text: `${last.text}\n\n+ ${what} didn't match “${n.profile}”.`,
-        offers: [...last.offers, ...n.unmatched],
+        text: `${last.text}\n\n+ ${what} didn't match “${notification.profile}”.`,
+        offers: [...last.offers, ...notification.unmatched],
       };
     } else {
-      out.push({ text: `🆕 ${what}, none matched “${n.profile}”.${n.link ? `\n${n.link}` : ''}`, offers: n.unmatched });
+      out.push({
+        text: `🆕 ${what}, none matched “${notification.profile}”.${notification.link ? `\n${notification.link}` : ''}`,
+        offers: notification.unmatched,
+      });
     }
   }
-  if (n.held && out.length) out.unshift({ text: `📬 ${total} offer(s) held while muted`, offers: [] });
+  if (notification.held && out.length) out.unshift({ text: `📬 ${total} offer(s) held while muted`, offers: [] });
   return out;
 }
 

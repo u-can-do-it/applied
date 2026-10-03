@@ -67,9 +67,9 @@ export function NavLink({
     <Link
       href={href}
       {...rest}
-      onNavigate={(e) => {
+      onNavigate={(event) => {
         // only plain clicks reach onNavigate (not Ctrl/Cmd+click, which opens a new tab)
-        e.preventDefault();
+        event.preventDefault();
         navigate(href, { scrollTop });
       }}
     />

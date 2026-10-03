@@ -5,7 +5,7 @@ import 'server-only';
 import { byId, type BoardId } from '../boards';
 import { decodeEntities, htmlToText } from '../shared/html';
 import { readBuiltin } from './builtin';
-import type { Ad, AdReader, Copy, JobDetails } from './details';
+import type { Ad, AdReader, JobDetails, OfferLink } from './details';
 import { get } from './fetch';
 import { findJobPosting, fromJobPosting } from './job-posting';
 import { readJustjoin } from './justjoin';
@@ -25,57 +25,57 @@ const READERS: Partial<Record<BoardId, AdReader>> = {
   linkedin: readLinkedin,
 };
 
-function readAd(copy: Copy): Promise<Ad> {
-  const board = byId(copy.src);
+function readAd(offer: OfferLink): Promise<Ad> {
+  const board = byId(offer.src);
   const reader = board && READERS[board.id];
-  if (reader) return reader(copy);
+  if (reader) return reader(offer);
   // a board we scrape has nothing but its JobPosting to give; your own scrapers' boards and any
   // other site: no known layout, so the page's <main> (or <article>)
-  return readPage(copy.url, board?.listing ? undefined : mainText);
+  return readPage(offer.url, board?.listing ? undefined : mainText);
 }
 
-const result = (r: Ad, max: number): Scraped => {
-  const text = r.text.trim();
+const result = (ad: Ad, max: number): Scraped => {
+  const text = ad.text.trim();
   return text.length >= 80
-    ? { status: 'ok', text: text.slice(0, max), details: r.details }
-    : { status: 'empty', text: '', details: r.details };
+    ? { status: 'ok', text: text.slice(0, max), details: ad.details }
+    : { status: 'empty', text: '', details: ad.details };
 };
 
 /** For the AI: the ad text, capped. Only network / HTTP errors throw, so they can be retried later. */
-export async function scrapeOffer(copy: Copy): Promise<Scraped> {
-  return result(await readAd(copy), AI_CHARS);
+export async function scrapeOffer(offer: OfferLink): Promise<Scraped> {
+  return result(await readAd(offer), AI_CHARS);
 }
 
 /** For applications: the complete ad text plus its details. */
-export async function scrapeOfferFull(copy: Copy): Promise<Scraped> {
-  return result(await readAd(copy), FULL_CHARS);
+export async function scrapeOfferFull(offer: OfferLink): Promise<Scraped> {
+  return result(await readAd(offer), FULL_CHARS);
 }
 
 /**
  * For "Add application": what a link's page says, for the AI to fill in the form. The boards with
  * an API give their text; any page gives its <title>, its JobPosting or its main text.
  */
-export async function readJobPage(copy: Copy) {
-  let r: Ad = { text: '', details: {} };
+export async function readJobPage(offer: OfferLink) {
+  let ad: Ad = { text: '', details: {} };
   try {
-    if (copy.id) r = await readAd(copy);
+    if (offer.id) ad = await readAd(offer);
   } catch {
     // the board's API didn't answer: the page below still can
   }
   let pageTitle = '';
   try {
-    const html = await (await get(copy.url, 'text/html')).text();
+    const html = await (await get(offer.url, 'text/html')).text();
     pageTitle = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '')
       .replace(/\s+/g, ' ')
       .trim();
-    if (r.text.trim().length < 80) {
+    if (ad.text.trim().length < 80) {
       const jp = findJobPosting(html);
-      r = jp
+      ad = jp
         ? fromJobPosting(jp)
-        : { text: mainText(html) || htmlToText(html.match(/<body[\s\S]*<\/body>/i)?.[0] ?? html), details: r.details };
+        : { text: mainText(html) || htmlToText(html.match(/<body[\s\S]*<\/body>/i)?.[0] ?? html), details: ad.details };
     }
-  } catch (e) {
-    if (r.text.trim().length < 80) throw e; // nothing at all from this link
+  } catch (error) {
+    if (ad.text.trim().length < 80) throw error; // nothing at all from this link
   }
-  return { pageTitle, text: r.text.trim().slice(0, FULL_CHARS), details: r.details };
+  return { pageTitle, text: ad.text.trim().slice(0, FULL_CHARS), details: ad.details };
 }

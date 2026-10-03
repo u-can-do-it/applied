@@ -27,16 +27,16 @@ async function fromFragment(id: string) {
     company: one('.topcard__org-name-link'),
     location: one('.topcard__flavor--bullet'),
     salary: one('.compensation__salary'),
-    contract: criteria.find(([k]) => LI_CONTRACT.includes(k))?.[1],
+    contract: criteria.find(([label]) => LI_CONTRACT.includes(label))?.[1],
   };
-  const lines = criteria.filter(([k, v]) => k && v).map(([k, v]) => `${k}: ${v}`);
+  const lines = criteria.filter(([label, value]) => label && value).map(([label, value]) => `${label}: ${value}`);
   return { text: [lines.join('\n'), description].filter(Boolean).join('\n\n'), details };
 }
 
-export const readLinkedin: AdReader = async (copy) => {
+export const readLinkedin: AdReader = async (offer) => {
   try {
-    return await fromFragment(copy.id);
+    return await fromFragment(offer.id);
   } catch {
-    return readPage(copy.url); // the job page has a JobPosting too, when LinkedIn shows it
+    return readPage(offer.url); // the job page has a JobPosting too, when LinkedIn shows it
   }
 };

@@ -25,6 +25,6 @@ export function Header() {
 async function ZoneCheck() {
   await connection();
   // the header is on every page: the database being down shows in the page's own content, not here
-  const s = await appSettings().catch(() => null);
-  return s && !s.timeZone ? <BrowserZone known={s.browserTimeZone} /> : null;
+  const settings = await appSettings().catch(() => null);
+  return settings && !settings.timeZone ? <BrowserZone known={settings.browserTimeZone} /> : null;
 }

@@ -14,57 +14,57 @@ const parse = (kind: KindId, body: string, url = 'https://example.com/list', con
 
 describe('built-in board parsers', () => {
   it('justjoin: the candidate API', () => {
-    const r = parse('justjoin', fixture('justjoin.json'));
-    expect(r.total).toBe(3);
-    expect(r.items).toHaveLength(3);
-    const [first] = r.items;
+    const result = parse('justjoin', fixture('justjoin.json'));
+    expect(result.total).toBe(3);
+    expect(result.items).toHaveLength(3);
+    const [first] = result.items;
     expect(first.src).toBe('justjoin');
     expect(first.url).toBe(`https://justjoin.it/job-offer/${first.id}`);
     expect(typeof first.sort).toBe('number');
-    expect(r.sample).toContain(`"slug": "${first.id}"`);
+    expect(result.sample).toContain(`"slug": "${first.id}"`);
     // the offer's city is also among its locations[]: listed once
     expect(first.locations).toEqual(['Katowice (Śląskie)']);
-    expect(r.items).toMatchSnapshot();
+    expect(result.items).toMatchSnapshot();
   });
 
   it('nofluff: the serverApp-state in the listing page', () => {
-    const r = parse('nofluff', fixture('nofluff.html'));
-    expect(r.total).toBe(3);
-    expect(r.items).toHaveLength(3);
-    for (const o of r.items) expect(o.url).toMatch(/^https:\/\/nofluffjobs\.com\/pl\/job\/[^/]+$/);
-    expect(r.items).toMatchSnapshot();
+    const result = parse('nofluff', fixture('nofluff.html'));
+    expect(result.total).toBe(3);
+    expect(result.items).toHaveLength(3);
+    for (const offer of result.items) expect(offer.url).toMatch(/^https:\/\/nofluffjobs\.com\/pl\/job\/[^/]+$/);
+    expect(result.items).toMatchSnapshot();
   });
 
   it('solidjobs: the public API', () => {
-    const r = parse('solidjobs', fixture('solidjobs.json'));
-    expect(r.total).toBe(3);
-    expect(r.items).toHaveLength(3);
-    for (const o of r.items) expect(o.url).toMatch(/^https:\/\/solid\.jobs\//);
-    expect(r.items).toMatchSnapshot();
+    const result = parse('solidjobs', fixture('solidjobs.json'));
+    expect(result.total).toBe(3);
+    expect(result.items).toHaveLength(3);
+    for (const offer of result.items) expect(offer.url).toMatch(/^https:\/\/solid\.jobs\//);
+    expect(result.items).toMatchSnapshot();
   });
 
   it('bulldog: __NEXT_DATA__', () => {
-    const r = parse('bulldog', fixture('bulldog.html'));
-    expect(r.total).toBe(3);
-    expect(r.items).toHaveLength(3);
-    for (const o of r.items) {
-      expect(o.url).toBe(`https://bulldogjob.pl/companies/jobs/${o.id}`);
-      expect(o.sort).toBe(Number(o.id.split('-')[0]));
+    const result = parse('bulldog', fixture('bulldog.html'));
+    expect(result.total).toBe(3);
+    expect(result.items).toHaveLength(3);
+    for (const offer of result.items) {
+      expect(offer.url).toBe(`https://bulldogjob.pl/companies/jobs/${offer.id}`);
+      expect(offer.sort).toBe(Number(offer.id.split('-')[0]));
     }
-    expect(r.items).toMatchSnapshot();
+    expect(result.items).toMatchSnapshot();
   });
 
   it('eldorado: the app router flight data, split over chunks', () => {
-    const r = parse('eldorado', fixture('eldorado.html'));
-    expect(r.total).toBe(3);
-    expect(r.items).toHaveLength(3);
-    for (const o of r.items) {
-      expect(o.url).toMatch(new RegExp(`^https://czyjesteldorado\\.pl/praca/${o.id}-`));
-      expect(o.sort).toBe(Number(o.id));
-      expect(o.skills.length).toBeGreaterThan(0);
+    const result = parse('eldorado', fixture('eldorado.html'));
+    expect(result.total).toBe(3);
+    expect(result.items).toHaveLength(3);
+    for (const offer of result.items) {
+      expect(offer.url).toMatch(new RegExp(`^https://czyjesteldorado\\.pl/praca/${offer.id}-`));
+      expect(offer.sort).toBe(Number(offer.id));
+      expect(offer.skills.length).toBeGreaterThan(0);
     }
     // the keywords, then the categories (ids, read as words)
-    expect(r.items[0].skills).toEqual([
+    expect(result.items[0].skills).toEqual([
       'Azure DevOps',
       'ASP.NET Core MVC',
       'JavaScript',
@@ -76,43 +76,43 @@ describe('built-in board parsers', () => {
       'project management',
       'agile',
     ]);
-    expect(r.items).toMatchSnapshot();
+    expect(result.items).toMatchSnapshot();
   });
 
   it('builtin: the job cards', () => {
-    const r = parse('builtin', fixture('builtin.html'));
-    expect(r.total).toBe(2);
-    expect(r.items).toHaveLength(2);
-    for (const o of r.items) {
-      expect(o.url).toMatch(new RegExp(`^https://builtin\\.com/job/.+/${o.id}$`));
-      expect(o.sort).toBe(Number(o.id));
+    const result = parse('builtin', fixture('builtin.html'));
+    expect(result.total).toBe(2);
+    expect(result.items).toHaveLength(2);
+    for (const offer of result.items) {
+      expect(offer.url).toMatch(new RegExp(`^https://builtin\\.com/job/.+/${offer.id}$`));
+      expect(offer.sort).toBe(Number(offer.id));
     }
-    expect(r.sample).toMatch(/^<div id="job-card-\d+/);
+    expect(result.sample).toMatch(/^<div id="job-card-\d+/);
     // "Staff …" is senior, as on LinkedIn
-    expect(r.items[0].title).toMatch(/^Staff /);
-    expect(r.items[0].seniority).toBe('senior');
-    expect(r.items).toMatchSnapshot();
+    expect(result.items[0].title).toMatch(/^Staff /);
+    expect(result.items[0].seniority).toBe('senior');
+    expect(result.items).toMatchSnapshot();
   });
 
   it('linkedin: the guest search fragment', () => {
     const url =
       'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=React&location=Warszawa';
-    const r = parse('linkedin', fixture('linkedin.html'), url);
-    expect(r.total).toBe(3);
-    expect(r.items).toHaveLength(3);
-    for (const o of r.items) {
-      expect(o.url).toBe(`https://www.linkedin.com/jobs/view/${o.id}`);
-      expect(o.sort).toBeUndefined();
+    const result = parse('linkedin', fixture('linkedin.html'), url);
+    expect(result.total).toBe(3);
+    expect(result.items).toHaveLength(3);
+    for (const offer of result.items) {
+      expect(offer.url).toBe(`https://www.linkedin.com/jobs/view/${offer.id}`);
+      expect(offer.sort).toBeUndefined();
     }
-    expect(r.items).toMatchSnapshot();
+    expect(result.items).toMatchSnapshot();
   });
 });
 
 describe('board parser edge cases', () => {
   it('a remote-only LinkedIn search marks every card remote', () => {
     const url = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=React&f_WT=2&start=0';
-    const r = parse('linkedin', fixture('linkedin.html'), url);
-    expect(r.items.every((o) => o.remote)).toBe(true);
+    const result = parse('linkedin', fixture('linkedin.html'), url);
+    expect(result.items.every((offer) => offer.remote)).toBe(true);
   });
 
   it('past the last LinkedIn page: no results, not an error', () => {
@@ -137,8 +137,8 @@ describe('board parser edge cases', () => {
   it('reads NoFluff state escaped the Angular way', () => {
     const state =
       '{&q;k&q;:{&q;body&q;:{&q;postings&q;:[{&q;id&q;:&q;x-1&q;,&q;title&q;:&q;R&a;D&q;,&q;url&q;:&q;x-1&q;,&q;seniority&q;:[&q;Senior&q;]}]}}}';
-    const r = parse('nofluff', `<script id="serverApp-state" type="application/json">${state}</script>`);
-    expect(r.items).toEqual([
+    const result = parse('nofluff', `<script id="serverApp-state" type="application/json">${state}</script>`);
+    expect(result.items).toEqual([
       expect.objectContaining({
         id: 'x-1',
         title: 'R&D',
@@ -169,7 +169,7 @@ describe('board parser edge cases', () => {
       { id: 2, slug: 's', title: 'B', keywords: [], categories: [] },
     ];
     const body = `<script>self.__next_f.push([1,${JSON.stringify(JSON.stringify({ jobs }))}])</script>`;
-    expect(parse('eldorado', body).items.map((o) => o.skills)).toEqual([['React', 'TS'], []]);
+    expect(parse('eldorado', body).items.map((offer) => offer.skills)).toEqual([['React', 'TS'], []]);
   });
 
   it('builtin and linkedin: the same seniority from the same title', () => {
@@ -202,19 +202,19 @@ describe('board parser edge cases', () => {
     ];
     const builtin = titles
       .map(
-        ([t], i) =>
-          `<div id="job-card-${i + 1}" data-id="job-card"><a data-id="job-card-title" href="/job/x/${i + 1}">${t}</a></div>`,
+        ([title], i) =>
+          `<div id="job-card-${i + 1}" data-id="job-card"><a data-id="job-card-title" href="/job/x/${i + 1}">${title}</a></div>`,
       )
       .join('');
     const linkedin = titles
       .map(
-        ([t], i) =>
-          `<li><div data-entity-urn="urn:li:jobPosting:${i + 1}"><h3 class="base-search-card__title">${t}</h3></div></li>`,
+        ([title], i) =>
+          `<li><div data-entity-urn="urn:li:jobPosting:${i + 1}"><h3 class="base-search-card__title">${title}</h3></div></li>`,
       )
       .join('');
-    const expected = titles.map(([t, s]) => [t, s]);
-    expect(parse('builtin', builtin).items.map((o) => [o.title, o.seniority])).toEqual(expected);
-    expect(parse('linkedin', linkedin).items.map((o) => [o.title, o.seniority])).toEqual(expected);
+    const expected = titles.map(([title, seniority]) => [title, seniority]);
+    expect(parse('builtin', builtin).items.map((offer) => [offer.title, offer.seniority])).toEqual(expected);
+    expect(parse('linkedin', linkedin).items.map((offer) => [offer.title, offer.seniority])).toEqual(expected);
   });
 
   it('drops offers without an id, a title or a link', () => {
@@ -225,9 +225,9 @@ describe('board parser edge cases', () => {
         { slug: 'c', title: '' },
       ],
     });
-    const r = parse('justjoin', body);
-    expect(r.total).toBe(3);
-    expect(r.items.map((o) => o.id)).toEqual(['a']);
+    const result = parse('justjoin', body);
+    expect(result.total).toBe(3);
+    expect(result.items.map((offer) => offer.id)).toEqual(['a']);
   });
 });
 
@@ -249,7 +249,7 @@ describe('generic parsers', () => {
         ],
       },
     });
-    const r = parse('json', body, 'https://api.example.com/jobs', {
+    const result = parse('json', body, 'https://api.example.com/jobs', {
       items: 'data.offers',
       fields: {
         id: 'ref',
@@ -262,8 +262,8 @@ describe('generic parsers', () => {
         date: 'at',
       },
     });
-    expect(r.total).toBe(2);
-    expect(r.items[0]).toEqual({
+    expect(result.total).toBe(2);
+    expect(result.items[0]).toEqual({
       src: 'json',
       id: '7',
       title: 'React Dev',
@@ -276,7 +276,7 @@ describe('generic parsers', () => {
       sort: Date.parse('2026-10-01T10:00:00Z'),
     });
     // the second has a link too ("/job/8"): the template always gives one
-    expect(r.items[1].url).toBe('https://api.example.com/job/8');
+    expect(result.items[1].url).toBe('https://api.example.com/job/8');
   });
 
   it('json: a list field works with or without [] at its end', () => {
@@ -298,10 +298,10 @@ describe('generic parsers', () => {
   });
 
   it('json: a root list needs no path; a missing path says what the JSON has', () => {
-    const r = parse('json', '[{"t":"A","u":"https://x.test/a"}]', 'https://x.test', {
+    const result = parse('json', '[{"t":"A","u":"https://x.test/a"}]', 'https://x.test', {
       fields: { title: 't', url: 'u' },
     });
-    expect(r.items.map((o) => [o.id, o.title])).toEqual([['https://x.test/a', 'A']]);
+    expect(result.items.map((offer) => [offer.id, offer.title])).toEqual([['https://x.test/a', 'A']]);
     expect(() => parse('json', '{"data":[],"meta":{}}')).toThrow(
       'Give the path to the list of offers (the JSON has: data, meta)',
     );
@@ -317,7 +317,7 @@ describe('generic parsers', () => {
     const ld =
       '<script type="application/ld+json">{"t":"A","u":"/a"}</script><script type="application/ld+json">broken</script>';
     expect(
-      parse('json', ld, 'https://x.test', { from: 'ld-json', items: '[]', fields }).items.map((o) => o.title),
+      parse('json', ld, 'https://x.test', { from: 'ld-json', items: '[]', fields }).items.map((offer) => offer.title),
     ).toEqual(['A']);
     const script = '<script id="state">{&q;jobs&q;:[{&q;t&q;:&q;A&q;,&q;u&q;:&q;/a&q;}]}</script>';
     expect(
@@ -332,11 +332,13 @@ describe('generic parsers', () => {
         Dev </a><span class="c">Acme</span><span class="loc">Warszawa</span><span class="loc">Remote</span></li>
       <li class="job" data-id="2"><a class="t" href="https://other.test/j/2">Vue Dev</a></li>
     </ul>`;
-    const r = parse('html', body, 'https://board.test/search', {
+    const result = parse('html', body, 'https://board.test/search', {
       items: 'li.job',
       fields: { id: '@data-id', title: 'a.t', url: 'a.t@href', company: '.c', location: '.loc', remote: '.loc' },
     });
-    expect(r.items.map((o) => [o.id, o.title, o.url, o.company, o.remote, o.locations])).toEqual([
+    expect(
+      result.items.map((offer) => [offer.id, offer.title, offer.url, offer.company, offer.remote, offer.locations]),
+    ).toEqual([
       ['1', 'React Dev', 'https://board.test/j/1', 'Acme', true, ['Warszawa', 'Remote']],
       ['2', 'Vue Dev', 'https://other.test/j/2', null, false, []],
     ]);

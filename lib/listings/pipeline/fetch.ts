@@ -106,8 +106,8 @@ export async function scrape(
   let urls: ReturnType<typeof expandUrl>;
   try {
     urls = expandUrl(config.url, settings.keywords, config.pages);
-  } catch (e) {
-    return { ok: false, error: message(e), found: 0, kept: [], skipped, pages, ms: 0 };
+  } catch (error) {
+    return { ok: false, error: message(error), found: 0, kept: [], skipped, pages, ms: 0 };
   }
   for (const target of urls) {
     const { keyword, page, url } = target;
@@ -127,8 +127,8 @@ export async function scrape(
         }
       }
       pages.push({ keyword, page, url, ok: true, total: parsed.total, kept: pageKept });
-    } catch (e) {
-      pages.push({ keyword, page, url, ok: false, error: message(e), total: 0, kept: 0 });
+    } catch (error) {
+      pages.push({ keyword, page, url, ok: false, error: message(error), total: 0, kept: 0 });
     }
   }
   const failed = pages.filter((result) => !result.ok);

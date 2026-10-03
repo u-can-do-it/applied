@@ -3,34 +3,34 @@ import { z } from 'zod';
 import { BOARD_RE, boardOf, isLink } from '../../boards';
 import { validDay } from '../../dates';
 import type { JobDetails } from '../../ads/details';
-import { isStage, isState, type StageId, type StateId } from '../../stages';
-import { jobKey, text } from './common';
+import { isOutcome, isStage, type OutcomeId, type StageId } from '../../stages';
+import { jobId, text } from './common';
 
 export const NOTE_MAX = 10_000;
 
 const stage = (error?: string) => z.custom<StageId>(isStage, error);
-const state = (error?: string) => z.custom<StateId>(isState, error);
+const outcome = (error?: string) => z.custom<OutcomeId>(isOutcome, error);
 
-export const keySchema = z.object({ key: jobKey });
+export const jobIdSchema = z.object({ jobId });
 
-/** "Mark applied" on an offer: the job, and the board's copy that was clicked. */
-export const applySchema = z.object({ key: jobKey, src: z.string(), id: z.string() });
+/** "Mark applied" on an offer: the job, and the offer that was clicked (its board and id). */
+export const applySchema = z.object({ jobId, src: z.string(), id: z.string() });
 
 export const setStatusSchema = z.object({
-  key: jobKey,
+  jobId,
   stage: stage('Unknown status.'),
-  state: state('Unknown status.'),
+  outcome: outcome('Unknown status.'),
 });
 
-/** One step of the history, as the window has it. */
+/** One step of the history, as the window has it (as stored: the outcome is `state`). */
 export const removeStepSchema = z.object({
-  key: jobKey,
-  step: z.object({ stage: stage(), state: state(), at: z.string() }),
+  jobId,
+  step: z.object({ stage: stage(), state: outcome(), at: z.string() }),
 });
 
 /** seenAt: the note's note_updated_at as the window read it (null: never written), so a change made elsewhere since isn't overwritten */
 export const setNoteSchema = z.object({
-  key: jobKey,
+  jobId,
   note: z.string(),
   // as the database gives it: "2026-10-03T12:34:56.123456+00:00"
   seenAt: z.iso.datetime({ offset: true }).nullable(),
@@ -87,17 +87,17 @@ function toApplication({ salary, contract, location, remote, ...form }: z.output
 export const addApplicationSchema = fields
   .extend({
     stage: stage('Unknown status.'),
-    state: state('Unknown status.'),
+    outcome: outcome('Unknown status.'),
     note: text(NOTE_MAX),
   })
   .transform((form) => ({
     ...toApplication(form),
     stage: form.stage,
-    state: form.state,
+    outcome: form.outcome,
     note: form.note || null,
   }));
 
 /** What "+ Add application" sends, every field filled in (day: YYYY-MM-DD in the app's time zone); "✎ Edit" sends the same without the status and the note. */
 export type ApplicationInput = Required<z.input<typeof addApplicationSchema>>;
 
-export const updateApplicationSchema = z.object({ key: jobKey, input: fields.transform(toApplication) });
+export const updateApplicationSchema = z.object({ jobId, input: fields.transform(toApplication) });

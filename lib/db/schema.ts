@@ -30,11 +30,11 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import type { SavedDetails } from '../applications';
-import type { Copy } from '../offers';
-import type { Check } from '../openai';
+import type { OfferLink } from '../ads/details';
+import type { Check } from '../ai/openai';
 import type { ScraperConfig } from '../listings/config';
 import { KIND_IDS, type KindId } from '../listings/kinds';
-import type { HistoryEntry, StageId, StateId } from '../stages';
+import type { HistoryEntry, OutcomeId, StageId } from '../stages';
 
 // Timestamps are strings, as they were from PostgREST: ISO 8601 with the microseconds, e.g.
 // "2026-10-03T12:34:56.123456+00:00" (lib/db/client.ts turns Postgres' text into that). They cross
@@ -45,7 +45,7 @@ const createdAt = () => timestamptz('created_at').notNull().defaultNow();
 // Descending indexes below say `.nullsFirst()`: that's what Postgres' plain `desc` means, and what
 // the database has. drizzle-kit would otherwise write `desc nulls last`, a different index.
 
-// ---- offers: every posting a scraper saw, one row per board copy ---------------------------------
+// ---- offers: every posting a scraper saw, one row per board's offer ---------------------------------
 
 export const offers = pgTable(
   'offers',
@@ -58,40 +58,41 @@ export const offers = pgTable(
     remote: boolean('remote'),
     url: text('url').notNull(),
     firstSeen: timestamptz('first_seen').notNull().defaultNow(), // when a scraper first saw it
-    // the job's key: company without legal suffix + title without gender tags (jw_dup_key)
-    dupKey: text('dup_key').generatedAlwaysAs(sql`public.jw_dup_key(company, title)`),
+    // the title key: company without legal suffix + title without gender tags (jw_dup_key); offers
+    // with the same title key are one job
+    titleKey: text('dup_key').generatedAlwaysAs(sql`public.jw_dup_key(company, title)`),
   },
   (table) => [
     primaryKey({ name: 'offers_pkey', columns: [table.src, table.id] }),
     index('offers_first_seen_idx').on(table.firstSeen.desc().nullsFirst()),
-    index('offers_dup_key_idx').on(table.dupKey, table.firstSeen),
+    index('offers_dup_key_idx').on(table.titleKey, table.firstSeen),
   ],
 ).enableRLS();
 
-// AI-confirmed duplicates whose keys differ: every key of a merged group points at the group's key
+// AI-confirmed duplicates whose title keys differ: every title key of a merged job points at the job's id
 export const jobLinks = pgTable(
   'job_links',
   {
-    dupKey: text('dup_key').primaryKey(),
-    jobKey: text('job_key').notNull(),
+    titleKey: text('dup_key').primaryKey(),
+    jobId: text('job_key').notNull(),
     createdAt: createdAt(),
   },
-  (table) => [index('job_links_job_key_idx').on(table.jobKey)],
+  (table) => [index('job_links_job_key_idx').on(table.jobId)],
 ).enableRLS();
 
-// every pair the AI has looked at, so no pair is ever asked twice
+// every pair of jobs the AI has looked at, so no pair is ever asked twice (jobIdA < jobIdB)
 export const aiDupPairs = pgTable(
   'ai_dup_pairs',
   {
-    keyA: text('key_a').notNull(),
-    keyB: text('key_b').notNull(),
+    jobIdA: text('key_a').notNull(),
+    jobIdB: text('key_b').notNull(),
     same: boolean('same').notNull(),
     reason: text('reason'),
     model: text('model'),
     decidedAt: timestamptz('decided_at').notNull().defaultNow(),
   },
   (table) => [
-    primaryKey({ name: 'ai_dup_pairs_pkey', columns: [table.keyA, table.keyB] }),
+    primaryKey({ name: 'ai_dup_pairs_pkey', columns: [table.jobIdA, table.jobIdB] }),
     check('ai_dup_pairs_check', sql`key_a < key_b`),
   ],
 ).enableRLS();
@@ -101,8 +102,8 @@ export const aiDupPairs = pgTable(
 export const applications = pgTable(
   'applications',
   {
-    dupKey: text('dup_key').primaryKey(), // the job (offers_unique.dup_key)
-    src: text('src').notNull(), // the copy it was marked on
+    jobId: text('dup_key').primaryKey(), // the job (offers_unique.dup_key)
+    src: text('src').notNull(), // the board of the offer it was marked on
     id: text('id').notNull(),
     title: text('title').notNull(),
     company: text('company'),
@@ -114,7 +115,7 @@ export const applications = pgTable(
     contentError: text('content_error'),
     scrapedAt: timestamptz('scraped_at'),
     stage: text('stage').$type<StageId>().notNull().default('submitted'),
-    stageState: text('stage_state').$type<StateId>().notNull().default('pending'),
+    outcome: text('stage_state').$type<OutcomeId>().notNull().default('pending'), // how the stage went
     stageUpdatedAt: timestamptz('stage_updated_at'),
     history: jsonb('history')
       .$type<HistoryEntry[]>()
@@ -152,7 +153,7 @@ export const aiVerdicts = pgTable(
   {
     profileId: uuid('profile_id').notNull(),
     version: integer('version').notNull(),
-    dupKey: text('dup_key').notNull(), // the job's key (offers_unique.dup_key)
+    jobId: text('dup_key').notNull(), // the job (offers_unique.dup_key)
     match: boolean('match').notNull(), // fits the profile's criteria
     score: integer('score').notNull(), // skills fit, %
     summary: text('summary'),
@@ -164,7 +165,7 @@ export const aiVerdicts = pgTable(
     createdAt: createdAt(),
   },
   (table) => [
-    primaryKey({ name: 'ai_verdicts_pkey', columns: [table.profileId, table.version, table.dupKey] }),
+    primaryKey({ name: 'ai_verdicts_pkey', columns: [table.profileId, table.version, table.jobId] }),
     foreignKey({
       name: 'ai_verdicts_profile_id_fkey',
       columns: [table.profileId],
@@ -304,7 +305,7 @@ export const scrapeRuns = pgTable(
     found: integer('found').notNull().default(0), // items on the pages
     kept: integer('kept').notNull().default(0), // after keyword / city filters
     added: integer('added').notNull().default(0), // new rows in offers
-    fresh: integer('fresh').notNull().default(0), // new jobs worth a message (not a copy of a known one)
+    fresh: integer('fresh').notNull().default(0), // new jobs worth a message (not another board's offer of a known one)
     notified: integer('notified').notNull().default(0), // sent to Telegram in this run
     errors: jsonb('errors')
       .$type<{ scraper: string; error: string }[]>()
@@ -328,14 +329,14 @@ export const notifyQueue = pgTable(
     location: text('location'),
     url: text('url').notNull(),
     queuedAt: timestamptz('queued_at').notNull().defaultNow(),
-    dupKey: text('dup_key'), // the offer's job, to find its AI verdict
+    jobId: text('dup_key'), // the offer's job, to find its AI verdict
   },
   (table) => [primaryKey({ name: 'notify_queue_pkey', columns: [table.src, table.id] })],
 ).enableRLS();
 
 // ---- views ----------------------------------------------------------------------------------------
 
-// Each job once: its earliest copy, plus every board it was posted on. Defined in
+// Each job once: its earliest offer, plus every board it was posted on. Defined in
 // drizzle/0002_functions.sql (a window function); `.existing()` keeps drizzle-kit away from it.
 export const offersUnique = pgView('offers_unique', {
   src: text('src').notNull(),
@@ -346,10 +347,10 @@ export const offersUnique = pgView('offers_unique', {
   remote: boolean('remote'),
   url: text('url').notNull(),
   firstSeen: timestamptz('first_seen').notNull(),
-  dupKey: text('dup_key').notNull(), // the job's key: the offer's own, or its group's after an AI merge
-  sources: text('sources').array().notNull(),
-  copies: jsonb('copies').$type<Copy[]>().notNull(),
-  companyKey: text('company_key').notNull(),
+  jobId: text('dup_key').notNull(), // the offer's own title key, or its job's id after an AI merge
+  boards: text('sources').array().notNull(), // offers.src of every offer of the job
+  offers: jsonb('copies').$type<OfferLink[]>().notNull(), // every offer of the job, earliest first
+  companyKey: text('company_key').notNull(), // the title key's company part
   appliedAt: timestamptz('applied_at'),
 }).existing();
 

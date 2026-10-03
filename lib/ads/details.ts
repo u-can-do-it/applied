@@ -17,18 +17,20 @@ export type Ad = { text: string; details: JobDetails };
 
 // untyped JSON from a board (a string, a number, an array of them…) printed the way String() prints it
 // eslint-disable-next-line @typescript-eslint/no-base-to-string -- the value is untyped JSON; String() is the conversion we want
-export const asString = (v: unknown) => String(v ?? '');
+export const asString = (value: unknown) => String(value ?? '');
 
-export const day = (v: unknown) => {
-  const s = typeof v === 'number' ? new Date(v).toISOString() : asString(v);
-  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : undefined;
+export const day = (value: unknown) => {
+  const text = typeof value === 'number' ? new Date(value).toISOString() : asString(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : undefined;
 };
-export const money = (n: unknown) => (typeof n === 'number' ? n.toLocaleString('pl-PL') : asString(n));
-export const unit = (u: unknown) => {
-  const x = asString(u).toLowerCase();
+export const money = (amount: unknown) =>
+  typeof amount === 'number' ? amount.toLocaleString('pl-PL') : asString(amount);
+export const unit = (raw: unknown) => {
+  const name = asString(raw).toLowerCase();
   return (
-    ({ hour: 'hour', day: 'day', week: 'week', month: 'month', year: 'year' } as Partial<Record<string, string>>)[x] ??
-    x
+    ({ hour: 'hour', day: 'day', week: 'week', month: 'month', year: 'year' } as Partial<Record<string, string>>)[
+      name
+    ] ?? name
   );
 };
 export const CONTRACTS: Partial<Record<string, string>> = {
@@ -48,12 +50,15 @@ export const CONTRACTS: Partial<Record<string, string>> = {
   internship: 'Internship',
   any: 'Any',
 };
-export const unique = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => Boolean(x)))];
+export const unique = (xs: (string | undefined)[]) => [
+  ...new Set(xs.filter((value): value is string => Boolean(value))),
+];
 
 export type Language = { code?: string; level?: string };
-export const languages = (xs: Language[]) => xs.map((l) => [l.code, l.level].filter(Boolean).join(' ')).join(', ');
+export const languages = (xs: Language[]) =>
+  xs.map((language) => [language.code, language.level].filter(Boolean).join(' ')).join(', ');
 
-/** One copy of an offer: its board, its id there, its link. */
-export type Copy = { src: string; id: string; url: string };
+/** An offer: its board, its id there, its link. A job has one per board it was posted on. */
+export type OfferLink = { src: string; id: string; url: string };
 /** How a board's ad is read (lib/ads/<board>.ts). */
-export type AdReader = (copy: Copy) => Promise<Ad>;
+export type AdReader = (offer: OfferLink) => Promise<Ad>;

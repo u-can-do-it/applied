@@ -9,5 +9,5 @@ import type { ParseContext, Parsed } from './types';
 /** Offers without an id, title or link are dropped (the database needs all three). */
 export function parseBody(kind: KindId, body: string, ctx: ParseContext): Parsed {
   const parsed = PARSERS[kind](body, ctx);
-  return { ...parsed, items: parsed.items.filter((o) => o.id && o.title && o.url) };
+  return { ...parsed, items: parsed.items.filter((offer) => offer.id && offer.title && offer.url) };
 }

@@ -1,7 +1,7 @@
 import 'server-only';
-import { assessJobs, type Verdict } from '../../ai-runs';
+import { assessJobs, type Verdict } from '../../ai/runs';
 import { env } from '../../env';
-import { getProfile, isUsable, listProfiles, type ProfileWithFile } from '../../profiles';
+import { getProfile, isUsable, listProfiles, type ProfileWithFile } from '../../ai/profiles';
 import { message } from '../../shared/errors';
 import type { ScrapeSettings } from '../settings';
 
@@ -34,17 +34,17 @@ export async function aiFilter(
   let profile: ProfileWithFile | null;
   try {
     profile = await aiProfile(settings);
-  } catch (e) {
-    return { checked: false, matched: null, error: message(e) };
+  } catch (error) {
+    return { checked: false, matched: null, error: message(error) };
   }
   if (!profile) return { checked: false, matched: null, error: null };
-  const assessed = await assessJobs(profile, [...jobs], deadline).catch((e: unknown) => ({
+  const assessed = await assessJobs(profile, [...jobs], deadline).catch((failure: unknown) => ({
     verdicts: new Map<string, Verdict>(),
-    error: message(e),
+    error: message(failure),
   }));
   return {
     checked: true,
-    matched: jobs.filter((key) => assessed.verdicts.get(key)?.match).length,
+    matched: jobs.filter((jobId) => assessed.verdicts.get(jobId)?.match).length,
     error: assessed.error,
   };
 }

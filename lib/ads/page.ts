@@ -6,8 +6,8 @@ import { findJobPosting, fromJobPosting } from './job-posting';
 
 /** A site with no known layout: the page's <main> (or <article>) as text. */
 export function mainText(html: string) {
-  const m = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) ?? html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
-  return m ? htmlToText(m[1]) : '';
+  const match = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) ?? html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
+  return match ? htmlToText(match[1]) : '';
 }
 
 /**

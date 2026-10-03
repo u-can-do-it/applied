@@ -1,5 +1,6 @@
-// Application pipeline, shared by server and client. Stage = how far it got; state = the
-// outcome of that stage. The statistics go by the last status; the ✓ in the window by the
+// Application pipeline, shared by server and client. Stage = how far it got; outcome = how that
+// stage went (stored as stage_state, and as `state` in the history). Together they are the
+// application's status. The statistics go by the last status; the ✓ in the window by the
 // history (technical / HR come in either order, so not by the position in this list).
 
 // "invited" is the id of Initial contact (its first name): kept, so stored statuses stay valid
@@ -22,7 +23,7 @@ export const STAGES = [
   { id: 'offer', label: 'Offer', short: 'Offer' },
 ] as const;
 
-export const STATES = [
+export const OUTCOMES = [
   { id: 'pending', label: 'In progress' },
   { id: 'passed', label: 'Passed' },
   { id: 'failed', label: 'Rejected' },
@@ -38,55 +39,66 @@ export const STATES = [
 ] as const;
 
 export type StageId = (typeof STAGES)[number]['id'];
-export type StateId = (typeof STATES)[number]['id'];
-export type HistoryEntry = { stage: StageId; state: StateId; at: string; auto?: boolean }; // auto: set by the app (ghosted after a month)
+export type OutcomeId = (typeof OUTCOMES)[number]['id'];
+// `state` is the outcome; the name is the one stored in the database's history (jsonb), so it stays.
+// auto: set by the app (ghosted after a month)
+export type HistoryEntry = { stage: StageId; state: OutcomeId; at: string; auto?: boolean };
 
 /** No news this long since the last status change: ghosted (lib/db/repos/applications.ts, ghostStale). */
 export const GHOST_AFTER_DAYS = 30;
-export type WithStatus = { stage: StageId; stageState: StateId; history: HistoryEntry[] };
+export type WithStatus = { stage: StageId; outcome: OutcomeId; history: HistoryEntry[] };
 
 // The Offer stage has outcomes of its own: received (still deciding), accepted, rejected. It's
 // never "ghosted": the decision is yours. Same ids underneath (pending / passed / failed).
-const OFFER_LABELS: Partial<Record<StateId, string>> = { pending: 'Received', passed: 'Accepted', failed: 'Rejected' };
+const OFFER_LABELS: Partial<Record<OutcomeId, string>> = {
+  pending: 'Received',
+  passed: 'Accepted',
+  failed: 'Rejected',
+};
 
 /** The outcomes a stage can have, by their name there (an offer has no talent pool either). */
-export function statesFor(stage: StageId): { id: StateId; label: string; hint?: string }[] {
+export function outcomesFor(stage: StageId): { id: OutcomeId; label: string; hint?: string }[] {
   return stage === 'offer'
-    ? STATES.flatMap((x) => {
-        const label = OFFER_LABELS[x.id];
-        return label ? [{ id: x.id, label }] : [];
+    ? OUTCOMES.flatMap((outcome) => {
+        const label = OFFER_LABELS[outcome.id];
+        return label ? [{ id: outcome.id, label }] : [];
       })
-    : STATES.map((x) => ({ id: x.id, label: x.label, hint: 'hint' in x ? x.hint : undefined }));
+    : OUTCOMES.map((outcome) => ({
+        id: outcome.id,
+        label: outcome.label,
+        hint: 'hint' in outcome ? outcome.hint : undefined,
+      }));
 }
 /** An outcome's name as a heading (a column, a tile). */
-export const stateHeading = (id: StateId) => {
-  const x = stateOf(id);
-  return 'short' in x ? x.short : x.label;
+export const outcomeHeading = (id: OutcomeId) => {
+  const outcome = outcomeOf(id);
+  return 'short' in outcome ? outcome.short : outcome.label;
 };
-export const stateLabel = (stage: StageId, state: StateId) =>
-  (stage === 'offer' ? OFFER_LABELS[state] : undefined) ?? stateOf(state).label;
+export const outcomeLabel = (stage: StageId, outcome: OutcomeId) =>
+  (stage === 'offer' ? OFFER_LABELS[outcome] : undefined) ?? outcomeOf(outcome).label;
 
 /** Still going somewhere: in progress, or passed and waiting for the next step; an offer not decided yet. */
-export const isActive = (a: { stage: StageId; stageState: StateId }) =>
-  a.stage === 'offer' ? a.stageState === 'pending' : a.stageState === 'pending' || a.stageState === 'passed';
+export const isActive = (app: { stage: StageId; outcome: OutcomeId }) =>
+  app.stage === 'offer' ? app.outcome === 'pending' : app.outcome === 'pending' || app.outcome === 'passed';
 /** They said no (an offer you turned down isn't that). */
-export const isRejected = (a: { stage: StageId; stageState: StateId }) =>
-  a.stageState === 'failed' && a.stage !== 'offer';
+export const isRejected = (app: { stage: StageId; outcome: OutcomeId }) =>
+  app.outcome === 'failed' && app.stage !== 'offer';
 
-export const isStage = (v: unknown): v is StageId => STAGES.some((s) => s.id === v);
-export const isState = (v: unknown): v is StateId => STATES.some((s) => s.id === v);
+export const isStage = (value: unknown): value is StageId => STAGES.some((stage) => stage.id === value);
+export const isOutcome = (value: unknown): value is OutcomeId => OUTCOMES.some((outcome) => outcome.id === value);
 /* eslint-disable @typescript-eslint/no-non-null-assertion -- the id's type says it is in the list */
-export const stageOf = (id: StageId) => STAGES.find((s) => s.id === id)!;
-export const stateOf = (id: StateId) => STATES.find((s) => s.id === id)!;
+export const stageOf = (id: StageId) => STAGES.find((stage) => stage.id === id)!;
+export const outcomeOf = (id: OutcomeId) => OUTCOMES.find((outcome) => outcome.id === id)!;
 /* eslint-enable @typescript-eslint/no-non-null-assertion */
 
 /** Every stage this application has been at (always including "submitted"). */
-export function reached(a: WithStatus): Set<StageId> {
-  const r = new Set<StageId>(['submitted', a.stage]);
-  for (const h of a.history) r.add(h.stage);
+export function reached(app: WithStatus): Set<StageId> {
+  const stages = new Set<StageId>(['submitted', app.stage]);
+  for (const step of app.history) stages.add(step.stage);
   // got to a later stage = there was an initial contact, even if it was skipped in the app
-  if (r.has('screening') || r.has('technical') || r.has('hr') || r.has('offer')) r.add('invited');
-  return r;
+  if (stages.has('screening') || stages.has('technical') || stages.has('hr') || stages.has('offer'))
+    stages.add('invited');
+  return stages;
 }
 
 export type Stats = {
@@ -99,25 +111,25 @@ export type Stats = {
   pool: number; // kept "in the talent pool"
   /** how many are at each stage now (their last status) */
   now: { stage: StageId; count: number }[];
-  byStage: Record<StageId, Record<StateId, number>>;
+  byStage: Record<StageId, Record<OutcomeId, number>>;
 };
 
 export function stats(apps: WithStatus[]): Stats {
   const byStage = Object.fromEntries(
-    STAGES.map((s) => [s.id, Object.fromEntries(STATES.map((x) => [x.id, 0]))]),
+    STAGES.map((stage) => [stage.id, Object.fromEntries(OUTCOMES.map((outcome) => [outcome.id, 0]))]),
   ) as Stats['byStage'];
-  const now = Object.fromEntries(STAGES.map((s) => [s.id, 0])) as Record<StageId, number>;
+  const now = Object.fromEntries(STAGES.map((stage) => [stage.id, 0])) as Record<StageId, number>;
   let active = 0,
     rejected = 0,
     ghosted = 0,
     pool = 0;
-  for (const a of apps) {
-    byStage[a.stage][a.stageState]++;
-    now[a.stage]++;
-    if (isActive(a)) active++;
-    else if (isRejected(a)) rejected++;
-    else if (a.stageState === 'ghosted') ghosted++;
-    else if (a.stageState === 'pool') pool++;
+  for (const app of apps) {
+    byStage[app.stage][app.outcome]++;
+    now[app.stage]++;
+    if (isActive(app)) active++;
+    else if (isRejected(app)) rejected++;
+    else if (app.outcome === 'ghosted') ghosted++;
+    else if (app.outcome === 'pool') pool++;
   }
   return {
     sent: apps.length,
@@ -127,7 +139,7 @@ export function stats(apps: WithStatus[]): Stats {
     rejected,
     ghosted,
     pool,
-    now: STAGES.map((s) => ({ stage: s.id, count: now[s.id] })),
+    now: STAGES.map((stage) => ({ stage: stage.id, count: now[stage.id] })),
     byStage,
   };
 }

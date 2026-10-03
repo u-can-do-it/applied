@@ -1,9 +1,9 @@
 import { after } from 'next/server';
-import { countPending, continueRun, latestRun, needsWorker, type Run } from '@/lib/ai-runs';
+import { countPending, continueRun, latestRun, needsWorker, type AiRun } from '@/lib/ai/runs';
 import { describeRange } from '@/lib/dates';
 import { env } from '@/lib/env';
-import { aiConfig } from '@/lib/openai';
-import { isUsable, listProfiles } from '@/lib/profiles';
+import { aiConfig } from '@/lib/ai/openai';
+import { isUsable, listProfiles } from '@/lib/ai/profiles';
 import { message } from '@/lib/shared/errors';
 import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { appZone } from '@/lib/time-zone';
@@ -12,15 +12,15 @@ import { AiControls } from './ai-controls';
 async function load(range: { days: string; from: string; to: string }) {
   const profiles = await listProfiles();
   const active = profiles.at(0) ?? null;
-  let run: Run | null = null;
+  let run: AiRun | null = null;
   let todayNew = 0;
   let rangeNew = 0;
   if (active && isUsable(active)) {
-    const z = await appZone();
+    const zone = await appZone();
     [run, todayNew, rangeNew] = await Promise.all([
       latestRun(active.id),
-      countPending(active, z.resolveRange({ days: '1' })),
-      range.days === '1' ? Promise.resolve(-1) : countPending(active, z.resolveRange(range)),
+      countPending(active, zone.resolveRange({ days: '1' })),
+      range.days === '1' ? Promise.resolve(-1) : countPending(active, zone.resolveRange(range)),
     ]);
     // an open run whose worker stopped (time limit, closed tab): continue it after this response
     const open = run;
@@ -37,23 +37,23 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
   let loaded: Awaited<ReturnType<typeof load>>;
   try {
     loaded = await load({ days, from, to });
-  } catch (e) {
+  } catch (error) {
     return (
       <div className="notice">
         <strong>Can’t load the AI filter.</strong>
-        <code>{message(e)}</code>
+        <code>{message(error)}</code>
       </div>
     );
   }
   const { profiles, active, run, todayNew, rangeNew } = loaded;
   return (
     <AiControls
-      profiles={profiles.map((p) => ({
-        id: p.id,
-        name: p.name,
-        prompt: p.prompt,
-        fileName: p.fileName,
-        version: p.version,
+      profiles={profiles.map((profile) => ({
+        id: profile.id,
+        name: profile.name,
+        prompt: profile.prompt,
+        fileName: profile.fileName,
+        version: profile.version,
       }))}
       activeId={active?.id ?? null}
       run={

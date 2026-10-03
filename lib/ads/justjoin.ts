@@ -47,63 +47,64 @@ type JustjoinOffer = {
 };
 
 async function fromApi(slug: string) {
-  const j = (await (
+  const offer = (await (
     await get(`https://justjoin.it/api/candidate-api/offers/${encodeURIComponent(slug)}`, 'application/json')
   ).json()) as JustjoinOffer;
   const skills = (xs: Skill[] | undefined) =>
     (xs ?? [])
-      .map((x) => (x.level ? `${x.name} (${x.level}/5)` : x.name))
+      .map((skill) => (skill.level ? `${skill.name} (${skill.level}/5)` : skill.name))
       .filter(Boolean)
       .join(', ');
   const text = [
-    skills(j.requiredSkills) && `Must have: ${skills(j.requiredSkills)}`,
-    skills(j.niceToHaveSkills) && `Nice to have: ${skills(j.niceToHaveSkills)}`,
-    j.experienceLevel && `Seniority: ${j.experienceLevel}`,
-    j.languages?.length && `Languages: ${languages(j.languages)}`,
-    htmlToText(j.body),
+    skills(offer.requiredSkills) && `Must have: ${skills(offer.requiredSkills)}`,
+    skills(offer.niceToHaveSkills) && `Nice to have: ${skills(offer.niceToHaveSkills)}`,
+    offer.experienceLevel && `Seniority: ${offer.experienceLevel}`,
+    offer.languages?.length && `Languages: ${languages(offer.languages)}`,
+    htmlToText(offer.body),
   ]
     .filter(Boolean)
     .join('\n\n');
 
   const amount = (perUnit?: number, monthly?: number) => {
-    const v = perUnit ?? monthly;
-    return v == null ? undefined : Math.round(v * 100) / 100;
+    const value = perUnit ?? monthly;
+    return value == null ? undefined : Math.round(value * 100) / 100;
   };
-  const pay = (j.employmentTypes ?? []).filter((e) => e.currencySource !== 'conversion');
-  const workplace = asString(j.workplaceType);
+  const pay = (offer.employmentTypes ?? []).filter((employment) => employment.currencySource !== 'conversion');
+  const workplace = asString(offer.workplaceType);
   const details: JobDetails = {
     salary:
       unique(
         pay
-          .filter((e) => e.from || e.to)
-          .map((e) =>
-            `${[amount(e.fromPerUnit, e.from), amount(e.toPerUnit, e.to)]
-              .filter((x) => x != null)
+          .filter((employment) => employment.from || employment.to)
+          .map((employment) =>
+            `${[amount(employment.fromPerUnit, employment.from), amount(employment.toPerUnit, employment.to)]
+              .filter((value) => value != null)
               .map(money)
               .join(
                 '–',
-              )} ${e.currency?.toUpperCase() ?? ''} / ${unit(e.unit)} (${CONTRACTS[e.type ?? ''] ?? e.type})`.replace(
+              )} ${employment.currency?.toUpperCase() ?? ''} / ${unit(employment.unit)} (${CONTRACTS[employment.type ?? ''] ?? employment.type})`.replace(
               /\s+/g,
               ' ',
             ),
           ),
       ).join('; ') || undefined,
-    contract: unique(pay.map((e) => CONTRACTS[e.type ?? ''] ?? e.type)).join(', ') || undefined,
-    location: j.city
-      ? `${j.city}${workplace === 'hybrid' ? ' (hybrid)' : workplace === 'office' ? ' (office)' : ''}`
+    contract:
+      unique(pay.map((employment) => CONTRACTS[employment.type ?? ''] ?? employment.type)).join(', ') || undefined,
+    location: offer.city
+      ? `${offer.city}${workplace === 'hybrid' ? ' (hybrid)' : workplace === 'office' ? ' (office)' : ''}`
       : undefined,
     remote: workplace === 'remote' || undefined,
-    posted: day(j.publishedAt),
-    validUntil: day(j.expiredAt),
-    company: j.companyName || undefined,
+    posted: day(offer.publishedAt),
+    validUntil: day(offer.expiredAt),
+    company: offer.companyName || undefined,
   };
   return { text, details };
 }
 
-export const readJustjoin: AdReader = async (copy) => {
+export const readJustjoin: AdReader = async (offer) => {
   try {
-    return await fromApi(copy.id);
+    return await fromApi(offer.id);
   } catch {
-    return readPage(copy.url); // API changed or down: the page's JobPosting still has the text
+    return readPage(offer.url); // API changed or down: the page's JobPosting still has the text
   }
 };

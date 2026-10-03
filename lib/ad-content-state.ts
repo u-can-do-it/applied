@@ -37,9 +37,9 @@ export type ContentEvent =
   /** "✎ Edit" saved: `text` as typed (trimmed), `hasLink`: the link after the edit */
   | { type: 'edited'; text: string; hasLink: boolean; at: string }
   | { type: 'fetchSucceeded'; text: string; at: string }
-  /** every copy's page answered, none with the ad text (removed or blocked) */
+  /** every offer's page answered, none with the ad text (removed or blocked) */
   | { type: 'fetchFoundNoText'; at: string }
-  /** no copy could be fetched (`error`: the last one's reason) */
+  /** no offer's page could be fetched (`error`: the last one's reason) */
   | { type: 'fetchFailed'; error: string | null; at: string };
 
 /** A typed text this long is the ad; shorter, it's a note-like stub and the ad is fetched from the link. */

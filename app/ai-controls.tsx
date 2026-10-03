@@ -45,15 +45,15 @@ export function AiControls({
   const dialog = useRef<{ open: () => void }>(null);
   const [starting, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const active = profiles.find((p) => p.id === activeId) ?? null;
+  const active = profiles.find((profile) => profile.id === activeId) ?? null;
   const usable = Boolean(active && (active.prompt.trim() || active.fileName));
   const running = run?.status === 'running' && !run.stale;
 
   // while a run is open, refresh so new verdicts show up and the next slice gets started
   useEffect(() => {
     if (!running) return;
-    const t = setTimeout(() => router.refresh(), 4000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => router.refresh(), 4000);
+    return () => clearTimeout(timer);
   }, [running, run?.done, run?.pairsChecked, run?.phase, router]);
 
   const runFor = (input: { days?: string; from?: string; to?: string }) => {

@@ -7,17 +7,17 @@ import {
   type BatchResult,
   type SliceEvent,
   type SliceState,
-} from './ai-run-state';
-import { AI_RUN_LOCK_MS, SLICE_MS } from './budgets';
-import * as detailsRepo from './db/repos/offer-details';
-import * as offersRepo from './db/repos/offers';
-import * as runsRepo from './db/repos/ai-runs';
-import * as verdictsRepo from './db/repos/ai-verdicts';
-import { dedupRound } from './dedup';
+} from './run-state';
+import { AI_RUN_LOCK_MS, SLICE_MS } from '../budgets';
+import * as detailsRepo from '../db/repos/offer-details';
+import * as offersRepo from '../db/repos/offers';
+import * as runsRepo from '../db/repos/ai-runs';
+import * as verdictsRepo from '../db/repos/ai-verdicts';
+import { mergeDuplicatesRound } from './merge-duplicates';
 import { assessOffers, type OfferForAi } from './openai';
 import { getProfile, type Profile, type ProfileWithFile } from './profiles';
-import { scrapeOffer } from './ads';
-import { message } from './shared/errors';
+import { scrapeOffer } from '../ads';
+import { message } from '../shared/errors';
 
 // Manual AI runs: "check every offer in this date range that this profile hasn't judged yet".
 // Phase 1 asks the AI about likely duplicates in the range (low effort) and merges them;
@@ -26,9 +26,9 @@ import { message } from './shared/errors';
 //
 // The work happens in after() on the server, in slices of a few minutes (a platform limit),
 // under a lock. While a run is open, the AI tab refreshes and starts the next slice. What a slice
-// does next is decided by the state machine in lib/ai-run-state.ts.
+// does next is decided by the state machine in lib/ai/run-state.ts.
 
-export type Run = runsRepo.Run;
+export type AiRun = runsRepo.Run;
 export type Range = { gte?: string; lt?: string; label: string };
 type Pending = Omit<offersRepo.Job, 'appliedAt'>;
 
@@ -42,25 +42,26 @@ export const latestRun = (profileId: string) => runsRepo.latest(profileId);
 type ProfileVersion = Pick<Profile, 'id' | 'version'>;
 
 /** How many jobs in the range this profile version hasn't judged yet. */
-export const countPending = (p: ProfileVersion, r: { gte?: string | null; lt?: string | null }) =>
-  verdictsRepo.countUnjudged(p, r);
+export const countPending = (profile: ProfileVersion, range: { gte?: string | null; lt?: string | null }) =>
+  verdictsRepo.countUnjudged(profile, range);
 
-export const rangeStats = (p: ProfileVersion, r: { gte?: string; lt?: string }) => verdictsRepo.rangeStats(p, r);
+export const rangeStats = (profile: ProfileVersion, range: { gte?: string; lt?: string }) =>
+  verdictsRepo.rangeStats(profile, range);
 
-export const needsWorker = (run: Run | null) =>
+export const needsWorker = (run: AiRun | null) =>
   Boolean(run && run.status === 'running' && (!run.lockUntil || Date.parse(run.lockUntil) < Date.now()));
 
 // ---- start -----------------------------------------------------------------------------
 
 /** One open run per profile; asking again while one runs returns that one. */
-export async function startRun(p: Profile, range: Range): Promise<Run> {
-  const open = await latestRun(p.id);
-  if (open?.status === 'running' && open.version === p.version) return open;
+export async function startRun(profile: Profile, range: Range): Promise<AiRun> {
+  const open = await latestRun(profile.id);
+  if (open?.status === 'running' && open.version === profile.version) return open;
 
-  const total = await countPending(p, range);
+  const total = await countPending(profile, range);
   return runsRepo.insert({
-    profileId: p.id,
-    version: p.version,
+    profileId: profile.id,
+    version: profile.version,
     label: range.label,
     rangeGte: range.gte ?? null,
     rangeLt: range.lt ?? null,
@@ -76,21 +77,21 @@ export async function startRun(p: Profile, range: Range): Promise<Run> {
 const takeLock = (runId: string) =>
   runsRepo.takeLock(runId, new Date(Date.now() + AI_RUN_LOCK_MS).toISOString(), new Date().toISOString());
 
-const pendingRows = (run: Run, limit: number): Promise<Pending[]> =>
+const pendingRows = (run: AiRun, limit: number): Promise<Pending[]> =>
   verdictsRepo.unjudgedJobs({ id: run.profileId, version: run.version }, { gte: run.rangeGte, lt: run.rangeLt }, limit);
 
-/** Ad text for each job: cached in offer_details, else scraped from its copies (earliest first). */
-async function descriptions(offers: Pending[]): Promise<Map<string, string | null>> {
-  const copies = offers.flatMap((o) => o.copies);
+/** Ad text for each job, by job id: cached in offer_details, else scraped from its offers (earliest first). */
+async function descriptions(jobs: Pending[]): Promise<Map<string, string | null>> {
+  const offers = jobs.flatMap((job) => job.offers);
   const cached = new Map<string, detailsRepo.Details>();
-  for (const r of await detailsRepo.forCopies(copies)) cached.set(`${r.src}\u0001${r.id}`, r);
+  for (const details of await detailsRepo.forOffers(offers)) cached.set(`${details.src}\u0001${details.id}`, details);
 
   const out = new Map<string, string | null>();
   const toStore: detailsRepo.Details[] = [];
-  for (const o of offers) {
+  for (const job of jobs) {
     let text: string | null = null;
-    for (const c of o.copies) {
-      const hit = cached.get(`${c.src}\u0001${c.id}`);
+    for (const offer of job.offers) {
+      const hit = cached.get(`${offer.src}\u0001${offer.id}`);
       if (hit) {
         if (hit.status === 'ok' && hit.description) {
           text = hit.description;
@@ -99,46 +100,51 @@ async function descriptions(offers: Pending[]): Promise<Map<string, string | nul
         continue; // known to have no ad text
       }
       try {
-        const s = await scrapeOffer(c);
-        toStore.push({ src: c.src, id: c.id, description: s.status === 'ok' ? s.text : null, status: s.status });
-        if (s.status === 'ok') {
-          text = s.text;
+        const scraped = await scrapeOffer(offer);
+        toStore.push({
+          src: offer.src,
+          id: offer.id,
+          description: scraped.status === 'ok' ? scraped.text : null,
+          status: scraped.status,
+        });
+        if (scraped.status === 'ok') {
+          text = scraped.text;
           break;
         }
       } catch {
         // network / HTTP error: not stored, so a later run tries again
       }
     }
-    out.set(o.dupKey, text);
+    out.set(job.jobId, text);
   }
   await detailsRepo.save(toStore).catch(() => {});
   return out;
 }
 
 async function assessBatch(profile: ProfileWithFile, batch: Pending[]) {
-  const desc = await descriptions(batch);
+  const texts = await descriptions(batch);
   const file = profile.fileName && profile.fileText ? { name: profile.fileName, text: profile.fileText } : null;
-  const input: OfferForAi[] = batch.map((o, i) => ({
+  const input: OfferForAi[] = batch.map((job, i) => ({
     n: i + 1,
-    title: o.title,
-    company: o.company,
-    seniority: o.seniority,
-    remote: o.remote,
-    description: desc.get(o.dupKey) ?? null,
+    title: job.title,
+    company: job.company,
+    seniority: job.seniority,
+    remote: job.remote,
+    description: texts.get(job.jobId) ?? null,
   }));
-  const results = await assessOffers(profile.prompt, file, input);
-  const rows = results.map((r) => ({
+  const assessments = await assessOffers(profile.prompt, file, input);
+  const rows = assessments.map((assessment) => ({
     profileId: profile.id,
     version: profile.version,
-    dupKey: batch[r.n - 1].dupKey,
-    match: r.match,
-    score: r.score,
-    summary: r.summary,
-    checks: r.checks,
-    hadDescription: Boolean(input[r.n - 1].description),
+    jobId: batch[assessment.n - 1].jobId,
+    match: assessment.match,
+    score: assessment.score,
+    summary: assessment.summary,
+    checks: assessment.checks,
+    hadDescription: Boolean(input[assessment.n - 1].description),
   }));
   await verdictsRepo.save(rows);
-  return { saved: rows.length, answered: new Set(rows.map((r) => r.dupKey)) };
+  return { saved: rows.length, answered: new Set(rows.map((row) => row.jobId)) };
 }
 
 // ---- new offers, before Telegram --------------------------------------------------------
@@ -146,37 +152,37 @@ async function assessBatch(profile: ProfileWithFile, batch: Pending[]) {
 export type Verdict = verdictsRepo.Verdict;
 
 /** Verdicts this profile version already has for these jobs. */
-const verdictsFor = (p: ProfileVersion, keys: string[]) => verdictsRepo.forJobs(p, keys);
+const verdictsFor = (profile: ProfileVersion, jobIds: string[]) => verdictsRepo.forJobs(profile, jobIds);
 
 /**
  * The verdicts for these jobs, assessing the ones this profile hasn't judged yet. No run and no
  * browser tab needed; stops starting new batches at the deadline (a batch can take up to two
  * minutes), so whatever is left gets its turn next time.
  */
-export async function assessJobs(profile: ProfileWithFile, keys: string[], deadline: number) {
-  const verdicts = await verdictsFor(profile, keys);
-  const missing = keys.filter((k) => !verdicts.has(k));
+export async function assessJobs(profile: ProfileWithFile, jobIds: string[], deadline: number) {
+  const verdicts = await verdictsFor(profile, jobIds);
+  const missing = jobIds.filter((jobId) => !verdicts.has(jobId));
   let error: string | null = null;
   if (missing.length) {
-    // one row per job, with all its copies (the ad may be on any)
-    const jobs = await offersRepo.jobsByKey(missing.slice(0, 120));
+    // one row per job, with all its offers (the ad may be on any)
+    const jobs = await offersRepo.jobsById(missing.slice(0, 120));
     for (let i = 0; i < jobs.length && Date.now() < deadline; i += BATCH * PARALLEL) {
       const round = jobs.slice(i, i + BATCH * PARALLEL);
-      const batches = Array.from({ length: Math.ceil(round.length / BATCH) }, (_, b) =>
-        round.slice(b * BATCH, b * BATCH + BATCH),
+      const batches = Array.from({ length: Math.ceil(round.length / BATCH) }, (_, index) =>
+        round.slice(index * BATCH, index * BATCH + BATCH),
       );
-      for (const s of await Promise.allSettled(batches.map((b) => assessBatch(profile, b)))) {
-        if (s.status === 'rejected') error = message(s.reason);
+      for (const result of await Promise.allSettled(batches.map((batch) => assessBatch(profile, batch)))) {
+        if (result.status === 'rejected') error = message(result.reason);
       }
     }
-    for (const [k, v] of await verdictsFor(profile, missing)) verdicts.set(k, v);
+    for (const [jobId, verdict] of await verdictsFor(profile, missing)) verdicts.set(jobId, verdict);
   }
   return { verdicts, error };
 }
 
 /** What one slice works with, besides its state. */
 type Slice = {
-  run: Run;
+  run: AiRun;
   profile: ProfileWithFile;
   range: { gte: string | null; lt: string | null };
   deadline: number;
@@ -195,7 +201,7 @@ async function perform(state: SliceState, slice: Slice): Promise<SliceEvent> {
   switch (state.step) {
     case 'dedup': {
       if (Date.now() >= slice.deadline) return { type: 'outOfTime' };
-      const round = await dedupRound(range, slice.asked);
+      const round = await mergeDuplicatesRound(range, slice.asked);
       if (round.error) console.error('[ai-run] duplicate check failed:', round.error);
       return { type: 'dedupRound', ...round, at: Date.now() };
     }
@@ -211,7 +217,7 @@ async function perform(state: SliceState, slice: Slice): Promise<SliceEvent> {
 
       const settled = await Promise.allSettled(batches.map((batch) => assessBatch(slice.profile, batch)));
       const results = settled.map((outcome, i): BatchResult => {
-        const jobs = batches[i].map((job) => job.dupKey);
+        const jobs = batches[i].map((job) => job.jobId);
         if (outcome.status === 'fulfilled')
           return { jobs, answered: [...outcome.value.answered], saved: outcome.value.saved };
         const error = message(outcome.reason);
@@ -260,9 +266,9 @@ export async function continueRun(runId: string): Promise<void> {
       await save(run.id, next);
       state = next;
     }
-  } catch (e) {
+  } catch (error) {
     // `state` is the last one saved: the crash frees the lock from there, and the next page refresh continues
-    console.error(state.step === 'assess' ? '[ai-run] slice crashed:' : '[ai-run] duplicate slice crashed:', e);
-    await save(run.id, transition(state, { type: 'crashed', error: message(e) })).catch(() => {});
+    console.error(state.step === 'assess' ? '[ai-run] slice crashed:' : '[ai-run] duplicate slice crashed:', error);
+    await save(run.id, transition(state, { type: 'crashed', error: message(error) })).catch(() => {});
   }
 }

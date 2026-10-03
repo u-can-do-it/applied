@@ -47,17 +47,17 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
 export const INTERVALS = [5, 10, 15, 30, 60, 120] as const;
 
 /** The zone the app runs in: the one picked, else the browser's (as last reported), else DEFAULT_TZ. */
-export const effectiveTimeZone = (s: Pick<ScrapeSettings, 'timeZone' | 'browserTimeZone'> | null | undefined) =>
-  s?.timeZone || s?.browserTimeZone || DEFAULT_TZ;
+export const effectiveTimeZone = (settings: Pick<ScrapeSettings, 'timeZone' | 'browserTimeZone'> | null | undefined) =>
+  settings?.timeZone || settings?.browserTimeZone || DEFAULT_TZ;
 
 /** "a, b ,c" -> ['a', 'b', 'c'] */
-export const splitList = (s: string) =>
-  s
+export const splitList = (text: string) =>
+  text
     .split(/[,;\n]/)
-    .map((x) => x.trim())
+    .map((item) => item.trim())
     .filter(Boolean);
 /** what a typed list is saved as: at most 50 words of 60 characters */
-export const normalizeList = (s: string) =>
-  splitList(s)
+export const normalizeList = (text: string) =>
+  splitList(text)
     .slice(0, 50)
-    .map((w) => w.slice(0, 60));
+    .map((word) => word.slice(0, 60));

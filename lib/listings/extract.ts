@@ -4,23 +4,26 @@ import { decodeEntities } from '../shared/html';
 
 export type Obj = Record<string, unknown>;
 
-export const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !Array.isArray(v);
-export const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-export const str = (v: unknown) => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '');
-export const nameOf = (v: unknown) => (isObj(v) ? str(v.name ?? v.title ?? v.label ?? v.value) : str(v));
-export const num = (v: unknown) => {
-  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
-  return Number.isFinite(n) ? n : undefined;
+export const isObj = (value: unknown): value is Obj =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+export const arr = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+export const str = (value: unknown) =>
+  typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '';
+export const nameOf = (value: unknown) =>
+  isObj(value) ? str(value.name ?? value.title ?? value.label ?? value.value) : str(value);
+export const num = (value: unknown) => {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : undefined;
 };
-export const time = (v: unknown) => {
-  if (typeof v === 'number') return v;
-  const t = Date.parse(str(v));
-  return Number.isFinite(t) ? t : undefined;
+export const time = (value: unknown) => {
+  if (typeof value === 'number') return value;
+  const parsed = Date.parse(str(value));
+  return Number.isFinite(parsed) ? parsed : undefined;
 };
-export const keysOf = (v: unknown) =>
-  isObj(v) ? Object.keys(v).slice(0, 12).join(', ') : Array.isArray(v) ? 'a list' : typeof v;
+export const keysOf = (value: unknown) =>
+  isObj(value) ? Object.keys(value).slice(0, 12).join(', ') : Array.isArray(value) ? 'a list' : typeof value;
 // JSON.stringify(undefined) is undefined, whatever its type says
-export const sampleOf = (v: unknown) => (JSON.stringify(v, null, 2) as string | undefined)?.slice(0, 3000);
+export const sampleOf = (value: unknown) => (JSON.stringify(value, null, 2) as string | undefined)?.slice(0, 3000);
 
 export function json(text: string, what: string) {
   try {
@@ -31,8 +34,8 @@ export function json(text: string, what: string) {
 }
 
 /** HTML or a feed's text -> one line of plain text */
-export const strip = (s: string) =>
-  decodeEntities(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]*>/g, ' '))
+export const strip = (text: string) =>
+  decodeEntities(text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]*>/g, ' '))
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -47,8 +50,8 @@ export const seniorityOf = (title: string) =>
   SENIOR.test(title) ? 'senior' : JUNIOR.test(title) ? 'junior' : 'unknown';
 
 /** Angular's TransferState escapes its JSON with &q; &a; &l; &g; &s; */
-export const angular = (s: string) =>
-  s.replace(/&q;/g, '"').replace(/&a;/g, '&').replace(/&l;/g, '<').replace(/&g;/g, '>').replace(/&s;/g, "'");
+export const angular = (text: string) =>
+  text.replace(/&q;/g, '"').replace(/&a;/g, '&').replace(/&l;/g, '<').replace(/&g;/g, '>').replace(/&s;/g, "'");
 
 /** The text of <script id="…">, or null when the page has none. */
 export function scriptById(html: string, id: string) {
@@ -67,13 +70,16 @@ export function valuesAt(root: unknown, path: string | undefined): unknown[] {
   if (!path?.trim()) return [root];
   let cur: unknown[] = [root];
   for (const part of path.trim().split('.')) {
-    const m = part.match(/^([^[\]]*)((?:\[\d*\])*)$/);
-    if (!m) return [];
-    if (m[1]) cur = cur.map((v) => (isObj(v) ? v[m[1]] : undefined));
-    for (const b of m[2].match(/\[\d*\]/g) ?? []) {
-      cur = b === '[]' ? cur.flatMap((v) => arr(v)) : cur.map((v) => arr(v)[Number(b.slice(1, -1))]);
+    const match = part.match(/^([^[\]]*)((?:\[\d*\])*)$/);
+    if (!match) return [];
+    if (match[1]) cur = cur.map((value) => (isObj(value) ? value[match[1]] : undefined));
+    for (const bracket of match[2].match(/\[\d*\]/g) ?? []) {
+      cur =
+        bracket === '[]'
+          ? cur.flatMap((value) => arr(value))
+          : cur.map((value) => arr(value)[Number(bracket.slice(1, -1))]);
     }
-    cur = cur.filter((v) => v !== undefined && v !== null);
+    cur = cur.filter((value) => value !== undefined && value !== null);
   }
   return cur;
 }

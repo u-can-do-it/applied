@@ -1,7 +1,7 @@
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import type { SearchParams } from '@/lib/shared/search-params';
-import { filterSources, sourceOptions } from '@/lib/listings/sources';
+import { filterBoards, boardOptions } from '@/lib/listings/board-filter';
 import { AiFilterBar } from './ai-filter-bar';
 import { Controls, ControlsFallback } from './controls';
 import { Header } from './header';
@@ -33,7 +33,7 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
       <Suspense
         fallback={
           <>
-            <ControlsFallback labels={filterSources().map((source) => source.label)} />
+            <ControlsFallback labels={filterBoards().map((board) => board.label)} />
             <div className="results">
               <ResultsSkeleton />
             </div>
@@ -46,20 +46,20 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
   );
 }
 
-// The source chips include your own scrapers: their list is fetched alongside the offers (not
+// The board chips include your own scrapers' boards: their list is fetched alongside the offers (not
 // before them), and the chips render once it's in. Not while prerendering the shell at build time
 // (connection()): the build has no database to ask, or must not ask the one in .env.
 async function OffersBody({ searchParams, mode }: { searchParams: SearchParams; mode: 'all' | 'ai' }) {
   await connection();
   // without the database (it's down) the chips are the built-in boards; the list says what's wrong
-  const sources = sourceOptions().catch(() => filterSources());
+  const boards = boardOptions().catch(() => filterBoards());
   return (
     <NavProvider>
-      <Controls sources={sources} />
+      <Controls boards={boards} />
       <div className="results">
         {/* the only part that waits for Supabase (and, on /ai, the verdicts) */}
         <ResultsBoundary fallback={<ResultsSkeleton />}>
-          <Results searchParams={searchParams} mode={mode} sources={sources} />
+          <Results searchParams={searchParams} mode={mode} boards={boards} />
         </ResultsBoundary>
       </div>
     </NavProvider>

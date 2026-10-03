@@ -10,9 +10,9 @@ import { scrapeOfferFull } from './ads';
 import type { JobDetails } from './ads/details';
 import { message } from './shared/errors';
 import { NOTE_CONFLICT, NOTE_MAX } from './shared/schemas/applications';
-import { GHOST_AFTER_DAYS, type HistoryEntry, type StageId, type StateId } from './stages';
+import { GHOST_AFTER_DAYS, type HistoryEntry, type OutcomeId, type StageId } from './stages';
 
-// Jobs you applied to: the rules (which copy is kept, when the applied date may move, how the key
+// Jobs you applied to: the rules (which offer is kept, when the applied date may move, how the job
 // changes on an edit, what a scrape may overwrite). The queries are in lib/db/repos/applications.ts.
 // Marking one keeps a snapshot (title, company, link) and, in the background, the complete ad
 // text, so it stays readable after the board takes the ad down.
@@ -21,29 +21,29 @@ export type Application = applicationsRepo.Application;
 export type ApplicationWithContent = applicationsRepo.ApplicationWithContent;
 
 export const listApplications = () => applicationsRepo.list();
-export const getApplication = (key: string) => applicationsRepo.get(key);
+export const getApplication = (jobId: string) => applicationsRepo.get(jobId);
 
-/** The job as the list shows it: its key, title, company and every board's copy. */
-const findJob = (key: string) => offersRepo.jobByKey(key);
+/** The job as the list shows it: its id, title, company and every board's offer. */
+const findJob = (jobId: string) => offersRepo.jobById(jobId);
 
 /**
- * Marks the job applied (keeping the first date if it already was), with the clicked copy's link.
+ * Marks the job applied (keeping the first date if it already was), with the clicked offer's link.
  * The ad text is then to be fetched (saveContent).
  */
-export async function markApplied(key: string, clicked: { src: string; id: string }) {
-  const job = await findJob(key);
+export async function markApplied(jobId: string, clicked: { src: string; id: string }) {
+  const job = await findJob(jobId);
   if (!job) throw new Error('That offer is no longer in the database.');
-  const copy = job.copies.find((c) => c.src === clicked.src && c.id === clicked.id) ?? job.copies[0];
+  const offer = job.offers.find(({ src, id }) => src === clicked.src && id === clicked.id) ?? job.offers[0];
   await applicationsRepo.insertUnlessThere({
-    dupKey: key,
-    src: copy.src,
-    id: copy.id,
+    jobId,
+    src: offer.src,
+    id: offer.id,
     title: job.title,
     company: job.company,
-    url: copy.url,
+    url: offer.url,
     ...columnsOf(transition(NONE, { type: 'marked' }).state),
     stage: 'submitted',
-    stageState: 'pending',
+    outcome: 'pending',
     history: [{ stage: 'submitted', state: 'pending', at: new Date().toISOString() }],
   });
 }
@@ -52,29 +52,30 @@ export async function markApplied(key: string, clicked: { src: string; id: strin
 export const ghostStale = (): Promise<number> => applicationsRepo.ghostStale(GHOST_AFTER_DAYS);
 
 /** Moves the application to a stage / outcome; the change is added to its history. */
-export const setStatus = (key: string, stage: StageId, state: StateId) => applicationsRepo.setStatus(key, stage, state);
+export const setStatus = (jobId: string, stage: StageId, outcome: OutcomeId) =>
+  applicationsRepo.setStatus(jobId, stage, outcome);
 
 /**
  * Takes a step out of the status history together with every step after it (a mistaken click
  * and what followed it); the status becomes the last step left. The first one, applying, stays.
  * "Reached" stages come from the history, so the ✓ goes with them.
  */
-export async function removeStatusStep(key: string, step: HistoryEntry): Promise<{ error?: string }> {
-  const app = await getApplication(key);
+export async function removeStatusStep(jobId: string, step: HistoryEntry): Promise<{ error?: string }> {
+  const app = await getApplication(jobId);
   if (!app) return { error: 'This application no longer exists.' };
   const all = app.history;
-  let i = all.findIndex((h) => h.at === step.at && h.stage === step.stage && h.state === step.state);
+  let i = all.findIndex((entry) => entry.at === step.at && entry.stage === step.stage && entry.state === step.state);
   // a step clicked a moment ago carries the browser's time, not the database's: the latest one like it
-  if (i < 0) i = all.map((h) => `${h.stage}/${h.state}`).lastIndexOf(`${step.stage}/${step.state}`);
+  if (i < 0) i = all.map((entry) => `${entry.stage}/${entry.state}`).lastIndexOf(`${step.stage}/${step.state}`);
   if (i < 0) return { error: 'That step is no longer in the history.' };
   if (i === 0) return { error: 'The first step is the application itself (“Unmark applied” removes that).' };
   const history = all.slice(0, i);
   const last = history.at(-1);
   // counts as a change now: taking back an automatic "ghosted" doesn't bring it right back
-  await applicationsRepo.patch(key, {
+  await applicationsRepo.patch(jobId, {
     history,
     stage: last?.stage ?? 'submitted',
-    stageState: last?.state ?? 'pending',
+    outcome: last?.state ?? 'pending',
     stageUpdatedAt: new Date().toISOString(),
   });
   return {};
@@ -84,17 +85,17 @@ export async function removeStatusStep(key: string, step: HistoryEntry): Promise
  * Saves your note for the application ('' clears it), if nobody else changed it since you read it:
  * `seenAt` is the note_updated_at you saw. Answers with the new one, for the next save.
  */
-export async function setNote(key: string, note: string, seenAt: string | null): Promise<{ noteUpdatedAt: string }> {
+export async function setNote(jobId: string, note: string, seenAt: string | null): Promise<{ noteUpdatedAt: string }> {
   const text = note.trim() ? note.slice(0, NOTE_MAX) : null;
-  const savedAt = await applicationsRepo.setNoteIfUnchanged(key, text, seenAt);
+  const savedAt = await applicationsRepo.setNoteIfUnchanged(jobId, text, seenAt);
   if (savedAt) return { noteUpdatedAt: savedAt };
-  if (!(await applicationsRepo.get(key))) throw new Error('This application no longer exists.');
+  if (!(await applicationsRepo.get(jobId))) throw new Error('This application no longer exists.');
   throw new Error(NOTE_CONFLICT);
 }
 
-export const unmarkApplied = (key: string) => applicationsRepo.remove(key);
+export const unmarkApplied = (jobId: string) => applicationsRepo.remove(jobId);
 
-const patch = (key: string, fields: Partial<NewApplicationRow>) => applicationsRepo.patch(key, fields);
+const patch = (jobId: string, fields: Partial<NewApplicationRow>) => applicationsRepo.patch(jobId, fields);
 
 /** Added by hand or imported (not marked on a scraped offer): its id is ours, not a board's. */
 const ownId = (id: string) => /^(manual|import)-/.test(id);
@@ -105,20 +106,20 @@ export type TypedField = (typeof TYPED_FIELDS)[number];
 /** What an application keeps: the ad's details, plus which of them you typed (they stay over a new scrape). */
 export type SavedDetails = JobDetails & { typed?: TypedField[] };
 
-const isTypedField = (k: unknown): k is TypedField => TYPED_FIELDS.includes(k as TypedField);
-const filled = (v: unknown) => v !== undefined && v !== null && v !== '' && v !== false;
-const hasAny = (d: JobDetails | null | undefined) => Boolean(d && Object.values(d).some(filled));
-const withoutList = ({ typed: _, ...d }: SavedDetails) => d;
+const isTypedField = (field: unknown): field is TypedField => TYPED_FIELDS.includes(field as TypedField);
+const filled = (value: unknown) => value !== undefined && value !== null && value !== '' && value !== false;
+const hasAny = (details: JobDetails | null | undefined) => Boolean(details && Object.values(details).some(filled));
+const withoutList = ({ typed: _, ...details }: SavedDetails) => details;
 
 /** The form's details as saved: the editable fields you filled in, and their names. */
 export function typedDetails(form: JobDetails | null | undefined): SavedDetails {
-  const d: SavedDetails = {};
-  for (const k of TYPED_FIELDS) {
-    const v = form?.[k];
-    if (filled(v)) Object.assign(d, { [k]: v });
+  const details: SavedDetails = {};
+  for (const field of TYPED_FIELDS) {
+    const value = form?.[field];
+    if (filled(value)) Object.assign(details, { [field]: value });
   }
-  const typed = TYPED_FIELDS.filter((k) => k in d);
-  return typed.length ? { ...d, typed } : d;
+  const typed = TYPED_FIELDS.filter((field) => field in details);
+  return typed.length ? { ...details, typed } : details;
 }
 
 /**
@@ -133,27 +134,27 @@ export function editedDetails(
   sameLink: boolean,
 ): SavedDetails | null {
   if (!sameLink) {
-    const d = typedDetails(form);
-    return hasAny(d) ? d : null;
+    const details = typedDetails(form);
+    return hasAny(details) ? details : null;
   }
   const was = typedFields(saved, id);
-  const d: SavedDetails = withoutList(saved ?? {});
+  const details: SavedDetails = withoutList(saved ?? {});
   const typed: TypedField[] = [];
-  for (const k of TYPED_FIELDS) {
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- k is one of the four TYPED_FIELDS, not a dynamic key
-    delete d[k];
-    const v = form?.[k];
-    if (!filled(v)) continue;
-    Object.assign(d, { [k]: v });
-    if (was.includes(k) || v !== saved?.[k]) typed.push(k);
+  for (const field of TYPED_FIELDS) {
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- field is one of the four TYPED_FIELDS, not a dynamic key
+    delete details[field];
+    const value = form?.[field];
+    if (!filled(value)) continue;
+    Object.assign(details, { [field]: value });
+    if (was.includes(field) || value !== saved?.[field]) typed.push(field);
   }
-  return hasAny(d) ? { ...d, typed } : null;
+  return hasAny(details) ? { ...details, typed } : null;
 }
 
 /** Which saved fields are yours: the list; a row from before it, added by hand or imported: all it has. */
 export function typedFields(saved: SavedDetails | null, id: string): TypedField[] {
   if (Array.isArray(saved?.typed)) return saved.typed.filter(isTypedField);
-  return ownId(id) ? TYPED_FIELDS.filter((k) => filled(saved?.[k])) : [];
+  return ownId(id) ? TYPED_FIELDS.filter((field) => filled(saved?.[field])) : [];
 }
 
 /**
@@ -166,39 +167,40 @@ export function mergeDetails(
   typed: TypedField[],
 ): SavedDetails | null {
   const old = withoutList(saved ?? {});
-  const mine = Object.fromEntries(typed.filter((k) => filled(old[k])).map((k) => [k, old[k]]));
+  const mine = Object.fromEntries(typed.filter((field) => filled(old[field])).map((field) => [field, old[field]]));
   const merged: SavedDetails = { ...(hasAny(scraped) ? scraped : old), ...mine };
   if (!hasAny(merged)) return null;
   return saved?.typed ? { ...merged, typed: saved.typed } : merged;
 }
 
-/** Scrapes the complete ad: the copy that was marked first, then the job's other boards. */
-export async function saveContent(key: string) {
-  const app = await getApplication(key);
+/** Scrapes the complete ad: the offer that was marked first, then the job's other boards. */
+export async function saveContent(jobId: string) {
+  const app = await getApplication(jobId);
   if (!app) return;
-  const job = await findJob(key).catch(() => null);
-  const copies = [
+  const job = await findJob(jobId).catch(() => null);
+  const offers = [
     { src: app.src, id: app.id, url: app.url },
-    ...(job?.copies ?? []).filter((c) => !(c.src === app.src && c.id === app.id)),
-  ].filter((c) => c.url); // one added by hand may have no link
+    ...(job?.offers ?? []).filter((offer) => !(offer.src === app.src && offer.id === app.id)),
+  ].filter((offer) => offer.url); // one added by hand may have no link
   // what you typed (salary, location…) stays over what the board says
-  const merge = (d: JobDetails | null | undefined) => mergeDetails(d, app.details, typedFields(app.details, app.id));
+  const merge = (scraped: JobDetails | null | undefined) =>
+    mergeDetails(scraped, app.details, typedFields(app.details, app.id));
 
   const save = (event: ContentEvent, details: JobDetails | null | undefined) =>
-    patch(key, { ...columnsOf(transition(contentOf(app), event).state), details: merge(details) });
+    patch(jobId, { ...columnsOf(transition(contentOf(app), event).state), details: merge(details) });
 
   let firstEmpty: { details: JobDetails } | null = null;
-  let lastError: string | null = copies.length ? null : NO_LINK;
-  for (const c of copies) {
+  let lastError: string | null = offers.length ? null : NO_LINK;
+  for (const offer of offers) {
     try {
-      const s = await scrapeOfferFull(c);
-      if (s.status === 'ok') {
-        await save({ type: 'fetchSucceeded', text: s.text, at: new Date().toISOString() }, s.details);
+      const scraped = await scrapeOfferFull(offer);
+      if (scraped.status === 'ok') {
+        await save({ type: 'fetchSucceeded', text: scraped.text, at: new Date().toISOString() }, scraped.details);
         return;
       }
-      firstEmpty ??= { details: s.details };
-    } catch (e) {
-      lastError = message(e);
+      firstEmpty ??= { details: scraped.details };
+    } catch (error) {
+      lastError = message(error);
     }
   }
   const at = new Date().toISOString();
@@ -214,15 +216,18 @@ export async function saveContent(key: string) {
 export async function findOfferByLink(link: string) {
   const board = boardOf(link);
   const id = offerIdOf(board, link);
-  return offersRepo.findCopy({
+  return offersRepo.findOffer({
     ...(id ? { src: board, id } : {}),
     urls: [cleanLink(link), link.trim()],
   });
 }
 
-/** The job's key: the same company + title as the scrapers see it, or the job it was merged into. */
-export async function jobKeyFor(company: string | null, title: string, known?: string | null): Promise<string> {
-  return linksRepo.groupOf(known ?? (await offersRepo.dupKeyOf(company, title)));
+/**
+ * The job of this company + title: the one its title key (as the scrapers make it, or
+ * `knownTitleKey`) was merged into, or its own.
+ */
+export async function jobIdFor(company: string | null, title: string, knownTitleKey?: string | null): Promise<string> {
+  return linksRepo.jobIdOf(knownTitleKey ?? (await offersRepo.titleKeyOf(company, title)));
 }
 
 export type NewApplication = {
@@ -232,61 +237,63 @@ export type NewApplication = {
   src: string;
   appliedAt: string; // ISO
   stage: StageId;
-  state: StateId;
+  outcome: OutcomeId;
   details: JobDetails | null;
   content: string | null;
   note: string | null;
 };
 
 /** When you applied, from the day: now if it's today, else that day's noon (in the app's time zone). */
-export const appliedAtOf = (day: string, z: Zone) =>
-  day === z.day() ? new Date().toISOString() : new Date(z.startOfDay(day).getTime() + 12 * 3600_000).toISOString();
+export const appliedAtOf = (day: string, zone: Zone) =>
+  day === zone.day()
+    ? new Date().toISOString()
+    : new Date(zone.startOfDay(day).getTime() + 12 * 3600_000).toISOString();
 
 const newId = () => `manual-${crypto.randomUUID().slice(0, 12)}`;
-const alreadyThere = (a: Application, z: Zone) =>
-  `Already in your applications: “${a.title}”, applied ${z.formatDayOf(a.appliedAt)}.`;
+const alreadyThere = (app: Application, zone: Zone) =>
+  `Already in your applications: “${app.title}”, applied ${zone.formatDayOf(app.appliedAt)}.`;
 
 /**
  * Saves an application typed in by hand; an error if the job already has one. `fetch`: the ad text
  * is to be fetched from the link (saveContent), as none or only a few words were typed.
  */
 export async function addApplication(
-  a: NewApplication,
-  z: Zone,
-): Promise<{ key?: string; fetch?: boolean; error?: string }> {
-  const offer = a.url ? await findOfferByLink(a.url).catch(() => null) : null;
-  const key = await jobKeyFor(offer?.company ?? a.company, offer?.title ?? a.title, offer?.dupKey);
-  const existing = await getApplication(key);
-  if (existing) return { error: alreadyThere(existing, z) };
-  const id = offer?.id ?? (boardIdOf(a.src, a.url) || newId());
-  const history: HistoryEntry[] = [{ stage: 'submitted', state: 'pending', at: a.appliedAt }];
-  if (a.stage !== 'submitted' || a.state !== 'pending')
-    history.push({ stage: a.stage, state: a.state, at: new Date().toISOString() });
+  input: NewApplication,
+  zone: Zone,
+): Promise<{ jobId?: string; fetch?: boolean; error?: string }> {
+  const offer = input.url ? await findOfferByLink(input.url).catch(() => null) : null;
+  const jobId = await jobIdFor(offer?.company ?? input.company, offer?.title ?? input.title, offer?.titleKey);
+  const existing = await getApplication(jobId);
+  if (existing) return { error: alreadyThere(existing, zone) };
+  const id = offer?.id ?? (boardIdOf(input.src, input.url) || newId());
+  const history: HistoryEntry[] = [{ stage: 'submitted', state: 'pending', at: input.appliedAt }];
+  if (input.stage !== 'submitted' || input.outcome !== 'pending')
+    history.push({ stage: input.stage, state: input.outcome, at: new Date().toISOString() });
   // with a link but no text, the ad is fetched right after saving (like "Mark applied")
   const content = transition(NONE, {
     type: 'added',
-    text: a.content?.trim() ?? '',
-    hasLink: Boolean(a.url),
+    text: input.content?.trim() ?? '',
+    hasLink: Boolean(input.url),
     at: new Date().toISOString(),
   });
   await applicationsRepo.insert({
-    dupKey: key,
-    src: offer?.src ?? a.src,
+    jobId,
+    src: offer?.src ?? input.src,
     id,
-    title: a.title,
-    company: a.company,
-    url: offer?.url ?? a.url,
-    appliedAt: a.appliedAt,
-    details: hasAny(a.details) ? typedDetails(a.details) : null,
+    title: input.title,
+    company: input.company,
+    url: offer?.url ?? input.url,
+    appliedAt: input.appliedAt,
+    details: hasAny(input.details) ? typedDetails(input.details) : null,
     ...columnsOf(content.state),
-    stage: a.stage,
-    stageState: a.state,
+    stage: input.stage,
+    outcome: input.outcome,
     stageUpdatedAt: history[history.length - 1].at,
     history,
-    note: a.note?.trim() ? a.note.slice(0, NOTE_MAX) : null,
-    noteUpdatedAt: a.note?.trim() ? new Date().toISOString() : null,
+    note: input.note?.trim() ? input.note.slice(0, NOTE_MAX) : null,
+    noteUpdatedAt: input.note?.trim() ? new Date().toISOString() : null,
   });
-  return { key, fetch: fetchDue(content) };
+  return { jobId, fetch: fetchDue(content) };
 }
 
 // ---- edited in its window ("✎ Edit") -------------------------------------------------------
@@ -304,44 +311,45 @@ export type ApplicationEdit = {
 /**
  * Saves what you changed in the form; the status and the note stay. The link decides which job
  * it is: one the scrapers have makes it that job's application (as adding it would); otherwise a
- * new title or company gives it the key those make, unless it's one of the scraped jobs already.
+ * new title or company gives it the job those make, unless it's one of the scraped jobs already.
  * `fetch`: the ad text is to be fetched from the link (it was left empty).
  */
 export async function updateApplication(
-  key: string,
-  e: ApplicationEdit,
-  z: Zone,
+  jobId: string,
+  edit: ApplicationEdit,
+  zone: Zone,
 ): Promise<{ app?: ApplicationWithContent; fetch?: boolean; error?: string }> {
-  const app = await getApplication(key);
+  const app = await getApplication(jobId);
   if (!app) return { error: 'This application no longer exists.' };
-  const typedUrl = e.url === app.url ? app.url : e.url ? cleanLink(e.url) : '';
+  const typedUrl = edit.url === app.url ? app.url : edit.url ? cleanLink(edit.url) : '';
   const offer = typedUrl ? await findOfferByLink(typedUrl).catch(() => null) : null;
-  let target = key;
-  if (offer) target = await jobKeyFor(offer.company, offer.title, offer.dupKey);
-  else if ((e.title !== app.title || e.company !== app.company) && !(await findJob(key).catch(() => null)))
-    target = await jobKeyFor(e.company, e.title);
-  if (target !== key) {
+  let target = jobId;
+  if (offer) target = await jobIdFor(offer.company, offer.title, offer.titleKey);
+  else if ((edit.title !== app.title || edit.company !== app.company) && !(await findJob(jobId).catch(() => null)))
+    target = await jobIdFor(edit.company, edit.title);
+  if (target !== jobId) {
     const other = await getApplication(target);
-    if (other) return { error: alreadyThere(other, z) };
+    if (other) return { error: alreadyThere(other, zone) };
   }
 
-  const fields: Partial<NewApplicationRow> = { title: e.title, company: e.company };
-  if (target !== key) fields.dupKey = target;
-  // which copy: the scraped offer behind the link, else the board and the link as typed
+  const fields: Partial<NewApplicationRow> = { title: edit.title, company: edit.company };
+  if (target !== jobId) fields.jobId = target;
+  // which offer: the scraped one behind the link, else the board and the link as typed
   const url = offer?.url ?? typedUrl;
   if (offer) Object.assign(fields, { src: offer.src, id: offer.id, url });
   else {
-    Object.assign(fields, { src: e.src, url });
-    if (url !== app.url || e.src !== app.src) fields.id = boardIdOf(e.src, url) || (ownId(app.id) ? app.id : newId());
+    Object.assign(fields, { src: edit.src, url });
+    if (url !== app.url || edit.src !== app.src)
+      fields.id = boardIdOf(edit.src, url) || (ownId(app.id) ? app.id : newId());
   }
 
   // another day: the first step (applying) moves with it, and so does "no news since" if nothing changed since
   const history = [...app.history];
-  if (e.day !== z.day(app.appliedAt)) {
+  if (edit.day !== zone.day(app.appliedAt)) {
     const next = history.at(1);
-    if (next && e.day > z.day(next.at))
-      return { error: `The status changed on ${z.formatDayOf(next.at)}: you applied that day or earlier.` };
-    const at = appliedAtOf(e.day, z);
+    if (next && edit.day > zone.day(next.at))
+      return { error: `The status changed on ${zone.formatDayOf(next.at)}: you applied that day or earlier.` };
+    const at = appliedAtOf(edit.day, zone);
     fields.appliedAt = at;
     if (history[0]?.stage === 'submitted' && history[0].state === 'pending') {
       history[0] = { ...history[0], at };
@@ -350,18 +358,18 @@ export async function updateApplication(
     if (app.stageUpdatedAt && Date.parse(app.stageUpdatedAt) === Date.parse(app.appliedAt)) fields.stageUpdatedAt = at;
   }
 
-  fields.details = editedDetails(app.details, e.details, app.id, url === app.url);
+  fields.details = editedDetails(app.details, edit.details, app.id, url === app.url);
 
   // the ad text: as typed; left empty, it's fetched from the link (like adding one)
   const content = transition(contentOf(app), {
     type: 'edited',
-    text: e.content.trim(),
+    text: edit.content.trim(),
     hasLink: Boolean(url),
     at: new Date().toISOString(),
   });
   // unchanged: left out, so a fetch still under way isn't undone
   if (content.changed) Object.assign(fields, columnsOf(content.state));
 
-  await patch(key, fields);
+  await patch(jobId, fields);
   return { app: (await getApplication(target)) ?? undefined, fetch: fetchDue(content) };
 }

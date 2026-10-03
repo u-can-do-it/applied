@@ -1,4 +1,4 @@
-import { zone } from '../dates';
+import { zoneOf } from '../dates';
 import { effectiveTimeZone, type ScrapeSettings } from './settings';
 
 // Supabase Cron's schedule, made from the settings: the interval, only within the hours, and off
@@ -11,14 +11,15 @@ type Schedule = Pick<ScrapeSettings, 'everyMinutes' | 'fromHour' | 'toHour' | 't
 /** UTC hours ("5-20", "0-2,11-23", "*") covering from:00–to:00 in the zone, all year round. */
 export function utcHours(from: number, to: number, tz: string, year = new Date().getUTCFullYear()): string {
   if (from === to) return '*';
-  const z = zone(tz);
+  const zone = zoneOf(tz);
   const offsets = new Set<number>();
-  for (let m = 0; m < 12; m++) for (const d of [1, 15]) offsets.add(z.offset(Date.UTC(year, m, d, 12)));
+  for (let month = 0; month < 12; month++)
+    for (const dayOfMonth of [1, 15]) offsets.add(zone.offset(Date.UTC(year, month, dayOfMonth, 12)));
   const len = from < to ? to - from : 24 - from + to; // 22–6 runs over night
   const hours = new Set<number>();
   for (const off of offsets) {
     const start = from - off / 60; // a half-hour zone starts mid-hour: that hour counts
-    for (let h = Math.floor(start); h < Math.ceil(start + len); h++) hours.add(((h % 24) + 24) % 24);
+    for (let hour = Math.floor(start); hour < Math.ceil(start + len); hour++) hours.add(((hour % 24) + 24) % 24);
   }
   if (hours.size === 24) return '*';
   const list = [...hours].sort((a, b) => a - b);
@@ -34,14 +35,14 @@ export function utcHours(from: number, to: number, tz: string, year = new Date()
 
 // The cron line, e.g. every 10th minute of 5:00–20:59 UTC. The 1 h and 2 h intervals call hourly
 // (that a run comes every 2 h is checkDue's part).
-export function cronSchedule(s: Schedule): string {
-  const minute = s.everyMinutes < 60 ? `*/${s.everyMinutes}` : '0';
-  return `${minute} ${utcHours(s.fromHour, s.toHour, effectiveTimeZone(s))} * * *`;
+export function cronSchedule(schedule: Schedule): string {
+  const minute = schedule.everyMinutes < 60 ? `*/${schedule.everyMinutes}` : '0';
+  return `${minute} ${utcHours(schedule.fromHour, schedule.toHour, effectiveTimeZone(schedule))} * * *`;
 }
 
 /** "every 10 min, 7:00–22:00 (Europe/Warsaw)" */
-export function describeSchedule(s: Schedule): string {
-  const every = s.everyMinutes < 60 ? `${s.everyMinutes} min` : `${s.everyMinutes / 60} h`;
-  const hours = s.fromHour === s.toHour ? 'all day' : `${s.fromHour}:00–${s.toHour}:00`;
-  return `every ${every}, ${hours} (${effectiveTimeZone(s).replaceAll('_', ' ')})`;
+export function describeSchedule(schedule: Schedule): string {
+  const every = schedule.everyMinutes < 60 ? `${schedule.everyMinutes} min` : `${schedule.everyMinutes / 60} h`;
+  const hours = schedule.fromHour === schedule.toHour ? 'all day' : `${schedule.fromHour}:00–${schedule.toHour}:00`;
+  return `every ${every}, ${hours} (${effectiveTimeZone(schedule).replaceAll('_', ' ')})`;
 }

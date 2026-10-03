@@ -7,12 +7,12 @@ export const parseBuiltin: ListingParser = (body, { src }) => {
     throw new Error('Built In: no job cards in the page (blocked or the markup changed)');
   const chunks = body.split(/<div id="job-card-(?=\d)/).slice(1); // one chunk per card
   const items: Found[] = [];
-  for (const c of chunks) {
-    const id = c.match(/^(\d+)/)?.[1];
-    const title = strip(c.match(/data-id="job-card-title"[^>]*>([\s\S]*?)<\/a>/)?.[1] ?? '');
-    const company = strip(c.match(/data-id="company-title"[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/)?.[1] ?? '');
-    const href = c.match(/href="(\/job\/[^"]+)"/)?.[1];
-    const mode = strip(c.match(/>((?:In-Office or )?Remote|In-Office|Hybrid)</i)?.[1] ?? '');
+  for (const card of chunks) {
+    const id = card.match(/^(\d+)/)?.[1];
+    const title = strip(card.match(/data-id="job-card-title"[^>]*>([\s\S]*?)<\/a>/)?.[1] ?? '');
+    const company = strip(card.match(/data-id="company-title"[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/)?.[1] ?? '');
+    const href = card.match(/href="(\/job\/[^"]+)"/)?.[1];
+    const mode = strip(card.match(/>((?:In-Office or )?Remote|In-Office|Hybrid)</i)?.[1] ?? '');
     if (!id || !title || !href) continue;
     items.push({
       src,

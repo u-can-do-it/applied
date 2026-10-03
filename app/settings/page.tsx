@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { env } from '@/lib/env';
-import { isUsable, listProfiles } from '@/lib/profiles';
+import { isUsable, listProfiles } from '@/lib/ai/profiles';
 import { effectiveTimeZone } from '@/lib/listings/settings';
 import { requestOrigin } from '@/lib/listings/schedule';
 import * as cronRepo from '@/lib/db/repos/cron';
@@ -51,19 +51,20 @@ async function Settings() {
       offersRepo.countPerBoard(),
     ]);
     data = { settings, scrapers, state, runs, queued, counts };
-  } catch (e) {
+  } catch (error) {
     return (
       <div className="notice">
         <strong>Can’t load the scraping settings.</strong>
-        <code>{message(e)}</code>
+        <code>{message(error)}</code>
       </div>
     );
   }
   const [cron, bot, origin, profiles] = await Promise.all([
-    cronRepo
-      .status()
-      .catch((e: unknown): cronRepo.CronStatus & { error: string } => ({ available: false, error: message(e) })),
-    telegramReady() ? botInfo().catch((e: unknown) => ({ error: message(e) })) : Promise.resolve(null),
+    cronRepo.status().catch((failure: unknown): cronRepo.CronStatus & { error: string } => ({
+      available: false,
+      error: message(failure),
+    })),
+    telegramReady() ? botInfo().catch((failure: unknown) => ({ error: message(failure) })) : Promise.resolve(null),
     requestOrigin(),
     listProfiles().catch(() => []),
   ]);
@@ -106,8 +107,8 @@ async function Settings() {
 function SettingsSkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading">
-      {[180, 260, 140, 320].map((h, i) => (
-        <div key={i} className="panel" style={{ height: h }} />
+      {[180, 260, 140, 320].map((height, i) => (
+        <div key={i} className="panel" style={{ height }} />
       ))}
     </div>
   );

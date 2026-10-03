@@ -2,64 +2,66 @@
 import { htmlToText } from '../shared/html';
 import { CONTRACTS, day, money, asString, unique, unit, type Ad, type JobDetails } from './details';
 
-const asText = (v: unknown): string => {
-  if (v == null) return '';
-  if (Array.isArray(v)) return v.map(asText).filter(Boolean).join(', ');
-  if (typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    return asText(o.name ?? o.description ?? o.value ?? o.credentialCategory ?? '');
+const asText = (value: unknown): string => {
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.map(asText).filter(Boolean).join(', ');
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return asText(record.name ?? record.description ?? record.value ?? record.credentialCategory ?? '');
   }
-  return htmlToText(v);
+  return htmlToText(value);
 };
 
 export function findJobPosting(html: string): Record<string, unknown> | null {
-  for (const m of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+  for (const match of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
     let data: unknown;
     try {
-      data = JSON.parse(m[1]);
+      data = JSON.parse(match[1]);
     } catch {
       continue;
     }
     const stack: unknown[] = [data];
     while (stack.length) {
-      const x = stack.pop();
-      if (!x || typeof x !== 'object') continue;
-      if (Array.isArray(x)) {
-        stack.push(...(x as unknown[]));
+      const node = stack.pop();
+      if (!node || typeof node !== 'object') continue;
+      if (Array.isArray(node)) {
+        stack.push(...(node as unknown[]));
         continue;
       }
-      const o = x as Record<string, unknown>;
-      if (([] as unknown[]).concat(o['@type'] ?? []).includes('JobPosting')) return o;
-      if (o['@graph']) stack.push(o['@graph']);
+      const record = node as Record<string, unknown>;
+      if (([] as unknown[]).concat(record['@type'] ?? []).includes('JobPosting')) return record;
+      if (record['@graph']) stack.push(record['@graph']);
     }
   }
   return null;
 }
 
 function detailsFromJobPosting(jp: Record<string, unknown>): JobDetails {
-  const salaries = ([] as unknown[]).concat(jp.baseSalary ?? []).map((s) => {
-    const m = s as {
+  const salaries = ([] as unknown[]).concat(jp.baseSalary ?? []).map((raw) => {
+    const salary = raw as {
       currency?: string;
       value?: { minValue?: number; maxValue?: number; value?: number; unitText?: string };
     } | null;
-    const v = m?.value ?? {};
+    const value = salary?.value ?? {};
     const range =
-      v.minValue != null && v.maxValue != null
-        ? `${money(v.minValue)}–${money(v.maxValue)}`
-        : money(v.value ?? v.minValue ?? v.maxValue);
+      value.minValue != null && value.maxValue != null
+        ? `${money(value.minValue)}–${money(value.maxValue)}`
+        : money(value.value ?? value.minValue ?? value.maxValue);
     return range
-      ? `${range} ${m?.currency ?? ''}${v.unitText ? ` / ${unit(v.unitText)}` : ''}`.replace(/\s+/g, ' ').trim()
+      ? `${range} ${salary?.currency ?? ''}${value.unitText ? ` / ${unit(value.unitText)}` : ''}`
+          .replace(/\s+/g, ' ')
+          .trim()
       : undefined;
   });
   const places = ([] as unknown[])
     .concat(jp.jobLocation ?? [])
-    .map((p) => (p as { address?: { addressLocality?: string } } | null)?.address?.addressLocality);
+    .map((place) => (place as { address?: { addressLocality?: string } } | null)?.address?.addressLocality);
   return {
     salary: unique(salaries).join('; ') || undefined,
     contract:
-      unique(([] as unknown[]).concat(jp.employmentType ?? []).map((t) => CONTRACTS[asString(t)] ?? asString(t))).join(
-        ', ',
-      ) || undefined,
+      unique(
+        ([] as unknown[]).concat(jp.employmentType ?? []).map((type) => CONTRACTS[asString(type)] ?? asString(type)),
+      ).join(', ') || undefined,
     location: unique(places).join(', ') || undefined,
     remote: asString(jp.jobLocationType).toUpperCase() === 'TELECOMMUTE' || undefined,
     posted: day(jp.datePosted),
@@ -75,7 +77,7 @@ export function fromJobPosting(jp: Record<string, unknown>): Ad {
     ['Qualifications', asText(jp.qualifications)],
     ['Responsibilities', asText(jp.responsibilities)],
   ]
-    .filter(([, v]) => v)
-    .map(([k, v]) => `${k}: ${v}`);
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`);
   return { text: [...parts, asText(jp.description)].filter(Boolean).join('\n\n'), details: detailsFromJobPosting(jp) };
 }

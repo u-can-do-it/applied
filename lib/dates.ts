@@ -1,6 +1,6 @@
 // Calendar days and clock times are in the app's time zone (Settings → Scraping; by default the
 // browser's), whatever the server's (UTC on Vercel) or the device's own is: "1 Oct" means 1 Oct
-// 00:00 to 2 Oct 00:00 there. zone(tz) has the helpers that depend on it; the rest here doesn't.
+// 00:00 to 2 Oct 00:00 there. zoneOf(tz) has the helpers that depend on it; the rest here doesn't.
 
 /** Until the app knows the browser's: the zone it always had. */
 export const DEFAULT_TZ = 'Europe/Warsaw';
@@ -10,32 +10,32 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const parts = (day: string) => day.split('-').map(Number) as [number, number, number];
 
 /** "2026-10-01" if it's a real date from 2000 on, otherwise "" */
-export function validDay(s: string | undefined | null): string {
-  if (!s || !ISO_DAY.test(s)) return '';
-  const [y, m, d] = parts(s);
-  const t = new Date(Date.UTC(y, m - 1, d));
-  return y >= 2000 && t.getUTCMonth() === m - 1 && t.getUTCDate() === d ? s : '';
+export function validDay(value: string | undefined | null): string {
+  if (!value || !ISO_DAY.test(value)) return '';
+  const [year, month, dayOfMonth] = parts(value);
+  const date = new Date(Date.UTC(year, month - 1, dayOfMonth));
+  return year >= 2000 && date.getUTCMonth() === month - 1 && date.getUTCDate() === dayOfMonth ? value : '';
 }
 
-export function addDays(day: string, n: number): string {
-  const [y, m, d] = parts(day);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+export function addDays(day: string, count: number): string {
+  const [year, month, dayOfMonth] = parts(day);
+  return new Date(Date.UTC(year, month - 1, dayOfMonth + count)).toISOString().slice(0, 10);
 }
 
 export type DateFilter = { days?: string; from?: string; to?: string };
 
 /** "2026-10-02" -> "02.10.2026" ('' if not a real date) */
 export function formatDay(day: string | undefined | null): string {
-  const v = validDay(day);
-  if (!v) return '';
-  const [y, m, d] = v.split('-');
-  return `${d}.${m}.${y}`;
+  const valid = validDay(day);
+  if (!valid) return '';
+  const [year, month, dayOfMonth] = valid.split('-');
+  return `${dayOfMonth}.${month}.${year}`;
 }
 
 /** "02.10.2026", "2.10.2026", "02/10/2026" or "02-10-2026" -> "2026-10-02" ('' if not a real date) */
 export function parseDay(text: string): string {
-  const m = text.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-  return m ? validDay(`${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`) : '';
+  const match = text.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  return match ? validDay(`${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`) : '';
 }
 
 /** "today", "last 7 days", "20.09.2026 – 28.09.2026", "since 20.09.2026", "until 28.09.2026", "" (no range) */
@@ -44,14 +44,14 @@ export function describeRange({ days, from, to }: DateFilter): string {
   if (days === '1') return 'today';
   if (days === 'yesterday') return 'yesterday';
   if (days) return `last ${days} days`;
-  const f = validDay(from),
-    t = validDay(to);
-  if (f && t) {
-    const [a, b] = f <= t ? [f, t] : [t, f];
-    return a === b ? fmt(a) : `${fmt(a)} – ${fmt(b)}`;
+  const fromDay = validDay(from),
+    toDay = validDay(to);
+  if (fromDay && toDay) {
+    const [first, last] = fromDay <= toDay ? [fromDay, toDay] : [toDay, fromDay];
+    return first === last ? fmt(first) : `${fmt(first)} – ${fmt(last)}`;
   }
-  if (f) return `since ${fmt(f)}`;
-  if (t) return `until ${fmt(t)}`;
+  if (fromDay) return `since ${fmt(fromDay)}`;
+  if (toDay) return `until ${fmt(toDay)}`;
   return '';
 }
 
@@ -71,7 +71,7 @@ export function isTimeZone(tz: unknown): tz is string {
 /** Every zone, for a picker: UTC, then by name. */
 export function timeZones(): string[] {
   const all = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [DEFAULT_TZ];
-  return ['UTC', ...all.filter((z) => z !== 'UTC')];
+  return ['UTC', ...all.filter((name) => name !== 'UTC')];
 }
 
 /** This device's zone (in the browser: the browser's). */
@@ -122,19 +122,19 @@ function makeZone(tz: string): Zone {
 
   // the zone's UTC offset at an instant, in ms ("GMT+02:00"; plain "GMT" is UTC)
   const offsetMs = (utcMs: number) => {
-    const name = offsetFmt.formatToParts(utcMs).find((p) => p.type === 'timeZoneName')?.value ?? '';
-    const m = name.match(/GMT([+-])(\d{2}):(\d{2})/);
-    return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60_000 : 0;
+    const name = offsetFmt.formatToParts(utcMs).find((part) => part.type === 'timeZoneName')?.value ?? '';
+    const match = name.match(/GMT([+-])(\d{2}):(\d{2})/);
+    return match ? (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3])) * 60_000 : 0;
   };
   const day = (at: Instant = Date.now()) => dayFmt.format(new Date(at));
-  const startOfDay = (d: string) => {
-    const [y, m, dd] = parts(d);
-    const utcMidnight = Date.UTC(y, m - 1, dd);
+  const startOfDay = (isoDay: string) => {
+    const [year, month, dayOfMonth] = parts(isoDay);
+    const utcMidnight = Date.UTC(year, month - 1, dayOfMonth);
     // midnight there at the offset around it; where clocks change at midnight one of the two
     // guesses lands on the day before, and where 00:00 is skipped the day starts at the jump
     const a = utcMidnight - offsetMs(utcMidnight);
     const b = utcMidnight - offsetMs(a);
-    const onDay = [a, b].filter((t) => day(t) === d);
+    const onDay = [a, b].filter((guess) => day(guess) === isoDay);
     return new Date(onDay.length ? Math.min(...onDay) : a);
   };
   const formatTime = (at: Instant) => timeFmt.format(new Date(at));
@@ -155,15 +155,15 @@ function makeZone(tz: string): Zone {
         const today = day(now);
         return { gte: startOfDay(addDays(today, -1)).toISOString(), lt: startOfDay(today).toISOString() };
       }
-      const n = Number(days);
-      if (Number.isInteger(n) && n >= 1 && n <= 366)
-        return { gte: startOfDay(addDays(day(now), -(n - 1))).toISOString() };
-      let f = validDay(from);
-      let t = validDay(to);
-      if (f && t && f > t) [f, t] = [t, f];
+      const dayCount = Number(days);
+      if (Number.isInteger(dayCount) && dayCount >= 1 && dayCount <= 366)
+        return { gte: startOfDay(addDays(day(now), -(dayCount - 1))).toISOString() };
+      let fromDay = validDay(from);
+      let toDay = validDay(to);
+      if (fromDay && toDay && fromDay > toDay) [fromDay, toDay] = [toDay, fromDay];
       return {
-        gte: f ? startOfDay(f).toISOString() : undefined,
-        lt: t ? startOfDay(addDays(t, 1)).toISOString() : undefined,
+        gte: fromDay ? startOfDay(fromDay).toISOString() : undefined,
+        lt: toDay ? startOfDay(addDays(toDay, 1)).toISOString() : undefined,
       };
     },
   };
@@ -172,12 +172,12 @@ function makeZone(tz: string): Zone {
 const zones = new Map<string, Zone>();
 
 /** The helpers for one zone (an unknown name gets DEFAULT_TZ's). */
-export function zone(tz: string): Zone {
-  let z = zones.get(tz);
-  if (!z) {
-    if (!isTimeZone(tz)) return tz === DEFAULT_TZ ? makeZone('UTC') : zone(DEFAULT_TZ);
-    z = makeZone(tz);
-    zones.set(tz, z);
+export function zoneOf(tz: string): Zone {
+  let zone = zones.get(tz);
+  if (!zone) {
+    if (!isTimeZone(tz)) return tz === DEFAULT_TZ ? makeZone('UTC') : zoneOf(DEFAULT_TZ);
+    zone = makeZone(tz);
+    zones.set(tz, zone);
   }
-  return z;
+  return zone;
 }

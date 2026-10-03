@@ -1,5 +1,5 @@
 import 'server-only';
-import { assessJobs, type Verdict } from '../../ai-runs';
+import { assessJobs, type Verdict } from '../../ai/runs';
 import { AI_BUDGET_MS } from '../../budgets';
 import * as queueRepo from '../../db/repos/notify-queue';
 import * as settingsRepo from '../../db/repos/scrape-settings';
@@ -33,26 +33,26 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
   if (!queued.length) return { sent: 0, matched: null };
   const settings = await settingsRepo.get();
   let error: string | undefined;
-  const profile = await aiProfile(settings).catch((e: unknown) => ((error = message(e)), null));
+  const profile = await aiProfile(settings).catch((failure: unknown) => ((error = message(failure)), null));
   let verdicts = new Map<string, Verdict>();
   if (profile) {
     try {
       const assessed = await assessJobs(
         profile,
-        [...new Set(queued.flatMap((row) => row.dupKey ?? []))],
+        [...new Set(queued.flatMap((row) => row.jobId ?? []))],
         opts.deadline ?? Date.now() + AI_BUDGET_MS,
       );
       verdicts = assessed.verdicts;
       if (assessed.error) error = assessed.error;
-    } catch (e) {
-      error = message(e);
+    } catch (failure) {
+      error = message(failure);
     }
   }
   const muted = (await stateRepo.get()).muted;
   if (muted && !opts.manual) return { sent: 0, matched: null, ...(error ? { error } : {}) };
 
   const waited = (row: QueuedAt) => Date.now() - Date.parse(row.queuedAt) > UNCHECKED_AFTER_MS;
-  const ready = queued.filter((row) => !profile || !row.dupKey || verdicts.has(row.dupKey) || waited(row));
+  const ready = queued.filter((row) => !profile || !row.jobId || verdicts.has(row.jobId) || waited(row));
   // nothing decided yet (e.g. OpenAI is down): no "0 matched" in the log, just the error
   if (!ready.length) return { sent: 0, matched: null, ...(error ? { error } : {}) };
   const claimed = await queueRepo.claim(ready); // only the ones no other sender took meanwhile
@@ -61,7 +61,7 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
   const unmatched: QueuedAt[] = [];
   const unchecked: QueuedAt[] = [];
   for (const row of claimed) {
-    const verdict = profile && row.dupKey ? verdicts.get(row.dupKey) : undefined;
+    const verdict = profile && row.jobId ? verdicts.get(row.jobId) : undefined;
     if (!profile) matched.push(row);
     else if (!verdict) unchecked.push(row);
     else if (verdict.match) matched.push({ ...row, verdict: { score: verdict.score, summary: verdict.summary } });
@@ -79,11 +79,11 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
   for (let i = 0; i < messages.length; i++) {
     try {
       await sendMessage(messages[i].text);
-    } catch (e) {
+    } catch (sendError) {
       // back into the queue with their own time, so they're tried again (and still count as waiting)
       const left = new Set(messages.slice(i).flatMap((unsent) => unsent.offers.map(offerKey)));
       await queueRepo.enqueue(claimed.filter((row) => left.has(offerKey(row)))).catch(() => {});
-      return { sent, matched: profile ? matched.length : null, error: message(e) };
+      return { sent, matched: profile ? matched.length : null, error: message(sendError) };
     }
     sent += messages[i].offers.length;
     if (i < messages.length - 1) await new Promise((resolve) => setTimeout(resolve, 400)); // Telegram: about 1 message/s per chat

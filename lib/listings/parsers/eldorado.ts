@@ -5,9 +5,9 @@ import type { ListingParser } from '../types';
 // Next.js app router: the data comes in self.__next_f.push([1,"…"]) chunks
 function flight(html: string) {
   let out = '';
-  for (const m of html.matchAll(/self\.__next_f\.push\(\[1,("(?:\\.|[^"\\])*")\]\)/g)) {
+  for (const match of html.matchAll(/self\.__next_f\.push\(\[1,("(?:\\.|[^"\\])*")\]\)/g)) {
     try {
-      out += JSON.parse(m[1]) as string; // the regex only matches a JSON string
+      out += JSON.parse(match[1]) as string; // the regex only matches a JSON string
     } catch {
       // a broken chunk: skip it
     }
@@ -23,17 +23,17 @@ function sliceArray(text: string, key: string) {
   let depth = 0;
   let inStr = false;
   let esc = false;
-  for (let k = start; k < text.length; k++) {
-    const c = text[k];
+  for (let index = start; index < text.length; index++) {
+    const char = text[index];
     if (inStr) {
       if (esc) esc = false;
-      else if (c === '\\') esc = true;
-      else if (c === '"') inStr = false;
+      else if (char === '\\') esc = true;
+      else if (char === '"') inStr = false;
       continue;
     }
-    if (c === '"') inStr = true;
-    else if (c === '[') depth++;
-    else if (c === ']' && --depth === 0) return text.slice(start, k + 1);
+    if (char === '"') inStr = true;
+    else if (char === '[') depth++;
+    else if (char === ']' && --depth === 0) return text.slice(start, index + 1);
   }
   return null;
 }
@@ -45,23 +45,23 @@ export const parseEldorado: ListingParser = (body, { src }) => {
   return {
     total: jobs.length,
     sample: sampleOf(jobs[0]),
-    items: jobs.map((j) => ({
+    items: jobs.map((offer) => ({
       src,
-      id: str(j.id),
-      title: str(j.title),
-      company: (isObj(j.company) && str(j.company.name)) || null,
-      seniority: str(j.seniority) || 'unknown',
-      remote: arr(j.workModes).includes('remote'),
-      url: `https://czyjesteldorado.pl/praca/${str(j.id)}-${str(j.slug)}`,
+      id: str(offer.id),
+      title: str(offer.title),
+      company: (isObj(offer.company) && str(offer.company.name)) || null,
+      seniority: str(offer.seniority) || 'unknown',
+      remote: arr(offer.workModes).includes('remote'),
+      url: `https://czyjesteldorado.pl/praca/${str(offer.id)}-${str(offer.slug)}`,
       // keywords = the tech, categories = ids like "project_management"; older pages had tags
-      skills: (j.keywords || j.categories
-        ? [...arr(j.keywords), ...arr(j.categories).map((c) => str(c).replace(/_/g, ' '))]
-        : arr(j.tags)
+      skills: (offer.keywords || offer.categories
+        ? [...arr(offer.keywords), ...arr(offer.categories).map((category) => str(category).replace(/_/g, ' '))]
+        : arr(offer.tags)
       )
         .map(nameOf)
         .filter(Boolean),
-      locations: arr(j.cities).map(nameOf).filter(Boolean), // none = no pin icon
-      sort: num(j.id), // insert counter = import order
+      locations: arr(offer.cities).map(nameOf).filter(Boolean), // none = no pin icon
+      sort: num(offer.id), // insert counter = import order
     })),
   };
 };

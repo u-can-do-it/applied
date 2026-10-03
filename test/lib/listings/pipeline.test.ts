@@ -46,10 +46,10 @@ const result = (kept: Found[], extra: Partial<ScrapeResult> = {}): ScrapeResult 
   ...extra,
 });
 
-const added = (id: string, dupKey: string, seenBefore = false, src = 'justjoin'): AddedOffer => ({
+const added = (id: string, titleKey: string, seenBefore = false, src = 'justjoin'): AddedOffer => ({
   src,
   id,
-  dupKey,
+  titleKey,
   seenBefore,
 });
 
@@ -92,7 +92,7 @@ describe('selectAnnouncable', () => {
   it('queues a new job once, with its place, and the database row', () => {
     const owners = owned([{ scraper: scraper('s1'), result: result([offer('a'), offer('b')]) }]);
     const fresh = selectAnnouncable([added('a', 'job-1'), added('b', 'job-1')], owners, settings);
-    expect(fresh).toEqual([{ ...toNewOffer(offer('a')), location: 'Warszawa', dupKey: 'job-1' }]);
+    expect(fresh).toEqual([{ ...toNewOffer(offer('a')), location: 'Warszawa', jobId: 'job-1' }]);
   });
 
   it("skips a scraper's first run, an old offer bumped up, a known job and a muted title", () => {
@@ -176,7 +176,7 @@ describe('outcomes', () => {
       { scraper: 'Scraper ok', error: 'page 2: HTTP 500' },
       { scraper: 'Scraper failing', error: 'HTTP 403' },
     ]);
-    const fresh = [{ ...toNewOffer(offer('a')), location: null, dupKey: 'j1' }];
+    const fresh = [{ ...toNewOffer(offer('a')), location: null, jobId: 'j1' }];
     expect(summarize({ fetched, owners, added: rows, fresh, ms: 42 })).toEqual({
       found: 8,
       kept: 3,

@@ -3,6 +3,22 @@
 Before you push: `npm run typecheck && npm run lint && npm test` (and `npm run test:db` when you touched the
 database code or the migrations; it needs Docker).
 
+## Naming
+
+- **The glossary's words** ([docs/GLOSSARY.md](docs/GLOSSARY.md)), one per idea: a _board_ (a site), a
+  _scraper_ (one search on a board), an _offer_ (one posting on one board), a _job_ (the same position across
+  boards), an _application_ (yours, per job), its _stage_ and _outcome_, a _profile_ and its _version_, a
+  _verdict_, a _scrape run_ or an _AI run_. A job is identified by its `jobId`, an offer's company + title hash
+  is its `titleKey`; "key", "copy" and "source" are not names for any of these.
+- **The database keeps its names** (`dup_key`, `stage_state`…): a column is renamed in TypeScript by mapping it
+  in `lib/db/schema.ts` (`jobId: text('dup_key')`), never by a migration. Anything stored outside the code
+  (jsonb, `localStorage`, URLs) keeps its format; the glossary lists those.
+- **No single-letter names.** A name says what the value is: `settings`, `scraper`, `offer`, `result`, `zone`,
+  `draft`, `error`, `match`, never the first letter of them. The exceptions: `i`/`j` as a loop counter, `a`/`b`
+  in a comparator or for the two sides of a pair, `_` for what's left out, and Zod's `z` (an import). A caught
+  error is `error` (or `failure` where an `error` is already in scope), an event is `event`. ESLint's
+  `id-length` enforces it (`npm run lint`).
+
 ## How to add a board
 
 1. **The board:** `lib/boards/<id>.ts`, exporting a `Board` (`lib/boards/types.ts`). Copy the closest one,

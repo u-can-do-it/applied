@@ -80,12 +80,12 @@ describe('cronSchedule', () => {
 
 describe('describeSchedule', () => {
   it('reads the settings back', () => {
-    const s = { everyMinutes: 10, fromHour: 7, toHour: 22, timeZone: '', browserTimeZone: 'America/New_York' };
-    expect(describeSchedule(s)).toBe('every 10 min, 7:00–22:00 (America/New York)');
-    expect(describeSchedule({ ...s, everyMinutes: 120, fromHour: 5, toHour: 5, timeZone: 'UTC' })).toBe(
+    const schedule = { everyMinutes: 10, fromHour: 7, toHour: 22, timeZone: '', browserTimeZone: 'America/New_York' };
+    expect(describeSchedule(schedule)).toBe('every 10 min, 7:00–22:00 (America/New York)');
+    expect(describeSchedule({ ...schedule, everyMinutes: 120, fromHour: 5, toHour: 5, timeZone: 'UTC' })).toBe(
       'every 2 h, all day (UTC)',
     );
-    expect(describeSchedule({ ...s, everyMinutes: 60, timeZone: '', browserTimeZone: '' })).toBe(
+    expect(describeSchedule({ ...schedule, everyMinutes: 60, timeZone: '', browserTimeZone: '' })).toBe(
       'every 1 h, 7:00–22:00 (Europe/Warsaw)',
     );
   });

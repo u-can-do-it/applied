@@ -6,7 +6,7 @@ import { notifyQueue, type NotifyQueueRow } from '../schema';
 
 // New jobs waiting to be sent to Telegram; while muted, they pile up.
 
-/** An offer to send (dup_key: its job, whose AI verdict decides if it's sent). */
+/** An offer to send (jobId: its job, whose AI verdict decides if it's sent). */
 export type Queued = Omit<NotifyQueueRow, 'queuedAt'>;
 export type QueuedAt = NotifyQueueRow;
 

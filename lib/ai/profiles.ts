@@ -1,10 +1,10 @@
 import 'server-only';
-import * as profilesRepo from './db/repos/ai-profiles';
-import * as verdictsRepo from './db/repos/ai-verdicts';
+import * as profilesRepo from '../db/repos/ai-profiles';
+import * as verdictsRepo from '../db/repos/ai-verdicts';
 
 // AI profiles and the rule that versions them: a verdict belongs to the version it was made with.
 
-export type { Profile, ProfileWithFile } from './db/repos/ai-profiles';
+export type { Profile, ProfileWithFile } from '../db/repos/ai-profiles';
 
 /** Most recently used first: the first one is the active profile. */
 export const listProfiles = () => profilesRepo.list();

@@ -1,13 +1,13 @@
 import { sql } from 'drizzle-orm';
 import { expect, it } from 'vitest';
-import { countPending, latestRun, needsWorker, rangeStats, startRun } from '@/lib/ai-runs';
+import { countPending, latestRun, needsWorker, rangeStats, startRun } from '@/lib/ai/runs';
 import * as pairsRepo from '@/lib/db/repos/ai-dup-pairs';
 import * as runsRepo from '@/lib/db/repos/ai-runs';
 import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as verdictsRepo from '@/lib/db/repos/ai-verdicts';
 import * as offersRepo from '@/lib/db/repos/offers';
-import { getOffers } from '@/lib/offers';
-import { activateProfile, getProfile, listProfiles, saveProfile } from '@/lib/profiles';
+import { getJobs } from '@/lib/jobs';
+import { activateProfile, getProfile, listProfiles, saveProfile } from '@/lib/ai/profiles';
 import { describeDb, exec, ISO } from './database';
 
 const job = (src: string, id: string, title: string, company: string) => ({
@@ -26,13 +26,13 @@ async function threeJobs() {
     job('justjoin', '2', 'Vue Developer', 'Beta'),
     job('justjoin', '3', 'Angular Developer', 'Gamma'),
   ]);
-  return added.map((row) => row.dupKey).sort();
+  return added.map((row) => row.titleKey).sort();
 }
 
-const verdict = (profile: { id: string; version: number }, dupKey: string, match: boolean) => ({
+const verdict = (profile: { id: string; version: number }, jobId: string, match: boolean) => ({
   profileId: profile.id,
   version: profile.version,
-  dupKey,
+  jobId,
   match,
   score: match ? 90 : 10,
   summary: match ? 'fits' : 'does not',
@@ -81,22 +81,22 @@ describeDb('AI verdicts and runs', () => {
     await verdictsRepo.save([verdict(profile, first, true), verdict(profile, second, false)]);
     await verdictsRepo.save([{ ...verdict(profile, second, false), score: 20 }]); // judged again: the new one counts
     expect(await countPending(profile, {})).toBe(1);
-    expect((await verdictsRepo.unjudgedJobs(profile, {}, 10)).map((row) => row.dupKey)).toEqual([third]);
+    expect((await verdictsRepo.unjudgedJobs(profile, {}, 10)).map((row) => row.jobId)).toEqual([third]);
     expect(await rangeStats(profile, {})).toEqual({ total: 3, checked: 2, matched: 1 });
     expect(await rangeStats(profile, { gte: '2999-01-01T00:00:00Z' })).toEqual({ total: 0, checked: 0, matched: 0 });
 
     const ai = { profileId: id, version: 1 };
-    const matches = await getOffers({ q: '', src: '', page: 0, ai: { ...ai, rejected: false } });
+    const matches = await getJobs({ q: '', src: '', page: 0, ai: { ...ai, rejected: false } });
     expect(matches.total).toBe(1);
-    expect(matches.offers[0]).toMatchObject({ dupKey: first, ai: { match: true, score: 90, summary: 'fits' } });
-    const rejected = await getOffers({ q: '', src: '', page: 0, ai: { ...ai, rejected: true } });
-    expect(rejected.offers.map((row) => [row.dupKey, row.ai?.score])).toEqual([[second, 20]]);
+    expect(matches.jobs[0]).toMatchObject({ jobId: first, ai: { match: true, score: 90, summary: 'fits' } });
+    const rejected = await getJobs({ q: '', src: '', page: 0, ai: { ...ai, rejected: true } });
+    expect(rejected.jobs.map((row) => [row.jobId, row.ai?.score])).toEqual([[second, 20]]);
     const [json] = await exec(sql`select distinct jsonb_typeof(checks) as checks from public.ai_verdicts`);
     expect(json).toEqual({ checks: 'array' });
     // another version's verdicts don't count
-    expect(
-      (await getOffers({ q: '', src: '', page: 0, ai: { profileId: id, version: 2, rejected: false } })).total,
-    ).toBe(0);
+    expect((await getJobs({ q: '', src: '', page: 0, ai: { profileId: id, version: 2, rejected: false } })).total).toBe(
+      0,
+    );
   });
 
   it('starts one run per profile version, and gives its lock to one worker at a time', async () => {
@@ -133,19 +133,19 @@ describeDb('AI verdicts and runs', () => {
     expect(run.finishedAt).toMatch(ISO);
   });
 
-  it('keeps the ad text per copy, and finds it for many copies at once', async () => {
-    const copies = Array.from({ length: 700 }, (_, index) => ({
+  it('keeps the ad text per offer, and finds it for many offers at once', async () => {
+    const offers = Array.from({ length: 700 }, (_, index) => ({
       src: 'justjoin',
       id: `o${index}`,
       title: `Job ${index}`,
       company: 'X',
     }));
-    await offersRepo.ingest(copies.map((copy) => job(copy.src, copy.id, copy.title, copy.company)));
+    await offersRepo.ingest(offers.map((offer) => job(offer.src, offer.id, offer.title, offer.company)));
     await detailsRepo.save(
-      copies.map((copy) => ({ src: copy.src, id: copy.id, status: 'ok', description: `ad ${copy.id}` })),
+      offers.map((offer) => ({ src: offer.src, id: offer.id, status: 'ok', description: `ad ${offer.id}` })),
     );
     await detailsRepo.save([{ src: 'justjoin', id: 'o1', status: 'empty', description: null }]); // scraped again
-    const found = await detailsRepo.forCopies([...copies, { src: 'nofluff', id: 'o1', title: '', company: '' }]);
+    const found = await detailsRepo.forOffers([...offers, { src: 'nofluff', id: 'o1', title: '', company: '' }]);
     expect(found).toHaveLength(700);
     expect(found.find((row) => row.id === 'o1')).toEqual({
       src: 'justjoin',
@@ -153,7 +153,7 @@ describeDb('AI verdicts and runs', () => {
       status: 'empty',
       description: null,
     });
-    expect(await detailsRepo.forCopies([])).toEqual([]);
+    expect(await detailsRepo.forOffers([])).toEqual([]);
   });
 
   it('proposes look-alike jobs once, until the pair is decided', async () => {
@@ -168,14 +168,18 @@ describeDb('AI verdicts and runs', () => {
     const [pair] = pairs;
     const keys = added
       .filter((row) => row.src !== 'bulldog')
-      .map((row) => row.dupKey)
+      .map((row) => row.titleKey)
       .sort();
-    expect([pair.key_a, pair.key_b].sort()).toEqual(keys); // key_a < key_b in the database's collation, not JS's
-    expect(pair.sim).toBeGreaterThan(0.45);
-    expect(pair.a_first_seen).toMatch(ISO);
+    expect([pair.jobIdA, pair.jobIdB].sort()).toEqual(keys); // jobIdA < jobIdB in the database's collation, not JS's
+    expect(pair.similarity).toBeGreaterThan(0.45);
+    expect(pair.a.firstSeen).toMatch(ISO);
 
-    await pairsRepo.record([{ keyA: pair.key_a, keyB: pair.key_b, same: true, reason: 'same ad', model: 'test' }]);
-    await pairsRepo.record([{ keyA: pair.key_a, keyB: pair.key_b, same: false, reason: 'changed', model: 'test' }]);
+    await pairsRepo.record([
+      { jobIdA: pair.jobIdA, jobIdB: pair.jobIdB, same: true, reason: 'same ad', model: 'test' },
+    ]);
+    await pairsRepo.record([
+      { jobIdA: pair.jobIdA, jobIdB: pair.jobIdB, same: false, reason: 'changed', model: 'test' },
+    ]);
     expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
     const [decided] = await exec(sql`select same, reason from public.ai_dup_pairs`);
     expect(decided).toEqual({ same: false, reason: 'changed' });

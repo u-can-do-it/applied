@@ -1,8 +1,8 @@
-import { rangeStats } from '@/lib/ai-runs';
-import { addDays, DEFAULT_TZ, describeRange, zone, type Zone } from '@/lib/dates';
-import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
-import { isUsable, listProfiles } from '@/lib/profiles';
-import { labelsOf, type SourceOption } from '@/lib/listings/sources';
+import { rangeStats } from '@/lib/ai/runs';
+import { addDays, DEFAULT_TZ, describeRange, zoneOf, type Zone } from '@/lib/dates';
+import { getJobs, getTotalCount, PAGE_SIZE, type ListedJob } from '@/lib/jobs';
+import { isUsable, listProfiles } from '@/lib/ai/profiles';
+import { labelsOf, type BoardOption } from '@/lib/listings/board-filter';
 import { message } from '@/lib/shared/errors';
 import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { withParams } from '@/lib/shared/search-params';
@@ -12,44 +12,44 @@ import { FitScore } from './fit-score';
 import { NavLink } from './nav';
 
 // days and times in the app's time zone
-const dayLabel = (z: Zone, at: string) => `${z.weekday(at)} ${z.formatDayOf(at)}`; // "Thu 02.10.2026"
-const fullLabel = (z: Zone, at: string) => `${dayLabel(z, at)}, ${z.formatTime(at)}`; // "Thu 02.10.2026, 14:05"
+const dayLabel = (zone: Zone, at: string) => `${zone.weekday(at)} ${zone.formatDayOf(at)}`; // "Thu 02.10.2026"
+const fullLabel = (zone: Zone, at: string) => `${dayLabel(zone, at)}, ${zone.formatTime(at)}`; // "Thu 02.10.2026, 14:05"
 
-const fmt = (n: number) => n.toLocaleString('en-GB');
+const fmt = (count: number) => count.toLocaleString('en-GB');
 
-function groupByDay(offers: Offer[], z: Zone) {
-  const today = z.day();
+function groupByDay(jobs: ListedJob[], zone: Zone) {
+  const today = zone.day();
   const yesterday = addDays(today, -1);
-  const groups: { key: string; label: string; offers: Offer[] }[] = [];
-  for (const o of offers) {
-    const key = z.day(o.firstSeen);
-    let g = groups.at(-1);
-    if (!g || g.key !== key) {
-      const label = key === today ? 'Today' : key === yesterday ? 'Yesterday' : dayLabel(z, o.firstSeen);
-      g = { key, label, offers: [] };
-      groups.push(g);
+  const groups: { day: string; label: string; jobs: ListedJob[] }[] = [];
+  for (const job of jobs) {
+    const day = zone.day(job.firstSeen);
+    let group = groups.at(-1);
+    if (!group || group.day !== day) {
+      const label = day === today ? 'Today' : day === yesterday ? 'Yesterday' : dayLabel(zone, job.firstSeen);
+      group = { day, label, jobs: [] };
+      groups.push(group);
     }
-    g.offers.push(o);
+    group.jobs.push(job);
   }
   return groups;
 }
 
 /** The boards this job was posted on, one link each (earliest first). */
-function Sources({ offer, labels }: { offer: Offer; labels: Record<string, string> }) {
+function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, string> }) {
   const seen = new Set<string>();
-  const links = offer.copies.filter((c) => !seen.has(c.src) && seen.add(c.src));
+  const links = job.offers.filter((offer) => !seen.has(offer.src) && seen.add(offer.src));
   return (
     <span className="sources">
-      {links.map((c) => (
+      {links.map((offer) => (
         <a
-          key={c.src}
+          key={offer.src}
           className="src"
-          href={c.url}
+          href={offer.url}
           target="_blank"
           rel="noopener noreferrer"
-          title={`Open on ${labels[c.src] ?? c.src}`}
+          title={`Open on ${labels[offer.src] ?? offer.src}`}
         >
-          {labels[c.src] ?? c.src}
+          {labels[offer.src] ?? offer.src}
         </a>
       ))}
     </span>
@@ -59,11 +59,11 @@ function Sources({ offer, labels }: { offer: Offer; labels: Record<string, strin
 export async function Results({
   searchParams,
   mode = 'all',
-  sources,
+  boards,
 }: {
   searchParams: SearchParams;
   mode?: 'all' | 'ai';
-  sources: Promise<SourceOption[]>;
+  boards: Promise<BoardOption[]>;
 }) {
   const path = mode === 'ai' ? '/ai' : '/';
   const query = parseOfferQuery(await searchParams);
@@ -72,23 +72,23 @@ export async function Results({
   const filtered = Boolean(q || src || days || from || to);
   const range = describeRange({ days, from, to });
   // the app's time zone is a setting, so it's read with the rest: a database that's down shows the notice below
-  let z = zone(DEFAULT_TZ);
+  let zone = zoneOf(DEFAULT_TZ);
 
   // the URL as the list understands it, for the pager links
   const current = new URLSearchParams();
-  for (const [k, v] of Object.entries({ q, src, days, from, to, rejected: rejected ? '1' : '' }))
-    if (v) current.set(k, v);
+  for (const [param, value] of Object.entries({ q, src, days, from, to, rejected: rejected ? '1' : '' }))
+    if (value) current.set(param, value);
 
-  let data: Awaited<ReturnType<typeof getOffers>> | null = null; // stays null only on the AI tab without a profile
+  let data: Awaited<ReturnType<typeof getJobs>> | null = null; // stays null only on the AI tab without a profile
   let all: number | null = null; // whole table, only needed when something is filtered
   let stats: { total: number; checked: number; matched: number } | null = null; // AI: this date range
   try {
-    z = await appZone();
+    zone = await appZone();
     if (mode === 'ai') {
       const profile = (await listProfiles())[0];
       if (isUsable(profile)) {
         [data, stats] = await Promise.all([
-          getOffers({
+          getJobs({
             q,
             src,
             page,
@@ -97,21 +97,21 @@ export async function Results({
             to,
             ai: { profileId: profile.id, version: profile.version, rejected },
           }),
-          rangeStats(profile, z.resolveRange({ days, from, to })),
+          rangeStats(profile, zone.resolveRange({ days, from, to })),
         ]);
       }
     } else {
       // in parallel: the filtered page and (if filtered) the unfiltered count
       [data, all] = await Promise.all([
-        getOffers({ q, src, page, days, from, to }),
+        getJobs({ q, src, page, days, from, to }),
         filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
       ]);
     }
-  } catch (e) {
+  } catch (error) {
     return (
       <div className="notice">
         <strong>Can’t load offers.</strong>
-        <code>{message(e)}</code>
+        <code>{message(error)}</code>
       </div>
     );
   }
@@ -125,7 +125,7 @@ export async function Results({
 
   const pages = Math.ceil(data.total / PAGE_SIZE);
   const unchecked = stats ? stats.total - stats.checked : 0;
-  const labels = labelsOf(await sources); // fetched alongside, usually in by now
+  const labels = labelsOf(await boards); // fetched alongside, usually in by now
 
   return (
     <>
@@ -150,7 +150,7 @@ export async function Results({
         </p>
       )}
 
-      {data.offers.length === 0 && (
+      {data.jobs.length === 0 && (
         <p className="empty">
           {mode === 'ai'
             ? stats && stats.checked === 0
@@ -164,38 +164,40 @@ export async function Results({
         </p>
       )}
 
-      {groupByDay(data.offers, z).map((g) => (
-        <section key={g.key} className="day">
-          <h2>{g.label}</h2>
+      {groupByDay(data.jobs, zone).map((group) => (
+        <section key={group.day} className="day">
+          <h2>{group.label}</h2>
           <ol>
-            {g.offers.map((o) => (
-              <li key={o.src + ':' + o.id} className="offer">
-                <time dateTime={o.firstSeen} title={fullLabel(z, o.firstSeen)}>
-                  {z.formatTime(o.firstSeen)}
+            {group.jobs.map((job) => (
+              <li key={job.src + ':' + job.id} className="offer">
+                <time dateTime={job.firstSeen} title={fullLabel(zone, job.firstSeen)}>
+                  {zone.formatTime(job.firstSeen)}
                 </time>
                 <div className="body">
-                  <a href={o.url} target="_blank" rel="noopener noreferrer" className="title">
-                    {o.title}
+                  <a href={job.url} target="_blank" rel="noopener noreferrer" className="title">
+                    {job.title}
                   </a>
                   <div className="meta">
-                    {o.company && <span>{o.company}</span>}
-                    {o.seniority && o.seniority !== 'unknown' && <span>{o.seniority}</span>}
-                    <span className={o.remote ? 'remote' : undefined}>{o.remote ? 'Remote' : 'Office / hybrid'}</span>
+                    {job.company && <span>{job.company}</span>}
+                    {job.seniority && job.seniority !== 'unknown' && <span>{job.seniority}</span>}
+                    <span className={job.remote ? 'remote' : undefined}>
+                      {job.remote ? 'Remote' : 'Office / hybrid'}
+                    </span>
                   </div>
-                  {o.ai?.summary && <p className="ai-reason">✦ {o.ai.summary}</p>}
+                  {job.ai?.summary && <p className="ai-reason">✦ {job.ai.summary}</p>}
                 </div>
                 <div className="side">
-                  {o.ai && (
+                  {job.ai && (
                     <FitScore
-                      tipId={`fit-${o.src}-${o.id}`.replace(/[^a-zA-Z0-9_-]/g, '_')}
-                      score={o.ai.score}
-                      summary={o.ai.summary}
-                      checks={o.ai.checks}
-                      hadDescription={o.ai.hadDescription}
+                      tipId={`fit-${job.src}-${job.id}`.replace(/[^a-zA-Z0-9_-]/g, '_')}
+                      score={job.ai.score}
+                      summary={job.ai.summary}
+                      checks={job.ai.checks}
+                      hadDescription={job.ai.hadDescription}
                     />
                   )}
-                  <Sources offer={o} labels={labels} />
-                  <ApplyButton jobKey={o.dupKey} src={o.src} id={o.id} appliedAt={o.appliedAt} tz={z.tz} />
+                  <BoardLinks job={job} labels={labels} />
+                  <ApplyButton jobId={job.jobId} src={job.src} id={job.id} appliedAt={job.appliedAt} tz={zone.tz} />
                 </div>
               </li>
             ))}

@@ -7,10 +7,10 @@ export const parseNofluff: ListingParser = (body, { src }) => {
   if (raw === null) throw new Error('NoFluff: no serverApp-state in the page (blocked or the page changed)');
   const state = json(angular(raw), 'NoFluff page data');
   let postings: Obj[] | null = null;
-  for (const v of Object.values(isObj(state) ? state : {})) {
-    const o = isObj(v) && v.body ? v.body : v;
-    if (isObj(o) && Array.isArray(o.postings) && o.postings.length) {
-      postings = o.postings as Obj[];
+  for (const value of Object.values(isObj(state) ? state : {})) {
+    const entry = isObj(value) && value.body ? value.body : value;
+    if (isObj(entry) && Array.isArray(entry.postings) && entry.postings.length) {
+      postings = entry.postings as Obj[];
       break;
     }
   }
@@ -18,22 +18,22 @@ export const parseNofluff: ListingParser = (body, { src }) => {
   return {
     total: postings.length,
     sample: sampleOf(postings[0]),
-    items: postings.map((p) => {
-      const loc = isObj(p.location) ? p.location : {};
-      const level: unknown = Array.isArray(p.seniority) ? p.seniority[0] : p.seniority;
+    items: postings.map((offer) => {
+      const loc = isObj(offer.location) ? offer.location : {};
+      const level: unknown = Array.isArray(offer.seniority) ? offer.seniority[0] : offer.seniority;
       return {
         src,
-        id: str(p.id),
-        title: str(p.title),
-        company: str(p.name) || null,
+        id: str(offer.id),
+        title: str(offer.title),
+        company: str(offer.name) || null,
         seniority: (str(level) || 'unknown').toLowerCase(),
-        remote: Boolean(p.fullyRemote || loc.fullyRemote),
-        url: `https://nofluffjobs.com/pl/job/${str(p.url)}`,
-        skills: [str(p.technology)].filter(Boolean),
-        locations: arr(loc.places ?? p.places)
+        remote: Boolean(offer.fullyRemote || loc.fullyRemote),
+        url: `https://nofluffjobs.com/pl/job/${str(offer.url)}`,
+        skills: [str(offer.technology)].filter(Boolean),
+        locations: arr(loc.places ?? offer.places)
           .map((pl) => (isObj(pl) ? str(pl.city) : ''))
           .filter(Boolean),
-        sort: num(p.posted), // real publish time, not renewed
+        sort: num(offer.posted), // real publish time, not renewed
       };
     }),
   };

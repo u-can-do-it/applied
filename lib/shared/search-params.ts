@@ -22,12 +22,12 @@ export function withParams(current: URLSearchParams | string, changes: Changes, 
   const sp = new URLSearchParams(current);
   if (!('page' in changes)) sp.delete('page');
   for (const [key, value] of Object.entries(changes)) {
-    const v = value == null ? '' : String(value);
-    if (!v || (key === 'page' && v === '0')) sp.delete(key);
-    else sp.set(key, v);
+    const text = value == null ? '' : String(value);
+    if (!text || (key === 'page' && text === '0')) sp.delete(key);
+    else sp.set(key, text);
   }
-  const s = sp.toString();
-  return s ? `${path}?${s}` : path;
+  const query = sp.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 /** A page's `searchParams` prop. */

@@ -4,8 +4,8 @@ import { db } from '../client';
 import { first } from '../rows';
 import { aiVerdicts, offers, offersUnique, jobLinks, type OfferRow, type OfferUniqueRow } from '../schema';
 
-// The scraped offers: `offers` (every board's copy) and `offers_unique` (each job once, its
-// earliest copy with every board's link; a view, defined in drizzle/0002_functions.sql).
+// The scraped offers: `offers` (every board's offer) and `offers_unique` (each job once, its
+// earliest offer with every board's link; a view, defined in drizzle/0002_functions.sql).
 
 /** What narrows a list of jobs: every word in the title or the company, a board, first_seen in [gte, lt). */
 export type JobFilter = { words: string[]; src: string; gte?: string; lt?: string };
@@ -13,7 +13,7 @@ export type JobFilter = { words: string[]; src: string; gte?: string; lt?: strin
 /** One job as the lists show it. */
 export type Job = Pick<
   OfferUniqueRow,
-  'src' | 'id' | 'title' | 'company' | 'seniority' | 'remote' | 'url' | 'firstSeen' | 'dupKey' | 'copies' | 'appliedAt'
+  'src' | 'id' | 'title' | 'company' | 'seniority' | 'remote' | 'url' | 'firstSeen' | 'jobId' | 'offers' | 'appliedAt'
 >;
 const jobColumns = {
   src: offersUnique.src,
@@ -24,8 +24,8 @@ const jobColumns = {
   remote: offersUnique.remote,
   url: offersUnique.url,
   firstSeen: offersUnique.firstSeen,
-  dupKey: offersUnique.dupKey,
-  copies: offersUnique.copies,
+  jobId: offersUnique.jobId,
+  offers: offersUnique.offers,
   appliedAt: offersUnique.appliedAt,
 } satisfies Record<keyof Job, unknown>;
 
@@ -42,7 +42,7 @@ const contains = (column: typeof offersUnique.title | typeof offersUnique.compan
 
 function matching(filter: JobFilter): SQL | undefined {
   return and(
-    filter.src ? arrayContains(offersUnique.sources, [filter.src]) : undefined,
+    filter.src ? arrayContains(offersUnique.boards, [filter.src]) : undefined,
     ...filter.words.map((word) => or(contains(offersUnique.title, word), contains(offersUnique.company, word))),
     inRange(filter),
   );
@@ -75,7 +75,7 @@ export async function pageOfJudgedJobs(
   verdicts: { profileId: string; version: number; match: boolean },
 ) {
   const judged = and(
-    eq(aiVerdicts.dupKey, offersUnique.dupKey),
+    eq(aiVerdicts.jobId, offersUnique.jobId),
     eq(aiVerdicts.profileId, verdicts.profileId),
     eq(aiVerdicts.version, verdicts.version),
   );
@@ -103,30 +103,30 @@ export async function pageOfJudgedJobs(
 
 /**
  * How many jobs there are, each once, ignoring every filter: the same number as rows in
- * offers_unique, counted on the tables instead (one key per job), without the view's window
+ * offers_unique, counted on the tables instead (one id per job), without the view's window
  * function and its per-job lists.
  */
 export async function countJobs(): Promise<number> {
   const [{ jobs }] = await db()
-    .select({ jobs: sql<number>`count(distinct coalesce(${jobLinks.jobKey}, ${offers.dupKey}))::int` })
+    .select({ jobs: sql<number>`count(distinct coalesce(${jobLinks.jobId}, ${offers.titleKey}))::int` })
     .from(offers)
-    .leftJoin(jobLinks, eq(jobLinks.dupKey, offers.dupKey));
+    .leftJoin(jobLinks, eq(jobLinks.titleKey, offers.titleKey));
   return jobs;
 }
 
-/** These jobs (by key), each once with all its copies. */
-export function jobsByKey(keys: string[]): Promise<Job[]> {
-  if (!keys.length) return Promise.resolve([]);
-  return db().select(jobColumns).from(offersUnique).where(inArray(offersUnique.dupKey, keys));
+/** These jobs, each once with all its offers. */
+export function jobsById(jobIds: string[]): Promise<Job[]> {
+  if (!jobIds.length) return Promise.resolve([]);
+  return db().select(jobColumns).from(offersUnique).where(inArray(offersUnique.jobId, jobIds));
 }
 
-/** One job by its key. */
-export async function jobByKey(key: string): Promise<Job | null> {
-  return (await jobsByKey([key]))[0] ?? null;
+/** One job by its id. */
+export async function jobById(jobId: string): Promise<Job | null> {
+  return (await jobsById([jobId]))[0] ?? null;
 }
 
-/** The scraped copy with this board's id, or with one of these links (none asked for: none). */
-export async function findCopy(by: { src?: string; id?: string; urls: string[] }) {
+/** The scraped offer with this board's id, or with one of these links (none asked for: none). */
+export async function findOffer(by: { src?: string; id?: string; urls: string[] }) {
   if (!(by.src && by.id) && !by.urls.length) return null;
   const found = await db()
     .select({
@@ -135,7 +135,7 @@ export async function findCopy(by: { src?: string; id?: string; urls: string[] }
       title: offers.title,
       company: offers.company,
       url: offers.url,
-      dupKey: offers.dupKey,
+      titleKey: offers.titleKey,
     })
     .from(offers)
     .where(
@@ -148,7 +148,7 @@ export async function findCopy(by: { src?: string; id?: string; urls: string[] }
   return first(found);
 }
 
-/** Which of these ids one board's copies already have. */
+/** Which of these ids one board's offers already have. */
 export async function knownIds(src: string, ids: string[]): Promise<Set<string>> {
   if (!ids.length) return new Set();
   const rows = await db()
@@ -160,8 +160,8 @@ export async function knownIds(src: string, ids: string[]): Promise<Set<string>>
 
 export type NewOffer = Pick<OfferRow, 'src' | 'id' | 'title' | 'company' | 'seniority' | 'url'> & { remote: boolean };
 
-/** An offer that was new to the database, with its job and whether that job was known already. */
-export type AddedOffer = { src: string; id: string; dupKey: string; seenBefore: boolean };
+/** An offer that was new to the database, with its title key and whether that title key was known already. */
+export type AddedOffer = { src: string; id: string; titleKey: string; seenBefore: boolean };
 
 /**
  * Saves offers (public.jw_ingest_offers: one statement, so "seen before" means before this run).
@@ -172,10 +172,10 @@ export async function ingest(rows: NewOffer[]): Promise<AddedOffer[]> {
   const added = await db().execute<{ src: string; id: string; dup_key: string; seen_before: boolean }>(
     sql`select src, id, dup_key, seen_before from public.jw_ingest_offers(${JSON.stringify(rows)}::jsonb)`,
   );
-  return added.map((row) => ({ src: row.src, id: row.id, dupKey: row.dup_key, seenBefore: row.seen_before }));
+  return added.map((row) => ({ src: row.src, id: row.id, titleKey: row.dup_key, seenBefore: row.seen_before }));
 }
 
-/** Offers per board (every copy) and the newest one's first_seen, by board. */
+/** Offers per board and the newest one's first_seen, by board. */
 export async function countPerBoard(): Promise<Record<string, { offers: number; newest: string | null }>> {
   const rows = await db()
     .select({ src: offers.src, offers: count(), newest: max(offers.firstSeen) })
@@ -192,10 +192,10 @@ export async function newestFirstSeen(): Promise<string | null> {
   return newest?.firstSeen ?? null;
 }
 
-/** The key the database gives a job with this company and title (offers.dup_key is made the same way). */
-export async function dupKeyOf(company: string | null, title: string): Promise<string> {
-  const [{ key }] = await db().execute<{ key: string }>(
-    sql`select public.jw_dup_key(${company}::text, ${title}::text) as key`,
+/** The title key the database gives this company and title (offers.dup_key is made the same way). */
+export async function titleKeyOf(company: string | null, title: string): Promise<string> {
+  const [{ titleKey }] = await db().execute<{ titleKey: string }>(
+    sql`select public.jw_dup_key(${company}::text, ${title}::text) as "titleKey"`,
   );
-  return key;
+  return titleKey;
 }

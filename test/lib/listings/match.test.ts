@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { areaTest, expandUrl, fold, keywordTest, MAX_PAGES, placeOf, titleTest } from '@/lib/listings/match';
 import type { Found } from '@/lib/listings/types';
 
-const offer = (o: Partial<Found> = {}): Found => ({
+const offer = (overrides: Partial<Found> = {}): Found => ({
   src: 'test',
   id: '1',
   title: 'Developer',
@@ -12,7 +12,7 @@ const offer = (o: Partial<Found> = {}): Found => ({
   url: 'https://x.test/1',
   locations: [],
   skills: [],
-  ...o,
+  ...overrides,
 });
 
 describe('fold', () => {
@@ -33,17 +33,26 @@ describe('fold', () => {
     expect(areaTest({ cities: ['lodz'], remoteOk: false })(offer({ locations: ['Łódź'] }))).toBe(true);
     expect(areaTest({ cities: ['Łódź'], remoteOk: false })(offer({ locations: ['Lodz, Poland'] }))).toBe(true);
     expect(keywordTest(['wroclaw'])(['Praca we Wrocławiu'])).toBe(true);
-    expect(expandUrl('https://x.test/{keyword_slug}', ['Łódź']).map((u) => u.url)).toEqual(['https://x.test/lodz']);
+    expect(expandUrl('https://x.test/{keyword_slug}', ['Łódź']).map((link) => link.url)).toEqual([
+      'https://x.test/lodz',
+    ]);
   });
 });
 
 describe('keywordTest', () => {
   it('a keyword must start a word', () => {
     const react = keywordTest(['React']);
-    for (const t of ['React', 'ReactJS', 'React.js', 'Senior react developer', 'Frontend (React/TS)', 'react-native']) {
-      expect(react([t]), t).toBe(true);
+    for (const text of [
+      'React',
+      'ReactJS',
+      'React.js',
+      'Senior react developer',
+      'Frontend (React/TS)',
+      'react-native',
+    ]) {
+      expect(react([text]), text).toBe(true);
     }
-    for (const t of ['Preact', 'Angular', '']) expect(react([t]), t).toBe(false);
+    for (const text of ['Preact', 'Angular', '']) expect(react([text]), text).toBe(false);
   });
 
   it('matches any of the texts and any of the keywords, accents ignored', () => {
@@ -153,15 +162,13 @@ describe('expandUrl', () => {
   });
 
   it('one link per keyword, encoded or as a slug', () => {
-    expect(expandUrl('https://x.test/?q={keyword}', ['React', 'C# / .NET']).map((u) => u.url)).toEqual([
+    expect(expandUrl('https://x.test/?q={keyword}', ['React', 'C# / .NET']).map((link) => link.url)).toEqual([
       'https://x.test/?q=React',
       'https://x.test/?q=C%23%20%2F%20.NET',
     ]);
-    expect(expandUrl('https://x.test/{keyword_slug}', ['Node.js', 'Kraków Senior', 'C#']).map((u) => u.url)).toEqual([
-      'https://x.test/node-js',
-      'https://x.test/krakow-senior',
-      'https://x.test/c',
-    ]);
+    expect(
+      expandUrl('https://x.test/{keyword_slug}', ['Node.js', 'Kraków Senior', 'C#']).map((link) => link.url),
+    ).toEqual(['https://x.test/node-js', 'https://x.test/krakow-senior', 'https://x.test/c']);
   });
 
   it('{keyword} without keywords is an error', () => {
@@ -176,7 +183,7 @@ describe('expandUrl', () => {
       { url: 'https://x.test/?q=b&start=0', keyword: 'b', page: 1 },
       { url: 'https://x.test/?q=b&start=10', keyword: 'b', page: 2 },
     ]);
-    expect(expandUrl('https://x.test/?p={page}', [], 3).map((u) => u.url)).toEqual([
+    expect(expandUrl('https://x.test/?p={page}', [], 3).map((link) => link.url)).toEqual([
       'https://x.test/?p=1',
       'https://x.test/?p=2',
       'https://x.test/?p=3',

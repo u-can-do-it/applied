@@ -9,11 +9,11 @@ import {
   parseDay,
   timeZones,
   validDay,
-  zone,
+  zoneOf,
 } from '@/lib/dates';
 
 const at = (iso: string) => new Date(iso).getTime();
-const iso = (d: Date) => d.toISOString();
+const iso = (date: Date) => date.toISOString();
 
 describe('calendar days', () => {
   it('validDay keeps real dates from 2000 on', () => {
@@ -93,7 +93,7 @@ describe('time zone names', () => {
   it('timeZones lists UTC first, once', () => {
     const all = timeZones();
     expect(all[0]).toBe('UTC');
-    expect(all.filter((z) => z === 'UTC')).toHaveLength(1);
+    expect(all.filter((name) => name === 'UTC')).toHaveLength(1);
     expect(all).toContain('Europe/Warsaw');
   });
 
@@ -106,13 +106,13 @@ describe('time zone names', () => {
   });
 });
 
-describe('zone()', () => {
-  const warsaw = zone('Europe/Warsaw');
+describe('zoneOf()', () => {
+  const warsaw = zoneOf('Europe/Warsaw');
 
   it('caches one set of helpers per zone; an unknown zone gets DEFAULT_TZ', () => {
-    expect(zone('Europe/Warsaw')).toBe(warsaw);
-    expect(zone('Nowhere/Land').tz).toBe(DEFAULT_TZ);
-    expect(zone('UTC').tz).toBe('UTC');
+    expect(zoneOf('Europe/Warsaw')).toBe(warsaw);
+    expect(zoneOf('Nowhere/Land').tz).toBe(DEFAULT_TZ);
+    expect(zoneOf('UTC').tz).toBe('UTC');
   });
 
   it('day is the calendar day there, not in UTC', () => {
@@ -120,17 +120,17 @@ describe('zone()', () => {
     expect(warsaw.day(at('2026-10-01T22:00:00Z'))).toBe('2026-10-02'); // midnight in summer time (UTC+2)
     expect(warsaw.day(at('2026-01-01T22:59:59Z'))).toBe('2026-01-01');
     expect(warsaw.day(at('2026-01-01T23:00:00Z'))).toBe('2026-01-02'); // midnight in winter time (UTC+1)
-    expect(zone('America/New_York').day('2026-10-02T03:00:00Z')).toBe('2026-10-01');
-    expect(zone('UTC').day(new Date('2026-10-02T00:00:00Z'))).toBe('2026-10-02');
+    expect(zoneOf('America/New_York').day('2026-10-02T03:00:00Z')).toBe('2026-10-01');
+    expect(zoneOf('UTC').day(new Date('2026-10-02T00:00:00Z'))).toBe('2026-10-02');
   });
 
   it('formats times, days and weekdays there', () => {
-    const t = at('2026-10-01T12:35:00Z');
-    expect(warsaw.formatTime(t)).toBe('14:35');
-    expect(warsaw.formatDayOf(t)).toBe('01.10.2026');
-    expect(warsaw.formatDateTime(t)).toBe('01.10.2026 14:35');
-    expect(warsaw.weekday(t)).toBe('Thu');
-    expect(warsaw.hour(t)).toBe(14);
+    const instant = at('2026-10-01T12:35:00Z');
+    expect(warsaw.formatTime(instant)).toBe('14:35');
+    expect(warsaw.formatDayOf(instant)).toBe('01.10.2026');
+    expect(warsaw.formatDateTime(instant)).toBe('01.10.2026 14:35');
+    expect(warsaw.weekday(instant)).toBe('Thu');
+    expect(warsaw.hour(instant)).toBe(14);
     expect(warsaw.hour(at('2026-10-01T22:00:00Z'))).toBe(0); // midnight is 0, not 24
     expect(warsaw.formatTime(at('2026-10-01T22:05:00Z'))).toBe('00:05');
   });
@@ -138,12 +138,12 @@ describe('zone()', () => {
   it('offset follows summer and winter time, and odd offsets', () => {
     expect(warsaw.offset(at('2026-07-01T12:00:00Z'))).toBe(120);
     expect(warsaw.offset(at('2026-01-01T12:00:00Z'))).toBe(60);
-    expect(zone('UTC').offset(at('2026-07-01T12:00:00Z'))).toBe(0);
-    expect(zone('America/New_York').offset(at('2026-07-01T12:00:00Z'))).toBe(-240);
-    expect(zone('America/New_York').offset(at('2026-01-01T12:00:00Z'))).toBe(-300);
-    expect(zone('Asia/Kolkata').offset(at('2026-07-01T12:00:00Z'))).toBe(330);
-    expect(zone('Asia/Kathmandu').offset(at('2026-07-01T12:00:00Z'))).toBe(345);
-    expect(zone('Pacific/Chatham').offset(at('2026-01-01T12:00:00Z'))).toBe(825); // +13:45
+    expect(zoneOf('UTC').offset(at('2026-07-01T12:00:00Z'))).toBe(0);
+    expect(zoneOf('America/New_York').offset(at('2026-07-01T12:00:00Z'))).toBe(-240);
+    expect(zoneOf('America/New_York').offset(at('2026-01-01T12:00:00Z'))).toBe(-300);
+    expect(zoneOf('Asia/Kolkata').offset(at('2026-07-01T12:00:00Z'))).toBe(330);
+    expect(zoneOf('Asia/Kathmandu').offset(at('2026-07-01T12:00:00Z'))).toBe(345);
+    expect(zoneOf('Pacific/Chatham').offset(at('2026-01-01T12:00:00Z'))).toBe(825); // +13:45
     // the instant the clocks change (Warsaw, 29 Mar 2026 01:00 UTC)
     expect(warsaw.offset(at('2026-03-29T00:59:59Z'))).toBe(60);
     expect(warsaw.offset(at('2026-03-29T01:00:00Z'))).toBe(120);
@@ -157,14 +157,14 @@ describe('zone()', () => {
     expect(iso(warsaw.startOfDay('2026-03-30'))).toBe('2026-03-29T22:00:00.000Z');
     expect(iso(warsaw.startOfDay('2026-10-25'))).toBe('2026-10-24T22:00:00.000Z');
     expect(iso(warsaw.startOfDay('2026-10-26'))).toBe('2026-10-25T23:00:00.000Z');
-    expect(iso(zone('UTC').startOfDay('2026-10-02'))).toBe('2026-10-02T00:00:00.000Z');
-    expect(iso(zone('Asia/Kolkata').startOfDay('2026-10-02'))).toBe('2026-10-01T18:30:00.000Z');
-    expect(iso(zone('America/New_York').startOfDay('2026-11-01'))).toBe('2026-11-01T04:00:00.000Z');
+    expect(iso(zoneOf('UTC').startOfDay('2026-10-02'))).toBe('2026-10-02T00:00:00.000Z');
+    expect(iso(zoneOf('Asia/Kolkata').startOfDay('2026-10-02'))).toBe('2026-10-01T18:30:00.000Z');
+    expect(iso(zoneOf('America/New_York').startOfDay('2026-11-01'))).toBe('2026-11-01T04:00:00.000Z');
   });
 
   it('startOfDay where the clocks change at midnight: the day starts at the jump', () => {
     // Santiago skips 00:00–01:00 on 6 Sep 2026 (UTC-4 -> UTC-3): the day starts at 01:00 = 04:00 UTC
-    const santiago = zone('America/Santiago');
+    const santiago = zoneOf('America/Santiago');
     expect(iso(santiago.startOfDay('2026-09-06'))).toBe('2026-09-06T04:00:00.000Z');
     expect(santiago.formatTime(santiago.startOfDay('2026-09-06'))).toBe('01:00');
     // and repeats 23:00–24:00 on 4 Apr 2026 (UTC-3 -> UTC-4): 5 Apr starts once, at 04:00 UTC
@@ -181,11 +181,11 @@ describe('zone()', () => {
       'Australia/Lord_Howe',
       'Asia/Kathmandu',
     ]) {
-      const z = zone(tz);
-      for (let d = '2026-01-01'; d < '2027-01-01'; d = addDays(d, 1)) {
-        const start = z.startOfDay(d).getTime();
-        expect(z.day(start), `${tz} ${d}`).toBe(d);
-        expect(z.day(start - 1), `${tz} ${d}`).toBe(addDays(d, -1));
+      const zone = zoneOf(tz);
+      for (let day = '2026-01-01'; day < '2027-01-01'; day = addDays(day, 1)) {
+        const start = zone.startOfDay(day).getTime();
+        expect(zone.day(start), `${tz} ${day}`).toBe(day);
+        expect(zone.day(start - 1), `${tz} ${day}`).toBe(addDays(day, -1));
       }
     }
   });
@@ -205,7 +205,7 @@ describe('zone()', () => {
     it('"today" depends on the zone: at 23:30 UTC it is already tomorrow in Warsaw', () => {
       const late = at('2026-10-01T23:30:00Z');
       expect(warsaw.resolveRange({ days: '1' }, late)).toEqual({ gte: '2026-10-01T22:00:00.000Z' });
-      expect(zone('UTC').resolveRange({ days: '1' }, late)).toEqual({ gte: '2026-10-01T00:00:00.000Z' });
+      expect(zoneOf('UTC').resolveRange({ days: '1' }, late)).toEqual({ gte: '2026-10-01T00:00:00.000Z' });
     });
 
     it('the last n days over a DST change start at local midnight', () => {

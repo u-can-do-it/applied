@@ -13,14 +13,14 @@ import {
   unmarkApplied,
   updateApplication,
 } from '@/lib/applications';
-import { zone } from '@/lib/dates';
+import { zoneOf } from '@/lib/dates';
 import * as offersRepo from '@/lib/db/repos/offers';
-import { getOffers } from '@/lib/offers';
+import { getJobs } from '@/lib/jobs';
 import { NO_LINK, NO_TEXT } from '@/lib/ad-content-state';
 import { NOTE_CONFLICT } from '@/lib/shared/schemas/applications';
 import { describeDb, exec, ISO } from './database';
 
-const utc = zone('UTC');
+const utc = zoneOf('UTC');
 
 async function scrapedJob() {
   const [added] = await offersRepo.ingest([
@@ -45,7 +45,7 @@ async function scrapedJob() {
       url: 'https://nofluffjobs.com/pl/job/n1',
     },
   ]);
-  return added.dupKey;
+  return added.titleKey;
 }
 
 const typed = (title: string, extra: Partial<Parameters<typeof addApplication>[0]> = {}) => ({
@@ -55,7 +55,7 @@ const typed = (title: string, extra: Partial<Parameters<typeof addApplication>[0
   src: 'unknown',
   appliedAt: '2026-09-30T12:00:00.000Z',
   stage: 'submitted' as const,
-  state: 'pending' as const,
+  outcome: 'pending' as const,
   details: null,
   content: null,
   note: null,
@@ -63,33 +63,33 @@ const typed = (title: string, extra: Partial<Parameters<typeof addApplication>[0
 });
 
 describeDb('applications', () => {
-  it('marks a scraped job applied with the clicked copy, once', async () => {
-    const key = await scrapedJob();
-    await markApplied(key, { src: 'nofluff', id: 'n1' });
-    await markApplied(key, { src: 'justjoin', id: 'j1' }); // already applied: stays as it was
-    const app = await getApplication(key);
+  it('marks a scraped job applied with the clicked offer, once', async () => {
+    const jobId = await scrapedJob();
+    await markApplied(jobId, { src: 'nofluff', id: 'n1' });
+    await markApplied(jobId, { src: 'justjoin', id: 'j1' }); // already applied: stays as it was
+    const app = await getApplication(jobId);
     expect(app).toMatchObject({
       src: 'nofluff',
       id: 'n1',
       title: 'React Developer',
       stage: 'submitted',
-      stageState: 'pending',
+      outcome: 'pending',
     });
     expect(app?.appliedAt).toMatch(ISO);
     expect(app?.history).toHaveLength(1);
     // the offers list knows it's applied
-    const { offers } = await getOffers({ q: '', src: '', page: 0 });
-    expect(offers[0].appliedAt).toBe(app?.appliedAt);
-    expect((await listApplications()).map((row) => row.dupKey)).toEqual([key]);
+    const { jobs } = await getJobs({ q: '', src: '', page: 0 });
+    expect(jobs[0].appliedAt).toBe(app?.appliedAt);
+    expect((await listApplications()).map((row) => row.jobId)).toEqual([jobId]);
     expect('content' in (await listApplications())[0]).toBe(false);
   });
 
   it('adds one by hand, and refuses the same job twice', async () => {
     const added = await addApplication(typed('Designer', { note: 'met at a meetup' }), utc);
-    expect(added.key).toBeTruthy();
+    expect(added.jobId).toBeTruthy();
     const again = await addApplication(typed('Designer'), utc);
     expect(again.error).toMatch(/^Already in your applications: “Designer”, applied 30\.09\.2026\./);
-    const app = await getApplication(added.key ?? '');
+    const app = await getApplication(added.jobId ?? '');
     expect(app).toMatchObject({
       contentStatus: 'empty',
       note: 'met at a meetup',
@@ -102,7 +102,7 @@ describeDb('applications', () => {
     const ad = 'The whole ad, as copied from the board. '.repeat(3);
     const full = await addApplication(typed('Full', { url: 'https://example.test/job/1', content: ad }), utc);
     expect(full.fetch).toBe(false);
-    expect(await getApplication(full.key ?? '')).toMatchObject({ contentStatus: 'ok', content: ad.trim() });
+    expect(await getApplication(full.jobId ?? '')).toMatchObject({ contentStatus: 'ok', content: ad.trim() });
 
     // a few words and a link: the ad is fetched too (it used to stay "pending" with nothing fetching it)
     const short = await addApplication(
@@ -110,25 +110,25 @@ describeDb('applications', () => {
       utc,
     );
     expect(short.fetch).toBe(true);
-    expect(await getApplication(short.key ?? '')).toMatchObject({ contentStatus: 'pending', content: 'Salary 20k' });
+    expect(await getApplication(short.jobId ?? '')).toMatchObject({ contentStatus: 'pending', content: 'Salary 20k' });
 
     const bare = await addApplication(typed('Bare'), utc);
     expect(bare.fetch).toBe(false);
-    let app = await getApplication(bare.key ?? '');
+    let app = await getApplication(bare.jobId ?? '');
     expect(app).toMatchObject({ contentStatus: 'empty', content: null, contentError: NO_TEXT, scrapedAt: null });
     // "↻ Try again" without a link: nothing to fetch from
-    await saveContent(bare.key ?? '');
-    app = await getApplication(bare.key ?? '');
+    await saveContent(bare.jobId ?? '');
+    app = await getApplication(bare.jobId ?? '');
     expect(app).toMatchObject({ contentStatus: 'failed', content: null, contentError: NO_LINK });
     expect(app?.scrapedAt).toMatch(ISO);
   });
 
   it('appends status changes to the history and takes them back', async () => {
-    const { key = '' } = await addApplication(typed('Tester'), utc);
-    await setStatus(key, 'technical', 'pending');
-    await setStatus(key, 'technical', 'passed');
-    let app = await getApplication(key);
-    expect(app).toMatchObject({ stage: 'technical', stageState: 'passed' });
+    const { jobId = '' } = await addApplication(typed('Tester'), utc);
+    await setStatus(jobId, 'technical', 'pending');
+    await setStatus(jobId, 'technical', 'passed');
+    let app = await getApplication(jobId);
+    expect(app).toMatchObject({ stage: 'technical', outcome: 'passed' });
     expect(app?.history.map((step) => `${step.stage}/${step.state}`)).toEqual([
       'submitted/pending',
       'technical/pending',
@@ -138,20 +138,20 @@ describeDb('applications', () => {
     expect(app?.stageUpdatedAt).toMatch(ISO);
 
     // the step clicked a moment ago carries the browser's time: found by stage and state
-    expect(await removeStatusStep(key, { stage: 'technical', state: 'pending', at: 'not the same' })).toEqual({});
-    app = await getApplication(key);
-    expect(app).toMatchObject({ stage: 'submitted', stageState: 'pending' });
+    expect(await removeStatusStep(jobId, { stage: 'technical', state: 'pending', at: 'not the same' })).toEqual({});
+    app = await getApplication(jobId);
+    expect(app).toMatchObject({ stage: 'submitted', outcome: 'pending' });
     expect(app?.history).toHaveLength(1);
     expect(
-      (await removeStatusStep(key, app?.history[0] ?? { stage: 'submitted', state: 'pending', at: '' })).error,
+      (await removeStatusStep(jobId, app?.history[0] ?? { stage: 'submitted', state: 'pending', at: '' })).error,
     ).toMatch(/first step/);
   });
 
   it('ghosts what waited a month for an answer, and nothing else', async () => {
-    const waiting = (await addApplication(typed('Waiting'), utc)).key ?? '';
-    const recent = (await addApplication(typed('Recent'), utc)).key ?? '';
-    const offer = (await addApplication(typed('Offer', { stage: 'offer', state: 'pending' }), utc)).key ?? '';
-    const rejected = (await addApplication(typed('Rejected', { stage: 'hr', state: 'failed' }), utc)).key ?? '';
+    const waiting = (await addApplication(typed('Waiting'), utc)).jobId ?? '';
+    const recent = (await addApplication(typed('Recent'), utc)).jobId ?? '';
+    const offer = (await addApplication(typed('Offer', { stage: 'offer', outcome: 'pending' }), utc)).jobId ?? '';
+    const rejected = (await addApplication(typed('Rejected', { stage: 'hr', outcome: 'failed' }), utc)).jobId ?? '';
     const old = sql`now() - interval '31 days'`;
     await exec(
       sql`update public.applications set stage_updated_at = ${old} where dup_key in (${waiting}, ${offer}, ${rejected})`,
@@ -161,34 +161,34 @@ describeDb('applications', () => {
     expect(await ghostStale()).toBe(1);
     expect(await ghostStale()).toBe(0);
     const app = await getApplication(waiting);
-    expect(app).toMatchObject({ stage: 'submitted', stageState: 'ghosted' });
+    expect(app).toMatchObject({ stage: 'submitted', outcome: 'ghosted' });
     expect(app?.history.at(-1)).toMatchObject({ stage: 'submitted', state: 'ghosted', auto: true });
-    expect((await getApplication(offer))?.stageState).toBe('pending');
-    expect((await getApplication(rejected))?.stageState).toBe('failed');
+    expect((await getApplication(offer))?.outcome).toBe('pending');
+    expect((await getApplication(rejected))?.outcome).toBe('failed');
   });
 
   it('saves a note only over the version it was written on', async () => {
-    const { key = '' } = await addApplication(typed('Notes'), utc);
-    const first = await setNote(key, 'first', null);
+    const { jobId = '' } = await addApplication(typed('Notes'), utc);
+    const first = await setNote(jobId, 'first', null);
     expect(first.noteUpdatedAt).toMatch(ISO);
     // another tab, still with the note as it was before "first"
-    await expect(setNote(key, 'from the other tab', null)).rejects.toThrow(NOTE_CONFLICT);
-    expect((await getApplication(key))?.note).toBe('first');
+    await expect(setNote(jobId, 'from the other tab', null)).rejects.toThrow(NOTE_CONFLICT);
+    expect((await getApplication(jobId))?.note).toBe('first');
     // this tab goes on with the time it got back, to the microsecond
-    const second = await setNote(key, 'second', first.noteUpdatedAt);
+    const second = await setNote(jobId, 'second', first.noteUpdatedAt);
     expect(second.noteUpdatedAt > first.noteUpdatedAt).toBe(true);
-    await expect(setNote(key, 'stale', first.noteUpdatedAt)).rejects.toThrow(NOTE_CONFLICT);
+    await expect(setNote(jobId, 'stale', first.noteUpdatedAt)).rejects.toThrow(NOTE_CONFLICT);
     // '' clears it
-    await setNote(key, '   ', second.noteUpdatedAt);
-    expect((await getApplication(key))?.note).toBeNull();
+    await setNote(jobId, '   ', second.noteUpdatedAt);
+    expect((await getApplication(jobId))?.note).toBeNull();
 
-    await unmarkApplied(key);
-    await expect(setNote(key, 'gone', null)).rejects.toThrow('This application no longer exists.');
+    await unmarkApplied(jobId);
+    await expect(setNote(jobId, 'gone', null)).rejects.toThrow('This application no longer exists.');
   });
 
   it('lets one of several first saves win', async () => {
-    const { key = '' } = await addApplication(typed('Race'), utc);
-    const saves = await Promise.allSettled(['a', 'b', 'c'].map((note) => setNote(key, note, null)));
+    const { jobId = '' } = await addApplication(typed('Race'), utc);
+    const saves = await Promise.allSettled(['a', 'b', 'c'].map((note) => setNote(jobId, note, null)));
     expect(saves.filter((save) => save.status === 'fulfilled')).toHaveLength(1);
     expect(saves.filter((save) => save.status === 'rejected').map((save) => String(save.reason))).toEqual([
       `Error: ${NOTE_CONFLICT}`,
@@ -197,17 +197,17 @@ describeDb('applications', () => {
   });
 
   it('keeps jsonb as JSON, not as a string of it', async () => {
-    const { key = '' } = await addApplication(typed('Json', { details: { salary: '1 PLN' } }), utc);
-    await setStatus(key, 'hr', 'pending');
+    const { jobId = '' } = await addApplication(typed('Json', { details: { salary: '1 PLN' } }), utc);
+    await setStatus(jobId, 'hr', 'pending');
     const [types] = await exec(
-      sql`select jsonb_typeof(history) as history, jsonb_typeof(details) as details from public.applications where dup_key = ${key}`,
+      sql`select jsonb_typeof(history) as history, jsonb_typeof(details) as details from public.applications where dup_key = ${jobId}`,
     );
     expect(types).toEqual({ history: 'array', details: 'object' });
   });
 
   it('moves an edited application to the job its new link belongs to', async () => {
-    const key = await scrapedJob();
-    const { key: own = '' } = await addApplication(typed('Something'), utc);
+    const jobId = await scrapedJob();
+    const { jobId: own = '' } = await addApplication(typed('Something'), utc);
     const edited = await updateApplication(
       own,
       {
@@ -223,12 +223,12 @@ describeDb('applications', () => {
     );
     expect(edited.error).toBeUndefined();
     expect(edited.fetch).toBe(true); // no ad text: fetched from the link afterwards
-    expect(edited.app).toMatchObject({ dupKey: key, src: 'justjoin', id: 'j1', contentStatus: 'pending' });
+    expect(edited.app).toMatchObject({ jobId, src: 'justjoin', id: 'j1', contentStatus: 'pending' });
     expect(await getApplication(own)).toBeNull();
 
     // another day moves the applied date and the first step with it
     const moved = await updateApplication(
-      key,
+      jobId,
       {
         url: edited.app?.url ?? '',
         title: 'React Developer',

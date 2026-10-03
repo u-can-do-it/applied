@@ -29,13 +29,13 @@ export function FitScore({
   const place = () =>
     requestAnimationFrame(() => {
       if (!badge.current || !tip.current) return;
-      const b = badge.current.getBoundingClientRect();
-      const below = window.innerHeight - b.bottom;
-      setUp(below < tip.current.offsetHeight + 12 && b.top > below);
+      const box = badge.current.getBoundingClientRect();
+      const below = window.innerHeight - box.bottom;
+      setUp(below < tip.current.offsetHeight + 12 && box.top > below);
     });
 
   const tier = score >= 70 ? 'high' : score >= 40 ? 'mid' : 'low';
-  const met = checks.filter((c) => c.met).length;
+  const met = checks.filter((check) => check.met).length;
 
   return (
     <span
@@ -58,10 +58,10 @@ export function FitScore({
         {summary && <span className="fit-summary">{summary}</span>}
         {checks.length > 0 && (
           <span className="fit-checks">
-            {checks.map((c, i) => (
-              <span key={i} className={c.met ? 'met' : 'miss'}>
-                <span aria-hidden="true">{c.met ? '✓' : '✗'}</span> {c.item}
-                <span className="sr-only">{c.met ? ' (you have it)' : ' (missing)'}</span>
+            {checks.map((check, i) => (
+              <span key={i} className={check.met ? 'met' : 'miss'}>
+                <span aria-hidden="true">{check.met ? '✓' : '✗'}</span> {check.item}
+                <span className="sr-only">{check.met ? ' (you have it)' : ' (missing)'}</span>
               </span>
             ))}
           </span>

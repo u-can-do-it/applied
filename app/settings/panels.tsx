@@ -57,7 +57,7 @@ export function useAction() {
     setState(null);
     start(async () => {
       optimistic?.();
-      const answer = await fn().catch((e: unknown) => fail(message(e)));
+      const answer = await fn().catch((failure: unknown) => fail(message(failure)));
       startTransition(() => setState(answer));
     });
   };
@@ -120,16 +120,16 @@ export function SchedulePanel({
   const save = useAction();
   const edit = (patch: Partial<typeof form>) => {
     save.clear();
-    setForm((f) => ({ ...f, ...patch }));
+    setForm((current) => ({ ...current, ...patch }));
   };
-  const submit = (e: SubmitEvent) => {
-    e.preventDefault();
+  const submit = (event: SubmitEvent) => {
+    event.preventDefault();
     save.run(() => saveScheduleAction({ ...form, fromHour: Number(form.fromHour), toHour: Number(form.toHour) }));
   };
   const act = useAction();
   const pause = useAction();
   const [paused, showPaused] = useOptimistic(!settings.enabled);
-  const z = useZone();
+  const zone = useZone();
 
   return (
     <section className="panel" aria-labelledby="schedule-h">
@@ -144,7 +144,7 @@ export function SchedulePanel({
             <>
               <strong className="ok-text">● Running</strong>: every{' '}
               {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
-              {settings.fromHour}:00–{settings.toHour}:00 ({zoneName(z.tz)}).
+              {settings.fromHour}:00–{settings.toHour}:00 ({zoneName(zone.tz)}).
             </>
           )}
         </p>
@@ -167,10 +167,10 @@ export function SchedulePanel({
       <form onSubmit={submit} className="form-line">
         <label className="inline">
           every
-          <select value={form.everyMinutes} onChange={(e) => edit({ everyMinutes: Number(e.target.value) })}>
-            {INTERVALS.map((m) => (
-              <option key={m} value={m}>
-                {m < 60 ? `${m} min` : `${m / 60} h`}
+          <select value={form.everyMinutes} onChange={(event) => edit({ everyMinutes: Number(event.target.value) })}>
+            {INTERVALS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}
               </option>
             ))}
           </select>
@@ -183,7 +183,7 @@ export function SchedulePanel({
             min={0}
             max={24}
             value={form.fromHour}
-            onChange={(e) => edit({ fromHour: e.target.value })}
+            onChange={(event) => edit({ fromHour: event.target.value })}
           />
           to
           <input
@@ -192,7 +192,7 @@ export function SchedulePanel({
             min={0}
             max={24}
             value={form.toHour}
-            onChange={(e) => edit({ toHour: e.target.value })}
+            onChange={(event) => edit({ toHour: event.target.value })}
           />
           <span className="muted">o’clock</span>
         </label>
@@ -207,23 +207,23 @@ export function SchedulePanel({
       {running && <p className="muted small">● A run is going right now.</p>}
       {runs.length ? (
         <ol className="runs">
-          {runs.map((r) => (
-            <li key={r.id}>
-              <span className="run-time">{z.formatDateTime(r.startedAt)}</span>
-              <span className="muted">{r.trigger}</span>
-              {r.finishedAt ? (
+          {runs.map((run) => (
+            <li key={run.id}>
+              <span className="run-time">{zone.formatDateTime(run.startedAt)}</span>
+              <span className="muted">{run.trigger}</span>
+              {run.finishedAt ? (
                 <span>
-                  {seconds(Date.parse(r.finishedAt) - Date.parse(r.startedAt))} · {r.found} on the pages · {r.kept} kept
-                  · <strong>{r.added} new</strong>
-                  {r.matched !== null && ` · ✦ ${r.matched} matched`}
-                  {r.notified ? ` · ${r.notified} sent` : ''}
+                  {seconds(Date.parse(run.finishedAt) - Date.parse(run.startedAt))} · {run.found} on the pages ·{' '}
+                  {run.kept} kept · <strong>{run.added} new</strong>
+                  {run.matched !== null && ` · ✦ ${run.matched} matched`}
+                  {run.notified ? ` · ${run.notified} sent` : ''}
                 </span>
               ) : (
                 <span className="muted">unfinished</span>
               )}
-              {r.errors.map((e, i) => (
+              {run.errors.map((failure, i) => (
                 <span key={i} className="run-error">
-                  {e.scraper}: {e.error}
+                  {failure.scraper}: {failure.error}
                 </span>
               ))}
             </li>
@@ -233,7 +233,7 @@ export function SchedulePanel({
         <p className="muted small">No runs yet. Use “↻ Scrape now” at the top.</p>
       )}
       {state.lastCallAt && (
-        <p className="muted small">Last call from a scheduler: {z.formatDateTime(state.lastCallAt)}</p>
+        <p className="muted small">Last call from a scheduler: {zone.formatDateTime(state.lastCallAt)}</p>
       )}
 
       <h3>What calls it</h3>
@@ -258,8 +258,8 @@ function TimeZoneField({ value }: { value: string }) {
         <select
           value={shown}
           aria-busy={save.busy || undefined}
-          onChange={(e) => {
-            const next = e.target.value;
+          onChange={(event) => {
+            const next = event.target.value;
             save.run(
               () => setTimeZoneAction({ tz: next, browser: device ?? '' }),
               () => show(next),
@@ -407,22 +407,22 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
   const save = useAction();
   const edit = (patch: Partial<typeof form>) => {
     save.clear();
-    setForm((f) => ({ ...f, ...patch }));
+    setForm((current) => ({ ...current, ...patch }));
   };
-  const submit = (e: SubmitEvent) => {
-    e.preventDefault();
+  const submit = (event: SubmitEvent) => {
+    event.preventDefault();
     // shown the way it's saved ("React,Vue " -> "React, Vue"), so it matches the refreshed page
     const normalized = { ...form };
-    for (const k of LISTS) normalized[k] = join(normalizeList(form[k]));
+    for (const field of LISTS) normalized[field] = join(normalizeList(form[field]));
     save.run(async () => {
       const answer = await saveFiltersAction(normalized);
       if (answer.ok) startTransition(() => setForm(normalized));
       return answer;
     });
   };
-  const text = (k: (typeof LISTS)[number]) => ({
-    value: form[k],
-    onChange: (e: { target: { value: string } }) => edit({ [k]: e.target.value }),
+  const text = (field: (typeof LISTS)[number]) => ({
+    value: form[field],
+    onChange: (event: { target: { value: string } }) => edit({ [field]: event.target.value }),
   });
   return (
     <section className="panel" aria-labelledby="filters-h">
@@ -446,7 +446,11 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
           </small>
         </label>
         <label className="check">
-          <input type="checkbox" checked={form.remoteOk} onChange={(e) => edit({ remoteOk: e.target.checked })} />{' '}
+          <input
+            type="checkbox"
+            checked={form.remoteOk}
+            onChange={(event) => edit({ remoteOk: event.target.checked })}
+          />{' '}
           Remote offers are fine wherever they are
         </label>
         <label className="field">
@@ -530,8 +534,8 @@ export function TelegramPanel({
           <input
             type="checkbox"
             checked={view.notify}
-            onChange={(e) => {
-              const on = e.target.checked;
+            onChange={(event) => {
+              const on = event.target.checked;
               act.run(
                 () => setNotifyAction({ on }),
                 () => show({ notify: on }),
@@ -575,8 +579,8 @@ export function TelegramPanel({
         <input
           type="checkbox"
           checked={view.aiOn}
-          onChange={(e) => {
-            const on = e.target.checked;
+          onChange={(event) => {
+            const on = event.target.checked;
             act.run(
               () => setAiFilterAction({ on }),
               () => show({ aiOn: on }),

@@ -13,28 +13,28 @@ export function ScrapeButton() {
 
   useEffect(() => {
     if (!result) return;
-    const t = setTimeout(() => setResult(null), 8000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setResult(null), 8000);
+    return () => clearTimeout(timer);
   }, [result]);
 
   const run = () => {
     setResult(null);
     start(async () => {
       let next: typeof result;
-      const answer = await scrapeNowAction().catch((e: unknown) => fail(message(e)));
+      const answer = await scrapeNowAction().catch((failure: unknown) => fail(message(failure)));
       if (answer.ok) {
-        const r = answer.data;
-        const errors = r.errors.map((e) => `${e.scraper}: ${e.error}`).join('\n');
-        next = r.skipped
-          ? { text: r.skipped }
+        const report = answer.data;
+        const errors = report.errors.map((failure) => `${failure.scraper}: ${failure.error}`).join('\n');
+        next = report.skipped
+          ? { text: report.skipped }
           : {
-              text: `${r.added ? `${r.added} new` : 'nothing new'}${r.errors.length ? ` · ⚠ ${r.errors.length}` : ''}`,
-              title: `${r.found} on the pages, ${r.kept} after filters, ${r.added} new${
-                r.notifyLater
+              text: `${report.added ? `${report.added} new` : 'nothing new'}${report.errors.length ? ` · ⚠ ${report.errors.length}` : ''}`,
+              title: `${report.found} on the pages, ${report.kept} after filters, ${report.added} new${
+                report.notifyLater
                   ? ' · the AI check and Telegram run in the background'
-                  : `, ${r.notified} sent to Telegram`
+                  : `, ${report.notified} sent to Telegram`
               }${errors ? `\n\n${errors}` : ''}`,
-              bad: r.errors.length > 0,
+              bad: report.errors.length > 0,
             };
       } else {
         next = { text: '⚠ failed', title: answer.error, bad: true };

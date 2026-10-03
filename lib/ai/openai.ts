@@ -1,6 +1,6 @@
 import 'server-only';
-import { OPENAI_TIMEOUT_MS } from './budgets';
-import { env } from './env';
+import { OPENAI_TIMEOUT_MS } from '../budgets';
+import { env } from '../env';
 
 // Chat Completions with a strict JSON schema, so every answer parses. Plain fetch, no SDK.
 // Two jobs, each with its own model / reasoning effort:
@@ -117,9 +117,15 @@ For every offer, by its "n":
 - summary: one sentence, max 20 words, on the main reason for the score.
 Write summary and check labels in the language the CRITERIA are written in.`;
 
-function describeOffer(o: OfferForAi) {
-  const head = JSON.stringify({ n: o.n, title: o.title, company: o.company, seniority: o.seniority, remote: o.remote });
-  return `### OFFER ${o.n}\n${head}\n${o.description ? `AD TEXT:\n${o.description}` : 'AD TEXT: (not available - judge from the title)'}`;
+function describeOffer(offer: OfferForAi) {
+  const head = JSON.stringify({
+    n: offer.n,
+    title: offer.title,
+    company: offer.company,
+    seniority: offer.seniority,
+    remote: offer.remote,
+  });
+  return `### OFFER ${offer.n}\n${head}\n${offer.description ? `AD TEXT:\n${offer.description}` : 'AD TEXT: (not available - judge from the title)'}`;
 }
 
 export async function assessOffers(
@@ -140,16 +146,18 @@ export async function assessOffers(
     schemaName: 'assessments',
     schema: ASSESS_SCHEMA,
   });
-  const asked = new Set(offers.map((o) => o.n));
+  const asked = new Set(offers.map((offer) => offer.n));
   return (parsed.results ?? [])
-    .filter((r) => asked.has(r.n))
-    .map((r) => ({
-      ...r,
-      score: Math.max(0, Math.min(100, Math.round(r.score))),
+    .filter((result) => asked.has(result.n))
+    .map((result) => ({
+      ...result,
+      score: Math.max(0, Math.min(100, Math.round(result.score))),
       /* eslint-disable @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition --
          the model's JSON is only typed, not checked: these guard against a field it left out */
-      summary: String(r.summary ?? '').slice(0, 240),
-      checks: (r.checks ?? []).slice(0, 12).map((c) => ({ item: String(c.item).slice(0, 80), met: Boolean(c.met) })),
+      summary: String(result.summary ?? '').slice(0, 240),
+      checks: (result.checks ?? [])
+        .slice(0, 12)
+        .map((check) => ({ item: String(check.item).slice(0, 80), met: Boolean(check.met) })),
       /* eslint-enable @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition */
     }));
 }
@@ -169,15 +177,15 @@ Different seniority, a different tech stack, a different team, project or client
 When unsure, answer same = false: wrongly merging two jobs hides one of them.
 For every pair, by its "p": same, and a reason of at most 12 words.`;
 
-const describeJob = (j: JobForAi) =>
+const describeJob = (job: JobForAi) =>
   JSON.stringify({
-    title: j.title,
-    company: j.company,
-    seniority: j.seniority,
-    remote: j.remote,
-    board: j.board,
-    first_seen: j.first_seen.slice(0, 10),
-    ...(j.excerpt ? { ad_start: j.excerpt } : {}),
+    title: job.title,
+    company: job.company,
+    seniority: job.seniority,
+    remote: job.remote,
+    board: job.board,
+    first_seen: job.first_seen.slice(0, 10),
+    ...(job.excerpt ? { ad_start: job.excerpt } : {}),
   });
 
 export async function decideDuplicates(pairs: PairForAi[]) {
@@ -186,17 +194,21 @@ export async function decideDuplicates(pairs: PairForAi[]) {
     model,
     effort,
     system: DEDUP_SYSTEM,
-    user: pairs.map((x) => `### PAIR ${x.p}\nA: ${describeJob(x.a)}\nB: ${describeJob(x.b)}`).join('\n\n'),
+    user: pairs.map((pair) => `### PAIR ${pair.p}\nA: ${describeJob(pair.a)}\nB: ${describeJob(pair.b)}`).join('\n\n'),
     schemaName: 'duplicates',
     schema: DEDUP_SCHEMA,
   });
-  const asked = new Set(pairs.map((x) => x.p));
-  return (
-    (parsed.results ?? [])
-      .filter((r) => asked.has(r.p))
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition -- the model's JSON is only typed, not checked
-      .map((r) => ({ p: r.p, same: Boolean(r.same), reason: String(r.reason ?? '').slice(0, 160) }))
-  );
+  const asked = new Set(pairs.map((pair) => pair.p));
+  return (parsed.results ?? [])
+    .filter((decision) => asked.has(decision.p))
+    .map((decision) => ({
+      p: decision.p,
+      /* eslint-disable @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition --
+         the model's JSON is only typed, not checked */
+      same: Boolean(decision.same),
+      reason: String(decision.reason ?? '').slice(0, 160),
+      /* eslint-enable @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition */
+    }));
 }
 
 // ---- one offer's page -> the "Add application" form ---------------------------------------

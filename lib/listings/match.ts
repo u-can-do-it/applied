@@ -7,25 +7,25 @@ import type { Found } from './types';
 const LETTERS: Record<string, string> = { ł: 'l', ø: 'o', đ: 'd', ħ: 'h', ß: 'ss', æ: 'ae', œ: 'oe' };
 
 /** lowercase, without accents: "Kraków" -> "krakow", "Łódź" -> "lodz" */
-export const fold = (s: string) =>
-  s
+export const fold = (text: string) =>
+  text
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
     .toLowerCase()
-    .replace(/[łøđħßæœ]/g, (c) => LETTERS[c]);
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    .replace(/[łøđħßæœ]/g, (letter) => LETTERS[letter]);
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // what counts as a letter of a word: "c#", "c++" and ".net" are words of their own
 const WORD = 'a-z0-9+#';
 
 /** A keyword must start a word: "react" matches React, ReactJS, React.js, but not Preact. */
 export function keywordTest(keywords: string[]) {
   const parts = keywords
-    .map((k) => fold(k.trim()))
+    .map((keyword) => fold(keyword.trim()))
     .filter(Boolean)
     .map(escape);
   if (!parts.length) return () => true;
   const re = new RegExp(`(?:^|[^${WORD}])(?:${parts.join('|')})`);
-  return (texts: string[]) => texts.some((t) => re.test(fold(t)));
+  return (texts: string[]) => texts.some((text) => re.test(fold(text)));
 }
 
 /**
@@ -34,33 +34,38 @@ export function keywordTest(keywords: string[]) {
  */
 export function titleTest(terms: string[]) {
   const parts = terms
-    .map((t) => fold(t.trim()))
+    .map((term) => fold(term.trim()))
     .filter(Boolean)
-    .map((t) => (t.startsWith('.') ? `\\.?${escape(t.slice(1))}` : escape(t)));
+    .map((term) => (term.startsWith('.') ? `\\.?${escape(term.slice(1))}` : escape(term)));
   if (!parts.length) return () => false;
   const re = new RegExp(`(?:^|[^${WORD}])(?:${parts.join('|')})(?![${WORD}.])`);
   return (title: string) => re.test(fold(title));
 }
 
 /** Remote (if allowed), or in one of the cities. An offer that doesn't say where passes. */
-export function areaTest(s: Pick<ScrapeSettings, 'cities' | 'remoteOk'>) {
-  const cities = s.cities.map((c) => fold(c.trim())).filter(Boolean);
-  const inCity = (o: Found) => o.locations.some((l) => cities.some((c) => fold(l).includes(c)));
-  return (o: Found) => {
-    if (!cities.length) return s.remoteOk || !o.remote;
-    if (o.remote) return s.remoteOk || inCity(o);
-    return !o.locations.length || inCity(o);
+export function areaTest(settings: Pick<ScrapeSettings, 'cities' | 'remoteOk'>) {
+  const cities = settings.cities.map((city) => fold(city.trim())).filter(Boolean);
+  const inCity = (offer: Found) =>
+    offer.locations.some((location) => cities.some((city) => fold(location).includes(city)));
+  return (offer: Found) => {
+    if (!cities.length) return settings.remoteOk || !offer.remote;
+    if (offer.remote) return settings.remoteOk || inCity(offer);
+    return !offer.locations.length || inCity(offer);
   };
 }
 
 /** The place to show in a message: the matching city, else the first one. */
-export function placeOf(o: Found, cities: string[]) {
-  const folded = cities.map((c) => fold(c)).filter(Boolean);
-  return o.locations.find((l) => folded.some((c) => fold(l).includes(c))) ?? o.locations.at(0) ?? null;
+export function placeOf(offer: Found, cities: string[]) {
+  const folded = cities.map((city) => fold(city)).filter(Boolean);
+  return (
+    offer.locations.find((location) => folded.some((city) => fold(location).includes(city))) ??
+    offer.locations.at(0) ??
+    null
+  );
 }
 
-const slug = (k: string) =>
-  fold(k)
+const slug = (keyword: string) =>
+  fold(keyword)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
@@ -79,13 +84,16 @@ export function expandUrl(
   if (hasKeyword && !keywords.length)
     throw new Error('The link has {keyword} but there are no keywords in the filters.');
   const paged = /\{(?:start|page)\}/.test(url);
-  const n = paged ? Math.max(1, Math.min(MAX_PAGES, Math.floor(pages) || 1)) : 1;
+  const pageCount = paged ? Math.max(1, Math.min(MAX_PAGES, Math.floor(pages) || 1)) : 1;
   const out: { url: string; keyword: string | null; page: number }[] = [];
-  for (const k of hasKeyword ? keywords : [null]) {
-    for (let i = 0; i < n; i++) {
-      let u = url.replaceAll('{start}', String(i * 10)).replaceAll('{page}', String(i + 1));
-      if (k !== null) u = u.replaceAll('{keyword_slug}', slug(k)).replaceAll('{keyword}', encodeURIComponent(k));
-      out.push({ url: u, keyword: k, page: i + 1 });
+  for (const keyword of hasKeyword ? keywords : [null]) {
+    for (let i = 0; i < pageCount; i++) {
+      let pageUrl = url.replaceAll('{start}', String(i * 10)).replaceAll('{page}', String(i + 1));
+      if (keyword !== null)
+        pageUrl = pageUrl
+          .replaceAll('{keyword_slug}', slug(keyword))
+          .replaceAll('{keyword}', encodeURIComponent(keyword));
+      out.push({ url: pageUrl, keyword, page: i + 1 });
     }
   }
   return out;

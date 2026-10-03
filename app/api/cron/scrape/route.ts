@@ -13,12 +13,12 @@ export const maxDuration = 300;
 
 async function handle(request: NextRequest) {
   if (!(await isCronRequest(request))) return NextResponse.json({ jobwatch: 'unauthorized' }, { status: 401 });
-  const q = request.nextUrl.searchParams;
-  const due = q.get('force') === '1' ? { due: true } : await checkDue();
+  const params = request.nextUrl.searchParams;
+  const due = params.get('force') === '1' ? { due: true } : await checkDue();
   if (!due.due) return NextResponse.json({ jobwatch: 'skipped', reason: due.reason });
   if (!(await lock(SCRAPE_LOCK_SECONDS)))
     return NextResponse.json({ jobwatch: 'busy', reason: 'another run is still going' });
-  if (q.get('wait') === '1')
+  if (params.get('wait') === '1')
     return NextResponse.json({ jobwatch: 'done', ...(await runAll('cron', { locked: true })) });
   // answer at once (Supabase Cron waits only a few seconds), scrape after the response
   after(() => runAll('cron', { locked: true }));

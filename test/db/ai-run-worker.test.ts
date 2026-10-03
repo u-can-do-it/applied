@@ -1,11 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { continueRun, latestRun, startRun } from '@/lib/ai-runs';
-import { PROFILE_CHANGED } from '@/lib/ai-run-state';
+import { continueRun, latestRun, startRun } from '@/lib/ai/runs';
+import { PROFILE_CHANGED } from '@/lib/ai/run-state';
 import { SLICE_MS } from '@/lib/budgets';
 import * as offersRepo from '@/lib/db/repos/offers';
 import * as verdictsRepo from '@/lib/db/repos/ai-verdicts';
-import { getProfile, saveProfile } from '@/lib/profiles';
+import { getProfile, saveProfile } from '@/lib/ai/profiles';
 import { describeDb, exec, ISO } from './database';
 
 // One slice of an AI run (continueRun) against the database, with `fetch` stubbed: OpenAI is
@@ -52,7 +52,7 @@ async function profileAndRun(jobs: ReturnType<typeof job>[]) {
   const profile = await getProfile(id);
   if (!profile) throw new Error('no profile');
   const run = await startRun(profile, { label: 'all offers' });
-  return { profile, run, keys: added.map((row) => row.dupKey) };
+  return { profile, run, jobIds: added.map((row) => row.titleKey) };
 }
 
 describeDb('an AI run slice (continueRun)', () => {
@@ -71,7 +71,7 @@ describeDb('an AI run slice (continueRun)', () => {
   });
 
   it('checks for duplicates, recounts, assesses every job and finishes', async () => {
-    const { profile, run, keys } = await profileAndRun([
+    const { profile, run, jobIds } = await profileAndRun([
       job('justjoin', '1', 'React Developer', 'Acme'),
       job('justjoin', '2', 'Vue Developer', 'Beta'),
       job('justjoin', '3', 'Angular Developer', 'Gamma'),
@@ -83,7 +83,7 @@ describeDb('an AI run slice (continueRun)', () => {
     expect(after).toMatchObject({ status: 'done', phase: 'assess', total: 3, done: 3, error: null, lockUntil: null });
     expect(after?.finishedAt).toMatch(ISO);
     expect(asked).toEqual(['assessments']); // no look-alike pairs: no duplicate check
-    expect((await verdictsRepo.forJobs(profile, keys)).size).toBe(3);
+    expect((await verdictsRepo.forJobs(profile, jobIds)).size).toBe(3);
 
     await continueRun(run.id); // finished: nobody gets its lock
     expect(asked).toEqual(['assessments']);

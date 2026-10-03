@@ -6,7 +6,7 @@ import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
 import * as scrapersRepo from '@/lib/db/repos/scrapers';
 import { runAll } from '@/lib/listings/run';
-import { saveProfile } from '@/lib/profiles';
+import { saveProfile } from '@/lib/ai/profiles';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { describeDb, exec } from './database';
 

@@ -1,13 +1,13 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
 import { sameString } from '@/lib/auth';
-import { zone } from '@/lib/dates';
+import { zoneOf } from '@/lib/dates';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
 import * as offersRepo from '@/lib/db/repos/offers';
 import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
 import { env } from '@/lib/env';
-import { listProfiles } from '@/lib/profiles';
+import { listProfiles } from '@/lib/ai/profiles';
 import { message } from '@/lib/shared/errors';
 import { notify } from '@/lib/listings/pipeline/notify';
 import { runAll } from '@/lib/listings/run';
@@ -35,50 +35,52 @@ export async function POST(request: NextRequest) {
   // ignore everyone else: the bot's username is guessable. Always 200, or Telegram retries.
   if (!text || chatId !== ownerChat()) return NextResponse.json({ ok: true });
 
-  const reply = (t: string) => sendMessage(t, chatId);
+  const reply = (answer: string) => sendMessage(answer, chatId);
   const cmd = text.split(/\s+/)[0].replace(/@\w+$/, ''); // "/status@my_bot" in groups
   const queued = () => queueRepo.size();
   // what waited goes out after the AI check (that can take a while, so after the answer)
   const deliver = () =>
     after(async () => {
-      const r = await notify({ manual: true }).catch((e: unknown) => ({ error: message(e) }));
-      if (r.error) await reply(`⚠️ ${r.error}`);
+      const result = await notify({ manual: true }).catch((failure: unknown) => ({ error: message(failure) }));
+      if (result.error) await reply(`⚠️ ${result.error}`);
     });
 
   if (['/mute', '/pause', '/stop'].includes(cmd)) {
     const was = (await stateRepo.get()).muted;
     await stateRepo.setMuted(true);
-    const n = await queued();
+    const waiting = await queued();
     await reply(
       was
-        ? `🔕 Already muted. ${n} offer(s) waiting.`
-        : `🔕 Muted.\nScraping continues - new offers are queued.\n${n} waiting.`,
+        ? `🔕 Already muted. ${waiting} offer(s) waiting.`
+        : `🔕 Muted.\nScraping continues - new offers are queued.\n${waiting} waiting.`,
     );
   } else if (['/resume', '/unmute', '/start'].includes(cmd)) {
     const was = (await stateRepo.get()).muted;
     await stateRepo.setMuted(false);
-    const n = await queued();
-    const t = was ? '🔔 Unmuted.' : '🔔 Already active.';
-    await reply(n ? `${t}\nDelivering ${n} queued offer(s)...` : `${t}\nNothing queued.`);
-    if (n) deliver();
+    const waiting = await queued();
+    const heading = was ? '🔔 Unmuted.' : '🔔 Already active.';
+    await reply(waiting ? `${heading}\nDelivering ${waiting} queued offer(s)...` : `${heading}\nNothing queued.`);
+    if (waiting) deliver();
   } else if (['/send', '/flush'].includes(cmd)) {
-    const n = await queued();
-    if (!n) await reply('📭 Nothing queued.');
+    const waiting = await queued();
+    if (!waiting) await reply('📭 Nothing queued.');
     else {
-      await reply(`📤 Sending ${n} queued offer(s)...`);
+      await reply(`📤 Sending ${waiting} queued offer(s)...`);
       deliver();
     }
   } else if (['/scrape', '/run'].includes(cmd)) {
     await reply('🔎 Scraping…');
     after(async () => {
-      const r = await runAll('telegram');
-      const errors = r.errors.map((e) => `\n⚠️ ${e.scraper}: ${e.error}`).join('');
+      const result = await runAll('telegram');
+      const errors = result.errors.map((failure) => `\n⚠️ ${failure.scraper}: ${failure.error}`).join('');
       await reply(
-        r.skipped ? `⏳ ${r.skipped}` : `✅ ${r.found} on the pages, ${r.added} new saved, ${r.notified} sent${errors}`,
+        result.skipped
+          ? `⏳ ${result.skipped}`
+          : `✅ ${result.found} on the pages, ${result.added} new saved, ${result.notified} sent${errors}`,
       );
     });
   } else if (cmd === '/status') {
-    const [state, n, counts, runs, settings, profiles] = await Promise.all([
+    const [state, waiting, counts, runs, settings, profiles] = await Promise.all([
       stateRepo.get(),
       queued(),
       offersRepo.countPerBoard(),
@@ -86,13 +88,13 @@ export async function POST(request: NextRequest) {
       settingsRepo.get(),
       listProfiles(),
     ]);
-    const total = Object.values(counts).reduce((s, c) => s + c.offers, 0);
+    const total = Object.values(counts).reduce((sum, boardCount) => sum + boardCount.offers, 0);
     const per = Object.keys(counts)
       .sort()
-      .map((s) => `  ${s}: ${counts[s].offers}`);
-    const z = zone(effectiveTimeZone(settings));
+      .map((src) => `  ${src}: ${counts[src].offers}`);
+    const zone = zoneOf(effectiveTimeZone(settings));
     const last = runs[0]
-      ? `${z.formatDateTime(runs[0].startedAt)} (${runs[0].trigger}, ${runs[0].added} new)`
+      ? `${zone.formatDateTime(runs[0].startedAt)} (${runs[0].trigger}, ${runs[0].added} new)`
       : 'unknown';
     const ai = !settings.aiFilter
       ? 'off'
@@ -102,10 +104,10 @@ export async function POST(request: NextRequest) {
           ? `“${profiles[0].name}”`
           : 'on, but no profile (all sent)';
     const scraping = settings.enabled
-      ? `every ${settings.everyMinutes} min, ${settings.fromHour}–${settings.toHour} (${z.tz})`
+      ? `every ${settings.everyMinutes} min, ${settings.fromHour}–${settings.toHour} (${zone.tz})`
       : '⏸ paused';
     await reply(
-      `${state.muted ? '🔕 muted' : '🔔 active'}\n${n} queued\n🔎 scraping: ${scraping}\n✦ AI filter: ${ai}\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`,
+      `${state.muted ? '🔕 muted' : '🔔 active'}\n${waiting} queued\n🔎 scraping: ${scraping}\n✦ AI filter: ${ai}\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`,
     );
   } else {
     await reply(`❓ Unknown command "${text.slice(0, 50)}"\n\n${HELP}`);

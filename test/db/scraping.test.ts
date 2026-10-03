@@ -6,7 +6,7 @@ import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
 import * as scrapersRepo from '@/lib/db/repos/scrapers';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
-import { sourceOptions } from '@/lib/listings/sources';
+import { boardOptions } from '@/lib/listings/board-filter';
 import { describeDb, exec, ISO } from './database';
 
 const search = (name: string, src: string) => ({
@@ -27,7 +27,7 @@ describeDb('scrapers', () => {
       { src: 'boardb', name: 'Second' },
     ]);
     // the boards to filter by: the built-in ones, then these
-    expect((await sourceOptions()).slice(-2)).toEqual([
+    expect((await boardOptions()).slice(-2)).toEqual([
       { id: 'boarda', label: 'First' },
       { id: 'boardb', label: 'Second' },
     ]);
@@ -131,7 +131,7 @@ describeDb('Telegram queue', () => {
     remote: false,
     location: null,
     url: `https://justjoin.it/${id}`,
-    dupKey: `x|${id}`,
+    jobId: `x|${id}`,
   });
 
   it('queues once, and hands each offer to one sender only', async () => {

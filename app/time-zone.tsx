@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, startTransition, use, useEffect } from 'react';
-import { DEFAULT_TZ, deviceTimeZone, zone } from '@/lib/dates';
+import { DEFAULT_TZ, deviceTimeZone, zoneOf } from '@/lib/dates';
 import { reportBrowserTimeZoneAction } from './actions';
 
 // The app's time zone in client components. The server knows it (Settings; by default the
@@ -14,7 +14,7 @@ export function TimeZone({ tz, children }: { tz: string; children: React.ReactNo
 }
 
 /** The date helpers in the app's time zone. */
-export const useZone = () => zone(use(Tz));
+export const useZone = () => zoneOf(use(Tz));
 
 /** Tells the server this browser's zone when it isn't the one it has ("the browser's" follows it). */
 export function BrowserZone({ known }: { known: string }) {

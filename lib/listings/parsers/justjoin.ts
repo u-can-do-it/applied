@@ -9,20 +9,23 @@ export const parseJustjoin: ListingParser = (body, { src }) => {
   return {
     total: offers.length,
     sample: sampleOf(offers[0]),
-    items: offers.map((o) => ({
+    items: offers.map((offer) => ({
       src,
-      id: str(o.slug),
-      title: str(o.title),
-      company: str(o.companyName) || null,
-      seniority: str(o.experienceLevel) || 'unknown',
-      remote: o.workplaceType === 'remote',
-      url: `https://justjoin.it/job-offer/${str(o.slug)}`,
-      skills: [...arr(o.requiredSkills), ...arr(o.niceToHaveSkills)].map(nameOf).filter(Boolean),
+      id: str(offer.slug),
+      title: str(offer.title),
+      company: str(offer.companyName) || null,
+      seniority: str(offer.experienceLevel) || 'unknown',
+      remote: offer.workplaceType === 'remote',
+      url: `https://justjoin.it/job-offer/${str(offer.slug)}`,
+      skills: [...arr(offer.requiredSkills), ...arr(offer.niceToHaveSkills)].map(nameOf).filter(Boolean),
       // the offer's city is also among its locations[]
-      locations: [...new Set([str(o.city), ...arr(o.locations).map((l) => (isObj(l) ? str(l.city) : ''))])].filter(
-        Boolean,
-      ),
-      sort: time(o.publishedAt), // exact chronological order
+      locations: [
+        ...new Set([
+          str(offer.city),
+          ...arr(offer.locations).map((location) => (isObj(location) ? str(location.city) : '')),
+        ]),
+      ].filter(Boolean),
+      sort: time(offer.publishedAt), // exact chronological order
     })),
   };
 };

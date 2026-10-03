@@ -4,12 +4,12 @@ import { db } from '../client';
 import { isOneOf } from '../rows';
 import { offerDetails, type OfferDetailsRow } from '../schema';
 
-// The full ad text of an offer (one board's copy), scraped once and reused by every profile.
+// The full ad text of an offer, scraped once and reused by every profile.
 
 export type Details = Pick<OfferDetailsRow, 'src' | 'id' | 'status' | 'description'>;
 
-export async function forCopies(copies: { src: string; id: string }[]): Promise<Details[]> {
-  if (!copies.length) return [];
+export async function forOffers(offers: { src: string; id: string }[]): Promise<Details[]> {
+  if (!offers.length) return [];
   return db()
     .select({
       src: offerDetails.src,
@@ -18,10 +18,10 @@ export async function forCopies(copies: { src: string; id: string }[]): Promise<
       description: offerDetails.description,
     })
     .from(offerDetails)
-    .where(isOneOf(offerDetails.src, offerDetails.id, copies));
+    .where(isOneOf(offerDetails.src, offerDetails.id, offers));
 }
 
-/** Saves them; a copy scraped again gets the new text (fetched_at stays the first time's). */
+/** Saves them; an offer scraped again gets the new text (fetched_at stays the first time's). */
 export async function save(rows: Details[]) {
   if (!rows.length) return;
   await db()

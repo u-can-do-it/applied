@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { expect, it } from 'vitest';
 import * as linksRepo from '@/lib/db/repos/job-links';
 import * as offersRepo from '@/lib/db/repos/offers';
-import { getOffers, getTotalCount, PAGE_SIZE } from '@/lib/offers';
+import { getJobs, getTotalCount, PAGE_SIZE } from '@/lib/jobs';
 import { describeDb, exec, ISO } from './database';
 
 const offer = (src: string, id: string, title: string, company: string | null, remote = false) => ({
@@ -19,8 +19,8 @@ const offer = (src: string, id: string, title: string, company: string | null, r
 const seenAt = (src: string, id: string, at: string) =>
   exec(sql`update public.offers set first_seen = ${at}::timestamptz where src = ${src} and id = ${id}`);
 
-const page = (q = '', src = '', extra: { days?: string; from?: string; to?: string; page?: number } = {}) =>
-  getOffers({ q, src, page: extra.page ?? 0, days: extra.days, from: extra.from, to: extra.to });
+const page = (query = '', src = '', extra: { days?: string; from?: string; to?: string; page?: number } = {}) =>
+  getJobs({ q: query, src, page: extra.page ?? 0, days: extra.days, from: extra.from, to: extra.to });
 
 describeDb('offers', () => {
   it('saves new offers once, and says which jobs were known before', async () => {
@@ -33,13 +33,13 @@ describeDb('offers', () => {
       ['justjoin', '1', false],
       ['nofluff', 'a', false],
     ]);
-    // the same job on another board: new row, known job; a copy saved before: not returned
+    // the same job on another board: new row, known job; an offer saved before: not returned
     const second = await offersRepo.ingest([
       offer('nofluff', 'b', 'React Developer', 'ACME'),
       offer('justjoin', '1', 'React Developer (k/m)', 'Acme Sp. z o.o.'),
     ]);
-    const acme = first.find((row) => row.src === 'justjoin')?.dupKey;
-    expect(second).toEqual([{ src: 'nofluff', id: 'b', dupKey: acme, seenBefore: true }]);
+    const acme = first.find((row) => row.src === 'justjoin')?.titleKey;
+    expect(second).toEqual([{ src: 'nofluff', id: 'b', titleKey: acme, seenBefore: true }]);
     expect(await offersRepo.knownIds('justjoin', ['1', '2'])).toEqual(new Set(['1']));
   });
 
@@ -53,16 +53,16 @@ describeDb('offers', () => {
     await seenAt('nofluff', 'b', '2026-10-02T08:00:00Z');
     await seenAt('bulldog', 'x', '2026-10-01T09:00:00.123456Z');
 
-    const { offers, total } = await page();
+    const { jobs, total } = await page();
     expect(total).toBe(2);
     expect(await getTotalCount()).toBe(2);
-    expect(offers.map((job) => [job.src, job.id])).toEqual([
+    expect(jobs.map((job) => [job.src, job.id])).toEqual([
       ['bulldog', 'x'],
-      ['justjoin', '1'], // the earliest copy stands for the job
+      ['justjoin', '1'], // the earliest offer stands for the job
     ]);
-    expect(offers[1].copies.map((copy) => copy.src)).toEqual(['justjoin', 'nofluff']);
-    expect(offers[0].firstSeen).toBe('2026-10-01T09:00:00.123456+00:00');
-    expect(offers[0].appliedAt).toBeNull();
+    expect(jobs[1].offers.map((link) => link.src)).toEqual(['justjoin', 'nofluff']);
+    expect(jobs[0].firstSeen).toBe('2026-10-01T09:00:00.123456+00:00');
+    expect(jobs[0].appliedAt).toBeNull();
   });
 
   it('filters by words (title or company), board and days, like before', async () => {
@@ -75,13 +75,13 @@ describeDb('offers', () => {
     await seenAt('nofluff', '2', '2026-09-25T10:00:00Z');
     await seenAt('bulldog', '3', '2026-09-28T10:00:00Z');
 
-    expect((await page('senior react')).offers.map((job) => job.id)).toEqual(['1']);
-    expect((await page('REACT')).offers.map((job) => job.id)).toEqual(['2', '1']);
-    expect((await page('react', 'nofluff')).offers.map((job) => job.id)).toEqual(['2']);
+    expect((await page('senior react')).jobs.map((job) => job.id)).toEqual(['1']);
+    expect((await page('REACT')).jobs.map((job) => job.id)).toEqual(['2', '1']);
+    expect((await page('react', 'nofluff')).jobs.map((job) => job.id)).toEqual(['2']);
     // quotes and * separate words, as they always did
-    expect((await page('"react*senior"')).offers.map((job) => job.id)).toEqual(['1']);
-    expect((await page('', '', { from: '2026-09-24', to: '2026-09-25' })).offers.map((job) => job.id)).toEqual(['2']);
-    expect((await page('', '', { from: '2026-09-26' })).offers.map((job) => job.id)).toEqual(['3']);
+    expect((await page('"react*senior"')).jobs.map((job) => job.id)).toEqual(['1']);
+    expect((await page('', '', { from: '2026-09-24', to: '2026-09-25' })).jobs.map((job) => job.id)).toEqual(['2']);
+    expect((await page('', '', { from: '2026-09-26' })).jobs.map((job) => job.id)).toEqual(['3']);
   });
 
   it('matches % and _ in the search as themselves, not as wildcards', async () => {
@@ -92,14 +92,14 @@ describeDb('offers', () => {
       offer('justjoin', '4', 'Sales 1000 remote', 'Beta'),
       offer('justjoin', '5', 'Back\\slash', 'Gamma'),
     ]);
-    expect((await page('react_dev')).offers.map((job) => job.id)).toEqual(['2']);
-    expect((await page('100%')).offers.map((job) => job.id)).toEqual(['3']);
-    expect((await page('k\\s')).offers.map((job) => job.id)).toEqual(['5']);
+    expect((await page('react_dev')).jobs.map((job) => job.id)).toEqual(['2']);
+    expect((await page('100%')).jobs.map((job) => job.id)).toEqual(['3']);
+    expect((await page('k\\s')).jobs.map((job) => job.id)).toEqual(['5']);
   });
 
   it('pages through in a stable order, with the total of all pages', async () => {
-    const many = Array.from({ length: PAGE_SIZE + 5 }, (_, n) =>
-      offer('justjoin', `o${n}`, `Job ${n}`, `Company ${n}`),
+    const many = Array.from({ length: PAGE_SIZE + 5 }, (_, index) =>
+      offer('justjoin', `o${index}`, `Job ${index}`, `Company ${index}`),
     );
     await offersRepo.ingest(many);
     await exec(sql`update public.offers set first_seen = '2026-10-01T00:00:00Z'`); // all at once: src, id decide
@@ -107,9 +107,9 @@ describeDb('offers', () => {
     const two = await page('', '', { page: 1 });
     expect(one.total).toBe(PAGE_SIZE + 5);
     expect(two.total).toBe(PAGE_SIZE + 5);
-    expect(one.offers).toHaveLength(PAGE_SIZE);
-    expect(two.offers).toHaveLength(5);
-    const ids = [...one.offers, ...two.offers].map((job) => job.id);
+    expect(one.jobs).toHaveLength(PAGE_SIZE);
+    expect(two.jobs).toHaveLength(5);
+    const ids = [...one.jobs, ...two.jobs].map((job) => job.id);
     expect(new Set(ids).size).toBe(PAGE_SIZE + 5);
     expect(ids).toEqual([...ids].sort());
   });
@@ -120,26 +120,26 @@ describeDb('offers', () => {
       offer('nofluff', '2', 'Front-end Engineer (React)', 'Acme'),
     ]);
     expect(await getTotalCount()).toBe(2);
-    await linksRepo.mergeJobs(added[0].dupKey, added[1].dupKey);
-    expect(await linksRepo.groupOf(added[1].dupKey)).toBe(added[0].dupKey);
-    const { offers, total } = await page();
+    await linksRepo.mergeJobs(added[0].titleKey, added[1].titleKey);
+    expect(await linksRepo.jobIdOf(added[1].titleKey)).toBe(added[0].titleKey);
+    const { jobs, total } = await page();
     expect(total).toBe(1);
     expect(await getTotalCount()).toBe(1);
-    expect(offers[0].dupKey).toBe(added[0].dupKey);
-    expect(offers[0].copies).toHaveLength(2);
+    expect(jobs[0].jobId).toBe(added[0].titleKey);
+    expect(jobs[0].offers).toHaveLength(2);
   });
 
-  it('finds a copy by the board id or by its link, and gives the key the scrapers would', async () => {
+  it('finds an offer by the board id or by its link, and gives the title key the scrapers would', async () => {
     await offersRepo.ingest([offer('justjoin', 'acme-react', 'React Developer (k/m)', 'Acme Sp. z o.o.')]);
-    const byId = await offersRepo.findCopy({ src: 'justjoin', id: 'acme-react', urls: [] });
-    const byLink = await offersRepo.findCopy({
+    const byId = await offersRepo.findOffer({ src: 'justjoin', id: 'acme-react', urls: [] });
+    const byLink = await offersRepo.findOffer({
       urls: ['https://nowhere.example', 'https://justjoin.example/acme-react'],
     });
     expect(byId?.id).toBe('acme-react');
     expect(byLink?.id).toBe('acme-react');
-    expect(await offersRepo.findCopy({ urls: ['https://nowhere.example'] })).toBeNull();
-    expect(await offersRepo.findCopy({ urls: [] })).toBeNull(); // nothing asked for: not just any offer
-    expect(await offersRepo.dupKeyOf('ACME', 'React Developer')).toBe(byId?.dupKey);
+    expect(await offersRepo.findOffer({ urls: ['https://nowhere.example'] })).toBeNull();
+    expect(await offersRepo.findOffer({ urls: [] })).toBeNull(); // nothing asked for: not just any offer
+    expect(await offersRepo.titleKeyOf('ACME', 'React Developer')).toBe(byId?.titleKey);
   });
 
   it('counts offers per board, and gives timestamps as ISO 8601', async () => {

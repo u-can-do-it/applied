@@ -38,51 +38,51 @@ type Draft = {
   fields: Partial<Record<FieldId, string>>;
 };
 
-const headerText = (h: Record<string, string> | undefined) =>
-  Object.entries(h ?? {})
-    .map(([k, v]) => `${k}: ${v}`)
+const headerText = (headers: Record<string, string> | undefined) =>
+  Object.entries(headers ?? {})
+    .map(([name, value]) => `${name}: ${value}`)
     .join('\n');
 const parseHeaders = (text: string) =>
   Object.fromEntries(
     text
       .split('\n')
-      .map((l) => l.match(/^\s*([^:]+?)\s*:\s*(.*?)\s*$/))
-      .filter((m): m is RegExpMatchArray => Boolean(m))
-      .map((m) => [m[1], m[2]]),
+      .map((line) => line.match(/^\s*([^:]+?)\s*:\s*(.*?)\s*$/))
+      .filter((match): match is RegExpMatchArray => Boolean(match))
+      .map((match) => [match[1], match[2]]),
   );
 
-function toDraft(s: Scraper): Draft {
+function toDraft(scraper: Scraper): Draft {
   return {
-    id: s.id,
-    name: s.name,
-    src: s.src,
-    kind: s.kind,
-    enabled: s.enabled,
-    url: s.config.url,
-    pages: s.config.pages ?? 1,
-    headers: headerText(s.config.headers),
-    checkKeyword: Boolean(s.config.checkKeyword),
-    checkLocation: Boolean(s.config.checkLocation),
-    from: s.config.from ?? 'body',
-    scriptId: s.config.scriptId ?? '',
-    items: s.config.items ?? '',
-    fields: { ...(s.config.fields ?? {}) },
+    id: scraper.id,
+    name: scraper.name,
+    src: scraper.src,
+    kind: scraper.kind,
+    enabled: scraper.enabled,
+    url: scraper.config.url,
+    pages: scraper.config.pages ?? 1,
+    headers: headerText(scraper.config.headers),
+    checkKeyword: Boolean(scraper.config.checkKeyword),
+    checkLocation: Boolean(scraper.config.checkLocation),
+    from: scraper.config.from ?? 'body',
+    scriptId: scraper.config.scriptId ?? '',
+    items: scraper.config.items ?? '',
+    fields: { ...(scraper.config.fields ?? {}) },
   };
 }
 
 /** A new scraper of a kind: the built-in boards start with their usual search. */
 function blank(kind: KindId, keep?: Partial<Draft>): Draft {
-  const { src, defaults: d } = kindOf(kind);
+  const { src, defaults } = kindOf(kind);
   return {
     name: keep?.name || (src ? (byId(src)?.label ?? '') : ''),
     src: src ?? keep?.src ?? '',
     kind,
     enabled: true,
-    url: d?.url ?? keep?.url ?? '',
-    pages: d?.pages ?? 1,
-    headers: headerText(d?.headers),
-    checkKeyword: d?.checkKeyword ?? true,
-    checkLocation: d?.checkLocation ?? true,
+    url: defaults?.url ?? keep?.url ?? '',
+    pages: defaults?.pages ?? 1,
+    headers: headerText(defaults?.headers),
+    checkKeyword: defaults?.checkKeyword ?? true,
+    checkLocation: defaults?.checkLocation ?? true,
     from: 'body',
     scriptId: '',
     items: '',
@@ -90,20 +90,22 @@ function blank(kind: KindId, keep?: Partial<Draft>): Draft {
   };
 }
 
-const toForm = (d: Draft): ScraperForm => ({
-  id: d.id,
-  name: d.name,
-  src: d.src,
-  kind: d.kind,
-  enabled: d.enabled,
+const toForm = (draft: Draft): ScraperForm => ({
+  id: draft.id,
+  name: draft.name,
+  src: draft.src,
+  kind: draft.kind,
+  enabled: draft.enabled,
   config: {
-    url: d.url.trim(),
-    pages: d.pages,
-    headers: parseHeaders(d.headers),
-    checkKeyword: d.checkKeyword,
-    checkLocation: d.checkLocation,
-    ...(d.kind === 'json' ? { from: d.from, scriptId: d.scriptId, items: d.items, fields: d.fields } : {}),
-    ...(d.kind === 'html' ? { items: d.items, fields: d.fields } : {}),
+    url: draft.url.trim(),
+    pages: draft.pages,
+    headers: parseHeaders(draft.headers),
+    checkKeyword: draft.checkKeyword,
+    checkLocation: draft.checkLocation,
+    ...(draft.kind === 'json'
+      ? { from: draft.from, scriptId: draft.scriptId, items: draft.items, fields: draft.fields }
+      : {}),
+    ...(draft.kind === 'html' ? { items: draft.items, fields: draft.fields } : {}),
   },
 });
 
@@ -118,10 +120,10 @@ export function ScrapersPanel({
 }) {
   const [open, setOpen] = useState<{ draft: Draft; test: boolean; n: number } | null>(null);
   const act = useAction();
-  const edit = (draft: Draft, test = false) => setOpen((o) => ({ draft, test, n: (o?.n ?? 0) + 1 }));
+  const edit = (draft: Draft, test = false) => setOpen((previous) => ({ draft, test, n: (previous?.n ?? 0) + 1 }));
   // a switched checkbox shows at once; the refreshed page brings the real list
-  const [list, toggle] = useOptimistic(scrapers, (cur, t: { id: string; enabled: boolean }) =>
-    cur.map((s) => (s.id === t.id ? { ...s, enabled: t.enabled } : s)),
+  const [list, toggle] = useOptimistic(scrapers, (cur, change: { id: string; enabled: boolean }) =>
+    cur.map((scraper) => (scraper.id === change.id ? { ...scraper, enabled: change.enabled } : scraper)),
   );
 
   return (
@@ -133,42 +135,42 @@ export function ScrapersPanel({
         </button>
       </div>
       <ul className="scrapers">
-        {list.map((s) => (
-          <li key={s.id} className={s.enabled ? undefined : 'off'}>
+        {list.map((scraper) => (
+          <li key={scraper.id} className={scraper.enabled ? undefined : 'off'}>
             <input
               type="checkbox"
-              checked={s.enabled}
-              aria-label={`${s.name} on`}
-              onChange={(e) => {
-                const enabled = e.target.checked;
+              checked={scraper.enabled}
+              aria-label={`${scraper.name} on`}
+              onChange={(event) => {
+                const enabled = event.target.checked;
                 act.run(
-                  () => toggleScraperAction({ id: s.id, enabled }),
-                  () => toggle({ id: s.id, enabled }),
+                  () => toggleScraperAction({ id: scraper.id, enabled }),
+                  () => toggle({ id: scraper.id, enabled }),
                 );
               }}
             />
             <div className="scraper-main">
               <div>
-                <strong>{s.name}</strong> <span className="badge">{kindOf(s.kind).label}</span>{' '}
+                <strong>{scraper.name}</strong> <span className="badge">{kindOf(scraper.kind).label}</span>{' '}
                 <span className="muted small">
-                  {s.src}
-                  {counts[s.src] ? ` · ${counts[s.src]?.offers} saved` : ''}
+                  {scraper.src}
+                  {counts[scraper.src] ? ` · ${counts[scraper.src]?.offers} saved` : ''}
                 </span>
               </div>
-              <ScraperStatus s={s} />
+              <ScraperStatus scraper={scraper} />
             </div>
             <div className="scraper-actions">
-              <button type="button" className="secondary" onClick={() => edit(toDraft(s), true)}>
+              <button type="button" className="secondary" onClick={() => edit(toDraft(scraper), true)}>
                 Test
               </button>
-              <button type="button" className="secondary" onClick={() => edit(toDraft(s))}>
+              <button type="button" className="secondary" onClick={() => edit(toDraft(scraper))}>
                 Edit
               </button>
               <button
                 type="button"
                 className="secondary"
                 title="A copy, e.g. for another search on the same board"
-                onClick={() => edit({ ...toDraft(s), id: undefined, name: `${s.name} (copy)` })}
+                onClick={() => edit({ ...toDraft(scraper), id: undefined, name: `${scraper.name} (copy)` })}
               >
                 Copy
               </button>
@@ -190,28 +192,31 @@ export function ScrapersPanel({
   );
 }
 
-function ScraperStatus({ s }: { s: Scraper }) {
+function ScraperStatus({ scraper }: { scraper: Scraper }) {
   const { formatTime } = useZone();
-  if (!s.lastRunAt)
+  if (!scraper.lastRunAt)
     return (
-      <p className="muted small">Not run yet{s.mark === null ? ' · its first run only saves (no Telegram)' : ''}</p>
+      <p className="muted small">
+        Not run yet{scraper.mark === null ? ' · its first run only saves (no Telegram)' : ''}
+      </p>
     );
-  const when = formatTime(s.lastRunAt);
-  if (s.lastStatus === 'error' && !s.lastFound) {
+  const when = formatTime(scraper.lastRunAt);
+  if (scraper.lastStatus === 'error' && !scraper.lastFound) {
     return (
       <p className="small">
         <span className="warn">
-          ✗ {when} · {s.lastError}
+          ✗ {when} · {scraper.lastError}
         </span>
       </p>
     );
   }
   return (
     <p className="small">
-      <span className="ok-text">✓</span> {when} · {s.lastFound} on the page · {s.lastKept} kept · {s.lastNew} new
-      {s.lastMs !== null && <span className="muted"> · {seconds(s.lastMs, 1)}</span>}
-      {s.lastError && <span className="warn"> · ⚠ {s.lastError}</span>}
-      {s.mark === null && <span className="muted"> · next run only saves</span>}
+      <span className="ok-text">✓</span> {when} · {scraper.lastFound} on the page · {scraper.lastKept} kept ·{' '}
+      {scraper.lastNew} new
+      {scraper.lastMs !== null && <span className="muted"> · {seconds(scraper.lastMs, 1)}</span>}
+      {scraper.lastError && <span className="warn"> · ⚠ {scraper.lastError}</span>}
+      {scraper.mark === null && <span className="muted"> · next run only saves</span>}
     </p>
   );
 }
@@ -253,18 +258,19 @@ function ScraperEditor({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [d, setD] = useState(initial);
+  const [draft, setDraft] = useState(initial);
   const [test, setTest] = useState<Result<TestResult> | null>(null);
   const [testing, startTest] = useTransition();
   const [saving, startSave] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
-  const setField = (f: FieldId, v: string) => setD((x) => ({ ...x, fields: { ...x.fields, [f]: v } }));
+  const set = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
+  const setField = (field: FieldId, value: string) =>
+    setDraft((current) => ({ ...current, fields: { ...current.fields, [field]: value } }));
 
   const runTest = () =>
     startTest(async () => {
       setTest(null);
-      setTest(await testScraperAction(toForm(d)).catch((e: unknown) => fail(message(e))));
+      setTest(await testScraperAction(toForm(draft)).catch((failure: unknown) => fail(message(failure))));
     });
 
   const opened = useEffectEvent(() => {
@@ -278,29 +284,31 @@ function ScraperEditor({
   const commit = (fn: () => Promise<Result<unknown>>) => {
     setError(null);
     startSave(async () => {
-      const answer = await fn().catch((e: unknown) => fail(message(e)));
+      const answer = await fn().catch((failure: unknown) => fail(message(failure)));
       startTransition(() => (answer.ok ? onClose() : setError(answer.error)));
     });
   };
-  const save = () => commit(() => saveScraperAction(toForm(d)));
+  const save = () => commit(() => saveScraperAction(toForm(draft)));
   const remove = () => {
-    const id = d.id;
-    if (!id || !confirm(`Delete “${d.name}”? Offers it already saved stay.`)) return;
+    const id = draft.id;
+    if (!id || !confirm(`Delete “${draft.name}”? Offers it already saved stay.`)) return;
     commit(() => deleteScraperAction({ id }));
   };
   const changeKind = (kind: KindId) => {
-    // a built-in board brings its own link and source id; between generic kinds keep what's typed
-    if (d.id && !confirm('Change the type? The link and fields may not fit the new type.')) return;
-    setD((x) =>
-      isGeneric(kind) && isGeneric(x.kind) ? { ...x, kind } : { ...blank(kind, x), id: x.id, enabled: x.enabled },
+    // a built-in board brings its own link and board id; between generic kinds keep what's typed
+    if (draft.id && !confirm('Change the type? The link and fields may not fit the new type.')) return;
+    setDraft((current) =>
+      isGeneric(kind) && isGeneric(current.kind)
+        ? { ...current, kind }
+        : { ...blank(kind, current), id: current.id, enabled: current.enabled },
     );
     setTest(null);
   };
 
-  const generic = isGeneric(d.kind);
-  const mapped = d.kind === 'json' || d.kind === 'html';
-  const usesKeyword = /\{keyword(_slug)?\}/.test(d.url);
-  const paged = /\{(start|page)\}/.test(d.url);
+  const generic = isGeneric(draft.kind);
+  const mapped = draft.kind === 'json' || draft.kind === 'html';
+  const usesKeyword = /\{keyword(_slug)?\}/.test(draft.url);
+  const paged = /\{(start|page)\}/.test(draft.url);
 
   return (
     <dialog
@@ -308,40 +316,44 @@ function ScraperEditor({
       className="modal modal-wide modal-sheet"
       aria-labelledby="scraper-title"
       onClose={onClose}
-      onClick={(e) => e.target === dialog.current && dialog.current.close()}
+      onClick={(event) => event.target === dialog.current && dialog.current.close()}
     >
       <div className="modal-body">
         <div className="sheet-head">
-          <h2 id="scraper-title">{d.id ? initial.name : 'New scraper'}</h2>
-          <p className="muted">{kindOf(d.kind).hint}</p>
+          <h2 id="scraper-title">{draft.id ? initial.name : 'New scraper'}</h2>
+          <p className="muted">{kindOf(draft.kind).hint}</p>
         </div>
 
         <div className="sheet-scroll">
           <div className="field-row">
             <label className="field">
               <span>Type</span>
-              <select value={d.kind} onChange={(e) => changeKind(e.target.value as KindId)}>
-                {KIND_IDS.map((k) => (
-                  <option key={k} value={k}>
-                    {kindOf(k).label}
+              <select value={draft.kind} onChange={(event) => changeKind(event.target.value as KindId)}>
+                {KIND_IDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {kindOf(kind).label}
                   </option>
                 ))}
               </select>
             </label>
             <label className="field">
               <span>Name</span>
-              <input value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="LinkedIn – React" />
+              <input
+                value={draft.name}
+                onChange={(event) => set({ name: event.target.value })}
+                placeholder="LinkedIn – React"
+              />
             </label>
             <label className="field">
               <span>Source id</span>
               {generic ? (
                 <input
-                  value={d.src}
-                  onChange={(e) => set({ src: e.target.value.toLowerCase() })}
+                  value={draft.src}
+                  onChange={(event) => set({ src: event.target.value.toLowerCase() })}
                   placeholder="linkedin"
                 />
               ) : (
-                <input value={d.src} readOnly aria-readonly="true" />
+                <input value={draft.src} readOnly aria-readonly="true" />
               )}
             </label>
           </div>
@@ -355,8 +367,8 @@ function ScraperEditor({
             <span>Link</span>
             <textarea
               rows={2}
-              value={d.url}
-              onChange={(e) => set({ url: e.target.value })}
+              value={draft.url}
+              onChange={(event) => set({ url: event.target.value })}
               placeholder="https://…"
               spellCheck={false}
             />
@@ -375,8 +387,8 @@ function ScraperEditor({
                 type="number"
                 min={1}
                 max={5}
-                value={d.pages}
-                onChange={(e) => set({ pages: Math.max(1, Math.min(5, Number(e.target.value) || 1)) })}
+                value={draft.pages}
+                onChange={(event) => set({ pages: Math.max(1, Math.min(5, Number(event.target.value) || 1)) })}
               />
               <small>per keyword, per run</small>
             </label>
@@ -385,47 +397,56 @@ function ScraperEditor({
             <span>Headers</span>
             <textarea
               rows={2}
-              value={d.headers}
-              onChange={(e) => set({ headers: e.target.value })}
+              value={draft.headers}
+              onChange={(event) => set({ headers: event.target.value })}
               placeholder="X-Api-Version: 1.0"
               spellCheck={false}
             />
             <small>One per line, “Name: value”. A browser User-Agent is sent unless you set one.</small>
           </label>
           <label className="check">
-            <input type="checkbox" checked={d.checkKeyword} onChange={(e) => set({ checkKeyword: e.target.checked })} />{' '}
+            <input
+              type="checkbox"
+              checked={draft.checkKeyword}
+              onChange={(event) => set({ checkKeyword: event.target.checked })}
+            />{' '}
             The offer must mention a keyword (title or skills)
           </label>
           <label className="check">
             <input
               type="checkbox"
-              checked={d.checkLocation}
-              onChange={(e) => set({ checkLocation: e.target.checked })}
+              checked={draft.checkLocation}
+              onChange={(event) => set({ checkLocation: event.target.checked })}
             />{' '}
             Only remote or in the cities from Filters
           </label>
           <label className="check">
-            <input type="checkbox" checked={d.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> On
+            <input
+              type="checkbox"
+              checked={draft.enabled}
+              onChange={(event) => set({ enabled: event.target.checked })}
+            />{' '}
+            On
           </label>
 
-          {d.kind === 'json' && (
+          {draft.kind === 'json' && (
             <div className="field-row">
               <label className="field">
                 <span>Where the JSON is</span>
-                <select value={d.from} onChange={(e) => set({ from: e.target.value as JsonSource })}>
-                  {JSON_SOURCES.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
+                <select value={draft.from} onChange={(event) => set({ from: event.target.value as JsonSource })}>
+                  {JSON_SOURCES.map((source) => (
+                    <option key={source.id} value={source.id}>
+                      {source.label}
                     </option>
                   ))}
                 </select>
               </label>
-              {d.from === 'script' && (
+              {draft.from === 'script' && (
                 <label className="field">
                   <span>Script id</span>
                   <input
-                    value={d.scriptId}
-                    onChange={(e) => set({ scriptId: e.target.value })}
+                    value={draft.scriptId}
+                    onChange={(event) => set({ scriptId: event.target.value })}
                     placeholder="serverApp-state"
                   />
                 </label>
@@ -434,15 +455,15 @@ function ScraperEditor({
           )}
           {mapped && (
             <label className="field">
-              <span>{d.kind === 'json' ? 'Path to the list of offers' : 'One offer (CSS selector)'}</span>
+              <span>{draft.kind === 'json' ? 'Path to the list of offers' : 'One offer (CSS selector)'}</span>
               <input
-                value={d.items}
-                onChange={(e) => set({ items: e.target.value })}
-                placeholder={d.kind === 'json' ? 'data, or props.pageProps.jobs' : 'li.job-card'}
+                value={draft.items}
+                onChange={(event) => set({ items: event.target.value })}
+                placeholder={draft.kind === 'json' ? 'data, or props.pageProps.jobs' : 'li.job-card'}
                 spellCheck={false}
               />
               <small>
-                {d.kind === 'json'
+                {draft.kind === 'json'
                   ? 'Keys with dots between them; [] = each item of a list, e.g. results[].job. Test shows the first offer’s JSON to find the paths.'
                   : 'Test shows the first one’s HTML, to find the selectors for the fields.'}
               </small>
@@ -451,25 +472,25 @@ function ScraperEditor({
           {mapped && (
             <fieldset className="fields">
               <legend>
-                {d.kind === 'json' ? 'Fields: a path inside one offer' : 'Fields: a CSS selector inside one offer'}
+                {draft.kind === 'json' ? 'Fields: a path inside one offer' : 'Fields: a CSS selector inside one offer'}
               </legend>
-              {FIELDS.map((f) => (
-                <label key={f.id} className="field">
+              {FIELDS.map((field) => (
+                <label key={field.id} className="field">
                   <span>
-                    {f.label}
-                    {'required' in f && ' *'}
-                    {'hint' in f && <em className="muted"> · {f.hint}</em>}
+                    {field.label}
+                    {'required' in field && ' *'}
+                    {'hint' in field && <em className="muted"> · {field.hint}</em>}
                   </span>
                   <input
-                    value={d.fields[f.id] ?? ''}
-                    onChange={(e) => setField(f.id, e.target.value)}
-                    placeholder={PLACEHOLDERS[d.kind as 'json' | 'html'][f.id]}
+                    value={draft.fields[field.id] ?? ''}
+                    onChange={(event) => setField(field.id, event.target.value)}
+                    placeholder={PLACEHOLDERS[draft.kind as 'json' | 'html'][field.id]}
                     spellCheck={false}
                   />
                 </label>
               ))}
               <small>
-                {d.kind === 'json'
+                {draft.kind === 'json'
                   ? 'The link can be a template filled from the offer: https://site.com/job/{slug}. Relative links are fine.'
                   : '“h3 a” = its text, “h3 a@href” = an attribute, “@data-id” = the offer element’s own attribute. Relative links are fine.'}
               </small>
@@ -486,7 +507,7 @@ function ScraperEditor({
             </p>
           )}
           <div className="modal-actions">
-            {d.id && (
+            {draft.id && (
               <button type="button" className="secondary danger" onClick={remove} disabled={saving}>
                 Delete
               </button>
@@ -522,54 +543,58 @@ function TestView({ test }: { test: Result<TestResult> }) {
       </p>
     );
   }
-  const t = test.data;
+  const result = test.data;
   const skipped = [
-    t.skipped.keyword && `${t.skipped.keyword} without a keyword`,
-    t.skipped.area && `${t.skipped.area} not remote / not in the cities`,
-    t.skipped.ignored && `${t.skipped.ignored} by title`,
+    result.skipped.keyword && `${result.skipped.keyword} without a keyword`,
+    result.skipped.area && `${result.skipped.area} not remote / not in the cities`,
+    result.skipped.ignored && `${result.skipped.ignored} by title`,
   ].filter(Boolean);
   return (
     <section className="test-view" aria-label="Test result" aria-live="polite">
       <p>
-        {t.ok ? <span className="ok-text">✓</span> : <span className="warn">✗</span>} {t.found} on the page
-        {t.pages.length > 1 ? 's' : ''} → <strong>{t.kept} kept</strong>, {t.fresh} of them not saved yet ·{' '}
-        {seconds(t.ms, 1)}
+        {result.ok ? <span className="ok-text">✓</span> : <span className="warn">✗</span>} {result.found} on the page
+        {result.pages.length > 1 ? 's' : ''} → <strong>{result.kept} kept</strong>, {result.fresh} of them not saved yet
+        · {seconds(result.ms, 1)}
         {skipped.length > 0 && <span className="muted"> · skipped: {skipped.join(', ')}</span>}
       </p>
-      {t.pages.length > 1 || !t.ok ? (
+      {result.pages.length > 1 || !result.ok ? (
         <ul className="test-pages">
-          {t.pages.map((p) => (
-            <li key={p.url}>
-              {[p.keyword, t.pages.some((x) => x.page > 1) && `page ${p.page}`].filter(Boolean).join(', ') || 'page'}:{' '}
-              {p.ok ? `${p.total} → ${p.kept}` : <span className="warn">{p.error}</span>}{' '}
-              <a href={p.url} target="_blank" rel="noopener noreferrer">
+          {result.pages.map((page) => (
+            <li key={page.url}>
+              {[page.keyword, result.pages.some((other) => other.page > 1) && `page ${page.page}`]
+                .filter(Boolean)
+                .join(', ') || 'page'}
+              : {page.ok ? `${page.total} → ${page.kept}` : <span className="warn">{page.error}</span>}{' '}
+              <a href={page.url} target="_blank" rel="noopener noreferrer">
                 open ↗
               </a>
             </li>
           ))}
         </ul>
       ) : null}
-      {t.offers.length > 0 && (
+      {result.offers.length > 0 && (
         <ol className="test-offers">
-          {t.offers.map((o) => (
-            <li key={o.id}>
-              <a href={o.url} target="_blank" rel="noopener noreferrer">
-                {o.title}
+          {result.offers.map((offer) => (
+            <li key={offer.id}>
+              <a href={offer.url} target="_blank" rel="noopener noreferrer">
+                {offer.title}
               </a>{' '}
-              {!o.known && <span className="badge new">new</span>}
+              {!offer.known && <span className="badge new">new</span>}
               <span className="muted small">
                 {' '}
-                {[o.company, o.remote ? 'remote' : o.locations.join(', '), o.seniority].filter(Boolean).join(' · ')} ·
-                id {o.id}
+                {[offer.company, offer.remote ? 'remote' : offer.locations.join(', '), offer.seniority]
+                  .filter(Boolean)
+                  .join(' · ')}{' '}
+                · id {offer.id}
               </span>
             </li>
           ))}
         </ol>
       )}
-      {t.sample && (
+      {result.sample && (
         <details className="sample">
           <summary>The first offer as the scraper sees it</summary>
-          <pre>{t.sample}</pre>
+          <pre>{result.sample}</pre>
         </details>
       )}
     </section>

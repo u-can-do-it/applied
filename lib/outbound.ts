@@ -12,14 +12,14 @@ const PRIVATE_HOST =
 
 /** Throws unless the link is http(s) and, in production, not the server's own network (SSRF). */
 export function checkUrl(raw: string) {
-  let u: URL;
+  let url: URL;
   try {
-    u = new URL(raw);
+    url = new URL(raw);
   } catch {
     throw new Error(`Not a link: ${raw.slice(0, 80)}`);
   }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('Only http and https links');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('Only http and https links');
   // a scraper or a typed link must not read the server's own network
-  if (env.NODE_ENV === 'production' && PRIVATE_HOST.test(u.hostname))
+  if (env.NODE_ENV === 'production' && PRIVATE_HOST.test(url.hostname))
     throw new Error('Private addresses are not allowed');
 }

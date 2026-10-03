@@ -11,21 +11,21 @@ export const parseBulldog: ListingParser = (body, { src }) => {
   return {
     total: jobs.length,
     sample: sampleOf(jobs[0]),
-    items: (jobs as Obj[]).map((j) => {
-      const counter = Number(String(j.id).split('-')[0]); // ascending insert counter
+    items: (jobs as Obj[]).map((offer) => {
+      const counter = Number(String(offer.id).split('-')[0]); // ascending insert counter
       return {
         src,
-        id: str(j.id),
-        title: str(j.position),
-        company: (isObj(j.company) && str(j.company.name)) || 'unknown',
-        seniority: str(j.experienceLevel) || 'unknown',
-        remote: j.remote === true,
-        url: `https://bulldogjob.pl/companies/jobs/${str(j.id)}`,
-        skills: [...arr(j.technologies), ...arr(j.technologyTags)].map(nameOf).filter(Boolean),
+        id: str(offer.id),
+        title: str(offer.position),
+        company: (isObj(offer.company) && str(offer.company.name)) || 'unknown',
+        seniority: str(offer.experienceLevel) || 'unknown',
+        remote: offer.remote === true,
+        url: `https://bulldogjob.pl/companies/jobs/${str(offer.id)}`,
+        skills: [...arr(offer.technologies), ...arr(offer.technologyTags)].map(nameOf).filter(Boolean),
         // "", one city, or "Krakow, London, Barcelona"
-        locations: str(j.city)
+        locations: str(offer.city)
           .split(',')
-          .map((c) => c.trim())
+          .map((city) => city.trim())
           .filter(Boolean),
         sort: Number.isFinite(counter) ? counter : 0,
       };

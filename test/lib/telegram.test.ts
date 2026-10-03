@@ -3,7 +3,7 @@ import type { Queued } from '@/lib/db/repos/notify-queue';
 import { formatNotification, type Outgoing } from '@/lib/telegram';
 
 let seq = 0;
-const offer = (o: Partial<Outgoing> = {}): Outgoing => {
+const offer = (overrides: Partial<Outgoing> = {}): Outgoing => {
   seq++;
   return {
     src: 'justjoin',
@@ -14,11 +14,12 @@ const offer = (o: Partial<Outgoing> = {}): Outgoing => {
     remote: false,
     location: 'Warszawa',
     url: `https://x.test/${seq}`,
-    dupKey: null,
-    ...o,
+    jobId: null,
+    ...overrides,
   };
 };
-const many = (count: number, o: Partial<Outgoing> = {}) => Array.from({ length: count }, () => offer(o));
+const many = (count: number, overrides: Partial<Outgoing> = {}) =>
+  Array.from({ length: count }, () => offer(overrides));
 const notify = (input: Partial<Parameters<typeof formatNotification>[0]>) =>
   formatNotification({ matched: [], unmatched: [], unchecked: [], profile: null, held: false, link: null, ...input });
 
@@ -29,18 +30,18 @@ describe('formatNotification', () => {
   });
 
   it('one offer: the board heading, title, company · seniority · place, link', () => {
-    const o = offer({ title: 'React Dev', url: 'https://justjoin.it/job-offer/x' });
-    expect(notify({ matched: [o] })).toEqual([
+    const reactDev = offer({ title: 'React Dev', url: 'https://justjoin.it/job-offer/x' });
+    expect(notify({ matched: [reactDev] })).toEqual([
       {
         text: '---------------------- justjoin ----------------------\n🆕 React Dev\nAcme · senior · Warszawa\nhttps://justjoin.it/job-offer/x',
-        offers: [o],
+        offers: [reactDev],
       },
     ]);
   });
 
   it('where: remote, the place, or office; missing parts are left out', () => {
-    const text = (o: Partial<Outgoing>) =>
-      notify({ matched: [offer({ title: 'T', url: 'u', ...o })] })[0]
+    const text = (overrides: Partial<Outgoing>) =>
+      notify({ matched: [offer({ title: 'T', url: 'u', ...overrides })] })[0]
         .text.split('\n')
         .slice(2, 3)[0];
     expect(text({ remote: true })).toBe('Acme · senior · zdalnie');
@@ -49,10 +50,10 @@ describe('formatNotification', () => {
   });
 
   it("the AI's score and summary (cut to 160 characters)", () => {
-    const [m] = notify({
+    const [message] = notify({
       matched: [offer({ title: 'T', url: 'u', verdict: { score: 87, summary: 'x'.repeat(200) } })],
     });
-    expect(m.text).toContain(`\n✦ 87% · ${'x'.repeat(160)}\nu`);
+    expect(message.text).toContain(`\n✦ 87% · ${'x'.repeat(160)}\nu`);
     const [bare] = notify({ matched: [offer({ title: 'T', url: 'u', verdict: { score: 40, summary: null } })] });
     expect(bare.text).toContain('\n✦ 40%\nu');
   });
@@ -61,7 +62,7 @@ describe('formatNotification', () => {
     const jj = many(7, { src: 'justjoin' });
     const bd = many(2, { src: 'bulldog' });
     const out = notify({ matched: [...jj.slice(0, 3), ...bd, ...jj.slice(3)] });
-    expect(out.map((m) => m.offers.length)).toEqual([2, 5, 2]);
+    expect(out.map((message) => message.offers.length)).toEqual([2, 5, 2]);
     expect(out[0].offers).toEqual(bd);
     expect(out[1].offers).toEqual(jj.slice(0, 5));
     expect(out[2].offers).toEqual(jj.slice(5));

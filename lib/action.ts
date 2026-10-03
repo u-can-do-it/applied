@@ -35,9 +35,9 @@ async function run<S extends z.ZodType, O>(
     const parsed = schema.safeParse(input, { error: () => BAD_REQUEST });
     if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? BAD_REQUEST);
     return ok(await fn(parsed.data));
-  } catch (e) {
-    unstable_rethrow(e); // redirect() and the like are how Next.js answers, not failures
-    return fail(message(e));
+  } catch (error) {
+    unstable_rethrow(error); // redirect() and the like are how Next.js answers, not failures
+    return fail(message(error));
   }
 }
 

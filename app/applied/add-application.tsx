@@ -7,7 +7,7 @@ import type { Zone } from '@/lib/dates';
 import { message } from '@/lib/shared/errors';
 import { fail } from '@/lib/shared/result';
 import type { ApplicationInput } from '@/lib/shared/schemas/applications';
-import { STAGES, statesFor, type StageId, type StateId } from '@/lib/stages';
+import { STAGES, outcomesFor, type StageId, type OutcomeId } from '@/lib/stages';
 import { addApplicationAction, fillFromLinkAction, updateApplicationAction } from '../actions';
 import { DateInput } from '../controls';
 import { useZone } from '../time-zone';
@@ -21,14 +21,14 @@ import { useZone } from '../time-zone';
 type Draft = ApplicationInput; // what the form sends
 type Field = keyof Draft;
 
-const empty = (z: Zone): Draft => ({
+const empty = (zone: Zone): Draft => ({
   url: '',
   title: '',
   company: '',
   board: 'unknown',
-  day: z.day(),
+  day: zone.day(),
   stage: 'submitted',
-  state: 'pending',
+  outcome: 'pending',
   salary: '',
   contract: '',
   location: '',
@@ -38,30 +38,30 @@ const empty = (z: Zone): Draft => ({
 });
 
 /** An applied offer as the form shows it. */
-const draftOf = (a: ApplicationWithContent, z: Zone): Draft => ({
-  url: a.url,
-  title: a.title,
-  company: a.company ?? '',
-  board: a.src,
-  day: z.day(a.appliedAt),
-  stage: a.stage,
-  state: a.stageState,
-  salary: a.details?.salary ?? '',
-  contract: a.details?.contract ?? '',
-  location: a.details?.location ?? '',
-  remote: Boolean(a.details?.remote),
-  content: a.content ?? '',
+const draftOf = (application: ApplicationWithContent, zone: Zone): Draft => ({
+  url: application.url,
+  title: application.title,
+  company: application.company ?? '',
+  board: application.src,
+  day: zone.day(application.appliedAt),
+  stage: application.stage,
+  outcome: application.outcome,
+  salary: application.details?.salary ?? '',
+  contract: application.details?.contract ?? '',
+  location: application.details?.location ?? '',
+  remote: Boolean(application.details?.remote),
+  content: application.content ?? '',
   note: '',
 });
 
 export function AddApplication() {
-  const [n, setN] = useState(0); // a fresh form each time
+  const [formKey, setFormKey] = useState(0); // a fresh form each time
   return (
     <>
-      <button type="button" className="secondary add-app" onClick={() => setN((x) => x + 1)}>
+      <button type="button" className="secondary add-app" onClick={() => setFormKey((previous) => previous + 1)}>
         + Add application
       </button>
-      {n > 0 && <AddDialog key={n} onClose={() => setN(0)} />}
+      {formKey > 0 && <AddDialog key={formKey} onClose={() => setFormKey(0)} />}
     </>
   );
 }
@@ -78,7 +78,7 @@ function AddDialog({ onClose }: { onClose: () => void }) {
       className="modal modal-wide modal-sheet"
       aria-labelledby="add-title"
       onClose={onClose}
-      onClick={(e) => e.target === dialog.current && dialog.current.close()}
+      onClick={(event) => event.target === dialog.current && dialog.current.close()}
     >
       {/* saved: closes together with the refreshed list, so the new one is there when it does */}
       <ApplicationForm onCancel={() => dialog.current?.close()} onSaved={onClose} />
@@ -93,8 +93,8 @@ type FormProps =
 /** The form without a window around it: a new application, or `app` to edit. */
 export function ApplicationForm(props: FormProps) {
   const editing = props.app !== undefined;
-  const z = useZone();
-  const [d, setD] = useState<Draft>(() => (props.app ? draftOf(props.app, z) : empty(z)));
+  const zone = useZone();
+  const [draft, setDraft] = useState<Draft>(() => (props.app ? draftOf(props.app, zone) : empty(zone)));
   const touched = useRef(new Set<Field>()); // what you typed: "Fill in" doesn't overwrite it
   const [filling, startFill] = useTransition();
   const [saving, startSave] = useTransition();
@@ -102,49 +102,53 @@ export function ApplicationForm(props: FormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const edit = (patch: Partial<Draft>) => {
-    for (const k of Object.keys(patch) as Field[]) touched.current.add(k);
-    setD((x) => ({ ...x, ...patch }));
+    for (const field of Object.keys(patch) as Field[]) touched.current.add(field);
+    setDraft((current) => ({ ...current, ...patch }));
   };
   const onLink = (url: string) =>
-    setD((x) => ({
-      ...x,
+    setDraft((current) => ({
+      ...current,
       url,
       // the board follows the link until you pick one yourself
-      board: touched.current.has('board') ? x.board : isLink(url) ? boardOf(url) : x.board,
+      board: touched.current.has('board') ? current.board : isLink(url) ? boardOf(url) : current.board,
     }));
 
   const fill = () => {
     setError(null);
     setInfo(null);
     startFill(async () => {
-      const r = await fillFromLinkAction({ link: d.url }).catch((e: unknown) => fail(message(e)));
+      const answer = await fillFromLinkAction({ link: draft.url }).catch((failure: unknown) => fail(message(failure)));
       startTransition(() => {
-        if (!r.ok) {
-          setError(r.error);
+        if (!answer.ok) {
+          setError(answer.error);
           return;
         }
-        const f = r.data;
-        setD((x) => {
-          const next = { ...x };
+        const filled = answer.data;
+        setDraft((current) => {
+          const next = { ...current };
           // what you typed stays; when editing, so does everything already filled in
-          const free = (k: Field) =>
-            !touched.current.has(k) && (!editing || next[k] === '' || (k === 'board' && next[k] === 'unknown'));
-          const put = <K extends Field>(k: K, v: Draft[K]) => {
-            if (free(k) && v !== '') next[k] = v;
+          const free = (field: Field) =>
+            !touched.current.has(field) &&
+            (!editing || next[field] === '' || (field === 'board' && next[field] === 'unknown'));
+          const put = <K extends Field>(field: K, value: Draft[K]) => {
+            if (free(field) && value !== '') next[field] = value;
           };
-          put('url', f.url);
-          put('board', f.board);
-          put('title', f.title);
-          put('company', f.company);
-          put('location', f.location);
-          put('salary', f.salary);
-          put('contract', f.contract);
-          put('content', f.content);
-          if (!touched.current.has('remote') && (!editing || !next.remote)) next.remote = f.remote;
+          put('url', filled.url);
+          put('board', filled.board);
+          put('title', filled.title);
+          put('company', filled.company);
+          put('location', filled.location);
+          put('salary', filled.salary);
+          put('contract', filled.contract);
+          put('content', filled.content);
+          if (!touched.current.has('remote') && (!editing || !next.remote)) next.remote = filled.remote;
           return next;
         });
         // editing one that's this scraped offer already: nothing to say
-        setInfo({ warning: f.warning, known: f.knownKey && f.knownKey === props.app?.dupKey ? null : f.known });
+        setInfo({
+          warning: filled.warning,
+          known: filled.knownJobId && filled.knownJobId === props.app?.jobId ? null : filled.known,
+        });
       });
     });
   };
@@ -152,27 +156,27 @@ export function ApplicationForm(props: FormProps) {
   const save = () => {
     setError(null);
     startSave(async () => {
-      const failed = (e: unknown) => fail(message(e));
+      const failed = (failure: unknown) => fail(message(failure));
       if (props.app) {
-        const { url, title, company, board, day, salary, contract, location, remote, content } = d; // not the status, not the note
-        const r = await updateApplicationAction({
-          key: props.app.dupKey,
+        const { url, title, company, board, day, salary, contract, location, remote, content } = draft; // not the status, not the note
+        const answer = await updateApplicationAction({
+          jobId: props.app.jobId,
           input: { url, title, company, board, day, salary, contract, location, remote, content },
         }).catch(failed);
         const onSaved = props.onSaved;
-        startTransition(() => (r.ok ? onSaved(r.data) : setError(r.error)));
+        startTransition(() => (answer.ok ? onSaved(answer.data) : setError(answer.error)));
       } else {
-        const r = await addApplicationAction(d).catch(failed);
+        const answer = await addApplicationAction(draft).catch(failed);
         const onSaved = props.onSaved;
-        startTransition(() => (r.ok ? onSaved() : setError(r.error)));
+        startTransition(() => (answer.ok ? onSaved() : setError(answer.error)));
       }
     });
   };
 
-  const text = (k: Field, extra: Record<string, unknown> = {}) => ({
-    value: d[k] as string,
+  const text = (field: Field, extra: Record<string, unknown> = {}) => ({
+    value: draft[field] as string,
     // eslint-disable-next-line react-hooks/refs -- an event handler; the compiler can't tell through the spread into props
-    onChange: (e: { target: { value: string } }) => edit({ [k]: e.target.value }),
+    onChange: (event: { target: { value: string } }) => edit({ [field]: event.target.value }),
     ...extra,
   });
 
@@ -197,15 +201,20 @@ export function ApplicationForm(props: FormProps) {
           <label className="field">
             <span>Link to the offer</span>
             <input
-              value={d.url}
-              onChange={(e) => onLink(e.target.value)}
+              value={draft.url}
+              onChange={(event) => onLink(event.target.value)}
               placeholder="https://…"
               inputMode="url"
               spellCheck={false}
               autoFocus
             />
           </label>
-          <button type="button" onClick={fill} disabled={!isLink(d.url) || filling} aria-busy={filling || undefined}>
+          <button
+            type="button"
+            onClick={fill}
+            disabled={!isLink(draft.url) || filling}
+            aria-busy={filling || undefined}
+          >
             {filling ? 'Reading the page…' : '✦ Fill in from the link'}
           </button>
         </div>
@@ -241,33 +250,37 @@ export function ApplicationForm(props: FormProps) {
               ))}
             </datalist>
           </label>
-          <DateInput label="Applied on" value={d.day} max={z.day()} onCommit={(day) => edit({ day })} />
+          <DateInput label="Applied on" value={draft.day} max={zone.day()} onCommit={(day) => edit({ day })} />
         </div>
         {!editing && (
           <div className="field-row">
             <label className="field">
               <span>Stage</span>
               <select
-                value={d.stage}
-                onChange={(e) => {
-                  const stage = e.target.value as StageId;
+                value={draft.stage}
+                onChange={(event) => {
+                  const stage = event.target.value as StageId;
                   // an offer has no "ghosted" or talent pool
-                  edit(statesFor(stage).some((x) => x.id === d.state) ? { stage } : { stage, state: 'pending' });
+                  edit(
+                    outcomesFor(stage).some((outcome) => outcome.id === draft.outcome)
+                      ? { stage }
+                      : { stage, outcome: 'pending' },
+                  );
                 }}
               >
-                {STAGES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
+                {STAGES.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.label}
                   </option>
                 ))}
               </select>
             </label>
             <label className="field">
               <span>Outcome</span>
-              <select value={d.state} onChange={(e) => edit({ state: e.target.value as StateId })}>
-                {statesFor(d.stage).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
+              <select value={draft.outcome} onChange={(event) => edit({ outcome: event.target.value as OutcomeId })}>
+                {outcomesFor(draft.stage).map((outcome) => (
+                  <option key={outcome.id} value={outcome.id}>
+                    {outcome.label}
                   </option>
                 ))}
               </select>
@@ -289,14 +302,15 @@ export function ApplicationForm(props: FormProps) {
           </label>
         </div>
         <label className="check">
-          <input type="checkbox" checked={d.remote} onChange={(e) => edit({ remote: e.target.checked })} /> Remote
+          <input type="checkbox" checked={draft.remote} onChange={(event) => edit({ remote: event.target.checked })} />{' '}
+          Remote
         </label>
         <label className="field">
           <span>Ad text</span>
           <textarea {...text('content', { rows: 8, placeholder: 'Filled in from the link, or paste it' })} />
           <small>
             Kept with the application, so you can read it after the board takes the ad down.
-            {!d.content.trim() && d.url && ' Left empty, it’s fetched from the link after saving.'}
+            {!draft.content.trim() && draft.url && ' Left empty, it’s fetched from the link after saving.'}
           </small>
         </label>
         {!editing && (
@@ -324,7 +338,7 @@ export function ApplicationForm(props: FormProps) {
           <button type="button" className="secondary" onClick={props.onCancel}>
             Cancel
           </button>
-          <button type="button" onClick={save} disabled={saving || !d.title.trim()} aria-busy={saving || undefined}>
+          <button type="button" onClick={save} disabled={saving || !draft.title.trim()} aria-busy={saving || undefined}>
             {saving ? 'Saving…' : editing ? 'Save changes' : 'Save'}
           </button>
         </div>

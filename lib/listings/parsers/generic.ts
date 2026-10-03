@@ -18,9 +18,11 @@ import {
 } from '../extract';
 import type { Found, ListingParser } from '../types';
 
-const textOf = (v: unknown): string => (typeof v === 'boolean' ? String(v) : isObj(v) ? nameOf(v) : strip(str(v)));
-const first = (v: unknown[]) => (v.length ? textOf(v[0]) : '');
-const truthy = (v: unknown[]) => v.some((x) => x === true || /^(true|yes|1)$|remote|zdaln/i.test(textOf(x)));
+const textOf = (value: unknown): string =>
+  typeof value === 'boolean' ? String(value) : isObj(value) ? nameOf(value) : strip(str(value));
+const first = (values: unknown[]) => (values.length ? textOf(values[0]) : '');
+const truthy = (values: unknown[]) =>
+  values.some((value) => value === true || /^(true|yes|1)$|remote|zdaln/i.test(textOf(value)));
 const absolute = (link: string, base: string) => {
   try {
     return link ? new URL(link, base).toString() : '';
@@ -32,7 +34,7 @@ const absolute = (link: string, base: string) => {
 function toFound(
   src: string,
   item: unknown,
-  get: (item: unknown, f: FieldId) => unknown[],
+  get: (item: unknown, field: FieldId) => unknown[],
   link: (item: unknown) => string,
 ): Found {
   const url = link(item);
@@ -53,8 +55,8 @@ function toFound(
 
 // ---- JSON ------------------------------------------------------------------------------------
 
-function jsonRoot(body: string, c: ScraperConfig): unknown {
-  switch (c.from ?? 'body') {
+function jsonRoot(body: string, config: ScraperConfig): unknown {
+  switch (config.from ?? 'body') {
     case 'next-data': {
       const raw = scriptById(body, '__NEXT_DATA__');
       if (raw === null) throw new Error('No <script id="__NEXT_DATA__"> in the page');
@@ -63,22 +65,22 @@ function jsonRoot(body: string, c: ScraperConfig): unknown {
     case 'ld-json': {
       const blocks = [...body.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
       if (!blocks.length) throw new Error('No <script type="application/ld+json"> in the page');
-      return blocks.map((m) => {
+      return blocks.map((match) => {
         try {
-          return JSON.parse(m[1]) as unknown;
+          return JSON.parse(match[1]) as unknown;
         } catch {
           return null;
         }
       });
     }
     case 'script': {
-      if (!c.scriptId) throw new Error('Give the id of the <script> that holds the JSON');
-      const raw = scriptById(body, c.scriptId);
-      if (raw === null) throw new Error(`No <script id="${c.scriptId}"> in the page`);
+      if (!config.scriptId) throw new Error('Give the id of the <script> that holds the JSON');
+      const raw = scriptById(body, config.scriptId);
+      if (raw === null) throw new Error(`No <script id="${config.scriptId}"> in the page`);
       try {
         return JSON.parse(raw);
       } catch {
-        return json(angular(raw), `<script id="${c.scriptId}">`);
+        return json(angular(raw), `<script id="${config.scriptId}">`);
       }
     }
     default:
@@ -94,14 +96,14 @@ export const parseJson: ListingParser = (body, { src, url, config }) => {
   const at = valuesAt(root, config.items);
   const list = at.length === 1 && Array.isArray(at[0]) ? (at[0] as unknown[]) : at; // "data" and "data[]" both work
   if (!list.length) throw new Error(`Nothing at "${config.items}" (the JSON has: ${keysOf(root)})`);
-  const f = config.fields ?? {};
+  const fields = config.fields ?? {};
   // a path to a list gives its items: "tags" works like "tags[]"
-  const get = (item: unknown, field: FieldId) => (f[field]?.trim() ? valuesAt(item, f[field]).flat() : []);
+  const get = (item: unknown, field: FieldId) => (fields[field]?.trim() ? valuesAt(item, fields[field]).flat() : []);
   const link = (item: unknown) => {
-    const t = f.url ?? '';
+    const template = fields.url ?? '';
     // "https://site/job/{slug}" fills in values from the offer; otherwise it's a path
-    const raw = t.includes('{')
-      ? t.replace(/\{([^}]+)\}/g, (_, p: string) => first(valuesAt(item, p)))
+    const raw = template.includes('{')
+      ? template.replace(/\{([^}]+)\}/g, (_, path: string) => first(valuesAt(item, path)))
       : first(get(item, 'url'));
     return absolute(raw, url);
   };
@@ -112,8 +114,8 @@ export const parseJson: ListingParser = (body, { src, url, config }) => {
 
 /** "a.title" = its text, "a.title@href" = an attribute, "@data-id" = the card's own attribute */
 function selectorParts(sel: string) {
-  const m = sel.trim().match(/^(.*?)(?:@([\w:-]+))?$/);
-  return { css: m?.[1]?.trim() ?? '', attr: m?.[2] };
+  const match = sel.trim().match(/^(.*?)(?:@([\w:-]+))?$/);
+  return { css: match?.[1]?.trim() ?? '', attr: match?.[2] };
 }
 
 export const parseHtmlListing: ListingParser = (body, { src, url, config }) => {
@@ -121,14 +123,14 @@ export const parseHtmlListing: ListingParser = (body, { src, url, config }) => {
   let cards: HTMLElement[];
   try {
     cards = parseHtml(body).querySelectorAll(config.items);
-  } catch (e) {
-    throw new Error(`Bad selector "${config.items}": ${message(e)}`);
+  } catch (error) {
+    throw new Error(`Bad selector "${config.items}": ${message(error)}`);
   }
   if (!cards.length)
     throw new Error(`No "${config.items}" in the page (${body.length} bytes; blocked, or rendered by JavaScript?)`);
-  const f = config.fields ?? {};
+  const fields = config.fields ?? {};
   const get = (card: unknown, field: FieldId): unknown[] => {
-    const sel = f[field];
+    const sel = fields[field];
     if (!sel?.trim()) return [];
     const { css, attr } = selectorParts(sel);
     const el = card as HTMLElement;
@@ -139,8 +141,8 @@ export const parseHtmlListing: ListingParser = (body, { src, url, config }) => {
       return [];
     }
     return found
-      .map((e) => (attr ? (e.getAttribute(attr) ?? '') : e.text))
-      .map((t) => t.replace(/\s+/g, ' ').trim())
+      .map((element) => (attr ? (element.getAttribute(attr) ?? '') : element.text))
+      .map((text) => text.replace(/\s+/g, ' ').trim())
       .filter(Boolean);
   };
   const link = (card: unknown) => absolute(first(get(card, 'url')), url);
@@ -154,27 +156,29 @@ export const parseHtmlListing: ListingParser = (body, { src, url, config }) => {
 // ---- RSS / Atom ------------------------------------------------------------------------------
 
 function tag(block: string, name: string) {
-  const m = block.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, 'i'));
-  return m ? strip(m[1]) : '';
+  const match = block.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, 'i'));
+  return match ? strip(match[1]) : '';
 }
 
 export const parseRss: ListingParser = (body, { src, url }) => {
   const blocks = body.match(/<(item|entry)\b[\s\S]*?<\/\1>/gi) ?? [];
   if (!blocks.length) throw new Error('No <item> or <entry> in the feed');
-  const items = blocks.map((b): Found => {
-    const link = absolute(tag(b, 'link') || (b.match(/<link\b[^>]*href=["']([^"']+)["']/i)?.[1] ?? ''), url);
-    const author = tag(b, 'dc:creator') || tag(b, 'name') || tag(b, 'author');
+  const items = blocks.map((block): Found => {
+    const link = absolute(tag(block, 'link') || (block.match(/<link\b[^>]*href=["']([^"']+)["']/i)?.[1] ?? ''), url);
+    const author = tag(block, 'dc:creator') || tag(block, 'name') || tag(block, 'author');
     return {
       src,
-      id: tag(b, 'guid') || tag(b, 'id') || link,
-      title: tag(b, 'title'),
+      id: tag(block, 'guid') || tag(block, 'id') || link,
+      title: tag(block, 'title'),
       company: author || null,
       seniority: null,
-      remote: /remote|zdaln/i.test(tag(b, 'title')),
+      remote: /remote|zdaln/i.test(tag(block, 'title')),
       url: link,
       locations: [],
-      skills: [...b.matchAll(/<category\b[^>]*>([\s\S]*?)<\/category>/gi)].map((m) => strip(m[1])).filter(Boolean),
-      sort: time(tag(b, 'pubDate') || tag(b, 'published') || tag(b, 'updated') || tag(b, 'dc:date')),
+      skills: [...block.matchAll(/<category\b[^>]*>([\s\S]*?)<\/category>/gi)]
+        .map((match) => strip(match[1]))
+        .filter(Boolean),
+      sort: time(tag(block, 'pubDate') || tag(block, 'published') || tag(block, 'updated') || tag(block, 'dc:date')),
     };
   });
   return { total: blocks.length, items, sample: blocks[0]?.slice(0, 3000) };

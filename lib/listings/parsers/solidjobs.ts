@@ -9,17 +9,17 @@ export const parseSolidjobs: ListingParser = (body, { src }) => {
   return {
     total: jobs.length,
     sample: sampleOf(jobs[0]),
-    items: jobs.map((o) => ({
+    items: jobs.map((offer) => ({
       src,
-      id: str(o.jobOfferKey),
-      title: str(o.title),
-      company: str(o.company) || null,
-      seniority: (str(o.experienceLevel) || 'unknown').toLowerCase(),
-      remote: Boolean(o.isRemote),
-      url: str(o.url),
-      skills: arr(o.skills).map(nameOf).filter(Boolean),
-      locations: arr(o.locations).map(nameOf).filter(Boolean),
-      sort: time(o.validFrom),
+      id: str(offer.jobOfferKey),
+      title: str(offer.title),
+      company: str(offer.company) || null,
+      seniority: (str(offer.experienceLevel) || 'unknown').toLowerCase(),
+      remote: Boolean(offer.isRemote),
+      url: str(offer.url),
+      skills: arr(offer.skills).map(nameOf).filter(Boolean),
+      locations: arr(offer.locations).map(nameOf).filter(Boolean),
+      sort: time(offer.validFrom),
     })),
   };
 };

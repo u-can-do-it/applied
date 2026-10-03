@@ -4,7 +4,7 @@ import { db } from '../client';
 import { first } from '../rows';
 import { aiProfiles, type AiProfileRow } from '../schema';
 
-// AI profiles: what to look for (a prompt and an optional CV), versioned by lib/profiles.ts.
+// AI profiles: what to look for (a prompt and an optional CV), versioned by lib/ai/profiles.ts.
 
 /** A profile without its file's text (that can be long; only the AI calls need it). */
 export type Profile = Omit<AiProfileRow, 'fileText' | 'createdAt'>;

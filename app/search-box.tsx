@@ -9,46 +9,46 @@ const KEPT = ['src', 'days', 'from', 'to'] as const; // other filters survive a 
 // Updates ?q= as you type (debounced). Without JS it still works as a plain GET form.
 export function SearchBox({ query }: { query: URLSearchParams }) {
   const { navigate, path } = useNav();
-  const q = query.get('q') ?? '';
-  const [value, setValue] = useState(q);
-  const lastSent = useRef(q);
+  const queryText = query.get('q') ?? '';
+  const [value, setValue] = useState(queryText);
+  const lastSent = useRef(queryText);
   // reads the latest filters/navigate without restarting the debounce on every render
   const search = useEffectEvent((next: string) => navigate(withParams(query, { q: next }, path), { replace: true }));
 
   // follow the URL when it changes from outside (back/forward, a chip click keeps q)
   useEffect(() => {
-    if (q !== lastSent.current) {
-      lastSent.current = q;
-      setValue(q);
+    if (queryText !== lastSent.current) {
+      lastSent.current = queryText;
+      setValue(queryText);
     }
-  }, [q]);
+  }, [queryText]);
 
   useEffect(() => {
     const next = value.trim();
     if (next === lastSent.current) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       lastSent.current = next;
       search(next);
     }, 250);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [value]);
 
   return (
-    <form className="search" action={path} method="get" role="search" onSubmit={(e) => e.preventDefault()}>
+    <form className="search" action={path} method="get" role="search" onSubmit={(event) => event.preventDefault()}>
       <SearchIcon />
       <input
         type="search"
         name="q"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(event) => setValue(event.target.value)}
         placeholder="Search title or company…"
         aria-label="Search offers"
         autoComplete="off"
         autoFocus
       />
-      {KEPT.map((k) => {
-        const v = query.get(k);
-        return v ? <input key={k} type="hidden" name={k} value={v} /> : null;
+      {KEPT.map((name) => {
+        const kept = query.get(name);
+        return kept ? <input key={name} type="hidden" name={name} value={kept} /> : null;
       })}
     </form>
   );

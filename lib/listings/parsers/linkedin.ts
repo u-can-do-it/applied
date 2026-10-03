@@ -7,7 +7,7 @@ export const parseLinkedin: ListingParser = (body, { src, url }) => {
   const root = parseHtml(body);
   const cards = root
     .querySelectorAll('[data-entity-urn]')
-    .filter((c) => c.getAttribute('data-entity-urn')?.includes('jobPosting:'));
+    .filter((card) => card.getAttribute('data-entity-urn')?.includes('jobPosting:'));
   if (!cards.length) {
     // past the last page LinkedIn answers a bare "<!DOCTYPE html><!---->": no results, not a block
     const bare = body.replace(/<!DOCTYPE[^>]*>|<!--[\s\S]*?-->/gi, '').trim();

@@ -8,7 +8,7 @@ import {
   type Progress,
   type SliceEvent,
   type SliceState,
-} from '@/lib/ai-run-state';
+} from '@/lib/ai/run-state';
 import { AI_RUN_LOCK_MS } from '@/lib/budgets';
 
 const AT = Date.parse('2026-10-03T10:00:00.000Z');
@@ -171,8 +171,8 @@ describe('AI run slice: assessment', () => {
         ['c', 1],
       ]),
     });
-    const rows = ['a', 'b', 'c', 'd'].map((dupKey) => ({ dupKey }));
-    expect(stillToAssess(state, rows).map((row) => row.dupKey)).toEqual(['c', 'd']);
+    const rows = ['a', 'b', 'c', 'd'].map((jobId) => ({ jobId }));
+    expect(stillToAssess(state, rows).map((row) => row.jobId)).toEqual(['c', 'd']);
     expect(stillToAssess(dedup(), rows)).toEqual([]);
   });
 });

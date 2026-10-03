@@ -27,7 +27,7 @@ export type Parsed = {
 };
 
 export type ParseContext = {
-  /** offers.src for what is found: the board's id, or your own scraper's source id */
+  /** offers.src for what is found: the board's id (a built-in board's, or the one you gave your own scraper) */
   src: string;
   /** the page's link: for relative links, and what the search asked for */
   url: string;

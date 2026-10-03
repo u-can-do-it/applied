@@ -179,7 +179,7 @@ export const setMutedAction = action(mutedSchema, async ({ muted }) => {
   await stateRepo.setMuted(muted);
   const sent: { sent: number; error?: string } =
     !muted && telegramReady()
-      ? await notify({ manual: true }).catch((e: unknown) => ({ sent: 0, error: message(e) }))
+      ? await notify({ manual: true }).catch((failure: unknown) => ({ sent: 0, error: message(failure) }))
       : { sent: 0 };
   refresh();
   if (sent.error) throw new Error(`Unmuted, but: ${sent.error}`);

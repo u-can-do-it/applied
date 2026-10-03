@@ -15,4 +15,4 @@ function adBody(html: string) {
   return htmlToText(end > 0 ? rest.slice(0, end) : rest.slice(0, 60_000));
 }
 
-export const readBuiltin: AdReader = (copy) => readPage(copy.url, adBody);
+export const readBuiltin: AdReader = (offer) => readPage(offer.url, adBody);

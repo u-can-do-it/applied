@@ -17,9 +17,9 @@ export default defineConfig([
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       // `const { typed: _, ...rest } = d` is how a key is left out of a copy
       '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
-      // Short names only where the scope is one line and the meaning is conventional (see docs/code-review.md).
-      // A warning until the existing single-letter names are renamed; then an error.
-      'id-length': ['warn', { min: 2, exceptions: ['i', 'j', 'a', 'b', '_', 'e'], properties: 'never' }],
+      // Short names only where the scope is one line and the meaning is conventional (CONTRIBUTING.md → Naming):
+      // a loop counter, a comparator's two sides, a left-out key (errors are `error`, events `event`)
+      'id-length': ['error', { min: 2, exceptions: ['i', 'j', 'a', 'b', '_'], properties: 'never' }],
     },
   },
   {

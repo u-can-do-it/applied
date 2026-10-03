@@ -11,12 +11,12 @@ type Range = { gte?: string | null; lt?: string | null };
 
 export type Verdict = Pick<AiVerdictRow, 'match' | 'score' | 'summary'>;
 
-/** The verdicts this profile version has for these jobs, by job key. */
-export async function forJobs(profile: ProfileVersion, keys: string[]): Promise<Map<string, Verdict>> {
-  if (!keys.length) return new Map();
+/** The verdicts this profile version has for these jobs, by job id. */
+export async function forJobs(profile: ProfileVersion, jobIds: string[]): Promise<Map<string, Verdict>> {
+  if (!jobIds.length) return new Map();
   const rows = await db()
     .select({
-      dupKey: aiVerdicts.dupKey,
+      jobId: aiVerdicts.jobId,
       match: aiVerdicts.match,
       score: aiVerdicts.score,
       summary: aiVerdicts.summary,
@@ -26,10 +26,10 @@ export async function forJobs(profile: ProfileVersion, keys: string[]): Promise<
       and(
         eq(aiVerdicts.profileId, profile.id),
         eq(aiVerdicts.version, profile.version),
-        inArray(aiVerdicts.dupKey, keys),
+        inArray(aiVerdicts.jobId, jobIds),
       ),
     );
-  return new Map(rows.map(({ dupKey, ...verdict }) => [dupKey, verdict]));
+  return new Map(rows.map(({ jobId, ...verdict }) => [jobId, verdict]));
 }
 
 /** Saves them; a job judged again by the same profile version gets the new verdict. */
@@ -39,7 +39,7 @@ export async function save(rows: Omit<AiVerdictRow, 'createdAt'>[]) {
     .insert(aiVerdicts)
     .values(rows)
     .onConflictDoUpdate({
-      target: [aiVerdicts.profileId, aiVerdicts.version, aiVerdicts.dupKey],
+      target: [aiVerdicts.profileId, aiVerdicts.version, aiVerdicts.jobId],
       set: {
         match: sql`excluded.match`,
         score: sql`excluded.score`,
@@ -68,7 +68,7 @@ const unjudged = (profile: ProfileVersion) =>
         and(
           eq(aiVerdicts.profileId, profile.id),
           eq(aiVerdicts.version, profile.version),
-          eq(aiVerdicts.dupKey, offersUnique.dupKey),
+          eq(aiVerdicts.jobId, offersUnique.jobId),
         ),
       ),
   );
@@ -85,8 +85,8 @@ export function unjudgedJobs(profile: ProfileVersion, range: Range, limit: numbe
       remote: offersUnique.remote,
       url: offersUnique.url,
       firstSeen: offersUnique.firstSeen,
-      dupKey: offersUnique.dupKey,
-      copies: offersUnique.copies,
+      jobId: offersUnique.jobId,
+      offers: offersUnique.offers,
     })
     .from(offersUnique)
     .where(and(inRange(range), unjudged(profile)))
@@ -108,14 +108,14 @@ export async function rangeStats(profile: ProfileVersion, range: Range) {
   const [stats] = await db()
     .select({
       total: count(),
-      checked: count(aiVerdicts.dupKey),
+      checked: count(aiVerdicts.jobId),
       matched: sql<number>`count(*) filter (where ${aiVerdicts.match})`.mapWith(Number),
     })
     .from(offersUnique)
     .leftJoin(
       aiVerdicts,
       and(
-        eq(aiVerdicts.dupKey, offersUnique.dupKey),
+        eq(aiVerdicts.jobId, offersUnique.jobId),
         eq(aiVerdicts.profileId, profile.id),
         eq(aiVerdicts.version, profile.version),
       ),

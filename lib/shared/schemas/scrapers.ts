@@ -64,7 +64,7 @@ export const scraperSchema = z
       ctx.addIssue({ code: 'custom', message });
       return z.NEVER;
     };
-    // a built-in board's source id is fixed, so its offers keep matching the ones already saved
+    // a built-in board's id is fixed, so its offers keep matching the ones already saved
     const src = kindOf(kind).src ?? input.src.trim().toLowerCase();
     if (!BOARD_RE.test(src)) return problem('Source id: lowercase letters, digits, - or _, e.g. "linkedin".');
     if (isGeneric(kind) && SCRAPED_SRCS.has(src))

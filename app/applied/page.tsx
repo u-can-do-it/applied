@@ -3,7 +3,7 @@ import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { ghostStale, listApplications } from '@/lib/applications';
 import { message } from '@/lib/shared/errors';
-import { labelsOf, sourceOptions } from '@/lib/listings/sources';
+import { labelsOf, boardOptions } from '@/lib/listings/board-filter';
 import { appTimeZone } from '@/lib/time-zone';
 import { Header } from '../header';
 import { ResultsSkeleton } from '../results';
@@ -29,19 +29,19 @@ export default function AppliedPage() {
 
 async function Applications() {
   await connection(); // always fresh: this list changes whenever you mark an offer
-  let loaded: [Awaited<ReturnType<typeof listApplications>>, Awaited<ReturnType<typeof sourceOptions>>, string];
+  let loaded: [Awaited<ReturnType<typeof listApplications>>, Awaited<ReturnType<typeof boardOptions>>, string];
   try {
     // a month without news turns "in progress" into "ghosted"; done on the way in, so the list is current
-    await ghostStale().catch((e: unknown) => console.error('[applied] ghosting failed:', e));
-    loaded = await Promise.all([listApplications(), sourceOptions(), appTimeZone()]);
-  } catch (e) {
+    await ghostStale().catch((failure: unknown) => console.error('[applied] ghosting failed:', failure));
+    loaded = await Promise.all([listApplications(), boardOptions(), appTimeZone()]);
+  } catch (error) {
     return (
       <div className="notice">
         <strong>Can’t load applications.</strong>
-        <code>{message(e)}</code>
+        <code>{message(error)}</code>
       </div>
     );
   }
-  const [apps, sources, tz] = loaded;
-  return <AppliedList apps={apps} labels={labelsOf(sources)} tz={tz} />;
+  const [apps, boards, tz] = loaded;
+  return <AppliedList apps={apps} labels={labelsOf(boards)} tz={tz} />;
 }

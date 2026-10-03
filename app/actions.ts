@@ -5,12 +5,12 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { action, formAction } from '@/lib/action';
-import { continueRun, startRun } from '@/lib/ai-runs';
+import { continueRun, startRun } from '@/lib/ai/runs';
 import {
   addApplication,
   appliedAtOf,
   findOfferByLink,
-  jobKeyFor,
+  jobIdFor,
   markApplied,
   removeStatusStep,
   saveContent,
@@ -24,8 +24,8 @@ import { boardIdOf, boardOf, cleanLink } from '@/lib/boards';
 import { describeRange, isTimeZone } from '@/lib/dates';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import { env } from '@/lib/env';
-import { extractJob, type ExtractedJob } from '@/lib/openai';
-import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
+import { extractJob, type ExtractedJob } from '@/lib/ai/openai';
+import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/ai/profiles';
 import { readJobPage } from '@/lib/ads';
 import { syncCron } from '@/lib/listings/schedule';
 import { message } from '@/lib/shared/errors';
@@ -35,7 +35,7 @@ import {
   applySchema,
   DAY_ERROR,
   fillFromLinkSchema,
-  keySchema,
+  jobIdSchema,
   removeStepSchema,
   setNoteSchema,
   setStatusSchema,
@@ -91,9 +91,9 @@ export const saveProfileAction = formAction(
       let text: string;
       try {
         text = (await fileToText(upload)).replace(/\s+\n/g, '\n').trim();
-      } catch (e) {
+      } catch (error) {
         // the PDF library can throw things that aren't Errors; "[object Object]" would say nothing
-        throw new Error(e instanceof Error ? e.message : 'Could not read the file.');
+        throw new Error(error instanceof Error ? error.message : 'Could not read the file.');
       }
       if (!text) throw new Error('No text found in that file (a scanned PDF?).');
       file = { name: upload.name, text: text.slice(0, MAX_TEXT) };
@@ -141,33 +141,33 @@ export const startRunAction = action(startRunSchema, async ({ profileId, days, f
 // ---- applications --------------------------------------------------------------------
 
 /** Marks the job applied and saves its complete ad text in the background. */
-export const applyAction = action(applySchema, async ({ key, src, id }) => {
-  await markApplied(key, { src, id });
-  after(() => saveContent(key));
+export const applyAction = action(applySchema, async ({ jobId, src, id }) => {
+  await markApplied(jobId, { src, id });
+  after(() => saveContent(jobId));
   refresh();
 });
 
 /** Removes the mark and the saved ad text. */
-export const unapplyAction = action(keySchema, async ({ key }) => {
-  await unmarkApplied(key);
+export const unapplyAction = action(jobIdSchema, async ({ jobId }) => {
+  await unmarkApplied(jobId);
   refresh();
 });
 
 /** Tries to fetch the ad text again (e.g. after a network error). */
-export const refetchContentAction = action(keySchema, async ({ key }) => {
-  await saveContent(key);
+export const refetchContentAction = action(jobIdSchema, async ({ jobId }) => {
+  await saveContent(jobId);
   refresh();
 });
 
 /** Sets where an application stands, e.g. technical interview / passed. */
-export const setApplicationStatusAction = action(setStatusSchema, async ({ key, stage, state }) => {
-  await setStatus(key, stage, state);
+export const setApplicationStatusAction = action(setStatusSchema, async ({ jobId, stage, outcome }) => {
+  await setStatus(jobId, stage, outcome);
   refresh();
 });
 
 /** Removes one step of an application's status history, e.g. a stage clicked by mistake. */
-export const removeStatusStepAction = action(removeStepSchema, async ({ key, step }) => {
-  const removed = await removeStatusStep(key, step);
+export const removeStatusStepAction = action(removeStepSchema, async ({ jobId, step }) => {
+  const removed = await removeStatusStep(jobId, step);
   if (removed.error) throw new Error(removed.error);
   refresh();
 });
@@ -177,8 +177,8 @@ export const removeStatusStepAction = action(removeStepSchema, async ({ key, ste
  * note_updated_at as the window had it): then it fails, and the window keeps your text. Answers
  * with the new note_updated_at. No page refresh: the window and the list keep their own copy.
  */
-export const setApplicationNoteAction = action(setNoteSchema, async ({ key, note, seenAt }) =>
-  setNote(key, note, seenAt),
+export const setApplicationNoteAction = action(setNoteSchema, async ({ jobId, note, seenAt }) =>
+  setNote(jobId, note, seenAt),
 );
 
 // ---- applications added by hand ----------------------------------------------------------
@@ -196,7 +196,7 @@ export type JobDraft = {
   /** the link is an offer the scrapers already have: the application joins it */
   known: string | null;
   /** that offer's job (an application being edited may be it already) */
-  knownKey: string | null;
+  knownJobId: string | null;
   warning?: string;
 };
 
@@ -205,8 +205,8 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
   const board = boardOf(link);
   const [offer, page] = await Promise.all([
     findOfferByLink(link).catch(() => null),
-    readJobPage({ src: board, id: boardIdOf(board, link) ?? '', url: link.trim() }).catch((e: unknown) => ({
-      error: message(e),
+    readJobPage({ src: board, id: boardIdOf(board, link) ?? '', url: link.trim() }).catch((failure: unknown) => ({
+      error: message(failure),
     })),
   ]);
   const read = 'text' in page ? page : null;
@@ -219,12 +219,14 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
   else if (read) {
     try {
       ai = await extractJob({ url: link, pageTitle: read.pageTitle, text: read.text });
-    } catch (e) {
-      warning = `The AI couldn’t read it (${message(e)}); filled in what the page says plainly.`;
+    } catch (error) {
+      warning = `The AI couldn’t read it (${message(error)}); filled in what the page says plainly.`;
     }
   }
   const details = read?.details ?? {};
-  const knownKey = offer ? await jobKeyFor(offer.company, offer.title, offer.dupKey).catch(() => offer.dupKey) : null;
+  const knownJobId = offer
+    ? await jobIdFor(offer.company, offer.title, offer.titleKey).catch(() => offer.titleKey)
+    : null;
   return {
     url: offer?.url ?? cleanLink(link),
     board: offer?.src ?? board,
@@ -236,12 +238,12 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
     contract: ai?.contract || details.contract || '',
     content: read?.text ?? '',
     known: offer ? `${offer.title}${offer.company ? ` · ${offer.company}` : ''} (scraped from ${offer.src})` : null,
-    knownKey,
+    knownJobId,
     warning,
   };
 });
 
-/** "+ Add application": answers with the job's key. */
+/** "+ Add application": answers with the job's id. */
 export const addApplicationAction = action(addApplicationSchema, async (form) => {
   const zone = await appZone();
   if (form.day > zone.day()) throw new Error(DAY_ERROR);
@@ -253,7 +255,7 @@ export const addApplicationAction = action(addApplicationSchema, async (form) =>
       src: form.board,
       appliedAt: appliedAtOf(form.day, zone),
       stage: form.stage,
-      state: form.state,
+      outcome: form.outcome,
       details: form.details,
       content: form.content.trim() || null,
       note: form.note,
@@ -262,18 +264,18 @@ export const addApplicationAction = action(addApplicationSchema, async (form) =>
   );
   if (added.error) throw new Error(added.error);
   // less than a full ad (80 chars) and a link: fetch it after the answer, like "Mark applied" does (what you typed stays)
-  const key = added.key;
-  if (added.fetch && key) after(() => saveContent(key));
+  const jobId = added.jobId;
+  if (added.fetch && jobId) after(() => saveContent(jobId));
   refresh();
-  return { key };
+  return { jobId };
 });
 
-/** Saves an application's edited details; answers with it as saved (its key may be new: see updateApplication). */
-export const updateApplicationAction = action(updateApplicationSchema, async ({ key, input: form }) => {
+/** Saves an application's edited details; answers with it as saved (its job may be another: see updateApplication). */
+export const updateApplicationAction = action(updateApplicationSchema, async ({ jobId, input: form }) => {
   const zone = await appZone();
   if (form.day > zone.day()) throw new Error(DAY_ERROR);
   const updated = await updateApplication(
-    key,
+    jobId,
     {
       url: form.url,
       title: form.title,
@@ -286,7 +288,7 @@ export const updateApplicationAction = action(updateApplicationSchema, async ({ 
     zone,
   );
   if (updated.error || !updated.app) throw new Error(updated.error ?? 'This application no longer exists.');
-  const saved = updated.app.dupKey;
+  const saved = updated.app.jobId;
   // what you typed stays over what the board says (details.typed)
   if (updated.fetch) after(() => saveContent(saved));
   refresh();

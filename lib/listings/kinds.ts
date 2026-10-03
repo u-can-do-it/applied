@@ -45,7 +45,7 @@ const BY_ID = new Map(KINDS.map((kind) => [kind.id, kind]));
 /** In the order Settings lists them: the boards, then the generic kinds. */
 export const KIND_IDS = KINDS.map((kind) => kind.id) as [KindId, ...KindId[]];
 
-export const isKind = (v: unknown): v is KindId => BY_ID.has(v as KindId);
+export const isKind = (value: unknown): value is KindId => BY_ID.has(value as KindId);
 /* eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- KindId only names kinds in KINDS */
 export const kindOf = (id: KindId): Kind => BY_ID.get(id)!;
 export const isGeneric = (id: KindId) => !kindOf(id).src;

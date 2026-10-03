@@ -36,10 +36,10 @@ export function AutoRefresh() {
     let shown = true; // false once the page is left (it stays mounted, hidden, for going back)
     const check = async () => {
       lastCheck = Date.now();
-      const v = await serverVersion();
-      if (!shown || v === null) return;
-      if (known !== null && v !== known) startTransition(() => router.refresh());
-      known = v;
+      const version = await serverVersion();
+      if (!shown || version === null) return;
+      if (known !== null && version !== known) startTransition(() => router.refresh());
+      known = version;
       setCheckedAt(lastCheck);
     };
     const due = (ms: number) => document.visibilityState === 'visible' && Date.now() - lastCheck > ms;

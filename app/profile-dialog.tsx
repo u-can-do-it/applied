@@ -33,9 +33,9 @@ export function ProfileDialog({
   // what you typed whenever the save fails (e.g. a file that's too big)
   const [state, setState] = useState<Result<unknown> | null>(null);
   const [saving, startSave] = useTransition();
-  const save = (e: SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
+  const save = (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
     setState(null);
     startSave(async () => {
       const answer = await saveProfileAction(null, data).catch((err: unknown) => fail(message(err)));
@@ -47,14 +47,14 @@ export function ProfileDialog({
   const [picked, setPicked] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0); // remounts the form fields with the chosen profile's values
 
-  const profile = profiles.find((p) => p.id === selected) ?? null;
+  const profile = profiles.find((option) => option.id === selected) ?? null;
 
   const choose = (id: string) => {
     setSelected(id);
     setRemoveFile(false);
     setPicked(null);
     setState(null); // no message from the last save
-    setFormKey((k) => k + 1);
+    setFormKey((previous) => previous + 1);
   };
 
   useImperativeHandle(ref, () => ({
@@ -79,20 +79,20 @@ export function ProfileDialog({
     });
 
   return (
-    <dialog ref={dialog} className="modal" onClick={(e) => e.target === dialog.current && close()}>
+    <dialog ref={dialog} className="modal" onClick={(event) => event.target === dialog.current && close()}>
       <form onSubmit={save} className="modal-body" key={formKey}>
         <div className="modal-head">
           <h2>AI profile</h2>
           <select
             aria-label="Profile"
             value={selected}
-            onChange={(e) => choose(e.target.value)}
+            onChange={(event) => choose(event.target.value)}
             className="profile-select"
           >
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.id === activeId ? ' (active)' : ''}
+            {profiles.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+                {option.id === activeId ? ' (active)' : ''}
               </option>
             ))}
             <option value={NEW}>+ New profile</option>
@@ -137,7 +137,7 @@ export function ProfileDialog({
             type="file"
             name="file"
             accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown"
-            onChange={(e) => setPicked(e.target.files?.[0]?.name ?? null)}
+            onChange={(event) => setPicked(event.target.files?.[0]?.name ?? null)}
           />
           {picked && profile?.fileName && <p className="muted small">Replaces {profile.fileName}.</p>}
         </div>

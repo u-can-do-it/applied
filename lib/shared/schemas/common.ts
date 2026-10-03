@@ -11,5 +11,5 @@ export const text = (max: number) =>
     .default('')
     .transform((value) => value.trim().slice(0, max));
 
-/** A job's key (offers_unique.dup_key), the id of an application. */
-export const jobKey = z.string().min(1);
+/** A job's id (offers_unique.dup_key), also the id of its application. */
+export const jobId = z.string().min(1);

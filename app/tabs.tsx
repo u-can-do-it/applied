@@ -10,7 +10,7 @@ const TABS = [
   { path: '/settings', label: 'Settings' },
 ];
 
-// Switching tabs keeps search / source / dates, only the page number resets.
+// Switching tabs keeps search / board / dates, only the page number resets.
 export function Tabs() {
   const pathname = usePathname();
   const sp = new URLSearchParams(useSearchParams());
@@ -18,14 +18,14 @@ export function Tabs() {
   const qs = sp.toString();
   return (
     <nav className="tabs" aria-label="View">
-      {TABS.map((t) => (
+      {TABS.map((tab) => (
         <Link
-          key={t.path}
-          href={qs && (t.path === '/' || t.path === '/ai') ? `${t.path}?${qs}` : t.path}
-          aria-current={pathname === t.path ? 'page' : undefined}
+          key={tab.path}
+          href={qs && (tab.path === '/' || tab.path === '/ai') ? `${tab.path}?${qs}` : tab.path}
+          aria-current={pathname === tab.path ? 'page' : undefined}
           className="tab"
         >
-          {t.label}
+          {tab.label}
         </Link>
       ))}
     </nav>
@@ -35,9 +35,9 @@ export function Tabs() {
 export function TabsFallback() {
   return (
     <nav className="tabs" aria-hidden="true">
-      {TABS.map((t) => (
-        <span key={t.path} className="tab">
-          {t.label}
+      {TABS.map((tab) => (
+        <span key={tab.path} className="tab">
+          {tab.label}
         </span>
       ))}
     </nav>

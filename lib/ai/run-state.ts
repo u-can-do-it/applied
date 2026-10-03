@@ -1,7 +1,7 @@
-import { AI_RUN_LOCK_MS } from './budgets';
-import type { Run, RunPatch } from './db/repos/ai-runs';
+import { AI_RUN_LOCK_MS } from '../budgets';
+import type { Run, RunPatch } from '../db/repos/ai-runs';
 
-// One slice of an AI run (lib/ai-runs.ts continueRun) as a state machine. The worker holds the
+// One slice of an AI run (lib/ai/runs.ts continueRun) as a state machine. The worker holds the
 // run's lock, does the step its state names, turns what happened into an event, asks `transition`
 // for the next state and writes that state's `save` to the run. A slice ends paused (out of time,
 // or crashed: the lock is freed and the next page refresh continues) or finished.
@@ -178,9 +178,9 @@ export function transition(state: SliceState, event: SliceEvent): SliceState {
 }
 
 /** The pending jobs this slice still sends: not saved in it already, not skipped by the model too often. */
-export function stillToAssess<T extends { dupKey: string }>(state: SliceState, rows: readonly T[]): T[] {
+export function stillToAssess<T extends { jobId: string }>(state: SliceState, rows: readonly T[]): T[] {
   if (state.step !== 'assess') return [];
-  return rows.filter((row) => !state.savedHere.has(row.dupKey) && (state.tries.get(row.dupKey) ?? 0) < MAX_TRIES);
+  return rows.filter((row) => !state.savedHere.has(row.jobId) && (state.tries.get(row.jobId) ?? 0) < MAX_TRIES);
 }
 
 const invalid = (state: SliceState, event: SliceEvent) =>

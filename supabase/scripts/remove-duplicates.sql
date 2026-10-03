@@ -5,7 +5,7 @@
 -- and old Eldorado rows with a broken src. This script is a snapshot of that database: it lists
 -- 523 specific rows by id, so it only ever made sense on that data.
 -- Since then: offers.dup_key + the offers_unique view show every job once without deleting
--- anything, and AI merges (job_links, lib/dedup.ts) handle the near-duplicates. The schema itself
+-- anything, and AI merges (job_links, lib/ai/merge-duplicates.ts) handle the near-duplicates. The schema itself
 -- is managed by the migrations in drizzle/ (npm run db:migrate).
 -- It left behind public.offers_removed_dupes (the removed rows, for an undo). That table isn't in
 -- lib/db/schema.ts; drizzle-kit ignores it, and it can be dropped once nobody needs the undo.
