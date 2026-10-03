@@ -8,13 +8,14 @@ import { message } from '@/lib/shared/errors';
 import { fail, type Result } from '@/lib/shared/result';
 import { cn } from '@/lib/shared/cn';
 
-// Settings' buttons, toggles and forms run their actions through this (features/scraping, features/telegram).
+// Buttons and toggles run their actions through this (Settings' pause, cron and scraper switches, the
+// time zone select, Telegram's). A form uses components/form.tsx (`answered`, <FormError>) instead.
 
 /** What an action answers here: a message to show ("Saved."), or anything else (not shown). */
 type Answer = Result<unknown>;
 
 /**
- * Runs an action from a button, a toggle or a form: busy state, an optimistic update to show right away,
+ * Runs an action from a button or a toggle (a select that saves as you pick, too): busy state, an optimistic update to show right away,
  * and its answer: "Saved." as a toast; what went wrong in `error`, for an <ActionError> next to the control
  * (it stays until the next try, and lands with the refreshed page).
  */

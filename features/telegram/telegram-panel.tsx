@@ -20,7 +20,8 @@ import {
   telegramTestAction,
 } from './actions';
 
-// The Telegram panel in Settings. Its buttons behave like the other panels' (features/scraping/use-server-form.ts).
+// The Telegram panel in Settings. Its buttons and toggles behave like the other panels': the new value
+// shows at once (useOptimistic), "Saved." is a toast, what went wrong shows next to the control (useAction).
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (

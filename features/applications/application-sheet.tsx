@@ -1,7 +1,7 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 import { stageOf, outcomeLabel, type StageId, type OutcomeId } from '@/lib/stages';
 import { message } from '@/lib/shared/errors';
@@ -15,8 +15,8 @@ import { refetchContentAction, removeStatusStepAction, setApplicationStatusActio
 import { AdDetails } from './ad-details';
 import { AdText } from './ad-text';
 import { ApplicationFooter } from './application-footer';
-import { ApplicationForm } from './application-form';
 import { moveDraft, writeDraft } from './note-drafts';
+import { LazyApplicationForm, loadApplicationForm } from './lazy-application-form';
 import { NoteEditor, type NoteHandle } from './note-editor';
 import { StatusEditor } from './status-editor';
 import { applicationKey, useApplication, type Shown } from './use-application';
@@ -43,6 +43,7 @@ export function ApplicationSheet({
   const [jobId, setJobId] = useState(initial.jobId); // an edit can make it another job's (see updateApplication)
   const day = useDay();
   const [editing, setEditing] = useState(false);
+  useEffect(() => void loadApplicationForm(), []); // "Edit"'s form, so it's in before it's wanted
   const [open, setOpen] = useState(true);
   const confirm = useConfirm();
   const focus = useReturnFocus();
@@ -182,7 +183,7 @@ export function ApplicationSheet({
           onClose(closedWith.current, jobId);
         }}
       >
-        {editing && <ApplicationForm app={app as ApplicationWithContent} onCancel={stopEditing} onSaved={saved} />}
+        {editing && <LazyApplicationForm app={app as ApplicationWithContent} onCancel={stopEditing} onSaved={saved} />}
         {/* hidden, not gone, while editing: the note keeps what you typed */}
         <div className={cn('flex min-h-0 flex-1 flex-col', editing && 'hidden')}>
           <SheetHeader className="gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">

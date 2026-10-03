@@ -19,7 +19,7 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
       // Short names only where the scope is one line and the meaning is conventional (CONTRIBUTING.md → Naming):
       // a loop counter, a comparator's two sides, a left-out key (errors are `error`, events `event`)
-      'id-length': ['error', { min: 2, exceptions: ['i', 'j', 'a', 'b', '_'], properties: 'never' }],
+      'id-length': ['error', { min: 2, exceptions: ['i', 'j', 'a', 'b', '_', 'z'], properties: 'never' }],
     },
   },
   {

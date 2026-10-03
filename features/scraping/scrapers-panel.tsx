@@ -13,7 +13,7 @@ import type { Scraper } from '@/lib/db/repos/scrapers';
 import { toggleScraperAction } from './actions';
 import { PANEL } from './panel-styles';
 import { blank, toDraft, type Draft } from './scraper-draft';
-import { ScraperEditor } from './scraper-editor';
+import { LazyScraperEditor, loadEditor } from './lazy-scraper-editor';
 import { ScraperStatus } from './scraper-status';
 
 // The scrapers: the built-in boards, plus your own (JSON / HTML / RSS) set up here.
@@ -36,7 +36,13 @@ export function ScrapersPanel({
   );
 
   return (
-    <Card className={PANEL} role="region" aria-labelledby="scrapers-h">
+    <Card
+      className={PANEL}
+      role="region"
+      aria-labelledby="scrapers-h"
+      onPointerOver={() => void loadEditor()}
+      onFocus={() => void loadEditor()}
+    >
       <CardHeader className="flex items-center justify-between gap-3 px-4">
         <h2 id="scrapers-h" className="m-0 text-base font-semibold">
           Scrapers
@@ -96,7 +102,7 @@ export function ScrapersPanel({
         <ActionError error={act.error} />
       </CardContent>
       {open && (
-        <ScraperEditor
+        <LazyScraperEditor
           key={open.n}
           initial={open.draft}
           autoTest={open.test}

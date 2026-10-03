@@ -15,8 +15,8 @@ database code or the migrations; it needs Docker).
   tab, applying, the add/edit form), `scraping` (Settings: schedule, filters, scrapers, Supabase Cron, the
   "Scrape now" button), `telegram` (its Settings panel), `login`, and `shell` (the header, tabs, auto-refresh,
   telling the server the browser's time zone). A feature imports another's module by its `@/features/…` path.
-- **`components/`: pieces more than one feature uses** (`DateInput`, `TimeZone` / `useZone`, `useAction`,
-  `useConfirm()` for "are you sure?", `useReturnFocus()` for a dialog opened from code, `useAutosave()` for a
+- **`components/`: pieces more than one feature uses** (`DateInput`, `TimeZone` / `useZone`, `useAction` for
+  a button or a toggle, `useAppForm` for a form (below), `useConfirm()` for "are you sure?", `useReturnFocus()` for a dialog opened from code, `useAutosave()` for a
   field that saves itself, `useRefreshWhile()` for a page that refreshes while the server works, `Field` /
   `CheckField` / `Code`, `LoadError`, the search box's classes, `QueryProvider`). They import nothing from `features/`. **`components/ui/`** holds the shadcn/ui components,
   added with `npx shadcn@latest add <name>` (`components.json` says where things go) and then the repo's own
@@ -29,14 +29,34 @@ database code or the migrations; it needs Docker).
   `useQuery` with its `refetchInterval`; a page whose server-rendered data moves while the server works
   (pending ad texts in the list, an AI run) uses `useRefreshWhile()` instead, since the refresh is what
   brings that data.
+- **Forms** are TanStack Form: `useAppForm` (`components/form.tsx`) with its fields
+  (`<form.AppField name="title">{(field) => <field.TextField label="Title" />}</form.AppField>`, which wire the
+  label, the hint, the error, `aria-invalid` and `aria-describedby`), checked with the schema of the action it
+  calls (`validators: { onDynamic: formSchema(schema) }`, `validationLogic: checkOnSubmit`: on Save, then on
+  every change).
+  - A form that's on the page from the start (Settings) loads its schema on the first check instead:
+    `onDynamicAsync: lazySchema(() => import(…))`; if it can't be loaded, the form says so rather than save
+    unchecked. It follows the refreshed page while it still shows the old values (`useFollowServer`).
+  - When the form's values aren't the schema's input, a validator maps them: the scraper editor checks
+    `toForm(values)` with the action's schema and puts each problem at its field (`scraperErrors`).
+  - What the server answers goes through `answered(form, action(…), { success })`: the toast `success` words
+    from the answer, if given; what went wrong in `<FormError>` by the button.
+  - Enter: a short form (Settings, a `Dialog`) saves on Enter. A long form in a `Sheet` doesn't
+    (`onKeyDown={noImplicitSubmit}`): Save, which closes it, is a click. A box can give Enter its own job
+    (the link reads the page, a date commits).
+  - A form shown only on a click (a `Sheet`, a `Dialog`) is `lazy()`-loaded inside `<LazyForm>`
+    (`components/lazy-form.tsx`: its header and grey fields while it loads, a message if it can't), so the
+    page doesn't carry the form library and zod until then.
 - **`server/`: the request's gate.** The login cookie (`auth.ts`), `requireLogin()` (`session.ts`) and the
   action wrapper (`action.ts`).
 - **`lib/`: what the app knows, without the UI.** Boards, listings and the scrape pipeline, ads, AI, the
   database (`lib/db/`: schema and one repo per table), dates, Telegram. Server-only modules start with
   `import 'server-only'`.
 - **`lib/shared/`: what client components may import, guaranteed** (errors, `Result`, formatting, URL filters,
-  the Zod schemas the actions check their input with, `cn()` for class names). Nothing in it reads the
-  database or a secret. A client component imports messages, not the schemas (they bring zod along). Other
+  the Zod schemas the actions and their forms check the input with, `cn()` for class names). Nothing in it
+  reads the database or a secret. The schemas are `zod/mini` (`import * as z from 'zod/mini'`: functions, not
+  methods, so a page gets only what it uses, ~16 kB gzipped instead of zod's ~90 kB); import one from a form,
+  and where only a message is wanted, the message (`application-messages.ts`). Other
   `lib/` modules without `import 'server-only'` (e.g. `lib/dates.ts`, `lib/stages.ts`) may be imported by client
   components too; check that line first.
 - **Imports:** `app/`, `features/`, `components/` and `server/` use `@/…`, except between files of the same

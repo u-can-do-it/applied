@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/shared/cn';
 import { startRunAction } from './actions';
-import { ProfileDialog, type ProfileOption } from './profile-dialog';
+import { loadProfileForm, ProfileDialog, type ProfileOption } from './profile-dialog';
 
 type RunInfo = {
   id: string;
@@ -79,7 +79,13 @@ export function AiControls({
   return (
     <div className="mb-3 flex min-h-9 flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="brand" onClick={() => dialog.current?.open()}>
+        <Button
+          type="button"
+          variant="brand"
+          onClick={() => dialog.current?.open()}
+          onPointerEnter={() => void loadProfileForm()}
+          onFocus={() => void loadProfileForm()}
+        >
           <SparklesIcon /> {active ? active.name : 'Profile'} <ChevronDownIcon />
         </Button>
 

@@ -1,6 +1,6 @@
 import 'server-only';
 import { unstable_rethrow } from 'next/navigation';
-import type { z } from 'zod';
+import * as z from 'zod/mini';
 import { requireLogin } from './session';
 import { message } from '@/lib/shared/errors';
 import { fail, ok, type Result } from '@/lib/shared/result';
@@ -18,7 +18,7 @@ type Options = {
 /** A request the forms never send (a wrong type, a missing key) gets this; the schemas word the rest. */
 const BAD_REQUEST = 'Bad request.';
 
-async function run<S extends z.ZodType, O>(
+async function run<S extends z.core.$ZodType, O>(
   schema: S,
   raw: unknown,
   fn: (input: z.output<S>) => Promise<O>,
@@ -32,7 +32,7 @@ async function run<S extends z.ZodType, O>(
       if (!(raw instanceof FormData)) return fail(BAD_REQUEST);
       input = Object.fromEntries(raw);
     }
-    const parsed = schema.safeParse(input, { error: () => BAD_REQUEST });
+    const parsed = z.safeParse(schema, input, { error: () => BAD_REQUEST });
     if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? BAD_REQUEST);
     return ok(await fn(parsed.data));
   } catch (error) {
@@ -43,12 +43,12 @@ async function run<S extends z.ZodType, O>(
 
 /** A server action called with one value (an object, or nothing for `noInput`). */
 export const action =
-  <S extends z.ZodType, O>(schema: S, fn: (input: z.output<S>) => Promise<O>, options: Options = {}) =>
+  <S extends z.core.$ZodType, O>(schema: S, fn: (input: z.output<S>) => Promise<O>, options: Options = {}) =>
   async (input: z.input<S>): Promise<Result<O>> =>
     run(schema, input, fn, options);
 
 /** A server action for `<form action>` / useActionState: (previous answer, FormData); the fields become an object. */
 export const formAction =
-  <S extends z.ZodType, O>(schema: S, fn: (input: z.output<S>) => Promise<O>, options: Options = {}) =>
+  <S extends z.core.$ZodType, O>(schema: S, fn: (input: z.output<S>) => Promise<O>, options: Options = {}) =>
   async (_previous: Result<O> | null, form: FormData): Promise<Result<O>> =>
     run(schema, form, fn, { ...options, form: true });

@@ -1,33 +1,37 @@
 // Shared by the server and client components.
-import { z } from 'zod';
+import * as z from 'zod/mini';
 import { isTimeZone } from '../../dates';
 import { DEFAULT_SETTINGS, INTERVALS, normalizeList, type ScrapeSettings } from '../../listings/settings';
+import { string } from './common';
 
 const isInterval = (minutes: number) => (INTERVALS as readonly number[]).includes(minutes);
 
 // ---- as stored ------------------------------------------------------------------------------
 
 const words = (fallback: string[]) =>
-  z
-    .array(z.coerce.string())
-    .transform((list) =>
-      list
-        .map((word) => word.trim())
-        .filter(Boolean)
-        .slice(0, 50)
-        .map((word) => word.slice(0, 60)),
-    )
-    .catch(fallback);
-const hour = (fallback: number) => z.int().min(0).max(24).catch(fallback);
-const flag = (fallback: boolean) => z.boolean().catch(fallback);
-const zoneOrNone = z.string().refine(isTimeZone).catch('');
+  z.catch(
+    z.pipe(
+      z.array(z.coerce.string()),
+      z.transform((list: string[]) =>
+        list
+          .map((word) => word.trim())
+          .filter(Boolean)
+          .slice(0, 50)
+          .map((word) => word.slice(0, 60)),
+      ),
+    ),
+    fallback,
+  );
+const hour = (fallback: number) => z.catch(z.int().check(z.minimum(0), z.maximum(24)), fallback);
+const flag = (fallback: boolean) => z.catch(z.boolean(), fallback);
+const zoneOrNone = z.catch(z.string().check(z.refine(isTimeZone)), '');
 
 const defaults = DEFAULT_SETTINGS;
 /** The settings as stored (any shape, maybe from an older version): what's missing or wrong is the default. */
-export const storedSettingsSchema: z.ZodType<ScrapeSettings> = z
-  .object({
+export const storedSettingsSchema: z.ZodMiniType<ScrapeSettings> = z.catch(
+  z.object({
     enabled: flag(defaults.enabled),
-    everyMinutes: z.number().refine(isInterval).catch(defaults.everyMinutes),
+    everyMinutes: z.catch(z.number().check(z.refine(isInterval)), defaults.everyMinutes),
     fromHour: hour(defaults.fromHour),
     toHour: hour(defaults.toHour),
     keywords: words(defaults.keywords),
@@ -39,33 +43,37 @@ export const storedSettingsSchema: z.ZodType<ScrapeSettings> = z
     aiFilter: flag(defaults.aiFilter),
     timeZone: zoneOrNone,
     browserTimeZone: zoneOrNone,
-  })
-  .catch(() => ({ ...defaults }));
+  }),
+  () => ({ ...defaults }),
+);
 
 // ---- what the Settings page sends -------------------------------------------------------------
 
 const HOURS = 'Hours are 0–24.';
 const INTERVAL = 'Pick an interval from the list.';
+const hourOfDay = z.int({ error: HOURS }).check(z.minimum(0, HOURS), z.maximum(24, HOURS));
 
 export const scheduleSchema = z.object({
-  everyMinutes: z.number({ error: INTERVAL }).refine(isInterval, INTERVAL),
-  fromHour: z.int({ error: HOURS }).min(0, HOURS).max(24, HOURS),
-  toHour: z.int({ error: HOURS }).min(0, HOURS).max(24, HOURS),
+  everyMinutes: z.number({ error: INTERVAL }).check(z.refine(isInterval, INTERVAL)),
+  fromHour: hourOfDay,
+  toHour: hourOfDay,
 });
 
 /** '' = the browser's; `browser` is the zone the browser is in now (kept only if it is one). */
 export const timeZoneSchema = z.object({
-  tz: z.string({ error: 'Unknown time zone.' }).refine((tz) => tz === '' || isTimeZone(tz), 'Unknown time zone.'),
-  browser: z
-    .string()
-    .default('')
-    .transform((tz) => (isTimeZone(tz) ? tz : undefined)),
+  tz: z
+    .string({ error: 'Unknown time zone.' })
+    .check(z.refine((tz) => tz === '' || isTimeZone(tz), 'Unknown time zone.')),
+  browser: z.pipe(
+    string(),
+    z.transform((tz: string) => (isTimeZone(tz) ? tz : undefined)),
+  ),
 });
 
 export const browserTimeZoneSchema = z.object({ tz: z.string() });
 
 /** The lists come as typed ("React, Vue"); normalizeList is what's kept, on both sides. */
-const list = z.string().default('').transform(normalizeList);
+const list = z.pipe(string(), z.transform(normalizeList));
 export const filtersSchema = z.object({
   keywords: list,
   cities: list,

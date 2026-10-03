@@ -1,5 +1,6 @@
 // Shared by the server and client components.
-import { z } from 'zod';
+import * as z from 'zod/mini';
+import { string } from './common';
 
 const BASE = 'http://same.origin';
 /** A path on this site, or '/': read the way a browser reads it ("/\\evil.com" and "/\t/evil.com" are other sites). */
@@ -14,7 +15,7 @@ const sameOriginPath = (next: string) => {
 
 /** The login form. */
 export const loginSchema = z.object({
-  password: z.string().default(''),
+  password: string(),
   // where to go after logging in: only a path on this site (not "//evil.com")
-  next: z.string().default('/').transform(sameOriginPath),
+  next: z.pipe(string('/'), z.transform(sameOriginPath)),
 });

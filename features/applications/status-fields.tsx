@@ -1,55 +1,52 @@
 'use client';
 
-import { STAGES, outcomesFor, type StageId, type OutcomeId } from '@/lib/stages';
-import { Field } from '@/components/field';
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { withForm } from '@/components/form';
+import { NativeSelectOption } from '@/components/ui/native-select';
+import { STAGES, outcomesFor } from '@/lib/stages';
+import type { Draft } from './application-draft';
 
 /** A new application's status in the "Add application" form: its stage and that stage's outcome. */
-export function StatusFields({
-  stage,
-  outcome,
-  onChange,
-}: {
-  stage: StageId;
-  outcome: OutcomeId;
-  onChange: (patch: { stage?: StageId; outcome?: OutcomeId }) => void;
-}) {
-  return (
-    <>
-      <Field label="Stage">
-        <NativeSelect
-          className="w-full"
-          value={stage}
-          onChange={(event) => {
-            const next = event.target.value as StageId;
+export const StatusFields = withForm({
+  defaultValues: {} as Draft,
+  render: function StatusFields({ form }) {
+    return (
+      <>
+        <form.AppField
+          name="stage"
+          listeners={{
             // an offer has no "ghosted" or talent pool
-            onChange(
-              outcomesFor(next).some((possible) => possible.id === outcome)
-                ? { stage: next }
-                : { stage: next, outcome: 'pending' },
-            );
+            onChange: ({ value }) => {
+              if (!outcomesFor(value).some((possible) => possible.id === form.getFieldValue('outcome')))
+                form.setFieldValue('outcome', 'pending');
+            },
           }}
         >
-          {STAGES.map((option) => (
-            <NativeSelectOption key={option.id} value={option.id}>
-              {option.label}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </Field>
-      <Field label="Outcome">
-        <NativeSelect
-          className="w-full"
-          value={outcome}
-          onChange={(event) => onChange({ outcome: event.target.value as OutcomeId })}
-        >
-          {outcomesFor(stage).map((option) => (
-            <NativeSelectOption key={option.id} value={option.id}>
-              {option.label}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </Field>
-    </>
-  );
-}
+          {(field) => (
+            <field.SelectField label="Stage" controlClassName="w-full">
+              {STAGES.map((option) => (
+                <NativeSelectOption key={option.id} value={option.id}>
+                  {option.label}
+                </NativeSelectOption>
+              ))}
+            </field.SelectField>
+          )}
+        </form.AppField>
+        <form.Subscribe selector={(state) => state.values.stage}>
+          {(stage) => (
+            <form.AppField name="outcome">
+              {(field) => (
+                <field.SelectField label="Outcome" controlClassName="w-full">
+                  {outcomesFor(stage).map((option) => (
+                    <NativeSelectOption key={option.id} value={option.id}>
+                      {option.label}
+                    </NativeSelectOption>
+                  ))}
+                </field.SelectField>
+              )}
+            </form.AppField>
+          )}
+        </form.Subscribe>
+      </>
+    );
+  },
+});

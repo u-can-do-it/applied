@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { z } from 'zod';
+import * as z from 'zod/mini';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { PROFILE_FILE_MAX, profileSchema, startRunSchema } from '@/lib/shared/schemas/ai';
 import {
@@ -15,8 +15,8 @@ import { scraperSchema, type ScraperForm } from '@/lib/shared/schemas/scrapers';
 import { filtersSchema, scheduleSchema, storedSettingsSchema, timeZoneSchema } from '@/lib/shared/schemas/settings';
 
 /** the message the user would see (the action wrapper shows the first issue) */
-const problem = (schema: z.ZodType, input: unknown) => {
-  const parsed = schema.safeParse(input, { error: () => 'Bad request.' });
+const problem = (schema: z.core.$ZodType, input: unknown) => {
+  const parsed = z.safeParse(schema, input, { error: () => 'Bad request.' });
   return parsed.success ? null : parsed.error.issues[0]?.message;
 };
 
@@ -49,6 +49,11 @@ describe('profileSchema', () => {
       file: undefined,
       removeFile: false,
     });
+  });
+
+  it('needs a name (the form asks for one; the server no longer names it "Profile")', () => {
+    expect(problem(profileSchema, { name: '  ', prompt: 'React roles' })).toBe('Give the profile a name.');
+    expect(problem(profileSchema, { prompt: 'React roles' })).toBe('Give the profile a name.');
   });
 
   it('refuses a file over 5 MB', () => {

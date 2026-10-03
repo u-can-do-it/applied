@@ -1,10 +1,10 @@
 import { byId } from '@/lib/boards';
-import type { FieldId, JsonSource } from '@/lib/listings/config';
+import { FIELDS, type FieldId, type JsonSource } from '@/lib/listings/config';
 import { kindOf, type KindId } from '@/lib/listings/kinds';
 import type { Scraper } from '@/lib/db/repos/scrapers';
 import type { ScraperForm } from '@/lib/shared/schemas/scrapers';
 
-// A scraper as its editor holds it, from and to what's saved.
+// A scraper as its editor's form holds it, from and to what's saved.
 
 export type Draft = {
   id?: string;
@@ -20,13 +20,15 @@ export type Draft = {
   from: JsonSource;
   scriptId: string;
   items: string;
-  fields: Partial<Record<FieldId, string>>;
+  fields: Record<FieldId, string>; // '' = not mapped
 };
 
 const headerText = (headers: Record<string, string> | undefined) =>
   Object.entries(headers ?? {})
     .map(([name, value]) => `${name}: ${value}`)
     .join('\n');
+const mapping = (fields: Partial<Record<FieldId, string>> = {}) =>
+  Object.fromEntries(FIELDS.map((field) => [field.id, fields[field.id] ?? ''])) as Record<FieldId, string>;
 const parseHeaders = (text: string) =>
   Object.fromEntries(
     text
@@ -51,7 +53,7 @@ export function toDraft(scraper: Scraper): Draft {
     from: scraper.config.from ?? 'body',
     scriptId: scraper.config.scriptId ?? '',
     items: scraper.config.items ?? '',
-    fields: { ...(scraper.config.fields ?? {}) },
+    fields: mapping(scraper.config.fields),
   };
 }
 
@@ -71,7 +73,7 @@ export function blank(kind: KindId, keep?: Partial<Draft>): Draft {
     from: 'body',
     scriptId: '',
     items: '',
-    fields: {},
+    fields: mapping(),
   };
 }
 

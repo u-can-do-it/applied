@@ -6,7 +6,7 @@ import { useReturnFocus } from '@/components/return-focus';
 import { keepOpenOnToast } from '@/components/toasts';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { ApplicationForm } from './application-form';
+import { LazyApplicationForm, loadApplicationForm } from './lazy-application-form';
 
 // "+ Add application": an application you sent somewhere the scrapers don't see (or before they
 // did). Paste the link and "Fill in" reads the page (with the AI, if there's a key); everything
@@ -21,6 +21,8 @@ export function AddApplication() {
         variant="outline"
         className="h-auto min-h-8 bg-card dark:bg-card"
         onClick={() => setFormKey((previous) => previous + 1)}
+        onPointerEnter={() => void loadApplicationForm()}
+        onFocus={() => void loadApplicationForm()}
       >
         <PlusIcon /> Add application
       </Button>
@@ -45,7 +47,7 @@ function AddDialog({ onClose }: { onClose: () => void }) {
         }}
       >
         {/* saved: closes together with the refreshed list, so the new one is there when it does */}
-        <ApplicationForm onCancel={() => setOpen(false)} onSaved={() => setOpen(false)} />
+        <LazyApplicationForm onCancel={() => setOpen(false)} onSaved={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );

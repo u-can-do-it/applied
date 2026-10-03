@@ -32,6 +32,7 @@ export function DateInput({
   min,
   max,
   highlighted = false,
+  error,
   onCommit,
 }: {
   label: string;
@@ -40,6 +41,8 @@ export function DateInput({
   max?: string;
   /** drawn as the filter in use (the custom range) */
   highlighted?: boolean;
+  /** in a form: what's wrong with the day, by the input's id (the form shows it: <FieldError>) */
+  error?: { message?: string; id: string };
   onCommit: (day: string) => void;
 }) {
   const [text, setText] = useState(formatDay(value));
@@ -47,20 +50,36 @@ export function DateInput({
   const zone = useZone();
   const commit = useEffectEvent(onCommit);
 
+  // the day committed last, until `value` follows it (so a pause after Enter doesn't commit it twice)
+  const [sent, setSent] = useState<string | null>(null);
+
   // follow the URL (presets, back/forward); adjusted while rendering, not in an effect
   const [shownValue, setShownValue] = useState(value);
   if (value !== shownValue) {
     setShownValue(value);
     setText(formatDay(value));
+    setSent(null);
   }
 
-  // navigate once the typed text is a real date (or emptied) and typing pauses
+  /** the typed day, when it's one to commit: a real date (or emptied), not the current one */
+  const typedDay = (typed: string) => {
+    const iso = typed === '' ? '' : parseDay(typed);
+    return iso === value || iso === sent || (typed !== '' && !iso) ? null : iso; // unchanged, or half-typed
+  };
+
+  // commit once the typed text is a real date (or emptied) and typing pauses; Enter and leaving the box commit at once
   useEffect(() => {
-    const iso = text === '' ? '' : parseDay(text);
-    if (iso === value || (text !== '' && !iso)) return; // unchanged, or half-typed
+    const iso = typedDay(text);
+    if (iso === null) return;
     const timer = setTimeout(() => commit(iso), 400);
     return () => clearTimeout(timer);
-  }, [text, value]);
+  }, [text, value, sent]); // eslint-disable-line react-hooks/exhaustive-deps -- typedDay reads these
+  const commitNow = () => {
+    const iso = typedDay(text);
+    if (iso === null) return;
+    setSent(iso);
+    onCommit(iso);
+  };
 
   const iso = parseDay(text);
   const invalid = text.length === 10 && !iso;
@@ -77,10 +96,17 @@ export function DateInput({
           inputMode="numeric"
           placeholder="dd.mm.rrrr"
           aria-label={`${label} (dd.mm.yyyy)`}
-          aria-invalid={invalid || undefined}
+          aria-invalid={invalid || Boolean(error?.message) || undefined}
+          aria-describedby={error?.message ? error.id : undefined}
           maxLength={10}
           value={text}
           onChange={(event) => setText(mask(event.target.value))}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault(); // in a form: the day, not the form
+            commitNow();
+          }}
+          onBlur={commitNow}
           className={cn(
             'h-7 w-[calc(10ch+3rem)] rounded-full bg-card pr-8 text-[13px] text-foreground tabular-nums md:text-[13px] dark:bg-card',
             highlighted && 'border-foreground',

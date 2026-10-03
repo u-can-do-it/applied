@@ -1,5 +1,5 @@
-// What the application checks say, without the schemas: client components import these, and the
-// schemas (lib/shared/schemas/applications.ts) would bring all of zod into their bundle.
+// What the application checks say, without the schemas: the Applied page's components import these;
+// the schemas (lib/shared/schemas/applications.ts) would bring zod and the boards into its first load.
 
 export const NOTE_MAX = 10_000;
 
