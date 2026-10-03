@@ -80,6 +80,8 @@ The cron sends `Authorization: Bearer <secret>`: `CRON_SECRET` if set, otherwise
 npm install
 cp .env.example .env.local   # fill in SUPABASE_URL + SUPABASE_SECRET_KEY (the rest is optional)
 npm run dev                  # http://localhost:3000
+npm test                     # unit tests (Vitest)
+npm run typecheck            # tsc --noEmit
 ```
 
 To deploy, push this folder to a GitHub repo, then **Vercel → Add New → Project → import it**.

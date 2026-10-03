@@ -1,0 +1,389 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`built-in board parsers > builtin: the job cards 1`] = `
+[
+  {
+    "company": "tem energy",
+    "id": "11480448",
+    "locations": [],
+    "remote": true,
+    "seniority": "unknown",
+    "skills": [],
+    "sort": 11480448,
+    "src": "builtin",
+    "title": "Staff Full Stack Engineer - Sell Side Engine",
+    "url": "https://builtin.com/job/staff-full-stack-engineer-sell-side-engine/11480448",
+  },
+  {
+    "company": "Beautiful Destinations",
+    "id": "11478841",
+    "locations": [],
+    "remote": true,
+    "seniority": "unknown",
+    "skills": [],
+    "sort": 11478841,
+    "src": "builtin",
+    "title": "Full Stack Product Developer",
+    "url": "https://builtin.com/job/full-stack-product-developer/11478841",
+  },
+]
+`;
+
+exports[`built-in board parsers > bulldog: __NEXT_DATA__ 1`] = `
+[
+  {
+    "company": "TeamQuest",
+    "id": "257103-web-solution-architect-gdansk-teamquest",
+    "locations": [
+      "Gdansk",
+    ],
+    "remote": false,
+    "seniority": "lead",
+    "skills": [
+      "Laravel",
+      "React",
+      "Vue.js",
+      "AWS",
+    ],
+    "sort": 257103,
+    "src": "bulldog",
+    "title": "Web Solution Architect",
+    "url": "https://bulldogjob.pl/companies/jobs/257103-web-solution-architect-gdansk-teamquest",
+  },
+  {
+    "company": "TeamQuest",
+    "id": "257099-web-solution-architect-gdansk-teamquest",
+    "locations": [
+      "Gdańsk",
+    ],
+    "remote": false,
+    "seniority": "lead",
+    "skills": [
+      "Laravel",
+      "React",
+      "Vue.js",
+      "REST API",
+    ],
+    "sort": 257099,
+    "src": "bulldog",
+    "title": "Web Solution Architect",
+    "url": "https://bulldogjob.pl/companies/jobs/257099-web-solution-architect-gdansk-teamquest",
+  },
+  {
+    "company": "TeamQuest",
+    "id": "257096-web-mobile-solution-architect-gdansk-teamquest",
+    "locations": [
+      "Gdansk",
+    ],
+    "remote": false,
+    "seniority": "lead",
+    "skills": [
+      "React",
+      "PHP",
+      "Swift",
+      "Kotlin",
+    ],
+    "sort": 257096,
+    "src": "bulldog",
+    "title": "Web & Mobile Solution Architect",
+    "url": "https://bulldogjob.pl/companies/jobs/257096-web-mobile-solution-architect-gdansk-teamquest",
+  },
+]
+`;
+
+exports[`built-in board parsers > eldorado: the app router flight data, split over chunks 1`] = `
+[
+  {
+    "company": "in4ge sp. z o.o.",
+    "id": "449389",
+    "locations": [
+      "Warszawa",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [],
+    "sort": 449389,
+    "src": "eldorado",
+    "title": "Scrum Master",
+    "url": "https://czyjesteldorado.pl/praca/449389-scrum-master-in4ge-sp-z-o-o",
+  },
+  {
+    "company": "in4ge sp. z o.o.",
+    "id": "450224",
+    "locations": [
+      "Warszawa",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [],
+    "sort": 450224,
+    "src": "eldorado",
+    "title": "Senior Front-end Developer (React / Angular)",
+    "url": "https://czyjesteldorado.pl/praca/450224-senior-front-end-developer-react-angular-in4ge-sp-z-o-o",
+  },
+  {
+    "company": "Next Technology Professionals",
+    "id": "450178",
+    "locations": [
+      "Warszawa",
+    ],
+    "remote": true,
+    "seniority": "c_level",
+    "skills": [],
+    "sort": 450178,
+    "src": "eldorado",
+    "title": "Software Engineering Manager",
+    "url": "https://czyjesteldorado.pl/praca/450178-software-engineering-manager-next-technology-professionals-sp-z-o-o",
+  },
+]
+`;
+
+exports[`built-in board parsers > justjoin: the candidate API 1`] = `
+[
+  {
+    "company": "ASTEK Polska",
+    "id": "astek-polska--net-fullstack-developer-k-m--katowice-slaskie--net-773b161c",
+    "locations": [
+      "Katowice (Śląskie)",
+      "Katowice (Śląskie)",
+    ],
+    "remote": false,
+    "seniority": "mid",
+    "skills": [
+      "C#",
+      "net",
+      "SQL",
+      "Angular",
+      "React",
+      "APIs",
+      "Design Patterns",
+      "Atlassian",
+      "Docker",
+      "Azure",
+    ],
+    "sort": 1790982014388,
+    "src": "justjoin",
+    "title": ".NET / Fullstack Developer (K/M)",
+    "url": "https://justjoin.it/job-offer/astek-polska--net-fullstack-developer-k-m--katowice-slaskie--net-773b161c",
+  },
+  {
+    "company": "ASTEK Polska",
+    "id": "astek-polska-senior-angular-developer-warszawa-mazowieckie--javascript-b28b4fcc",
+    "locations": [
+      "Warszawa (Mazowieckie)",
+      "Warszawa (Mazowieckie)",
+    ],
+    "remote": false,
+    "seniority": "senior",
+    "skills": [
+      "Angular",
+      "TypeScript",
+      "JavaScript",
+      "RxJS",
+      "Node.js",
+      "HTML5",
+      "CSS",
+      "Git",
+      "REST API",
+      "React",
+    ],
+    "sort": 1790982014384,
+    "src": "justjoin",
+    "title": "Senior Angular Developer",
+    "url": "https://justjoin.it/job-offer/astek-polska-senior-angular-developer-warszawa-mazowieckie--javascript-b28b4fcc",
+  },
+  {
+    "company": "modue",
+    "id": "modue-founding-software-engineer-warszawa-javascript",
+    "locations": [
+      "Warszawa",
+      "Warszawa",
+    ],
+    "remote": false,
+    "seniority": "senior",
+    "skills": [
+      "JavaScript",
+      "TypeScript",
+      "Node.js",
+      "React",
+      "Electron",
+      "DevOps",
+      "C++",
+      "Swift",
+      "Embedded",
+    ],
+    "sort": 1790979145567,
+    "src": "justjoin",
+    "title": "Founding Software Engineer",
+    "url": "https://justjoin.it/job-offer/modue-founding-software-engineer-warszawa-javascript",
+  },
+]
+`;
+
+exports[`built-in board parsers > linkedin: the guest search fragment 1`] = `
+[
+  {
+    "company": "Tango",
+    "id": "4466311438",
+    "locations": [
+      "Warsaw, Mazowieckie, Poland",
+    ],
+    "remote": false,
+    "seniority": "senior",
+    "skills": [],
+    "sort": undefined,
+    "src": "linkedin",
+    "title": "Senior Frontend Engineer",
+    "url": "https://www.linkedin.com/jobs/view/4466311438",
+  },
+  {
+    "company": "DCG",
+    "id": "4474704978",
+    "locations": [
+      "Warsaw Metropolitan Area",
+    ],
+    "remote": false,
+    "seniority": "senior",
+    "skills": [],
+    "sort": undefined,
+    "src": "linkedin",
+    "title": "Senior Frontend Developer (React / TypeScript)",
+    "url": "https://www.linkedin.com/jobs/view/4474704978",
+  },
+  {
+    "company": "Kake",
+    "id": "4448426790",
+    "locations": [
+      "Warsaw, Mazowieckie, Poland",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [],
+    "sort": undefined,
+    "src": "linkedin",
+    "title": "Senior Web & Video Player Engineer - Remote",
+    "url": "https://www.linkedin.com/jobs/view/4448426790",
+  },
+]
+`;
+
+exports[`built-in board parsers > nofluff: the serverApp-state in the listing page 1`] = `
+[
+  {
+    "company": "Antal",
+    "id": "senior-dynamics-365-developer-antal-Kraków-1",
+    "locations": [
+      "Kraków",
+      "Warszawa",
+    ],
+    "remote": false,
+    "seniority": "senior",
+    "skills": [
+      "Dynamics 365",
+    ],
+    "sort": 1790805674152,
+    "src": "nofluff",
+    "title": "Senior Dynamics 365 Developer",
+    "url": "https://nofluffjobs.com/pl/job/senior-dynamics-365-developer-antal-krakow-1",
+  },
+  {
+    "company": "Scalo",
+    "id": "frontend-developer-angular-scalo-Warszawa-9",
+    "locations": [
+      "Warszawa",
+    ],
+    "remote": false,
+    "seniority": "senior",
+    "skills": [],
+    "sort": 1789768840482,
+    "src": "nofluff",
+    "title": "Frontend Developer (Angular)",
+    "url": "https://nofluffjobs.com/pl/job/frontend-developer-angular-scalo-warszawa-9",
+  },
+  {
+    "company": "Scalo",
+    "id": "flutter-developer-scalo-Remote",
+    "locations": [
+      "Remote",
+      "Wrocław",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [],
+    "sort": 1790978422582,
+    "src": "nofluff",
+    "title": "Flutter Developer",
+    "url": "https://nofluffjobs.com/pl/job/flutter-developer-scalo-remote",
+  },
+]
+`;
+
+exports[`built-in board parsers > solidjobs: the public API 1`] = `
+[
+  {
+    "company": "DONE&Deliver",
+    "id": "5b057342-804b-40ae-bc20-e6b1cde01f68",
+    "locations": [
+      "Warszawa",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [
+      ".NET",
+      ".NET Core",
+      "ASP.NET",
+      "ASP.NET Core",
+      "TypeScript",
+      "Vue.js",
+      "React",
+      "CI/CD",
+      "Azure",
+    ],
+    "sort": 1790767831439,
+    "src": "solidjobs",
+    "title": "Fullstack .NET (React lub Vue)",
+    "url": "https://solid.jobs/o/4ptexltw/jobwatch",
+  },
+  {
+    "company": "TeamQuest",
+    "id": "adec016d-aac9-4bd4-a8cd-6e56690f5410",
+    "locations": [
+      "Warszawa",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [
+      "CI/CD",
+      "RESTful",
+      "React",
+      "React Native",
+      "TypeScript",
+    ],
+    "sort": 1790753090528,
+    "src": "solidjobs",
+    "title": "Senior Frontend Developer (React + React Native)",
+    "url": "https://solid.jobs/o/wxs73j4d/jobwatch",
+  },
+  {
+    "company": "TeamQuest",
+    "id": "82b79f5a-4306-45f7-94a4-2ca42f4d685e",
+    "locations": [
+      "Warszawa",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [
+      "Scrum",
+      "GraphQL",
+      "JavaScript",
+      "React",
+      "React Native",
+      "UX design",
+    ],
+    "sort": 1790753086054,
+    "src": "solidjobs",
+    "title": "Senior Frontend Developer (React + React Native)",
+    "url": "https://solid.jobs/o/2gm4xmur/jobwatch",
+  },
+]
+`;

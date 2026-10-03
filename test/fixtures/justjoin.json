@@ -1,0 +1,506 @@
+{
+  "data": [
+    {
+      "guid": "5c6d3bd9-ce51-426c-84e0-ae118976b200",
+      "slug": "astek-polska--net-fullstack-developer-k-m--katowice-slaskie--net-773b161c",
+      "title": ".NET / Fullstack Developer (K/M)",
+      "workplaceType": "hybrid",
+      "workingTime": "full_time",
+      "experienceLevel": "mid",
+      "category": {
+        "key": "net",
+        "parentKey": null
+      },
+      "city": "Katowice (Śląskie)",
+      "street": "Centrum",
+      "latitude": 50.168626,
+      "longitude": 18.9052587,
+      "isRemoteInterview": false,
+      "companyName": "ASTEK Polska",
+      "companyLogoThumbUrl": "https://imgproxy.justjoinit.tech/txB4nAubzaGIA0dczsm4FLpPWYgJafoHBaVwynrGkVk/h:200/w:200/plain/https://public.justjoin.it/companies/logos/original/3de9aa63e2331cebd70d66e2b523fa1560bdd100.png",
+      "publishedAt": "2026-10-02T23:00:14.388612Z",
+      "isOpenToHireUkrainians": false,
+      "locations": [
+        {
+          "city": "Katowice (Śląskie)",
+          "street": "Centrum",
+          "latitude": 50.168626,
+          "longitude": 18.9052587,
+          "slug": "astek-polska--net-fullstack-developer-k-m--katowice-slaskie--net-773b161c"
+        }
+      ],
+      "employmentTypes": [
+        {
+          "from": null,
+          "fromPerUnit": null,
+          "to": null,
+          "toPerUnit": null,
+          "currency": "CHF",
+          "currencySource": "conversion",
+          "type": "any",
+          "unit": "month",
+          "gross": false
+        },
+        {
+          "from": null,
+          "fromPerUnit": null,
+          "to": null,
+          "toPerUnit": null,
+          "currency": "EUR",
+          "currencySource": "conversion",
+          "type": "any",
+          "unit": "month",
+          "gross": false
+        },
+        {
+          "from": null,
+          "fromPerUnit": null,
+          "to": null,
+          "toPerUnit": null,
+          "currency": "GBP",
+          "currencySource": "conversion",
+          "type": "any",
+          "unit": "month",
+          "gross": false
+        },
+        {
+          "from": null,
+          "fromPerUnit": null,
+          "to": null,
+          "toPerUnit": null,
+          "currency": "USD",
+          "currencySource": "conversion",
+          "type": "any",
+          "unit": "month",
+          "gross": false
+        },
+        {
+          "from": null,
+          "fromPerUnit": null,
+          "to": null,
+          "toPerUnit": null,
+          "currency": "PLN",
+          "currencySource": "original",
+          "type": "any",
+          "unit": "month",
+          "gross": false
+        }
+      ],
+      "requiredSkills": [
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "C#",
+          "level": 5,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "net",
+          "level": 5,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "SQL",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Angular",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "React",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "APIs",
+          "level": 4,
+          "group": null
+        }
+      ],
+      "niceToHaveSkills": [
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Design Patterns",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Atlassian",
+          "level": 3,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Docker",
+          "level": 3,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Azure",
+          "level": 3,
+          "group": null
+        }
+      ],
+      "languages": [
+        {
+          "code": "en",
+          "level": "B2"
+        }
+      ],
+      "isPromoted": false,
+      "isSuperOffer": false,
+      "applyMethod": "form",
+      "applyUrl": null,
+      "lastPublishedAt": "2026-09-17T22:50:29.604969Z",
+      "expiredAt": "2026-10-17T21:59:59.999Z",
+      "companyProfileSlug": null,
+      "hybridWorkSchedule": null
+    },
+    {
+      "guid": "8aaed32d-6ded-4a51-bf05-32d0af529d6f",
+      "slug": "astek-polska-senior-angular-developer-warszawa-mazowieckie--javascript-b28b4fcc",
+      "title": "Senior Angular Developer",
+      "workplaceType": "hybrid",
+      "workingTime": "full_time",
+      "experienceLevel": "senior",
+      "category": {
+        "key": "javascript",
+        "parentKey": null
+      },
+      "city": "Warszawa (Mazowieckie)",
+      "street": "Centrum",
+      "latitude": 52.32121919999999,
+      "longitude": 21.1036813,
+      "isRemoteInterview": false,
+      "companyName": "ASTEK Polska",
+      "companyLogoThumbUrl": "https://imgproxy.justjoinit.tech/txB4nAubzaGIA0dczsm4FLpPWYgJafoHBaVwynrGkVk/h:200/w:200/plain/https://public.justjoin.it/companies/logos/original/3de9aa63e2331cebd70d66e2b523fa1560bdd100.png",
+      "publishedAt": "2026-10-02T23:00:14.3846Z",
+      "isOpenToHireUkrainians": false,
+      "locations": [
+        {
+          "city": "Warszawa (Mazowieckie)",
+          "street": "Centrum",
+          "latitude": 52.32121919999999,
+          "longitude": 21.1036813,
+          "slug": "astek-polska-senior-angular-developer-warszawa-mazowieckie--javascript-b28b4fcc"
+        }
+      ],
+      "employmentTypes": [
+        {
+          "from": 21000,
+          "fromPerUnit": 1000,
+          "to": 26250,
+          "toPerUnit": 1250,
+          "currency": "PLN",
+          "currencySource": "original",
+          "type": "b2b",
+          "unit": "Day",
+          "gross": false
+        },
+        {
+          "from": 5401,
+          "fromPerUnit": 257.195030992001,
+          "to": 6751,
+          "toPerUnit": 321.49378874000126,
+          "currency": "USD",
+          "currencySource": "conversion",
+          "type": "b2b",
+          "unit": "Day",
+          "gross": false
+        },
+        {
+          "from": 4801,
+          "fromPerUnit": 228.597554006172,
+          "to": 6001,
+          "toPerUnit": 285.746942507715,
+          "currency": "EUR",
+          "currencySource": "conversion",
+          "type": "b2b",
+          "unit": "Day",
+          "gross": false
+        },
+        {
+          "from": 4474,
+          "fromPerUnit": 213.028844105492,
+          "to": 5592,
+          "toPerUnit": 266.286055131865,
+          "currency": "CHF",
+          "currencySource": "conversion",
+          "type": "b2b",
+          "unit": "Day",
+          "gross": false
+        },
+        {
+          "from": 4089,
+          "fromPerUnit": 194.730590228419,
+          "to": 5112,
+          "toPerUnit": 243.41323778552376,
+          "currency": "GBP",
+          "currencySource": "conversion",
+          "type": "b2b",
+          "unit": "Day",
+          "gross": false
+        }
+      ],
+      "requiredSkills": [
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Angular",
+          "level": 5,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "TypeScript",
+          "level": 5,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "JavaScript",
+          "level": 5,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "RxJS",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Node.js",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "HTML5",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "CSS",
+          "level": 4,
+          "group": null
+        }
+      ],
+      "niceToHaveSkills": [
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Git",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "REST API",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "React",
+          "level": 3,
+          "group": null
+        }
+      ],
+      "languages": [],
+      "isPromoted": false,
+      "isSuperOffer": false,
+      "applyMethod": "form",
+      "applyUrl": null,
+      "lastPublishedAt": "2026-09-17T22:50:16.50239Z",
+      "expiredAt": "2026-10-17T21:59:59.999Z",
+      "companyProfileSlug": null,
+      "hybridWorkSchedule": null
+    },
+    {
+      "guid": "0dd3ca27-b397-4b1b-9622-8c820bd2868d",
+      "slug": "modue-founding-software-engineer-warszawa-javascript",
+      "title": "Founding Software Engineer",
+      "workplaceType": "hybrid",
+      "workingTime": "full_time",
+      "experienceLevel": "senior",
+      "category": {
+        "key": "javascript",
+        "parentKey": null
+      },
+      "city": "Warszawa",
+      "street": "Duchnicka 3",
+      "latitude": 52.2567578,
+      "longitude": 20.9687077,
+      "isRemoteInterview": false,
+      "companyName": "modue",
+      "companyLogoThumbUrl": "https://imgproxy.justjoinit.tech/n_oPo-Jd2FXqTRp3v4u-6UnR3qa2pBZQa2JqsbVpfp4/h:200/w:200/plain/https://s3.eu-west-1.amazonaws.com/public.justjoin.com/justjoinit/hiring-company-logos/01a0fea0-39f8-7d8f-a100-eb3df2a8f892.png",
+      "publishedAt": "2026-10-02T22:12:25.5678186Z",
+      "isOpenToHireUkrainians": false,
+      "locations": [
+        {
+          "city": "Warszawa",
+          "street": "Duchnicka 3",
+          "latitude": 52.2567578,
+          "longitude": 20.9687077,
+          "slug": "modue-founding-software-engineer-warszawa-javascript"
+        }
+      ],
+      "employmentTypes": [
+        {
+          "from": 20000,
+          "fromPerUnit": 20000,
+          "to": 23000,
+          "toPerUnit": 23000,
+          "currency": "PLN",
+          "currencySource": "original",
+          "type": "b2b",
+          "unit": "Month",
+          "gross": false
+        },
+        {
+          "from": 5144,
+          "fromPerUnit": 5143.90061984002,
+          "to": 5915,
+          "toPerUnit": 5915.485712816023,
+          "currency": "USD",
+          "currencySource": "conversion",
+          "type": "b2b",
+          "unit": "Month",
+          "gross": false
+        },
+        {
+          "from": 4572,
+          "fromPerUnit": 4571.95108012344,
+          "to": 5258,
+          "toPerUnit": 5257.743742141956,
+          "currency": "EUR",
+          "currencySource": "conversion",
+          "type": "b2b",
+          "unit": "Month",
+          "gross": false
+        },
+        {
+          "from": 4261,
+          "fromPerUnit": 4260.57688210984,
+          "to": 4900,
+          "toPerUnit": 4899.663414426316,
+          "currency": "CHF",
+          "currencySource": "conversion",
+          "type": "b2b",
+          "unit": "Month",
+          "gross": false
+        },
+        {
+          "from": 3895,
+          "fromPerUnit": 3894.61180456838,
+          "to": 4479,
+          "toPerUnit": 4478.803575253637,
+          "currency": "GBP",
+          "currencySource": "conversion",
+          "type": "b2b",
+          "unit": "Month",
+          "gross": false
+        }
+      ],
+      "requiredSkills": [
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "JavaScript",
+          "level": 3,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "TypeScript",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Node.js",
+          "level": 4,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "React",
+          "level": 3,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Electron",
+          "level": 2,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "DevOps",
+          "level": 3,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "C++",
+          "level": 1,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Swift",
+          "level": 1,
+          "group": null
+        },
+        {
+          "skillId": "00000000-0000-0000-0000-000000000000",
+          "name": "Embedded",
+          "level": 1,
+          "group": null
+        }
+      ],
+      "niceToHaveSkills": [],
+      "languages": [
+        {
+          "code": "pl",
+          "level": "C1"
+        },
+        {
+          "code": "en",
+          "level": "B2"
+        }
+      ],
+      "isPromoted": false,
+      "isSuperOffer": false,
+      "applyMethod": "form",
+      "applyUrl": null,
+      "lastPublishedAt": "2026-10-02T22:12:25.5678186Z",
+      "expiredAt": "2026-10-12T21:59:59.999Z",
+      "companyProfileSlug": null,
+      "hybridWorkSchedule": {
+        "officeDays": 3,
+        "remoteDays": 2
+      }
+    }
+  ],
+  "meta": {
+    "from": 0,
+    "totalItems": 799,
+    "prev": {
+      "cursor": null,
+      "itemsCount": 100
+    },
+    "next": {
+      "cursor": 100,
+      "itemsCount": 100
+    }
+  }
+}

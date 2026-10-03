@@ -1,0 +1,218 @@
+{
+  "jobs": [
+    {
+      "jobOfferKey": "5b057342-804b-40ae-bc20-e6b1cde01f68",
+      "title": "Fullstack .NET (React lub Vue)",
+      "division": "IT",
+      "category": "Developer",
+      "subCategory": "DotNet",
+      "company": "DONE&Deliver",
+      "companyLogoUrl": "https://cdn.solid.jobs/companies/logos/c227403f786beb62f37440ef4fe2eb6d444921dcce5144d1afb796c60b01032e.png",
+      "salary": {
+        "from": 20200,
+        "to": 23500,
+        "currency": "PLN",
+        "period": "Month",
+        "employmentType": "B2B"
+      },
+      "contractTime": "full_time",
+      "locations": [
+        "Warszawa"
+      ],
+      "benefits": [],
+      "isRemote": true,
+      "isHybrid": false,
+      "url": "https://solid.jobs/o/4ptexltw/jobwatch",
+      "experienceLevel": "Senior",
+      "skills": [
+        {
+          "level": "Advanced",
+          "name": ".NET"
+        },
+        {
+          "level": "Advanced",
+          "name": ".NET Core"
+        },
+        {
+          "level": "Advanced",
+          "name": "ASP.NET"
+        },
+        {
+          "level": "Advanced",
+          "name": "ASP.NET Core"
+        },
+        {
+          "level": "Advanced",
+          "name": "TypeScript"
+        },
+        {
+          "level": "Advanced",
+          "name": "Vue.js"
+        },
+        {
+          "level": "Advanced",
+          "name": "React"
+        },
+        {
+          "level": "Advanced",
+          "name": "CI/CD"
+        },
+        {
+          "level": "Advanced",
+          "name": "Azure"
+        }
+      ],
+      "languages": [
+        {
+          "level": "Expert",
+          "name": "Polski"
+        },
+        {
+          "level": "Advanced",
+          "name": "Angielski"
+        }
+      ],
+      "description": "<div class=\"well job - description\"><p><strong>Czym będziesz się zajmować?</strong><br><br><ul><li>Stanowisko&nbsp;software&nbsp;developerskie&nbsp;-&nbsp;jesteś&nbsp;częścią&nbsp;zespołu&nbsp;odpowiedzialnego&nbsp;za&nbsp;realizację&nbsp;projektu,&nbsp;nie&nbsp;jest&nbsp;to&nbsp;samodzielna&nbsp;realizacja&nbsp;projektu&nbsp;-&nbsp;praca&nbsp;zespołowa</li><li>U<span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Projektowanie&nbsp;i&nbsp;wdrażanie&nbsp;skalowalnych&nbsp;usług&nbsp;backendowych&nbsp;oraz&nbsp;REST&nbsp;API</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Tworzenie&nbsp;nowoczesnych&nbsp;aplikacji&nbsp;internetowych&nbsp;i&nbsp;funkcjonalności&nbsp;dla&nbsp;użytkowników&nbsp;z&nbsp;wykorzystaniem&nbsp;Vue&nbsp;3&nbsp;i&nbsp;TypeScript</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Budowanie&nbsp;i&nbsp;utrzymywanie&nbsp;rozwiązań&nbsp;backendowych&nbsp;z&nbsp;użyciem&nbsp;</span>ASP.NET<span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">&nbsp;Core&nbsp;i&nbsp;.NET</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Współtworzenie&nbsp;architektury&nbsp;systemu&nbsp;oraz&nbsp;podejmowanie&nbsp;decyzji&nbsp;dotyczących&nbsp;projektowania&nbsp;technicznego</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Udział&nbsp;w&nbsp;projektowaniu&nbsp;i&nbsp;wdrażaniu&nbsp;rozwiązań&nbsp;cloud-native</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Rozwijanie&nbsp;i&nbsp;usprawnianie&nbsp;pipeline&#39;ów&nbsp;CI/CD&nbsp;oraz&nbsp;procesów&nbsp;automatycznego&nbsp;wdrażania&nbsp;z&nbsp;wykorzystaniem&nbsp;GitHub&nbsp;Actions</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Wdrażanie&nbsp;testów&nbsp;automatycznych&nbsp;i&nbsp;zapewnianie&nbsp;wysokiej&nbsp;jakości&nbsp;oprogramowania</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Udział&nbsp;w&nbsp;przeglądach&nbsp;kodu&nbsp;(code&nbsp;review)&nbsp;i&nbsp;promowanie&nbsp;najlepszych&nbsp;praktyk&nbsp;inżynierskich</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Praca&nbsp;z&nbsp;wewnętrznym&nbsp;design&nbsp;systemem&nbsp;w&nbsp;celu&nbsp;dostarczania&nbsp;spójnej&nbsp;funkcjonalności&nbsp;dla&nbsp;użytkowników</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Wdrażanie&nbsp;bezpiecznego&nbsp;uwierzytelniania&nbsp;i&nbsp;autoryzacji&nbsp;z&nbsp;wykorzystaniem&nbsp;Microsoft&nbsp;Identity&nbsp;oraz&nbsp;Azure&nbsp;MSAL&nbsp;Browser</span></li><li><span style=\"background-color: rgb(255, 255, 255); color: rgb(15, 17, 21);\">Współpraca&nbsp;z&nbsp;Product&nbsp;Ownerami,&nbsp;architektami,&nbsp;interesariuszami&nbsp;biznesowymi&nbsp;oraz&nbsp;zespołami&nbsp;inżynierskimi</span></li><li>Szacowana&nbsp;czasochłonność&nbsp;projektu&nbsp;-&nbsp;szacowane&nbsp;zaangażowanie&nbsp;na&nbsp;poziomie&nbsp;+&nbsp;12&nbsp;miesięcy</li><li>Praca&nbsp;100%&nbsp;zdalna,</li></ul><br><br><strong>Kogo poszukujemy?</strong><br><br><ul><li>Frontend&nbsp;developer&nbsp;na&nbsp;poziomie&nbsp;kompetencyjnym&nbsp;-&nbsp;solidny&nbsp;regular&nbsp;/&nbsp;senior</li><li>Fullstack&nbsp;developer&nbsp;z&nbsp;doświadczeniem&nbsp;komercyjnym&nbsp;jako&nbsp;developer&nbsp;na&nbsp;poziomie&nbsp;min.&nbsp;6&nbsp;lata&nbsp;doświadczenia&nbsp;developerskiego&nbsp;jako&nbsp;frontend</li><li>Solidne&nbsp;doświadczenie&nbsp;-&nbsp;Vue&nbsp;/&nbsp;Vitest&nbsp;lub&nbsp;React</li><li>Solidne&nbsp;doświadczenie&nbsp;.Net&nbsp;/&nbsp;Core&nbsp;/&nbsp;ASP</li><li>Werbalna&nbsp;znajomość&nbsp;języka&nbsp;angielskiego&nbsp;na&nbsp;poziomie&nbsp;min.&nbsp;B2</li><li>Werbalna&nbsp;znajomość&nbsp;języka&nbsp;polskiego&nbsp;na&nbsp;poziomie&nbsp;B2</li></ul><br><br><strong>Czego wymagamy?</strong><br><br><span>6 lat doświadczenia na podobnym stanowisku</span><br><span>Znajomości:</span><ul><li>.NET</li><li>.NET Core</li><li>ASP.NET</li><li>ASP.NET Core</li><li>TypeScript</li><li>Vue.js</li><li>React</li><li>CI/CD</li><li>Azure</li></ul><span>Języki:</span><ul><li>Polski</li><li>Angielski</li></ul><br><br><strong>Jakie warunki i benefity otrzymasz?</strong><ul><li>20.2k–23.5k PLN netto/m (B2B)</li><li>B2B - Elastyczne godziny pracy (100%)</li><li>Praca zdalna: W całości</li></ul><br><br><strong>Kim jesteśmy?</strong><br><p>Jesteśmy software house’m specjalizującym się w kilku obszarach aktywności. Tworzymy oprogramowanie na zamówienie, tworzymy cyfrowe produkty, budujemy rozwiązania na potrzeby naszych klientów.</p><p>Zajmujemy się dostarczaniem projektów software&#39;owych i wspieraniem naszych partnerów w rozwijaniu ich biznesu. Istotną częścią naszej działalności jest także budowa zespołów wdrożeniowych na nasze potrzeby, jak również na potrzeby projektów realizowanych przez organizacje współpracujące z nami. </p><p>Tworzymy oprogramowanie, automatyzujemy procesy, budujemy komplementarne zespół odpowiedzialne za realizację projektów i osiąganie celów biznesowych. </p></p></div>",
+      "validFrom": "2026-09-30T13:30:31.4396212+02:00",
+      "validTo": "2026-10-31T13:30:31.4396212+02:00",
+      "updatedAt": "2026-09-30T13:14:59.5570562+02:00"
+    },
+    {
+      "jobOfferKey": "adec016d-aac9-4bd4-a8cd-6e56690f5410",
+      "title": "Senior Frontend Developer (React + React Native)",
+      "division": "IT",
+      "category": "Developer",
+      "subCategory": "OtherDeveloper",
+      "company": "TeamQuest",
+      "companyLogoUrl": "https://cdn.solid.jobs/companies/logos/55c1bdeef5500657f1a3ecb4a373ecc98c9ac59fd6d0c7b658f7e5d4fc3f15db.png",
+      "salary": {
+        "from": 20000,
+        "to": 24000,
+        "currency": "PLN",
+        "period": "Month",
+        "employmentType": "B2B"
+      },
+      "contractTime": "full_time",
+      "locations": [
+        "Warszawa"
+      ],
+      "benefits": [
+        "Szkolenia wewnętrzne",
+        "Kawa / Herbata",
+        "Płatny \"urlop\" dla B2B"
+      ],
+      "isRemote": true,
+      "isHybrid": false,
+      "url": "https://solid.jobs/o/wxs73j4d/jobwatch",
+      "experienceLevel": "Senior",
+      "skills": [
+        {
+          "level": "Advanced",
+          "name": "CI/CD"
+        },
+        {
+          "level": "Advanced",
+          "name": "RESTful"
+        },
+        {
+          "level": "Advanced",
+          "name": "React"
+        },
+        {
+          "level": "Advanced",
+          "name": "React Native"
+        },
+        {
+          "level": "NiceToHave",
+          "name": "TypeScript"
+        }
+      ],
+      "languages": [
+        {
+          "level": "Advanced",
+          "name": "Angielski"
+        }
+      ],
+      "description": "<div class=\"well job - description\"><p><strong>Czym będziesz się zajmować?</strong><br><br><h3>Requirements:</h3><ul><li>Minimum 5 years of experience in creating web applications using React,</li><li>Minimum 3 years of experience in creating mobile applications using React Native,</li><li>Excellent knowledge of JavaScript (ES6+), HTML5, and CSS3,</li><li>Experience with Redux or other state management tools,</li><li>Familiarity with CI/CD tools and experience working with version control systems (Git),</li><li>Ability to write unit and integration tests (Jest, Enzyme, Testing Library),</li><li>Experience with integrating RESTful APIs and GraphQL,</li><li>Knowledge of best practices related to frontend application security,</li><li>Ability to work in agile methodologies (Agile, Scrum),</li><li>Very good communication and interpersonal skills,</li><li>Fluent in English (minimum B2 level).</li></ul><h3>Additional advantages:</h3><p>Experience with TypeScript,</p><p>Knowledge of other frontend frameworks and libraries (Vue.js, Angular),</p><p>Experience in conducting technical training and workshops,</p><p>Familiarity with tools for analyzing and monitoring application performance (e.g. Lighthouse, Sentry).</p><br><br><strong>Kogo poszukujemy?</strong><br><br><h3>Responsibilities:</h3><ul><li>Designing and implementing advanced user interfaces using React and React Native,</li><li>Creating and maintaining reusable components and frontend libraries,</li><li>Close collaboration with backend teams, UX/UI designers, and product owners to deliver high-quality solutions,</li><li>Optimizing applications for performance and scalability,</li><li>Conducting code reviews and mentoring junior team members,</li><li>Participating in planning system architecture and technology selection.</li></ul><h3>We offer:</h3><p>Attractive salary and bonus system,</p><p>Possibility of remote work and flexible working hours,</p><p>Private medical care and life insurance,</p><p>Access to the latest technologies and tools,</p><p>Budget for training, conferences, and professional development,</p><p>Friendly and supportive work atmosphere in an international environment,</p><p>Modern offices in convenient locations.</p><br><br><strong>Czego wymagamy?</strong><br><br><span>Znajomości:</span><ul><li>CI/CD</li><li>RESTful</li><li>React</li><li>React Native</li></ul><span>Mile widziane:</span><ul><li>TypeScript</li></ul><span>Języki:</span><ul><li>Angielski</li></ul><br><br><strong>Jakie warunki i benefity otrzymasz?</strong><ul><li>20k–24k PLN netto/m (B2B)</li><li>B2B - Elastyczne godziny pracy (100%)</li><li>Praca zdalna: W całości</li><li>Szkolenia wewnętrzne</li><li>Kawa / Herbata</li><li>Płatny \"urlop\" dla B2B</li></ul><br><br><strong>Kim jesteśmy?</strong><br>Our client is a modern, international technology company specializing in creating innovative solutions for the e-commerce and fintech industry, which values creativity, commitment, and teamwork.</p></div>",
+      "validFrom": "2026-09-30T09:24:50.528145+02:00",
+      "validTo": "2026-10-31T09:24:50.528145+02:00",
+      "updatedAt": "2026-09-30T09:16:56.071377+02:00"
+    },
+    {
+      "jobOfferKey": "82b79f5a-4306-45f7-94a4-2ca42f4d685e",
+      "title": "Senior Frontend Developer (React + React Native)",
+      "division": "IT",
+      "category": "Developer",
+      "subCategory": "React",
+      "company": "TeamQuest",
+      "companyLogoUrl": "https://cdn.solid.jobs/companies/logos/55c1bdeef5500657f1a3ecb4a373ecc98c9ac59fd6d0c7b658f7e5d4fc3f15db.png",
+      "salary": {
+        "from": 20000,
+        "to": 24000,
+        "currency": "PLN",
+        "period": "Month",
+        "employmentType": "B2B"
+      },
+      "contractTime": "full_time",
+      "locations": [
+        "Warszawa"
+      ],
+      "benefits": [
+        "Budżet szkoleniowy",
+        "Szkolenia wewnętrzne",
+        "Pakiet medyczny",
+        "Ubezpieczenie",
+        "Kawa / Herbata",
+        "Płatny \"urlop\" dla B2B"
+      ],
+      "isRemote": true,
+      "isHybrid": false,
+      "url": "https://solid.jobs/o/2gm4xmur/jobwatch",
+      "experienceLevel": "Senior",
+      "skills": [
+        {
+          "level": "Expert",
+          "name": "Scrum"
+        },
+        {
+          "level": "Advanced",
+          "name": "GraphQL"
+        },
+        {
+          "level": "Advanced",
+          "name": "JavaScript"
+        },
+        {
+          "level": "Advanced",
+          "name": "React"
+        },
+        {
+          "level": "Advanced",
+          "name": "React Native"
+        },
+        {
+          "level": "Advanced",
+          "name": "UX design"
+        }
+      ],
+      "languages": [
+        {
+          "level": "Expert",
+          "name": "Polski"
+        },
+        {
+          "level": "Advanced",
+          "name": "Angielski"
+        }
+      ],
+      "description": "<div class=\"well job - description\"><p><strong>Czym będziesz się zajmować?</strong><br><br><h3>Wymagania:</h3><ul><li>Minimum 5 lat doświadczenia w tworzeniu aplikacji webowych z wykorzystaniem React,</li><li>Minimum 3 lata doświadczenia w tworzeniu aplikacji mobilnych z wykorzystaniem React Native,</li><li>Doskonała znajomość JavaScript (ES6+), HTML5 i CSS3,</li><li>Doświadczenie z Redux lub innymi narzędziami do zarządzania stanem aplikacji,</li><li>Znajomość narzędzi CI/CD oraz doświadczenie w pracy z systemami kontroli wersji (Git),</li><li>Umiejętność pisania testów jednostkowych i integracyjnych (Jest, Enzyme, Testing Library),</li><li>Doświadczenie z integracją RESTful API oraz GraphQL,</li><li>Znajomość najlepszych praktyk związanych z bezpieczeństwem aplikacji frontendowych,</li><li>Umiejętność pracy w zwinnych metodykach (Agile, Scrum),</li><li>Bardzo dobre umiejętności komunikacyjne i interpersonalne,</li><li>Biegła znajomość języka angielskiego (min. B2).</li></ul><h3>Dodatkowe atuty:</h3><ul><li>Doświadczenie z TypeScript,</li><li>Znajomość innych frameworków i bibliotek frontendowych (Vue.js, Angular),</li><li>Doświadczenie w prowadzeniu szkoleń i warsztatów technicznych,</li><li>Znajomość narzędzi do analizy i monitorowania wydajności aplikacji (np. Lighthouse, Sentry).</li></ul><br><br><strong>Kogo poszukujemy?</strong><br><br><h3>Obowiązki:</h3><ul><li>Projektowanie i implementacja zaawansowanych interfejsów użytkownika z wykorzystaniem React i React Native,</li><li>Tworzenie i utrzymanie komponentów wielokrotnego użytku i bibliotek frontendu,</li><li>Ścisła współpraca z zespołami backendowymi, UX/UI i product ownerami w celu dostarczania najwyższej jakości rozwiązań,</li><li>Optymalizacja aplikacji pod kątem wydajności i skalowalności,</li><li>Prowadzenie przeglądów kodu i mentoring młodszych członków zespołu,</li><li>Udział w planowaniu architektury systemów i doborze technologii.</li></ul><h3>Oferujemy:</h3><ul><li>Atrakcyjne wynagrodzenie oraz system premiowy,</li><li>Możliwość pracy zdalnej oraz elastyczne godziny pracy,</li><li>Prywatną opiekę medyczną i ubezpieczenie na życie,</li><li>Dostęp do najnowszych technologii i narzędzi,</li><li>Budżet na szkolenia, konferencje i rozwój zawodowy,</li><li>Przyjazną i wspierającą atmosferę pracy w międzynarodowym środowisku,</li><li>Nowoczesne biura w dogodnych lokalizacjach.</li></ul><br><br><strong>Czego wymagamy?</strong><br><br><span>Znajomości:</span><ul><li>Scrum</li><li>GraphQL</li><li>JavaScript</li><li>React</li><li>React Native</li><li>UX design</li></ul><span>Języki:</span><ul><li>Polski</li><li>Angielski</li></ul><br><br><strong>Jakie warunki i benefity otrzymasz?</strong><ul><li>20k–24k PLN netto/m (B2B)</li><li>B2B - Elastyczne godziny pracy (100%)</li><li>Praca zdalna: W całości</li><li>Budżet szkoleniowy, Szkolenia wewnętrzne</li><li>Pakiet medyczny, Ubezpieczenie</li><li>Kawa / Herbata</li><li>Płatny \"urlop\" dla B2B</li></ul><br><br><strong>Kim jesteśmy?</strong><br>Nasz klient to nowoczesna, międzynarodowa firma technologiczna specjalizująca się w tworzeniu innowacyjnych rozwiązań dla branży e-commerce i fintech, która ceni sobie kreatywność, zaangażowanie i pracę zespołową.</p></div>",
+      "validFrom": "2026-09-30T09:24:46.0547413+02:00",
+      "validTo": "2026-10-31T09:24:46.0547413+02:00",
+      "updatedAt": "2026-09-30T09:16:40.9393618+02:00"
+    }
+  ],
+  "pageIndex": 0,
+  "pageSize": 100,
+  "totalCount": 76,
+  "totalPages": 1
+}
