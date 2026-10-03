@@ -9,7 +9,8 @@ import * as stateRepo from '@/lib/db/repos/scrape-state';
 import { env } from '@/lib/env';
 import { listProfiles } from '@/lib/profiles';
 import { message } from '@/lib/shared/errors';
-import { notify, runAll } from '@/lib/listings/run';
+import { notify } from '@/lib/listings/pipeline/notify';
+import { runAll } from '@/lib/listings/run';
 import { effectiveTimeZone } from '@/lib/listings/settings';
 import { ownerChat, sendMessage, telegramReady, webhookSecret } from '@/lib/telegram';
 

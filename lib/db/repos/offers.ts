@@ -160,11 +160,14 @@ export async function knownIds(src: string, ids: string[]): Promise<Set<string>>
 
 export type NewOffer = Pick<OfferRow, 'src' | 'id' | 'title' | 'company' | 'seniority' | 'url'> & { remote: boolean };
 
+/** An offer that was new to the database, with its job and whether that job was known already. */
+export type AddedOffer = { src: string; id: string; dupKey: string; seenBefore: boolean };
+
 /**
  * Saves offers (public.jw_ingest_offers: one statement, so "seen before" means before this run).
  * Returns only the rows that were new, each with whether the same job was already known.
  */
-export async function ingest(rows: NewOffer[]) {
+export async function ingest(rows: NewOffer[]): Promise<AddedOffer[]> {
   if (!rows.length) return [];
   const added = await db().execute<{ src: string; id: string; dup_key: string; seen_before: boolean }>(
     sql`select src, id, dup_key, seen_before from public.jw_ingest_offers(${JSON.stringify(rows)}::jsonb)`,

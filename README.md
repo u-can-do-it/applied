@@ -155,8 +155,8 @@ How the **AI filter** tab works:
   link** reads the page (JustJoin, NoFluff and LinkedIn through their APIs, any other page by its text) and the AI
   (`OPENAI_EXTRACT_MODEL` / `OPENAI_EXTRACT_EFFORT`, default the luna model at low effort) fills in title, company,
   salary, contract and location; everything stays editable, with the board, the day you applied and the status. A
-  link the scrapers already have joins that offer (the lists show it as applied). Without ad text, it's fetched from
-  the link after saving.
+  link the scrapers already have joins that offer (the lists show it as applied). With less than a full ad (80
+  characters) and a link, the ad is fetched from the link after saving; what you typed stays if that fails.
 - **✎ Edit** in an application's window: the same form, filled in (title, company, link, board, the day you applied,
   salary, contract, location, ad text). "Fill in from the link" fills only the empty fields there. A link the
   scrapers have joins that offer, as when adding; a job that already has an application is refused. The status and

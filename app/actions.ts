@@ -261,9 +261,9 @@ export const addApplicationAction = action(addApplicationSchema, async (form) =>
     zone,
   );
   if (added.error) throw new Error(added.error);
-  // no ad text but a link: fetch it after the answer, like "Mark applied" does (what you typed stays)
+  // less than a full ad (80 chars) and a link: fetch it after the answer, like "Mark applied" does (what you typed stays)
   const key = added.key;
-  if (!form.content.trim() && form.url && key) after(() => saveContent(key));
+  if (added.fetch && key) after(() => saveContent(key));
   refresh();
   return { key };
 });

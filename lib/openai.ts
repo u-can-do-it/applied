@@ -1,4 +1,5 @@
 import 'server-only';
+import { OPENAI_TIMEOUT_MS } from './budgets';
 import { env } from './env';
 
 // Chat Completions with a strict JSON schema, so every answer parses. Plain fetch, no SDK.
@@ -72,7 +73,7 @@ async function chat<T>(opts: {
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       cache: 'no-store',
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
     });
 
   let res = await send();

@@ -1,4 +1,5 @@
 import 'server-only';
+import { columnsOf, contentOf, fetchDue, NO_LINK, NONE, transition, type ContentEvent } from './ad-content-state';
 import { boardIdOf, boardOf, cleanLink, offerIdOf } from './boards';
 import type { Zone } from './dates';
 import * as applicationsRepo from './db/repos/applications';
@@ -25,7 +26,10 @@ export const getApplication = (key: string) => applicationsRepo.get(key);
 /** The job as the list shows it: its key, title, company and every board's copy. */
 const findJob = (key: string) => offersRepo.jobByKey(key);
 
-/** Marks the job applied (keeping the first date if it already was), with the clicked copy's link. */
+/**
+ * Marks the job applied (keeping the first date if it already was), with the clicked copy's link.
+ * The ad text is then to be fetched (saveContent).
+ */
 export async function markApplied(key: string, clicked: { src: string; id: string }) {
   const job = await findJob(key);
   if (!job) throw new Error('That offer is no longer in the database.');
@@ -37,6 +41,7 @@ export async function markApplied(key: string, clicked: { src: string; id: strin
     title: job.title,
     company: job.company,
     url: copy.url,
+    ...columnsOf(transition(NONE, { type: 'marked' }).state),
     stage: 'submitted',
     stageState: 'pending',
     history: [{ stage: 'submitted', state: 'pending', at: new Date().toISOString() }],
@@ -179,19 +184,16 @@ export async function saveContent(key: string) {
   // what you typed (salary, location…) stays over what the board says
   const merge = (d: JobDetails | null | undefined) => mergeDetails(d, app.details, typedFields(app.details, app.id));
 
+  const save = (event: ContentEvent, details: JobDetails | null | undefined) =>
+    patch(key, { ...columnsOf(transition(contentOf(app), event).state), details: merge(details) });
+
   let firstEmpty: { details: JobDetails } | null = null;
-  let lastError: string | null = copies.length ? null : 'No link to fetch the ad from.';
+  let lastError: string | null = copies.length ? null : NO_LINK;
   for (const c of copies) {
     try {
       const s = await scrapeOfferFull(c);
       if (s.status === 'ok') {
-        await patch(key, {
-          content: s.text,
-          details: merge(s.details),
-          contentStatus: 'ok',
-          contentError: null,
-          scrapedAt: new Date().toISOString(),
-        });
+        await save({ type: 'fetchSucceeded', text: s.text, at: new Date().toISOString() }, s.details);
         return;
       }
       firstEmpty ??= { details: s.details };
@@ -199,13 +201,11 @@ export async function saveContent(key: string) {
       lastError = message(e);
     }
   }
-  await patch(key, {
-    content: null,
-    details: merge(firstEmpty?.details),
-    contentStatus: firstEmpty ? 'empty' : 'failed',
-    contentError: firstEmpty ? 'The board page has no ad text (removed or blocked?).' : lastError,
-    scrapedAt: new Date().toISOString(),
-  });
+  const at = new Date().toISOString();
+  await save(
+    firstEmpty ? { type: 'fetchFoundNoText', at } : { type: 'fetchFailed', error: lastError, at },
+    firstEmpty?.details,
+  );
 }
 
 // ---- added by hand ("Add application") --------------------------------------------------
@@ -243,12 +243,17 @@ export const appliedAtOf = (day: string, z: Zone) =>
   day === z.day() ? new Date().toISOString() : new Date(z.startOfDay(day).getTime() + 12 * 3600_000).toISOString();
 
 const newId = () => `manual-${crypto.randomUUID().slice(0, 12)}`;
-const NO_TEXT = 'Added by hand, without the ad text.';
 const alreadyThere = (a: Application, z: Zone) =>
   `Already in your applications: “${a.title}”, applied ${z.formatDayOf(a.appliedAt)}.`;
 
-/** Saves an application typed in by hand; an error if the job already has one. */
-export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?: string; error?: string }> {
+/**
+ * Saves an application typed in by hand; an error if the job already has one. `fetch`: the ad text
+ * is to be fetched from the link (saveContent), as none or only a few words were typed.
+ */
+export async function addApplication(
+  a: NewApplication,
+  z: Zone,
+): Promise<{ key?: string; fetch?: boolean; error?: string }> {
   const offer = a.url ? await findOfferByLink(a.url).catch(() => null) : null;
   const key = await jobKeyFor(offer?.company ?? a.company, offer?.title ?? a.title, offer?.dupKey);
   const existing = await getApplication(key);
@@ -257,7 +262,13 @@ export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?
   const history: HistoryEntry[] = [{ stage: 'submitted', state: 'pending', at: a.appliedAt }];
   if (a.stage !== 'submitted' || a.state !== 'pending')
     history.push({ stage: a.stage, state: a.state, at: new Date().toISOString() });
-  const text = a.content?.trim() ?? '';
+  // with a link but no text, the ad is fetched right after saving (like "Mark applied")
+  const content = transition(NONE, {
+    type: 'added',
+    text: a.content?.trim() ?? '',
+    hasLink: Boolean(a.url),
+    at: new Date().toISOString(),
+  });
   await applicationsRepo.insert({
     dupKey: key,
     src: offer?.src ?? a.src,
@@ -266,12 +277,8 @@ export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?
     company: a.company,
     url: offer?.url ?? a.url,
     appliedAt: a.appliedAt,
-    content: text || null,
     details: hasAny(a.details) ? typedDetails(a.details) : null,
-    // with a link but no text, the ad is fetched right after saving (like "Mark applied")
-    contentStatus: text.length >= 80 ? 'ok' : a.url ? 'pending' : 'empty',
-    contentError: text.length >= 80 || a.url ? null : NO_TEXT,
-    scrapedAt: text ? new Date().toISOString() : null,
+    ...columnsOf(content.state),
     stage: a.stage,
     stageState: a.state,
     stageUpdatedAt: history[history.length - 1].at,
@@ -279,7 +286,7 @@ export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?
     note: a.note?.trim() ? a.note.slice(0, NOTE_MAX) : null,
     noteUpdatedAt: a.note?.trim() ? new Date().toISOString() : null,
   });
-  return { key };
+  return { key, fetch: fetchDue(content) };
 }
 
 // ---- edited in its window ("✎ Edit") -------------------------------------------------------
@@ -346,28 +353,15 @@ export async function updateApplication(
   fields.details = editedDetails(app.details, e.details, app.id, url === app.url);
 
   // the ad text: as typed; left empty, it's fetched from the link (like adding one)
-  const text = e.content.trim();
-  const had = (app.content ?? '').trim();
-  let fetch = false;
-  if (!text) {
-    if (url) {
-      Object.assign(fields, { content: null, contentStatus: 'pending', contentError: null });
-      fetch = true;
-    } else if (had) Object.assign(fields, { content: null, contentStatus: 'empty', contentError: NO_TEXT });
-  } else if (text !== had) {
-    if (text.length >= 80)
-      Object.assign(fields, {
-        content: text,
-        contentStatus: 'ok',
-        contentError: null,
-        scrapedAt: new Date().toISOString(),
-      });
-    else if (url) {
-      Object.assign(fields, { content: text, contentStatus: 'pending', contentError: null });
-      fetch = true;
-    } else Object.assign(fields, { content: text, contentStatus: 'empty', contentError: NO_TEXT });
-  }
+  const content = transition(contentOf(app), {
+    type: 'edited',
+    text: e.content.trim(),
+    hasLink: Boolean(url),
+    at: new Date().toISOString(),
+  });
+  // unchanged: left out, so a fetch still under way isn't undone
+  if (content.changed) Object.assign(fields, columnsOf(content.state));
 
   await patch(key, fields);
-  return { app: (await getApplication(target)) ?? undefined, fetch };
+  return { app: (await getApplication(target)) ?? undefined, fetch: fetchDue(content) };
 }

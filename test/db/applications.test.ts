@@ -7,6 +7,7 @@ import {
   listApplications,
   markApplied,
   removeStatusStep,
+  saveContent,
   setNote,
   setStatus,
   unmarkApplied,
@@ -15,6 +16,7 @@ import {
 import { zone } from '@/lib/dates';
 import * as offersRepo from '@/lib/db/repos/offers';
 import { getOffers } from '@/lib/offers';
+import { NO_LINK, NO_TEXT } from '@/lib/ad-content-state';
 import { NOTE_CONFLICT } from '@/lib/shared/schemas/applications';
 import { describeDb, exec, ISO } from './database';
 
@@ -94,6 +96,31 @@ describeDb('applications', () => {
       appliedAt: '2026-09-30T12:00:00+00:00',
     });
     expect(app?.noteUpdatedAt).toMatch(ISO);
+  });
+
+  it('saves the ad text as its state machine says, and asks for a fetch when one is due', async () => {
+    const ad = 'The whole ad, as copied from the board. '.repeat(3);
+    const full = await addApplication(typed('Full', { url: 'https://example.test/job/1', content: ad }), utc);
+    expect(full.fetch).toBe(false);
+    expect(await getApplication(full.key ?? '')).toMatchObject({ contentStatus: 'ok', content: ad.trim() });
+
+    // a few words and a link: the ad is fetched too (it used to stay "pending" with nothing fetching it)
+    const short = await addApplication(
+      typed('Short', { url: 'https://example.test/job/2', content: 'Salary 20k' }),
+      utc,
+    );
+    expect(short.fetch).toBe(true);
+    expect(await getApplication(short.key ?? '')).toMatchObject({ contentStatus: 'pending', content: 'Salary 20k' });
+
+    const bare = await addApplication(typed('Bare'), utc);
+    expect(bare.fetch).toBe(false);
+    let app = await getApplication(bare.key ?? '');
+    expect(app).toMatchObject({ contentStatus: 'empty', content: null, contentError: NO_TEXT, scrapedAt: null });
+    // "↻ Try again" without a link: nothing to fetch from
+    await saveContent(bare.key ?? '');
+    app = await getApplication(bare.key ?? '');
+    expect(app).toMatchObject({ contentStatus: 'failed', content: null, contentError: NO_LINK });
+    expect(app?.scrapedAt).toMatch(ISO);
   });
 
   it('appends status changes to the history and takes them back', async () => {

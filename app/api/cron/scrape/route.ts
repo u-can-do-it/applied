@@ -1,5 +1,6 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
-import { LOCK_SECONDS, runAll } from '@/lib/listings/run';
+import { SCRAPE_LOCK_SECONDS } from '@/lib/budgets';
+import { runAll } from '@/lib/listings/run';
 import { checkDue, isCronRequest } from '@/lib/listings/schedule';
 import { lock } from '@/lib/db/repos/scrape-state';
 
@@ -15,7 +16,8 @@ async function handle(request: NextRequest) {
   const q = request.nextUrl.searchParams;
   const due = q.get('force') === '1' ? { due: true } : await checkDue();
   if (!due.due) return NextResponse.json({ jobwatch: 'skipped', reason: due.reason });
-  if (!(await lock(LOCK_SECONDS))) return NextResponse.json({ jobwatch: 'busy', reason: 'another run is still going' });
+  if (!(await lock(SCRAPE_LOCK_SECONDS)))
+    return NextResponse.json({ jobwatch: 'busy', reason: 'another run is still going' });
   if (q.get('wait') === '1')
     return NextResponse.json({ jobwatch: 'done', ...(await runAll('cron', { locked: true })) });
   // answer at once (Supabase Cron waits only a few seconds), scrape after the response
