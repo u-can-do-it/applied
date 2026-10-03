@@ -4,6 +4,7 @@ import { appZone } from './time-zone';
 import type { Check } from './openai';
 import { rangeTotal, rest, restUrl, rpcUrl } from './supabase';
 
+/** One board's posting of a job (a job posted on three boards has three). */
 export type Copy = { src: string; id: string; url: string };
 export type Offer = {
   src: string; // board of the earliest copy

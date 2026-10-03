@@ -1,6 +1,7 @@
 import 'server-only';
+import { storedSettingsSchema } from '../shared/schemas/settings';
 import { rest, restUrl, rpcUrl } from '../supabase';
-import { isKind, normalizeSettings, type ScrapeSettings, type Scraper, type ScraperConfig } from './kinds';
+import { isKind, type ScrapeSettings, type Scraper, type ScraperConfig } from './kinds';
 
 // Database side of scraping (supabase/scraping.sql).
 
@@ -11,7 +12,7 @@ export async function getSettings(): Promise<ScrapeSettings> {
   const url = restUrl('scrape_settings');
   url.searchParams.set('select', 'settings');
   const rows = (await (await rest(url)).json()) as { settings: unknown }[];
-  return normalizeSettings(rows[0]?.settings);
+  return storedSettingsSchema.parse(rows[0]?.settings);
 }
 
 export async function saveSettings(s: ScrapeSettings) {

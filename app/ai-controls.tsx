@@ -62,7 +62,8 @@ export function AiControls({
     start(async () => {
       const res = await startRunAction({ profileId: activeId, ...input });
       // with the refreshed progress bar, not a frame before it
-      startTransition(() => setMessage(res.error ?? (res.message?.startsWith('Nothing') ? res.message : null)));
+      // "Checking 12 offer(s)…" is what the progress bar shows; only "nothing to check" needs saying
+      startTransition(() => setMessage(res.ok ? (res.data.started ? null : res.data.message) : res.error));
     });
   };
 

@@ -4,6 +4,7 @@ import { refresh } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
+import { action, formAction } from '@/lib/action';
 import { continueRun, startRun } from '@/lib/ai-runs';
 import {
   addApplication,
@@ -11,52 +12,62 @@ import {
   findOfferByLink,
   jobKeyFor,
   markApplied,
-  NOTE_MAX,
   removeStatusStep,
   saveContent,
   setNote,
   setStatus,
   unmarkApplied,
   updateApplication,
-  type ApplicationWithContent,
 } from '@/lib/applications';
-import { BOARD_RE, boardIdOf, boardOf, cleanLink, isLink } from '@/lib/boards';
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
-import { describeRange, isTimeZone, validDay, type Zone } from '@/lib/dates';
+import { boardIdOf, boardOf, cleanLink } from '@/lib/boards';
+import { describeRange, isTimeZone } from '@/lib/dates';
+import { env } from '@/lib/env';
 import { extractJob, type ExtractedJob } from '@/lib/openai';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
-import { readJobPage, type JobDetails } from '@/lib/scrape';
+import { readJobPage } from '@/lib/scrape';
 import { syncCron } from '@/lib/scraping/schedule';
 import * as store from '@/lib/scraping/store';
-import { requireLogin } from '@/lib/session';
-import { DAY_PRESETS } from '@/lib/sources';
-import { isStage, isState } from '@/lib/stages';
+import { message } from '@/lib/shared/errors';
+import { profileIdSchema, profileSchema, startRunSchema } from '@/lib/shared/schemas/ai';
+import {
+  addApplicationSchema,
+  applySchema,
+  DAY_ERROR,
+  fillFromLinkSchema,
+  keySchema,
+  removeStepSchema,
+  setNoteSchema,
+  setStatusSchema,
+  updateApplicationSchema,
+} from '@/lib/shared/schemas/applications';
+import { loginSchema } from '@/lib/shared/schemas/auth';
+import { browserTimeZoneSchema } from '@/lib/shared/schemas/settings';
 import { appZone } from '@/lib/time-zone';
-
-export type FormState = { error?: string; ok?: boolean; id?: string; message?: string };
 
 // ---- login ---------------------------------------------------------------------------
 
-export async function login(_: FormState, form: FormData): Promise<FormState> {
-  const password = String(form.get('password') ?? '');
-  if (!(await isValidPassword(password))) {
-    await new Promise((r) => setTimeout(r, 600)); // slow down guessing a little
-    return { error: 'Wrong password.' };
-  }
-  (await cookies()).set(AUTH_COOKIE, await authToken(), {
-    httpOnly: true, // not readable from page scripts
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: AUTH_MAX_AGE,
-  });
-  const next = String(form.get('next') ?? '/');
-  redirect(next.startsWith('/') && !next.startsWith('//') ? next : '/');
-}
+export const login = formAction(
+  loginSchema,
+  async ({ password, next }) => {
+    if (!(await isValidPassword(password))) {
+      await new Promise((resolve) => setTimeout(resolve, 600)); // slow down guessing a little
+      throw new Error('Wrong password.');
+    }
+    (await cookies()).set(AUTH_COOKIE, await authToken(), {
+      httpOnly: true, // not readable from page scripts
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: AUTH_MAX_AGE,
+    });
+    redirect(next);
+  },
+  { public: true },
+);
 
 // ---- profiles ------------------------------------------------------------------------
 
-const MAX_FILE = 5 * 1024 * 1024;
 const MAX_TEXT = 60_000; // characters kept from a file
 
 async function fileToText(file: File): Promise<string> {
@@ -71,60 +82,51 @@ async function fileToText(file: File): Promise<string> {
   throw new Error('Only PDF, TXT and MD files are supported.');
 }
 
-export async function saveProfileAction(_: FormState, form: FormData): Promise<FormState> {
-  await requireLogin();
-  const id = String(form.get('profileId') ?? '') || undefined;
-  const name = String(form.get('name') ?? '').slice(0, 80);
-  const prompt = String(form.get('prompt') ?? '').slice(0, 4000);
-  const upload = form.get('file');
-
-  let file: Parameters<typeof saveProfile>[0]['file'] = form.get('removeFile') === 'on' ? 'remove' : 'keep';
-  if (upload instanceof File && upload.size > 0) {
-    if (upload.size > MAX_FILE) return { error: 'The file is larger than 5 MB.' };
-    try {
-      const text = (await fileToText(upload)).replace(/\s+\n/g, '\n').trim();
-      if (!text) return { error: 'No text found in that file (a scanned PDF?).' };
+/** Saves the profile and makes it the active one; answers with its id. */
+export const saveProfileAction = formAction(
+  profileSchema,
+  async ({ profileId, name, prompt, file: upload, removeFile }) => {
+    let file: Parameters<typeof saveProfile>[0]['file'] = removeFile ? 'remove' : 'keep';
+    if (upload) {
+      let text: string;
+      try {
+        text = (await fileToText(upload)).replace(/\s+\n/g, '\n').trim();
+      } catch (e) {
+        // the PDF library can throw things that aren't Errors; "[object Object]" would say nothing
+        throw new Error(e instanceof Error ? e.message : 'Could not read the file.');
+      }
+      if (!text) throw new Error('No text found in that file (a scanned PDF?).');
       file = { name: upload.name, text: text.slice(0, MAX_TEXT) };
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : 'Could not read the file.' };
     }
-  }
 
-  const keepsFile = file === 'keep' && id ? Boolean((await getProfile(id))?.file_name) : typeof file === 'object';
-  if (!prompt.trim() && !keepsFile) return { error: 'Describe what to look for, or add a file.' };
+    const keepsFile =
+      file === 'keep' && profileId ? Boolean((await getProfile(profileId))?.file_name) : typeof file === 'object';
+    if (!prompt.trim() && !keepsFile) throw new Error('Describe what to look for, or add a file.');
 
-  const savedId = await saveProfile({ id, name, prompt, file });
-  refresh();
-  return { ok: true, id: savedId };
-}
+    const id = await saveProfile({ id: profileId, name, prompt, file });
+    refresh();
+    return { id };
+  },
+);
 
-export async function selectProfileAction(id: string) {
-  await requireLogin();
+export const selectProfileAction = action(profileIdSchema, async ({ id }) => {
   await activateProfile(id);
   refresh();
-}
+});
 
-export async function deleteProfileAction(id: string) {
-  await requireLogin();
+export const deleteProfileAction = action(profileIdSchema, async ({ id }) => {
   await deleteProfile(id);
   refresh();
-}
+});
 
 // ---- runs ----------------------------------------------------------------------------
 
 /** Checks the offers in a date range that the profile hasn't judged yet (today if no range). */
-export async function startRunAction(input: {
-  profileId: string;
-  days?: string;
-  from?: string;
-  to?: string;
-}): Promise<FormState> {
-  await requireLogin();
-  const profile = await getProfile(input.profileId);
-  if (!isUsable(profile)) return { error: 'Set up the profile first.' };
+export const startRunAction = action(startRunSchema, async ({ profileId, days, from, to }) => {
+  const profile = await getProfile(profileId);
+  if (!isUsable(profile)) throw new Error('Set up the profile first.');
 
-  const days = DAY_PRESETS.some((p) => p.days && p.days === input.days) ? input.days : undefined;
-  const filter = days ? { days } : { from: input.from, to: input.to };
+  const filter = days ? { days } : { from, to };
   const { gte, lt } = (await appZone()).resolveRange(filter);
   const label = describeRange(filter) || 'all offers';
 
@@ -132,75 +134,50 @@ export async function startRunAction(input: {
   if (run.status === 'running') after(() => continueRun(run.id));
   refresh();
   return run.status === 'running'
-    ? { ok: true, message: `Checking ${run.total - run.done} offer(s) from ${label}…` }
-    : { ok: true, message: `Nothing new to check in ${label}.` };
-}
+    ? { started: true, message: `Checking ${run.total - run.done} offer(s) from ${label}…` }
+    : { started: false, message: `Nothing new to check in ${label}.` };
+});
 
 // ---- applications --------------------------------------------------------------------
 
 /** Marks the job applied and saves its complete ad text in the background. */
-export async function applyAction(input: { key: string; src: string; id: string }): Promise<FormState> {
-  await requireLogin();
-  try {
-    await markApplied(input.key, { src: input.src, id: input.id });
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
-  }
-  after(() => saveContent(input.key));
+export const applyAction = action(applySchema, async ({ key, src, id }) => {
+  await markApplied(key, { src, id });
+  after(() => saveContent(key));
   refresh();
-  return { ok: true };
-}
+});
 
 /** Removes the mark and the saved ad text. */
-export async function unapplyAction(key: string): Promise<FormState> {
-  await requireLogin();
+export const unapplyAction = action(keySchema, async ({ key }) => {
   await unmarkApplied(key);
   refresh();
-  return { ok: true };
-}
+});
 
 /** Tries to fetch the ad text again (e.g. after a network error). */
-export async function refetchContentAction(key: string): Promise<FormState> {
-  await requireLogin();
+export const refetchContentAction = action(keySchema, async ({ key }) => {
   await saveContent(key);
   refresh();
-  return { ok: true };
-}
+});
 
 /** Sets where an application stands, e.g. technical interview / passed. */
-export async function setApplicationStatusAction(key: string, stage: string, state: string): Promise<FormState> {
-  await requireLogin();
-  if (!isStage(stage) || !isState(state)) return { error: 'Unknown status.' };
+export const setApplicationStatusAction = action(setStatusSchema, async ({ key, stage, state }) => {
   await setStatus(key, stage, state);
   refresh();
-  return { ok: true };
-}
+});
 
 /** Removes one step of an application's status history, e.g. a stage clicked by mistake. */
-export async function removeStatusStepAction(
-  key: string,
-  step: { stage: string; state: string; at: string },
-): Promise<FormState> {
-  await requireLogin();
-  if (typeof key !== 'string' || !isStage(step?.stage) || !isState(step?.state) || typeof step.at !== 'string')
-    return { error: 'Bad request.' };
-  const r = await removeStatusStep(key, { stage: step.stage, state: step.state, at: step.at });
-  if (r.error) return { error: r.error };
+export const removeStatusStepAction = action(removeStepSchema, async ({ key, step }) => {
+  const removed = await removeStatusStep(key, step);
+  if (removed.error) throw new Error(removed.error);
   refresh();
-  return { ok: true };
-}
+});
 
 /** Saves your note on an application. No page refresh: the window and the list keep their own copy. */
-export async function setApplicationNoteAction(key: string, note: string): Promise<FormState> {
-  await requireLogin();
-  if (typeof key !== 'string' || typeof note !== 'string') return { error: 'Bad request.' };
+export const setApplicationNoteAction = action(setNoteSchema, async ({ key, note }) => {
   await setNote(key, note);
-  return { ok: true };
-}
+});
 
 // ---- applications added by hand ----------------------------------------------------------
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export type JobDraft = {
   url: string;
@@ -220,9 +197,7 @@ export type JobDraft = {
 };
 
 /** Reads the link's page (the board's API where there is one) and lets the AI fill in the form. */
-export async function fillFromLinkAction(link: string): Promise<{ draft?: JobDraft; error?: string }> {
-  await requireLogin();
-  if (typeof link !== 'string' || !isLink(link)) return { error: 'Paste a link that starts with https://' };
+export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): Promise<JobDraft> => {
   const board = boardOf(link);
   const [offer, page] = await Promise.all([
     findOfferByLink(link).catch(() => null),
@@ -232,11 +207,11 @@ export async function fillFromLinkAction(link: string): Promise<{ draft?: JobDra
   ]);
   const read = 'text' in page ? page : null;
   if (!read?.text && !read?.pageTitle && !offer)
-    return { error: `Couldn’t read the page: ${'error' in page ? page.error : 'it has no text (a login wall?)'}` };
+    throw new Error(`Couldn’t read the page: ${'error' in page ? page.error : 'it has no text (a login wall?)'}`);
 
   let ai: ExtractedJob | null = null;
   let warning: string | undefined;
-  if (!process.env.OPENAI_API_KEY) warning = 'No OPENAI_API_KEY: filled in only what the page says plainly.';
+  if (!env.OPENAI_API_KEY) warning = 'No OPENAI_API_KEY: filled in only what the page says plainly.';
   else if (read) {
     try {
       ai = await extractJob({ url: link, pageTitle: read.pageTitle, text: read.text });
@@ -244,154 +219,75 @@ export async function fillFromLinkAction(link: string): Promise<{ draft?: JobDra
       warning = `The AI couldn’t read it (${message(e)}); filled in what the page says plainly.`;
     }
   }
-  const d = read?.details ?? {};
+  const details = read?.details ?? {};
   const knownKey = offer ? await jobKeyFor(offer.company, offer.title, offer.dup_key).catch(() => offer.dup_key) : null;
   return {
-    draft: {
-      url: offer?.url ?? cleanLink(link),
-      board: offer?.src ?? board,
-      title: offer?.title || ai?.title || read?.pageTitle || '',
-      company: offer?.company || ai?.company || d.company || '',
-      location: ai?.location || d.location || '',
-      remote: ai ? ai.remote === 'yes' : Boolean(d.remote),
-      salary: ai?.salary || d.salary || '',
-      contract: ai?.contract || d.contract || '',
-      content: read?.text ?? '',
-      known: offer ? `${offer.title}${offer.company ? ` · ${offer.company}` : ''} (scraped from ${offer.src})` : null,
-      knownKey,
-      warning,
+    url: offer?.url ?? cleanLink(link),
+    board: offer?.src ?? board,
+    title: offer?.title || ai?.title || read?.pageTitle || '',
+    company: offer?.company || ai?.company || details.company || '',
+    location: ai?.location || details.location || '',
+    remote: ai ? ai.remote === 'yes' : Boolean(details.remote),
+    salary: ai?.salary || details.salary || '',
+    contract: ai?.contract || details.contract || '',
+    content: read?.text ?? '',
+    known: offer ? `${offer.title}${offer.company ? ` · ${offer.company}` : ''} (scraped from ${offer.src})` : null,
+    knownKey,
+    warning,
+  };
+});
+
+/** "+ Add application": answers with the job's key. */
+export const addApplicationAction = action(addApplicationSchema, async (form) => {
+  const zone = await appZone();
+  if (form.day > zone.day()) throw new Error(DAY_ERROR);
+  const added = await addApplication(
+    {
+      url: form.url ? cleanLink(form.url) : '',
+      title: form.title,
+      company: form.company,
+      src: form.board,
+      appliedAt: appliedAtOf(form.day, zone),
+      stage: form.stage,
+      state: form.state,
+      details: form.details,
+      content: form.content.trim() || null,
+      note: form.note,
     },
-  };
-}
-
-export type ApplicationInput = {
-  url: string;
-  title: string;
-  company: string;
-  board: string;
-  day: string; // YYYY-MM-DD in the app's time zone
-  stage: string;
-  state: string;
-  salary: string;
-  contract: string;
-  location: string;
-  remote: boolean;
-  content: string;
-  note: string;
-};
-
-/** What "✎ Edit" sends: the form of "Add application" without the status and the note. */
-export type ApplicationEditInput = Omit<ApplicationInput, 'stage' | 'state' | 'note'>;
-
-type FormFields = {
-  title: string;
-  url: string;
-  board: string;
-  day: string;
-  company: string | null;
-  details: JobDetails | null;
-  content: string;
-};
-
-/** The form's fields checked, the same for adding and editing. */
-function readForm(input: Partial<ApplicationEditInput> | undefined, z: Zone): FormFields | { error: string } {
-  const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
-  const title = str(input?.title, 200);
-  if (!title) return { error: 'The title is needed.' };
-  const url = str(input?.url, 2000);
-  if (url && !isLink(url)) return { error: 'The link must start with https://' };
-  const board = str(input?.board, 30).toLowerCase() || (url ? boardOf(url) : 'unknown');
-  if (!BOARD_RE.test(board)) return { error: 'Board: lowercase letters, digits, - or _ (e.g. "linkedin").' };
-  const day = validDay(str(input?.day, 10));
-  if (!day || day > z.day()) return { error: 'Pick the day you applied (not in the future).' };
-  const details: JobDetails = {};
-  for (const [k, max] of [
-    ['salary', 200],
-    ['contract', 100],
-    ['location', 200],
-  ] as const) {
-    const v = str(input?.[k], max);
-    if (v) details[k] = v;
-  }
-  if (input?.remote) details.remote = true;
-  return {
-    title,
-    url,
-    board,
-    day,
-    company: str(input?.company, 200) || null,
-    details: Object.keys(details).length ? details : null,
-    content: typeof input?.content === 'string' ? input.content.slice(0, 200_000) : '',
-  };
-}
-
-export async function addApplicationAction(input: ApplicationInput): Promise<FormState> {
-  await requireLogin();
-  const z = await appZone();
-  const f = readForm(input, z);
-  if ('error' in f) return f;
-  if (!isStage(input.stage) || !isState(input.state)) return { error: 'Unknown status.' };
-  try {
-    const r = await addApplication(
-      {
-        url: f.url ? cleanLink(f.url) : '',
-        title: f.title,
-        company: f.company,
-        src: f.board,
-        appliedAt: appliedAtOf(f.day, z),
-        stage: input.stage,
-        state: input.state,
-        details: f.details,
-        content: f.content.trim() || null,
-        note: (typeof input.note === 'string' ? input.note.trim().slice(0, NOTE_MAX) : '') || null,
-      },
-      z,
-    );
-    if (r.error) return { error: r.error };
-    // no ad text but a link: fetch it after the answer, like "Mark applied" does (what you typed stays)
-    const key = r.key;
-    if (!f.content.trim() && f.url && key) after(() => saveContent(key));
-    refresh();
-    return { ok: true, id: r.key };
-  } catch (e) {
-    return { error: message(e) };
-  }
-}
+    zone,
+  );
+  if (added.error) throw new Error(added.error);
+  // no ad text but a link: fetch it after the answer, like "Mark applied" does (what you typed stays)
+  const key = added.key;
+  if (!form.content.trim() && form.url && key) after(() => saveContent(key));
+  refresh();
+  return { key };
+});
 
 /** Saves an application's edited details; answers with it as saved (its key may be new: see updateApplication). */
-export async function updateApplicationAction(
-  key: string,
-  input: ApplicationEditInput,
-): Promise<{ error?: string; app?: ApplicationWithContent }> {
-  await requireLogin();
-  if (typeof key !== 'string' || !key) return { error: 'Bad request.' };
-  const z = await appZone();
-  const f = readForm(input, z);
-  if ('error' in f) return f;
-  try {
-    const r = await updateApplication(
-      key,
-      {
-        url: f.url,
-        title: f.title,
-        company: f.company,
-        src: f.board,
-        day: f.day,
-        details: f.details,
-        content: f.content,
-      },
-      z,
-    );
-    if (r.error || !r.app) return { error: r.error ?? 'This application no longer exists.' };
-    const saved = r.app.dup_key;
-    // what you typed stays over what the board says (details.typed)
-    if (r.fetch) after(() => saveContent(saved));
-    refresh();
-    return { app: r.app };
-  } catch (e) {
-    return { error: message(e) };
-  }
-}
+export const updateApplicationAction = action(updateApplicationSchema, async ({ key, input: form }) => {
+  const zone = await appZone();
+  if (form.day > zone.day()) throw new Error(DAY_ERROR);
+  const updated = await updateApplication(
+    key,
+    {
+      url: form.url,
+      title: form.title,
+      company: form.company,
+      src: form.board,
+      day: form.day,
+      details: form.details,
+      content: form.content,
+    },
+    zone,
+  );
+  if (updated.error || !updated.app) throw new Error(updated.error ?? 'This application no longer exists.');
+  const saved = updated.app.dup_key;
+  // what you typed stays over what the board says (details.typed)
+  if (updated.fetch) after(() => saveContent(saved));
+  refresh();
+  return updated.app;
+});
 
 // ---- time zone ---------------------------------------------------------------------------
 
@@ -399,16 +295,15 @@ export async function updateApplicationAction(
  * The browser says which zone it's in. Kept as the zone that "the browser's" (the default) means,
  * so the cron and Telegram use it too; the page shows it at once if that's what the app follows.
  */
-export async function reportBrowserTimeZoneAction(tz: string): Promise<void> {
-  await requireLogin();
+export const reportBrowserTimeZoneAction = action(browserTimeZoneSchema, async ({ tz }) => {
   if (!isTimeZone(tz)) return;
   // not appSettings(): the page refreshed below is rendered in this same request, and it must
   // read the settings as saved here, not as cached from before
-  const s = await store.getSettings().catch(() => null);
-  if (!s || s.browserTimeZone === tz) return;
-  const next = { ...s, browserTimeZone: tz };
+  const settings = await store.getSettings().catch(() => null);
+  if (!settings || settings.browserTimeZone === tz) return;
+  const next = { ...settings, browserTimeZone: tz };
   await store.saveSettings(next);
-  if (s.timeZone) return; // a zone of its own is picked: nothing that shows or runs changes
+  if (settings.timeZone) return; // a zone of its own is picked: nothing that shows or runs changes
   await syncCron(next); // the hours are this zone's now (if that fails, Settings shows it)
   refresh();
-}
+});

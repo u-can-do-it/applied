@@ -13,6 +13,9 @@ import { deviceTimeZone, timeZones } from '@/lib/dates';
 import { cronSchedule, describeSchedule } from '@/lib/scraping/cron';
 import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/scraping/kinds';
 import type { CronStatus, RunRow, ScrapeState } from '@/lib/scraping/store';
+import { message } from '@/lib/shared/errors';
+import { seconds } from '@/lib/shared/format';
+import { fail, type Result } from '@/lib/shared/result';
 import type { BotInfo } from '@/lib/telegram';
 import { useZone } from '../time-zone';
 import {
@@ -29,10 +32,7 @@ import {
   telegramConnectAction,
   telegramDisconnectAction,
   telegramTestAction,
-  type ActionState,
 } from './actions';
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // How every change here behaves (the Next.js "interactive apps" patterns):
 // - toggles show the new value at once (useOptimistic) until the refreshed page has it;
@@ -41,24 +41,25 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 // - answers ("Saved.") and closing a dialog are wrapped in startTransition after the await, so
 //   they land in the same frame as the refreshed data instead of a moment before it.
 
-/** A button-driven action: busy state, an optimistic update to show right away, and its answer. */
+/** What an action answers here: a message to show ("Saved."), or anything else (not shown). */
+type Answer = Result<unknown>;
+
+/**
+ * Runs an action from a button or a form: busy state, an optimistic update to show right away, and
+ * its answer, which shows with the refreshed page.
+ */
 export function useAction() {
   const [busy, start] = useTransition();
-  const [state, setState] = useState<ActionState | null>(null);
-  const run = (fn: () => Promise<ActionState>, optimistic?: () => void) => {
+  const [state, setState] = useState<Answer | null>(null);
+  const run = (fn: () => Promise<Answer>, optimistic?: () => void) => {
     setState(null);
     start(async () => {
       optimistic?.();
-      let r: ActionState;
-      try {
-        r = await fn();
-      } catch (e) {
-        r = { error: message(e) };
-      }
-      startTransition(() => setState(r));
+      const answer = await fn().catch((e: unknown) => fail(message(e)));
+      startTransition(() => setState(answer));
     });
   };
-  return { busy, state, run };
+  return { busy, state, run, clear: () => setState(null) };
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -75,42 +76,21 @@ function useServerForm<T extends object>(server: T) {
   return { form, setForm, dirty: !same(form, server) };
 }
 
-/** Runs a save; the answer shows with the refreshed page. */
-function useSave() {
-  const [saving, start] = useTransition();
-  const [result, setResult] = useState<ActionState | null>(null);
-  const save = (fn: () => Promise<ActionState>) => {
-    setResult(null);
-    start(async () => {
-      let r: ActionState;
-      try {
-        r = await fn();
-      } catch (e) {
-        r = { error: message(e) };
-      }
-      startTransition(() => setResult(r));
-    });
-  };
-  return { saving, result, save, clear: () => setResult(null) };
-}
-
-export function Feedback({ state }: { state: ActionState | null | undefined }) {
-  if (state?.error)
+export function Feedback({ state }: { state: Result<unknown> | null | undefined }) {
+  if (state?.ok === false)
     return (
       <p className="form-error" role="alert">
         {state.error}
       </p>
     );
-  if (state?.message)
+  if (typeof state?.data === 'string' && state.data)
     return (
       <p className="form-ok" role="status">
-        {state.message}
+        {state.data}
       </p>
     );
   return null;
 }
-
-const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
 const zoneName = (tz: string) => tz.replaceAll('_', ' '); // "America/New York"
 
 // ---- schedule + what calls the endpoint --------------------------------------------------
@@ -135,14 +115,14 @@ export function SchedulePanel({
     fromHour: String(settings.fromHour),
     toHour: String(settings.toHour),
   });
-  const { saving, result, save, clear } = useSave();
+  const save = useAction();
   const edit = (patch: Partial<typeof form>) => {
-    clear();
+    save.clear();
     setForm((f) => ({ ...f, ...patch }));
   };
   const submit = (e: SubmitEvent) => {
     e.preventDefault();
-    save(() => saveScheduleAction({ ...form, fromHour: Number(form.fromHour), toHour: Number(form.toHour) }));
+    save.run(() => saveScheduleAction({ ...form, fromHour: Number(form.fromHour), toHour: Number(form.toHour) }));
   };
   const act = useAction();
   const pause = useAction();
@@ -173,7 +153,7 @@ export function SchedulePanel({
           onClick={() => {
             const next = !paused;
             pause.run(
-              () => setScrapingPausedAction(next),
+              () => setScrapingPausedAction({ paused: next }),
               () => showPaused(next),
             );
           }}
@@ -214,10 +194,10 @@ export function SchedulePanel({
           />
           <span className="muted">o’clock</span>
         </label>
-        <button type="submit" disabled={saving || !dirty} aria-busy={saving || undefined}>
-          {saving ? 'Saving…' : 'Save'}
+        <button type="submit" disabled={save.busy || !dirty} aria-busy={save.busy || undefined}>
+          {save.busy ? 'Saving…' : 'Save'}
         </button>
-        <Feedback state={result} />
+        <Feedback state={save.state} />
       </form>
       <TimeZoneField value={settings.timeZone} />
 
@@ -279,7 +259,7 @@ function TimeZoneField({ value }: { value: string }) {
           onChange={(e) => {
             const next = e.target.value;
             save.run(
-              () => setTimeZoneAction(next, device ?? ''),
+              () => setTimeZoneAction({ tz: next, browser: device ?? '' }),
               () => show(next),
             );
           }}
@@ -422,9 +402,9 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
     ignore: join(settings.ignore),
     mute: join(settings.mute),
   });
-  const { saving, result, save, clear } = useSave();
+  const save = useAction();
   const edit = (patch: Partial<typeof form>) => {
-    clear();
+    save.clear();
     setForm((f) => ({ ...f, ...patch }));
   };
   const submit = (e: SubmitEvent) => {
@@ -432,10 +412,10 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
     // shown the way it's saved ("React,Vue " -> "React, Vue"), so it matches the refreshed page
     const normalized = { ...form };
     for (const k of LISTS) normalized[k] = join(normalizeList(form[k]));
-    save(async () => {
-      const r = await saveFiltersAction(normalized);
-      if (r.ok) startTransition(() => setForm(normalized));
-      return r;
+    save.run(async () => {
+      const answer = await saveFiltersAction(normalized);
+      if (answer.ok) startTransition(() => setForm(normalized));
+      return answer;
     });
   };
   const text = (k: (typeof LISTS)[number]) => ({
@@ -478,10 +458,10 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
           <small>Whole words: “java” doesn’t hit JavaScript, “.net” also hits ASP.NET.</small>
         </label>
         <div className="button-row">
-          <button type="submit" disabled={saving || !dirty} aria-busy={saving || undefined}>
-            {saving ? 'Saving…' : 'Save filters'}
+          <button type="submit" disabled={save.busy || !dirty} aria-busy={save.busy || undefined}>
+            {save.busy ? 'Saving…' : 'Save filters'}
           </button>
-          <Feedback state={result} />
+          <Feedback state={save.state} />
         </div>
       </form>
     </section>
@@ -551,7 +531,7 @@ export function TelegramPanel({
             onChange={(e) => {
               const on = e.target.checked;
               act.run(
-                () => setNotifyAction(on),
+                () => setNotifyAction({ on }),
                 () => show({ notify: on }),
               );
             }}
@@ -568,7 +548,7 @@ export function TelegramPanel({
           onClick={() => {
             const mute = !view.muted;
             act.run(
-              () => setMutedAction(mute),
+              () => setMutedAction({ muted: mute }),
               () => show(mute ? { muted: true } : { muted: false, queued: 0 }),
             );
           }}
@@ -596,7 +576,7 @@ export function TelegramPanel({
           onChange={(e) => {
             const on = e.target.checked;
             act.run(
-              () => setAiFilterAction(on),
+              () => setAiFilterAction({ on }),
               () => show({ aiOn: on }),
             );
           }}

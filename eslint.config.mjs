@@ -23,18 +23,6 @@ export default defineConfig([
     },
   },
   {
-    // A server action's arguments come from the browser, whatever their TypeScript types say: the
-    // String() / Number() / Boolean() / `?.` / `!== false` there are runtime checks, not redundant code.
-    // Remove this once the actions parse their input with Zod (docs/code-review.md, Phase 0).
-    files: ['app/**/actions.ts'],
-    rules: {
-      '@typescript-eslint/no-unnecessary-type-conversion': 'off',
-      '@typescript-eslint/no-unnecessary-condition': 'off',
-      '@typescript-eslint/no-base-to-string': 'off',
-      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
-    },
-  },
-  {
     // plain JS config files are not part of the TypeScript project
     files: ['**/*.{js,mjs,cjs}'],
     extends: [tseslint.configs.disableTypeChecked],

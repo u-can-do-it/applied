@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { AUTH_COOKIE, authEnabled, isValidToken } from './lib/auth';
+import { env } from './lib/env';
 
 // Every page and server action needs the login cookie, except the login page itself and the two
 // endpoints machines call (they check their own secret: the cron one, and Telegram's).
 export async function proxy(request: NextRequest) {
   if (!authEnabled()) {
     // fail closed in production: the AI filter stores a CV, it must not end up public
-    if (process.env.NODE_ENV === 'production') {
+    if (env.NODE_ENV === 'production') {
       return new NextResponse('APP_PASSWORD is not set. Add it in Vercel -> Settings -> Environment Variables.', {
         status: 503,
       });

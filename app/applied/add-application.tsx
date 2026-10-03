@@ -4,8 +4,11 @@ import { startTransition, useEffect, useRef, useState, useTransition } from 'rea
 import type { ApplicationWithContent } from '@/lib/applications';
 import { BOARD_SUGGESTIONS, boardOf, isLink } from '@/lib/boards';
 import type { Zone } from '@/lib/dates';
+import { message } from '@/lib/shared/errors';
+import { fail } from '@/lib/shared/result';
+import type { ApplicationInput } from '@/lib/shared/schemas/applications';
 import { STAGES, statesFor, type StageId, type StateId } from '@/lib/stages';
-import { addApplicationAction, fillFromLinkAction, updateApplicationAction, type ApplicationInput } from '../actions';
+import { addApplicationAction, fillFromLinkAction, updateApplicationAction } from '../actions';
 import { DateInput } from '../controls';
 import { useZone } from '../time-zone';
 
@@ -15,7 +18,7 @@ import { useZone } from '../time-zone';
 // The same form edits an application in its own window ("✎ Edit"), without the status and the
 // note: the window has those.
 
-type Draft = Omit<ApplicationInput, 'stage' | 'state'> & { stage: StageId; state: StateId };
+type Draft = ApplicationInput; // what the form sends
 type Field = keyof Draft;
 
 const empty = (z: Zone): Draft => ({
@@ -114,16 +117,13 @@ export function ApplicationForm(props: FormProps) {
     setError(null);
     setInfo(null);
     startFill(async () => {
-      const r = await fillFromLinkAction(d.url).catch((e: unknown) => ({
-        error: e instanceof Error ? e.message : String(e),
-        draft: undefined,
-      }));
+      const r = await fillFromLinkAction({ link: d.url }).catch((e: unknown) => fail(message(e)));
       startTransition(() => {
-        if (!r.draft) {
-          setError(r.error ?? 'Couldn’t read the page.');
+        if (!r.ok) {
+          setError(r.error);
           return;
         }
-        const f = r.draft;
+        const f = r.data;
         setD((x) => {
           const next = { ...x };
           // what you typed stays; when editing, so does everything already filled in
@@ -152,27 +152,19 @@ export function ApplicationForm(props: FormProps) {
   const save = () => {
     setError(null);
     startSave(async () => {
-      const fail = (e: unknown) => ({ error: e instanceof Error ? e.message : String(e), app: undefined });
+      const failed = (e: unknown) => fail(message(e));
       if (props.app) {
         const { url, title, company, board, day, salary, contract, location, remote, content } = d; // not the status, not the note
-        const r = await updateApplicationAction(props.app.dup_key, {
-          url,
-          title,
-          company,
-          board,
-          day,
-          salary,
-          contract,
-          location,
-          remote,
-          content,
-        }).catch(fail);
+        const r = await updateApplicationAction({
+          key: props.app.dup_key,
+          input: { url, title, company, board, day, salary, contract, location, remote, content },
+        }).catch(failed);
         const onSaved = props.onSaved;
-        startTransition(() => (r.app ? onSaved(r.app) : setError(r.error ?? 'Not saved.')));
+        startTransition(() => (r.ok ? onSaved(r.data) : setError(r.error)));
       } else {
-        const r = await addApplicationAction(d).catch(fail);
+        const r = await addApplicationAction(d).catch(failed);
         const onSaved = props.onSaved;
-        startTransition(() => (r.error ? setError(r.error) : onSaved()));
+        startTransition(() => (r.ok ? onSaved() : setError(r.error)));
       }
     });
   };

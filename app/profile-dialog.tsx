@@ -10,7 +10,9 @@ import {
   type SubmitEvent,
   type Ref,
 } from 'react';
-import { deleteProfileAction, saveProfileAction, selectProfileAction, type FormState } from './actions';
+import { message } from '@/lib/shared/errors';
+import { fail, type Result } from '@/lib/shared/result';
+import { deleteProfileAction, saveProfileAction, selectProfileAction } from './actions';
 
 export type ProfileOption = { id: string; name: string; prompt: string; fileName: string | null; version: number };
 
@@ -29,20 +31,15 @@ export function ProfileDialog({
   const [selected, setSelected] = useState<string>(activeId ?? NEW);
   // onSubmit, not <form action>: React resets a form after its action, which would throw away
   // what you typed whenever the save fails (e.g. a file that's too big)
-  const [state, setState] = useState<FormState>({});
+  const [state, setState] = useState<Result<unknown> | null>(null);
   const [saving, startSave] = useTransition();
   const save = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    setState({});
+    setState(null);
     startSave(async () => {
-      let r: FormState;
-      try {
-        r = await saveProfileAction({}, data);
-      } catch (err) {
-        r = { error: err instanceof Error ? err.message : String(err) };
-      }
-      startTransition(() => setState(r)); // lands with the refreshed page; then the effect below closes
+      const answer = await saveProfileAction(null, data).catch((err: unknown) => fail(message(err)));
+      startTransition(() => setState(answer)); // lands with the refreshed page; then the effect below closes
     });
   };
   const [busy, startBusy] = useTransition();
@@ -56,7 +53,7 @@ export function ProfileDialog({
     setSelected(id);
     setRemoveFile(false);
     setPicked(null);
-    setState({}); // no message from the last save
+    setState(null); // no message from the last save
     setFormKey((k) => k + 1);
   };
 
@@ -69,10 +66,17 @@ export function ProfileDialog({
 
   // close once saved; the action refreshes the page with the new active profile
   useEffect(() => {
-    if (state.ok) dialog.current?.close();
+    if (state?.ok) dialog.current?.close();
   }, [state]);
 
   const close = () => dialog.current?.close();
+  // Delete / Use without changes: the dialog closes once done, or says what went wrong
+  const runAndClose = (fn: () => Promise<Result<unknown>>) =>
+    startBusy(async () => {
+      const answer = await fn().catch((err: unknown) => fail(message(err)));
+      if (answer.ok) close();
+      else startTransition(() => setState(answer));
+    });
 
   return (
     <dialog ref={dialog} className="modal" onClick={(e) => e.target === dialog.current && close()}>
@@ -143,7 +147,7 @@ export function ProfileDialog({
           profiles keeps what&apos;s already been checked.
         </p>
 
-        {state.error && <p className="form-error">{state.error}</p>}
+        {state?.ok === false && <p className="form-error">{state.error}</p>}
 
         <div className="modal-actions">
           {profile && (
@@ -154,10 +158,7 @@ export function ProfileDialog({
               aria-busy={busy || undefined}
               onClick={() => {
                 if (!confirm(`Delete “${profile.name}” and everything it has checked?`)) return;
-                startBusy(async () => {
-                  await deleteProfileAction(profile.id);
-                  close();
-                });
+                runAndClose(() => deleteProfileAction({ id: profile.id }));
               }}
             >
               Delete
@@ -170,12 +171,7 @@ export function ProfileDialog({
               className="secondary"
               disabled={busy || saving}
               aria-busy={busy || undefined}
-              onClick={() =>
-                startBusy(async () => {
-                  await selectProfileAction(profile.id);
-                  close();
-                })
-              }
+              onClick={() => runAndClose(() => selectProfileAction({ id: profile.id }))}
             >
               Use without changes
             </button>

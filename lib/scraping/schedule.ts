@@ -1,6 +1,9 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import { hmac, sameString } from '../auth';
 import { zone } from '../dates';
+import { env } from '../env';
+import { message } from '../shared/errors';
 import { cronSchedule } from './cron';
 import { effectiveTimeZone, type ScrapeSettings } from './kinds';
 import { cronReschedule, getSettings, getState, markCall } from './store';
@@ -10,15 +13,15 @@ import { cronReschedule, getSettings, getState, markCall } from './store';
 
 /** CRON_SECRET if set, else derived from APP_PASSWORD. */
 export async function cronSecret(): Promise<string | null> {
-  if (process.env.CRON_SECRET) return process.env.CRON_SECRET;
-  if (process.env.APP_PASSWORD) return hmac(process.env.APP_PASSWORD, 'jobwatch-cron-v1');
+  if (env.CRON_SECRET) return env.CRON_SECRET;
+  if (env.APP_PASSWORD) return hmac(env.APP_PASSWORD, 'jobwatch-cron-v1');
   return null;
 }
 
 /** Authorization: Bearer <secret>. Without any secret only a local dev server lets it through. */
 export async function isCronRequest(req: Request) {
   const secret = await cronSecret();
-  if (!secret) return process.env.NODE_ENV !== 'production';
+  if (!secret) return env.NODE_ENV !== 'production';
   return sameString(req.headers.get('authorization') ?? '', `Bearer ${secret}`);
 }
 
@@ -49,12 +52,18 @@ export async function syncCron(s: ScrapeSettings): Promise<string | null> {
     const r = await cronReschedule(cronSchedule(s), s.enabled);
     return r === 'ok' || r === 'not connected' ? null : r;
   } catch (e) {
-    return e instanceof Error ? e.message : String(e);
+    return message(e);
   }
 }
 
 /** This deployment's public address, for Supabase Cron and the Telegram webhook. */
-export function appOrigin(host?: string | null, proto?: string | null) {
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+function appOrigin(host?: string | null, proto?: string | null) {
+  if (env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`;
   return host ? `${proto ?? 'https'}://${host}` : 'http://localhost:3000';
+}
+
+/** This app's address as the browser reached it (behind Vercel's proxy too), or the production one. */
+export async function requestOrigin() {
+  const request = await headers();
+  return appOrigin(request.get('x-forwarded-host') ?? request.get('host'), request.get('x-forwarded-proto'));
 }

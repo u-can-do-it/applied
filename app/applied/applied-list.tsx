@@ -28,6 +28,8 @@ import {
   type StageId,
   type StateId,
 } from '@/lib/stages';
+import { message } from '@/lib/shared/errors';
+import { unwrap } from '@/lib/shared/result';
 import {
   refetchContentAction,
   removeStatusStepAction,
@@ -355,7 +357,6 @@ function AppliedStats({
 
 type Shown = Application & { content?: string | null }; // no content yet = still loading
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const noteValue = (text: string) => (text.trim() ? text : null); // as the database keeps it
 
 async function loadApplication(key: string) {
@@ -439,8 +440,7 @@ function AdModal({
       history: [...app.history, { stage, state, at: new Date().toISOString() }],
     });
     act(async () => {
-      const res = await setApplicationStatusAction(key, stage, state);
-      if (res.error) throw new Error(res.error);
+      unwrap(await setApplicationStatusAction({ key, stage, state }));
       await follow();
     });
   };
@@ -463,8 +463,7 @@ function AdModal({
     const last = history.at(-1);
     setApp({ ...app, history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending' }); // instant
     act(async () => {
-      const res = await removeStatusStepAction(key, h);
-      if (res.error) throw new Error(res.error);
+      unwrap(await removeStatusStepAction({ key, step: h }));
       await follow();
     });
   };
@@ -657,7 +656,7 @@ function AdModal({
               onClick={() => {
                 if (!confirm('Unmark as applied? Its saved ad text, status history and note are deleted too.')) return;
                 act(async () => {
-                  await unapplyAction(key);
+                  unwrap(await unapplyAction({ key }));
                   gone.current = true;
                   writeDraft(key, null);
                   close();
@@ -685,7 +684,7 @@ function AdModal({
                 onClick={() => {
                   setApp({ ...app, content: undefined }); // back to the placeholder while it fetches
                   act(async () => {
-                    await refetchContentAction(key);
+                    unwrap(await refetchContentAction({ key }));
                     await follow();
                   });
                 }}
@@ -778,9 +777,9 @@ function NoteEditor({
     const value = latest.current;
     if (value === saved.current) return Promise.resolve();
     setStatus('saving');
-    saving.current = setApplicationNoteAction(appKey, value)
+    saving.current = setApplicationNoteAction({ key: appKey, note: value })
       .then((res) => {
-        if (res.error) throw new Error(res.error);
+        unwrap(res);
         saved.current = value;
         const now = latest.current;
         writeDraft(appKey, now === value ? null : { text: now, base: value });

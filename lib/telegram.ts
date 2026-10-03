@@ -1,5 +1,6 @@
 import 'server-only';
 import { hmac } from './auth';
+import { env } from './env';
 import type { Queued } from './scraping/store';
 
 // Telegram bot: the messages about new offers, and the /mute /resume /send /status
@@ -7,11 +8,10 @@ import type { Queued } from './scraping/store';
 // TELEGRAM_BOT_TOKEN (from @BotFather) and TELEGRAM_CHAT_ID (your chat with the bot).
 
 const BATCH = 5; // offers per message
-const api = (method: string) =>
-  `${process.env.TELEGRAM_API_URL ?? 'https://api.telegram.org'}/bot${process.env.TELEGRAM_BOT_TOKEN}/${method}`;
+const api = (method: string) => `${env.TELEGRAM_API_URL}/bot${env.TELEGRAM_BOT_TOKEN ?? ''}/${method}`;
 
-export const telegramReady = () => Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
-export const ownerChat = () => process.env.TELEGRAM_CHAT_ID ?? '';
+export const telegramReady = () => Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID);
+export const ownerChat = () => env.TELEGRAM_CHAT_ID ?? '';
 
 async function call<T>(method: string, body: Record<string, unknown> = {}): Promise<T> {
   for (let attempt = 0; ; attempt++) {
@@ -106,7 +106,7 @@ export function formatNotification(n: {
 // ---- webhook (commands) ------------------------------------------------------------------
 
 /** Telegram sends it back in X-Telegram-Bot-Api-Secret-Token, so only Telegram can call /api/telegram. */
-export const webhookSecret = () => hmac(process.env.TELEGRAM_BOT_TOKEN ?? '', 'jobwatch-telegram-v1');
+export const webhookSecret = () => hmac(env.TELEGRAM_BOT_TOKEN ?? '', 'jobwatch-telegram-v1');
 
 export async function connectWebhook(url: string) {
   await call('setWebhook', {

@@ -6,6 +6,7 @@
 // LinkedIn: its public (logged-out) job posting fragment.
 
 import { parse as parseHtml } from 'node-html-parser';
+import { decodeEntities } from './shared/html';
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -24,25 +25,6 @@ export type JobDetails = {
   company?: string;
 };
 export type Scraped = { status: 'ok' | 'empty'; text: string; details: JobDetails };
-
-const ENTITIES: Partial<Record<string, string>> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-  ndash: '–',
-  mdash: '—',
-  hellip: '…',
-  bull: '•',
-};
-function decodeEntities(s: string) {
-  return s
-    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
-    .replace(/&([a-z]+);/gi, (m, n: string) => ENTITIES[n.toLowerCase()] ?? m);
-}
 
 // a real tag starts with a letter, "/" or "!": in "a < b and c > d" the signs are text
 const TAG = /<\/?[a-z!][^<>]*>/gi;

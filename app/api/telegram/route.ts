@@ -1,7 +1,9 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
 import { sameString } from '@/lib/auth';
 import { zone } from '@/lib/dates';
+import { env } from '@/lib/env';
 import { listProfiles } from '@/lib/profiles';
+import { message } from '@/lib/shared/errors';
 import { notify, runAll } from '@/lib/scraping/run';
 import { effectiveTimeZone } from '@/lib/scraping/kinds';
 import { getSettings, getState, listRuns, queueSize, setMuted, sourceCounts } from '@/lib/scraping/store';
@@ -34,9 +36,7 @@ export async function POST(request: NextRequest) {
   // what waited goes out after the AI check (that can take a while, so after the answer)
   const deliver = () =>
     after(async () => {
-      const r = await notify({ manual: true }).catch((e: unknown) => ({
-        error: e instanceof Error ? e.message : String(e),
-      }));
+      const r = await notify({ manual: true }).catch((e: unknown) => ({ error: message(e) }));
       if (r.error) await reply(`⚠️ ${r.error}`);
     });
 
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       : 'unknown';
     const ai = !settings.aiFilter
       ? 'off'
-      : !process.env.OPENAI_API_KEY
+      : !env.OPENAI_API_KEY
         ? 'on, but no OPENAI_API_KEY (all sent)'
         : profiles[0]
           ? `“${profiles[0].name}”`

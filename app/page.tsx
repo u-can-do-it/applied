@@ -1,4 +1,5 @@
-import { OffersView, type SearchParams } from './offers-view';
+import type { SearchParams } from '@/lib/shared/search-params';
+import { OffersView } from './offers-view';
 
 // "Scrape now" runs in this page's server action: a full run takes seconds, allow plenty
 export const maxDuration = 300;

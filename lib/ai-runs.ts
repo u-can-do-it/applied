@@ -1,8 +1,10 @@
 import 'server-only';
 import { dedupRound } from './dedup';
+import type { Copy } from './offers';
 import { assessOffers, type OfferForAi } from './openai';
 import { getProfile, type Profile, type ProfileWithFile } from './profiles';
 import { scrapeOffer } from './scrape';
+import { message } from './shared/errors';
 import { rangeTotal, rest, restUrl, rpcUrl } from './supabase';
 
 // Manual AI runs: "check every offer in this date range that this profile hasn't judged yet".
@@ -32,7 +34,6 @@ export type Run = {
   finished_at: string | null;
 };
 export type Range = { gte?: string; lt?: string; label: string };
-type Copy = { src: string; id: string; url: string };
 type Pending = {
   src: string;
   id: string;
@@ -288,7 +289,7 @@ export async function assessJobs(profile: ProfileWithFile, keys: string[], deadl
         round.slice(b * BATCH, b * BATCH + BATCH),
       );
       for (const s of await Promise.allSettled(batches.map((b) => assessBatch(profile, b)))) {
-        if (s.status === 'rejected') error = s.reason instanceof Error ? s.reason.message : String(s.reason);
+        if (s.status === 'rejected') error = message(s.reason);
       }
     }
     for (const [k, v] of await verdictsFor(profile, missing)) verdicts.set(k, v);
@@ -350,7 +351,7 @@ export async function continueRun(runId: string): Promise<void> {
       }
     } catch (e) {
       console.error('[ai-run] duplicate slice crashed:', e);
-      await patchRun(run.id, { lock_until: null, error: e instanceof Error ? e.message : String(e) }).catch(() => {});
+      await patchRun(run.id, { lock_until: null, error: message(e) }).catch(() => {});
       return;
     }
     if (run.phase === 'dedup') {
@@ -388,7 +389,7 @@ export async function continueRun(runId: string): Promise<void> {
           for (const o of batches[i])
             if (!s.value.answered.has(o.dup_key)) tries.set(o.dup_key, (tries.get(o.dup_key) ?? 0) + 1);
         } else {
-          lastError = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          lastError = message(s.reason);
           console.error('[ai-run] batch failed:', lastError);
         }
       }
@@ -404,6 +405,6 @@ export async function continueRun(runId: string): Promise<void> {
     await patchRun(run.id, { lock_until: null });
   } catch (e) {
     console.error('[ai-run] slice crashed:', e);
-    await patchRun(run.id, { lock_until: null, error: e instanceof Error ? e.message : String(e) }).catch(() => {});
+    await patchRun(run.id, { lock_until: null, error: message(e) }).catch(() => {});
   }
 }

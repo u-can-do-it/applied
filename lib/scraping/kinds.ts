@@ -1,7 +1,7 @@
 // What a scraper can be and what the scraping settings hold. Shared by the server and the
 // Settings page (no secrets here).
 
-import { DEFAULT_TZ, isTimeZone } from '../dates';
+import { DEFAULT_TZ } from '../dates';
 
 export const KIND_IDS = [
   'justjoin',
@@ -218,40 +218,6 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
 };
 
 export const INTERVALS = [5, 10, 15, 30, 60, 120] as const;
-
-const words = (v: unknown, fallback: string[]) =>
-  Array.isArray(v)
-    ? v
-        .map((x) => String(x).trim())
-        .filter(Boolean)
-        .slice(0, 50)
-        .map((x) => x.slice(0, 60))
-    : fallback;
-const hour = (v: unknown, fallback: number) =>
-  Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 24 ? (v as number) : fallback;
-
-/** Settings as stored (any shape, maybe older) -> complete settings. */
-export function normalizeSettings(raw: unknown): ScrapeSettings {
-  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const d = DEFAULT_SETTINGS;
-  return {
-    enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
-    everyMinutes: INTERVALS.includes(r.everyMinutes as (typeof INTERVALS)[number])
-      ? (r.everyMinutes as number)
-      : d.everyMinutes,
-    fromHour: hour(r.fromHour, d.fromHour),
-    toHour: hour(r.toHour, d.toHour),
-    keywords: words(r.keywords, d.keywords),
-    cities: words(r.cities, d.cities),
-    remoteOk: typeof r.remoteOk === 'boolean' ? r.remoteOk : d.remoteOk,
-    ignore: words(r.ignore, d.ignore),
-    mute: words(r.mute, d.mute),
-    notify: typeof r.notify === 'boolean' ? r.notify : d.notify,
-    aiFilter: typeof r.aiFilter === 'boolean' ? r.aiFilter : d.aiFilter,
-    timeZone: isTimeZone(r.timeZone) ? r.timeZone : d.timeZone,
-    browserTimeZone: isTimeZone(r.browserTimeZone) ? r.browserTimeZone : d.browserTimeZone,
-  };
-}
 
 /** The zone the app runs in: the one picked, else the browser's (as last reported), else DEFAULT_TZ. */
 export const effectiveTimeZone = (s: Pick<ScrapeSettings, 'timeZone' | 'browserTimeZone'> | null | undefined) =>

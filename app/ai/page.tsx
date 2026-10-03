@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { OffersView, type SearchParams } from '../offers-view';
+import type { SearchParams } from '@/lib/shared/search-params';
+import { OffersView } from '../offers-view';
 
 export const metadata: Metadata = { title: 'Jobwatch · AI filter' };
 

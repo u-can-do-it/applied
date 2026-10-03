@@ -1,5 +1,6 @@
 import 'server-only';
 import { aiConfig, decideDuplicates, type JobForAi } from './openai';
+import { message } from './shared/errors';
 import { rest, restUrl, rpcUrl } from './supabase';
 
 // AI duplicate check for one run's date range. The database proposes pairs whose keys differ
@@ -67,7 +68,7 @@ export async function dedupRound(range: { gte: string | null; lt: string | null 
   settled.forEach((s, i) => {
     if (s.status === 'fulfilled')
       for (const d of s.value) decided.push({ c: batches[i][d.p - 1], same: d.same, reason: d.reason });
-    else error = s.reason instanceof Error ? s.reason.message : String(s.reason);
+    else error = message(s.reason);
   });
 
   if (decided.length) {

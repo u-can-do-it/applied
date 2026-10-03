@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { ghostStale, listApplications } from '@/lib/applications';
+import { message } from '@/lib/shared/errors';
 import { labelsOf, sourceOptions } from '@/lib/source-list';
 import { appTimeZone } from '@/lib/time-zone';
 import { Header } from '../header';
@@ -37,7 +38,7 @@ async function Applications() {
     return (
       <div className="notice">
         <strong>Can’t load applications.</strong> Did you run <code>scripts/db-migrate.sh</code>?
-        <code>{e instanceof Error ? e.message : String(e)}</code>
+        <code>{message(e)}</code>
       </div>
     );
   }

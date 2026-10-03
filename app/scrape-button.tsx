@@ -1,6 +1,8 @@
 'use client';
 
 import { startTransition, useEffect, useState, useTransition } from 'react';
+import { message } from '@/lib/shared/errors';
+import { fail } from '@/lib/shared/result';
 import { scrapeNowAction } from './settings/actions';
 
 // "Scrape now" in the header: a full run, like the scheduled one (new offers also go to
@@ -19,8 +21,9 @@ export function ScrapeButton() {
     setResult(null);
     start(async () => {
       let next: typeof result;
-      try {
-        const r = await scrapeNowAction();
+      const answer = await scrapeNowAction().catch((e: unknown) => fail(message(e)));
+      if (answer.ok) {
+        const r = answer.data;
         const errors = r.errors.map((e) => `${e.scraper}: ${e.error}`).join('\n');
         next = r.skipped
           ? { text: r.skipped }
@@ -33,8 +36,8 @@ export function ScrapeButton() {
               }${errors ? `\n\n${errors}` : ''}`,
               bad: r.errors.length > 0,
             };
-      } catch (e) {
-        next = { text: '⚠ failed', title: e instanceof Error ? e.message : String(e), bad: true };
+      } else {
+        next = { text: '⚠ failed', title: answer.error, bad: true };
       }
       startTransition(() => setResult(next)); // with the refreshed list, not a frame before it
     });

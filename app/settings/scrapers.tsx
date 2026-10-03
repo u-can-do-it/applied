@@ -12,12 +12,15 @@ import {
   type KindId,
   type Scraper,
 } from '@/lib/scraping/kinds';
+import { message } from '@/lib/shared/errors';
+import { seconds } from '@/lib/shared/format';
+import { fail, type Result } from '@/lib/shared/result';
+import type { ScraperForm } from '@/lib/shared/schemas/scrapers';
 import {
   deleteScraperAction,
   saveScraperAction,
   testScraperAction,
   toggleScraperAction,
-  type ScraperForm,
   type TestResult,
 } from './actions';
 import { useZone } from '../time-zone';
@@ -111,8 +114,6 @@ const toForm = (d: Draft): ScraperForm => ({
   },
 });
 
-const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
-
 export function ScrapersPanel({
   scrapers,
   counts,
@@ -148,7 +149,7 @@ export function ScrapersPanel({
               onChange={(e) => {
                 const enabled = e.target.checked;
                 act.run(
-                  () => toggleScraperAction(s.id, enabled),
+                  () => toggleScraperAction({ id: s.id, enabled }),
                   () => toggle({ id: s.id, enabled }),
                 );
               }}
@@ -215,7 +216,7 @@ function ScraperStatus({ s }: { s: Scraper }) {
   return (
     <p className="small">
       <span className="ok-text">✓</span> {when} · {s.last_found} on the page · {s.last_kept} kept · {s.last_new} new
-      {s.last_ms !== null && <span className="muted"> · {seconds(s.last_ms)}</span>}
+      {s.last_ms !== null && <span className="muted"> · {seconds(s.last_ms, 1)}</span>}
       {s.last_error && <span className="warn"> · ⚠ {s.last_error}</span>}
       {s.mark === null && <span className="muted"> · next run only saves</span>}
     </p>
@@ -260,7 +261,7 @@ function ScraperEditor({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [d, setD] = useState(initial);
-  const [test, setTest] = useState<TestResult | { error: string } | null>(null);
+  const [test, setTest] = useState<Result<TestResult> | null>(null);
   const [testing, startTest] = useTransition();
   const [saving, startSave] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -270,11 +271,7 @@ function ScraperEditor({
   const runTest = () =>
     startTest(async () => {
       setTest(null);
-      try {
-        setTest(await testScraperAction(toForm(d)));
-      } catch (e) {
-        setTest({ error: e instanceof Error ? e.message : String(e) });
-      }
+      setTest(await testScraperAction(toForm(d)).catch((e: unknown) => fail(message(e))));
     });
 
   const opened = useEffectEvent(() => {
@@ -285,23 +282,18 @@ function ScraperEditor({
 
   // the dialog stays open (Saving…) until the server answers, then closes together with the
   // refreshed list, so the list never shows the old values after it closed
-  const commit = (fn: () => Promise<{ error?: string }>) => {
+  const commit = (fn: () => Promise<Result<unknown>>) => {
     setError(null);
     startSave(async () => {
-      let r: { error?: string };
-      try {
-        r = await fn();
-      } catch (e) {
-        r = { error: e instanceof Error ? e.message : String(e) };
-      }
-      startTransition(() => (r.error ? setError(r.error) : onClose()));
+      const answer = await fn().catch((e: unknown) => fail(message(e)));
+      startTransition(() => (answer.ok ? onClose() : setError(answer.error)));
     });
   };
   const save = () => commit(() => saveScraperAction(toForm(d)));
   const remove = () => {
     const id = d.id;
     if (!id || !confirm(`Delete “${d.name}”? Offers it already saved stay.`)) return;
-    commit(() => deleteScraperAction(id));
+    commit(() => deleteScraperAction({ id }));
   };
   const changeKind = (kind: KindId) => {
     // a built-in board brings its own link and source id; between generic kinds keep what's typed
@@ -529,15 +521,15 @@ function ScraperEditor({
   );
 }
 
-function TestView({ test }: { test: TestResult | { error: string } }) {
-  if (!('pages' in test)) {
+function TestView({ test }: { test: Result<TestResult> }) {
+  if (!test.ok) {
     return (
       <p className="form-error" role="alert">
         {test.error}
       </p>
     );
   }
-  const t = test;
+  const t = test.data;
   const skipped = [
     t.skipped.keyword && `${t.skipped.keyword} without a keyword`,
     t.skipped.area && `${t.skipped.area} not remote / not in the cities`,
@@ -548,7 +540,7 @@ function TestView({ test }: { test: TestResult | { error: string } }) {
       <p>
         {t.ok ? <span className="ok-text">✓</span> : <span className="warn">✗</span>} {t.found} on the page
         {t.pages.length > 1 ? 's' : ''} → <strong>{t.kept} kept</strong>, {t.fresh} of them not saved yet ·{' '}
-        {seconds(t.ms)}
+        {seconds(t.ms, 1)}
         {skipped.length > 0 && <span className="muted"> · skipped: {skipped.join(', ')}</span>}
       </p>
       {t.pages.length > 1 || !t.ok ? (

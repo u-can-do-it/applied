@@ -1,4 +1,5 @@
 import 'server-only';
+import { env } from './env';
 
 // Chat Completions with a strict JSON schema, so every answer parses. Plain fetch, no SDK.
 // Two jobs, each with its own model / reasoning effort:
@@ -28,21 +29,11 @@ export type JobForAi = {
 export type PairForAi = { p: number; a: JobForAi; b: JobForAi };
 export type DupDecision = { p: number; same: boolean; reason: string };
 
-const DEFAULT_MODEL = 'gpt-6-luna';
 export const aiConfig = () => ({
-  assess: {
-    model: process.env.OPENAI_ASSESS_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
-    effort: process.env.OPENAI_ASSESS_EFFORT || 'high',
-  },
-  dedup: {
-    model: process.env.OPENAI_DEDUP_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
-    effort: process.env.OPENAI_DEDUP_EFFORT || 'low',
-  },
+  assess: { model: env.OPENAI_ASSESS_MODEL ?? env.OPENAI_MODEL, effort: env.OPENAI_ASSESS_EFFORT },
+  dedup: { model: env.OPENAI_DEDUP_MODEL ?? env.OPENAI_MODEL, effort: env.OPENAI_DEDUP_EFFORT },
   // "Add application": reading an offer's page into the form
-  extract: {
-    model: process.env.OPENAI_EXTRACT_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
-    effort: process.env.OPENAI_EXTRACT_EFFORT || 'low',
-  },
+  extract: { model: env.OPENAI_EXTRACT_MODEL ?? env.OPENAI_MODEL, effort: env.OPENAI_EXTRACT_EFFORT },
 });
 const FILE_CHARS = 15_000; // keep a long CV from dominating every request
 
@@ -61,9 +52,9 @@ async function chat<T>(opts: {
   schemaName: string;
   schema: Record<string, unknown>;
 }): Promise<T> {
-  const key = process.env.OPENAI_API_KEY;
+  const key = env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not set');
-  const base = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const base = env.OPENAI_BASE_URL;
 
   const body: Record<string, unknown> = {
     model: opts.model,

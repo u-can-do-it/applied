@@ -1,7 +1,9 @@
 import 'server-only';
 import { after } from 'next/server';
 import { assessJobs, type Verdict } from '../ai-runs';
+import { env } from '../env';
 import { getProfile, isUsable, listProfiles, type ProfileWithFile } from '../profiles';
+import { message } from '../shared/errors';
 import { formatNotification, sendMessage, telegramReady, type Outgoing } from '../telegram';
 import type { ScrapeSettings, Scraper } from './kinds';
 import { areaTest, expandUrl, keywordTest, placeOf, titleTest, type Found } from './match';
@@ -46,7 +48,7 @@ function checkUrl(raw: string) {
   // a scraper must not read the server's own network
   const privateHost =
     /^(localhost|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[(::1|f[cd])|metadata)/i;
-  if (process.env.NODE_ENV === 'production' && privateHost.test(u.hostname))
+  if (env.NODE_ENV === 'production' && privateHost.test(u.hostname))
     throw new Error('Private addresses are not allowed');
 }
 
@@ -95,8 +97,6 @@ export async function fetchPage(url: string, headers: Record<string, string> = {
     return new TextDecoder().decode(all);
   }
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export type PageResult = {
   keyword: string | null;
@@ -380,16 +380,14 @@ type Notified = { sent: number; matched: number | null; error?: string };
 
 /** The active AI profile, if the AI filter can work: on in Settings, a usable profile, an OpenAI key. */
 async function aiProfile(settings: ScrapeSettings): Promise<ProfileWithFile | null> {
-  if (!settings.aiFilter || !process.env.OPENAI_API_KEY) return null;
+  if (!settings.aiFilter || !env.OPENAI_API_KEY) return null;
   const active = (await listProfiles())[0];
   if (!isUsable(active)) return null;
   return getProfile(active.id);
 }
 
 const appLink = () =>
-  process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/ai?days=1&rejected=1`
-    : null;
+  env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}/ai?days=1&rejected=1` : null;
 
 /**
  * Checks what's queued against the AI profile and sends what's ready: the matches listed, the

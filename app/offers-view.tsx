@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import type { SearchParams } from '@/lib/shared/search-params';
 import { sourceOptions } from '@/lib/source-list';
 import { AiFilterBar } from './ai-filter-bar';
 import { Controls, ControlsFallback } from './controls';
@@ -7,8 +8,6 @@ import { NavProvider } from './nav';
 import { Results, ResultsSkeleton } from './results';
 import { ResultsBoundary } from './results-boundary';
 import { Tabs, TabsFallback } from './tabs';
-
-export type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 // Shared by "/" (all offers) and "/ai" (the same list, narrowed by the AI filter).
 // Nothing here awaits, so everything outside the <Suspense> boundaries is static shell.

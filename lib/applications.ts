@@ -1,7 +1,10 @@
 import 'server-only';
 import { boardIdOf, boardOf, cleanLink } from './boards';
 import type { Zone } from './dates';
+import type { Copy } from './offers';
 import { scrapeOfferFull, type JobDetails } from './scrape';
+import { message } from './shared/errors';
+import { NOTE_MAX } from './shared/schemas/applications';
 import { GHOST_AFTER_DAYS, type HistoryEntry, type StageId, type StateId } from './stages';
 import { rest, restUrl } from './supabase';
 
@@ -46,8 +49,6 @@ export async function getApplication(key: string): Promise<ApplicationWithConten
   keyFilter(url, key);
   return ((await (await rest(url)).json()) as ApplicationWithContent[])[0] ?? null;
 }
-
-type Copy = { src: string; id: string; url: string };
 
 /** The job as the list shows it: its key, title, company and every board's copy. */
 async function findJob(key: string): Promise<{ title: string; company: string | null; copies: Copy[] } | null> {
@@ -123,8 +124,6 @@ export async function removeStatusStep(key: string, step: HistoryEntry): Promise
   });
   return {};
 }
-
-export const NOTE_MAX = 10_000;
 
 /** Saves your note for the application ('' clears it). */
 export async function setNote(key: string, note: string) {
@@ -255,7 +254,7 @@ export async function saveContent(key: string) {
       }
       firstEmpty ??= { details: s.details };
     } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
+      lastError = message(e);
     }
   }
   await patch(key, {

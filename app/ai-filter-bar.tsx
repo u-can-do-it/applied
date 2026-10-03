@@ -1,14 +1,13 @@
 import { after } from 'next/server';
 import { countPending, continueRun, latestRun, needsWorker, type Run } from '@/lib/ai-runs';
-import { describeRange, validDay } from '@/lib/dates';
+import { describeRange } from '@/lib/dates';
+import { env } from '@/lib/env';
 import { aiConfig } from '@/lib/openai';
 import { isUsable, listProfiles } from '@/lib/profiles';
-import { DAY_PRESETS } from '@/lib/sources';
+import { message } from '@/lib/shared/errors';
+import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { appZone } from '@/lib/time-zone';
 import { AiControls } from './ai-controls';
-import type { SearchParams } from './offers-view';
-
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
 
 async function load(range: { days: string; from: string; to: string }) {
   const profiles = await listProfiles();
@@ -32,10 +31,7 @@ async function load(range: { days: string; from: string; to: string }) {
 
 // Server part of the AI tab's toolbar: profiles, the latest run and "how many are new".
 export async function AiFilterBar({ searchParams }: { searchParams: SearchParams }) {
-  const sp = await searchParams;
-  const days = DAY_PRESETS.some((p) => p.days && p.days === one(sp.days)) ? one(sp.days) : '';
-  const from = days ? '' : validDay(one(sp.from));
-  const to = days ? '' : validDay(one(sp.to));
+  const { days, from, to } = parseOfferQuery(await searchParams);
 
   // the data is loaded first: JSX built inside a try would not have its render errors caught there
   let loaded: Awaited<ReturnType<typeof load>>;
@@ -45,7 +41,7 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
     return (
       <div className="notice">
         <strong>Can’t load the AI filter.</strong> Did you run <code>supabase/ai-filter.sql</code>?
-        <code>{e instanceof Error ? e.message : String(e)}</code>
+        <code>{message(e)}</code>
       </div>
     );
   }
@@ -81,7 +77,7 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
           ? null
           : { days, from, to, label: describeRange({ days, from, to }) || 'all offers', newCount: rangeNew }
       }
-      aiConfigured={Boolean(process.env.OPENAI_API_KEY)}
+      aiConfigured={Boolean(env.OPENAI_API_KEY)}
       models={aiConfig()}
     />
   );

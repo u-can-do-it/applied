@@ -1,14 +1,10 @@
 import 'server-only';
+import { env } from './env';
 
 // Thin client for Supabase's REST API (PostgREST). Server-side only: uses the secret key.
 
-function config() {
-  const base = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!base) throw new Error('SUPABASE_URL is not set');
-  if (!key) throw new Error('SUPABASE_SECRET_KEY is not set');
-  return { base, key };
-}
+// reading either one throws "SUPABASE_URL is not set" (and so on) until it is: see env.ts
+const config = () => ({ base: env.SUPABASE_URL, key: env.SUPABASE_SECRET_KEY });
 
 export function restUrl(table: string) {
   return new URL(`/rest/v1/${table}`, config().base);

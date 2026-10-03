@@ -1,10 +1,11 @@
 import { rangeStats } from '@/lib/ai-runs';
-import { addDays, describeRange, validDay, type Zone } from '@/lib/dates';
+import { addDays, describeRange, type Zone } from '@/lib/dates';
 import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
 import { isUsable, listProfiles } from '@/lib/profiles';
-import { SRC_RE } from '@/lib/scraping/kinds';
 import { labelsOf, type SourceOption } from '@/lib/source-list';
-import { DAY_PRESETS, withParams } from '@/lib/sources';
+import { message } from '@/lib/shared/errors';
+import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
+import { withParams } from '@/lib/sources';
 import { appZone } from '@/lib/time-zone';
 import { ApplyButton } from './apply-button';
 import { FitScore } from './fit-score';
@@ -14,9 +15,6 @@ import { NavLink } from './nav';
 const dayLabel = (z: Zone, at: string) => `${z.weekday(at)} ${z.formatDayOf(at)}`; // "Thu 02.10.2026"
 const fullLabel = (z: Zone, at: string) => `${dayLabel(z, at)}, ${z.formatTime(at)}`; // "Thu 02.10.2026, 14:05"
 
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
 const fmt = (n: number) => n.toLocaleString('en-GB');
 
 function groupByDay(offers: Offer[], z: Zone) {
@@ -68,15 +66,9 @@ export async function Results({
   sources: Promise<SourceOption[]>;
 }) {
   const path = mode === 'ai' ? '/ai' : '/';
-  const sp = await searchParams;
-  const q = one(sp.q).slice(0, 200);
-  const rawSrc = one(sp.src);
-  const src = SRC_RE.test(rawSrc) ? rawSrc : ''; // an unknown board just finds nothing
-  const page = Math.max(0, Math.floor(Number(one(sp.page)) || 0));
-  const days = DAY_PRESETS.some((p) => p.days && p.days === one(sp.days)) ? one(sp.days) : '';
-  const from = days ? '' : validDay(one(sp.from));
-  const to = days ? '' : validDay(one(sp.to));
-  const rejected = mode === 'ai' && one(sp.rejected) === '1';
+  const query = parseOfferQuery(await searchParams);
+  const { q, src, page, days, from, to } = query;
+  const rejected = mode === 'ai' && query.rejected;
   const filtered = Boolean(q || src || days || from || to);
   const range = describeRange({ days, from, to });
   const z = await appZone();
@@ -117,7 +109,7 @@ export async function Results({
     return (
       <div className="notice">
         <strong>Can’t load offers.</strong>
-        <code>{e instanceof Error ? e.message : String(e)}</code>
+        <code>{message(e)}</code>
       </div>
     );
   }

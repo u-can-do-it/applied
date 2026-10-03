@@ -1,4 +1,6 @@
 import { parse as parseHtml, type HTMLElement } from 'node-html-parser';
+import { message } from '../shared/errors';
+import { decodeEntities } from '../shared/html';
 import type { FieldId, KindId, ScraperConfig } from './kinds';
 import type { Found } from './match';
 
@@ -43,14 +45,8 @@ function json(text: string, what: string) {
   }
 }
 
-const ENT: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
-const decode = (s: string) =>
-  s
-    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
-    .replace(/&([a-z]+);/gi, (m, n: string) => ENT[n.toLowerCase()] ?? m);
 const strip = (s: string) =>
-  decode(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]*>/g, ' '))
+  decodeEntities(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]*>/g, ' '))
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -451,7 +447,7 @@ function fromHtml(body: string, { src, url, config }: Ctx): Parsed {
   try {
     cards = parseHtml(body).querySelectorAll(config.items);
   } catch (e) {
-    throw new Error(`Bad selector "${config.items}": ${e instanceof Error ? e.message : String(e)}`);
+    throw new Error(`Bad selector "${config.items}": ${message(e)}`);
   }
   if (!cards.length)
     throw new Error(`No "${config.items}" in the page (${body.length} bytes; blocked, or rendered by JavaScript?)`);

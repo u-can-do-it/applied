@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
-import { appOrigin } from '@/lib/scraping/schedule';
+import { env } from '@/lib/env';
 import { isUsable, listProfiles } from '@/lib/profiles';
 import { effectiveTimeZone } from '@/lib/scraping/kinds';
+import { requestOrigin } from '@/lib/scraping/schedule';
 import * as store from '@/lib/scraping/store';
+import { message } from '@/lib/shared/errors';
 import { botInfo, telegramReady } from '@/lib/telegram';
 import { Header } from '../header';
 import { Tabs, TabsFallback } from '../tabs';
@@ -31,8 +32,6 @@ export default function SettingsPage() {
   );
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
 async function Settings() {
   await connection(); // always fresh: runs and statuses change all the time
   let data;
@@ -54,12 +53,12 @@ async function Settings() {
       </div>
     );
   }
-  const [cron, bot, h, profiles] = await Promise.all([
+  const [cron, bot, origin, profiles] = await Promise.all([
     store
       .cronStatus()
       .catch((e: unknown): store.CronStatus & { error: string } => ({ available: false, error: message(e) })),
     telegramReady() ? botInfo().catch((e: unknown) => ({ error: message(e) })) : Promise.resolve(null),
-    headers(),
+    requestOrigin(),
     listProfiles().catch(() => []),
   ]);
   // what the AI filter would check new offers against: the active profile, if it can work
@@ -67,9 +66,8 @@ async function Settings() {
   const ai = {
     on: data.settings.aiFilter,
     profile: isUsable(active) ? active.name : null,
-    keySet: Boolean(process.env.OPENAI_API_KEY),
+    keySet: Boolean(env.OPENAI_API_KEY),
   };
-  const origin = appOrigin(h.get('x-forwarded-host') ?? h.get('host'), h.get('x-forwarded-proto'));
   const { settings, scrapers, state, runs, queued, counts } = data;
 
   return (

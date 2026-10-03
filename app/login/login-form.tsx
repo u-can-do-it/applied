@@ -2,11 +2,11 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useActionState } from 'react';
-import { login, type FormState } from '../actions';
+import { login } from '../actions';
 
 export function LoginForm() {
   const next = useSearchParams().get('next') ?? '/';
-  const [state, action, pending] = useActionState<FormState, FormData>(login, {});
+  const [state, action, pending] = useActionState(login, null);
   return (
     <form action={action} className="login-form">
       <input type="hidden" name="next" value={next} />
@@ -22,7 +22,7 @@ export function LoginForm() {
       <button type="submit" disabled={pending} aria-busy={pending || undefined}>
         {pending ? 'Checking…' : 'Log in'}
       </button>
-      {state.error && <p className="form-error">{state.error}</p>}
+      {state?.ok === false && <p className="form-error">{state.error}</p>}
     </form>
   );
 }

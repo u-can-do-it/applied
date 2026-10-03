@@ -27,9 +27,8 @@ export function ApplyButton({
     setError(null);
     start(async () => {
       setApplied(applied ? null : new Date().toISOString());
-      const res = applied ? await unapplyAction(jobKey) : await applyAction({ key: jobKey, src, id });
-      const failed = res.error;
-      if (failed) startTransition(() => setError(failed));
+      const res = applied ? await unapplyAction({ key: jobKey }) : await applyAction({ key: jobKey, src, id });
+      if (!res.ok) startTransition(() => setError(res.error));
     });
   };
 
