@@ -22,6 +22,14 @@ const schema = z.object({
   // the database (Supabase → Project Settings → API); nothing loads without them
   SUPABASE_URL: z.preprocess(unset, url),
   SUPABASE_SECRET_KEY: z.preprocess(unset, z.string({ error: 'is not set' })),
+  // the direct Postgres connection (lib/db, npm run db:migrate): Supabase → Connect → Transaction
+  // pooler (port 6543) on Vercel; the Session pooler (5432) works too and is what migrations want
+  SUPABASE_DB_URL: z.preprocess(
+    unset,
+    z
+      .string({ error: 'is not set' })
+      .regex(/^postgres(ql)?:\/\//, { error: 'is not a postgresql:// URL (Supabase → Connect → Transaction pooler)' }),
+  ),
 
   // the login; production without it answers 503 everywhere (proxy.ts)
   APP_PASSWORD: optional,

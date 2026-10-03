@@ -5,7 +5,7 @@ offers. `test/lib/scraping/parsers.test.ts` parses each one and snapshots the re
 (or a re-recorded fixture) shows up in the snapshot diff.
 
 All were recorded on **2026-10-03** with the keyword `React`: one request each, made with `curl` and
-the same URLs and headers as the seeds in `supabase/scraping.sql` / `KINDS` in `lib/scraping/kinds.ts`.
+the same URLs and headers as the seeds in `drizzle/0003_seed.sql` / `KINDS` in `lib/scraping/kinds.ts`.
 
 | Fixture | Request | Kept |
 | --- | --- | --- |

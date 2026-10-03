@@ -60,13 +60,28 @@ describe('parseEnv', () => {
     expect(env.OPENAI_MODEL).toBe('gpt-6-luna');
     expect(() => env.SUPABASE_URL).toThrow('SUPABASE_URL is not set');
     expect(() => env.SUPABASE_SECRET_KEY).toThrow('SUPABASE_SECRET_KEY is not set');
+    expect(() => env.SUPABASE_DB_URL).toThrow('SUPABASE_DB_URL is not set');
   });
 
   it('says which variable is malformed', () => {
-    const env = parseEnv({ ...required, SUPABASE_URL: 'example.supabase.co', OPENAI_BASE_URL: 'ftp://x' });
+    const env = parseEnv({
+      ...required,
+      SUPABASE_URL: 'example.supabase.co',
+      OPENAI_BASE_URL: 'ftp://x',
+      SUPABASE_DB_URL: 'https://example.supabase.co',
+    });
     expect(() => env.SUPABASE_URL).toThrow('SUPABASE_URL is not an http(s) URL');
     expect(() => env.OPENAI_BASE_URL).toThrow('OPENAI_BASE_URL is not an http(s) URL');
+    expect(() => env.SUPABASE_DB_URL).toThrow('SUPABASE_DB_URL is not a postgresql:// URL');
     expect(env.SUPABASE_SECRET_KEY).toBe('sb_secret_x');
+  });
+
+  it('takes a postgres:// or postgresql:// database URL', () => {
+    const url = 'postgresql://postgres.ref:pw@aws-0-eu-central-1.pooler.supabase.com:6543/postgres';
+    expect(parseEnv({ ...required, SUPABASE_DB_URL: url }).SUPABASE_DB_URL).toBe(url);
+    expect(parseEnv({ ...required, SUPABASE_DB_URL: 'postgres://localhost/x' }).SUPABASE_DB_URL).toBe(
+      'postgres://localhost/x',
+    );
   });
 });
 

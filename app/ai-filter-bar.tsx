@@ -40,8 +40,7 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
   } catch (e) {
     return (
       <div className="notice">
-        <strong>Can’t load the AI filter.</strong> Did you run <code>supabase/ai-filter.sql</code>?
-        <code>{message(e)}</code>
+        <strong>Can’t load the AI filter.</strong> Did you run <code>npm run db:migrate</code>?<code>{message(e)}</code>
       </div>
     );
   }

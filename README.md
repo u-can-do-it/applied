@@ -14,7 +14,10 @@ Telegram /mute /send /status ─→ /api/telegram
 ## 1. Supabase
 
 1. Create a project at supabase.com (the free tier is enough), or add Supabase from the Vercel Marketplace.
-2. **SQL Editor** → paste [`supabase/schema.sql`](supabase/schema.sql) → Run.
+2. **Connect → Connection string → Session pooler**: copy the URI, replace `[YOUR-PASSWORD]` with the database
+   password, and put it in `.env` as `SUPABASE_DB_URL`. Then `npm install` and **`npm run db:migrate`**: it creates
+   the tables, the `offers_unique` view, the functions, the six scrapers with the default settings, and turns on
+   `pg_cron` + `pg_net` for Supabase Cron (see [Database and migrations](#database-and-migrations)).
 3. **Project Settings → API Keys**: copy the project URL and a **secret** key (`sb_secret_…`).
    A legacy `service_role` key also works.
 
@@ -57,7 +60,7 @@ only saves, so a new or changed scraper doesn't flood Telegram.
 
 **Setup:**
 
-1. `scripts/db-migrate.sh` (adds the tables, the six scrapers and the default settings, and turns on `pg_cron` +
+1. `npm run db:migrate` (step 1.2 above: the tables, the six scrapers and the default settings, and `pg_cron` +
    `pg_net` for Supabase Cron).
 2. Vercel → Settings → Environment Variables: `TELEGRAM_BOT_TOKEN` (@BotFather → /mybots → API Token) and
    `TELEGRAM_CHAT_ID` (write to the bot, then copy `message.chat.id` from `api.telegram.org/bot<token>/getUpdates`; a
@@ -78,7 +81,7 @@ The cron sends `Authorization: Bearer <secret>`: `CRON_SECRET` if set, otherwise
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in SUPABASE_URL + SUPABASE_SECRET_KEY (the rest is optional)
+cp .env.example .env         # fill in SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_DB_URL (the rest is optional)
 npm run dev                  # http://localhost:3000
 npm test                     # unit tests (Vitest)
 npm run typecheck            # tsc --noEmit
@@ -90,14 +93,14 @@ GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint, format:check, 
 and pull request, with the Node version from `.nvmrc`. The build needs no env vars.
 
 To deploy, push this folder to a GitHub repo, then **Vercel → Add New → Project → import it**.
-Add the same two env vars under **Settings → Environment Variables**, and deploy.
+Add the same env vars under **Settings → Environment Variables**, and deploy. On Vercel, `SUPABASE_DB_URL` is the
+**Transaction pooler** URI (Supabase → Connect → Transaction pooler, port **6543**), not the Session pooler one in
+your `.env`: serverless functions open many short connections, and the transaction pooler is made for that.
 Alternatively, run `npx vercel` from this folder.
 
 ## 4. Password and AI filter
 
-1. **Database:** run `scripts/db-migrate.sh`, which applies [`supabase/ai-filter.sql`](supabase/ai-filter.sql) and
-   [`supabase/scraping.sql`](supabase/scraping.sql) using `SUPABASE_DB_URL` from `.env`. You can also paste the file into Supabase → SQL Editor. Either way is safe to re-run.
-   It adds:
+1. **Database:** `npm run db:migrate` (step 1.2) has already added what the AI filter needs:
    - `offers.dup_key` (the same job on any board) and the `offers_unique` view: both tabs show each job once,
      with links to every board it was posted on;
    - `job_links` and `ai_dup_pairs`: duplicates the AI confirmed, and every pair it was asked about;
@@ -179,8 +182,97 @@ How the **AI filter** tab works:
   - Bars: how many are at each stage now, as % of all sent.
   - A stage × outcome table.
   - Click a tile, a funnel bar or a number to filter the list.
-- The table is `applications`, created by `scripts/db-migrate.sh`. When the AI merges duplicates, the mark, its
+- The table is `applications`, created by `npm run db:migrate`. When the AI merges duplicates, the mark, its
   status and the note move with the job (if both copies were marked, the notes are joined).
+
+## Database and migrations
+
+The tables are declared in [`lib/db/schema.ts`](lib/db/schema.ts) (Drizzle ORM); [`drizzle/`](drizzle) holds the
+migrations, applied in order and recorded in the database (`drizzle.__drizzle_migrations`), so each runs once.
+What Drizzle can't declare (extensions, the `offers_unique` view, the `jw_*` / `ai_*` functions, grants, `pg_cron`,
+the seed rows) is in its custom migrations, `0000_extensions`, `0002_functions` and `0003_seed`. Why Drizzle:
+[docs/decisions/0001-drizzle-over-postgrest.md](docs/decisions/0001-drizzle-over-postgrest.md).
+
+```bash
+npm run db:migrate    # apply the pending migrations to SUPABASE_DB_URL (from .env, or the shell)
+npm run db:generate   # after editing lib/db/schema.ts: write the migration for it, then read it and commit it
+npm run db:generate -- --custom --name=what   # an empty migration for SQL Drizzle can't express (a view, a function)
+npm run db:check      # the migration files are consistent with each other
+npm run db:verify     # the checks below, on two throwaway Docker databases (never yours)
+scripts/db-reset-local.sh postgresql://postgres:pw@localhost:5432/postgres   # wipe a LOCAL database and migrate it
+```
+
+- **Never `drizzle-kit push`.** It changes the database straight from `schema.ts`, without a migration file and
+  without a record of it, and it doesn't know about the view, the functions or the grants (they're not in
+  `schema.ts`), so it may try to drop or alter what they depend on. Change `schema.ts`, `npm run db:generate`,
+  read the file, `npm run db:migrate`.
+- **`npm run db:migrate`** ([`scripts/db-migrate.ts`](scripts/db-migrate.ts)) is drizzle-orm's migrator, the one
+  `drizzle-kit migrate` uses, run directly because drizzle-kit exits without saying why when a statement fails.
+  All pending migrations run in one transaction: if one fails, nothing changes.
+- **Which URL:** `npm run db:migrate` wants the **Session pooler** URI (port 5432; the migrator uses prepared
+  statements, which the transaction pooler doesn't keep). The app on Vercel uses the **Transaction pooler** (6543).
+  Both are under Supabase → Connect. TLS is added on its own (`sslmode=require`) for anything that isn't localhost;
+  that encrypts the connection but doesn't verify the server's certificate (add `sslmode=verify-full` and
+  `sslrootcert` to the URL for that).
+- **Is the database up to date?** `GET /api/health` (logged in) answers
+  `{ "db": "ok" | "behind" | "unreachable", "pending": ["0004_…"] }`, with status 503 unless it's "ok". "behind"
+  lists the migrations this deployment has and the database hasn't run. After a deploy with a new migration, run
+  `npm run db:migrate`.
+- **`npm run db:verify`** ([`scripts/db-verify-migrations.sh`](scripts/db-verify-migrations.sh)) starts two
+  `supabase/postgres` containers and checks that (a) a database set up by the SQL files used before Drizzle, then
+  used a little (offers, a merged job, an application, a profile, edited scrapers, Supabase Cron connected), is left
+  exactly as it was by `npm run db:migrate` (schema, and the rows in `public` and `cron`); (b) an empty database gets
+  the same schema from the migrations alone, every migration can run twice, and a view built on `offers_unique`
+  makes the migration fail and roll back instead of being dropped; (c) `schema.ts` and the migrations agree. With
+  `--from-dump file.sql`, (a) starts from a dump of production instead (next section). It refuses any database that
+  isn't on localhost (`bash scripts/lib-local-db.sh` tests that guard). It reads the old SQL files from git, so it
+  needs the full history (`git fetch --unshallow` in a shallow clone). Run it after changing a migration.
+- [`supabase/scripts/remove-duplicates.sql`](supabase/scripts/remove-duplicates.sql) is a one-off cleanup from
+  before the app de-duplicated jobs; kept for reference, not to be run.
+
+### Upgrading a database set up before Drizzle (once)
+
+Until now the schema came from `supabase/*.sql`, applied by `scripts/db-migrate.sh`. The migrations up to
+`0003_seed` are written to be no-ops on a database those files built, and `npm run db:verify` checks that on a copy
+built from the files. Your production database has its own history, though, so check it before migrating it.
+The commands below use `SUPABASE_DB_URL` from `.env` (the **Session pooler** URI, as the old scripts used):
+`set -a; . ./.env; set +a` first.
+
+1. **Back it up.** The dump holds your data, CV included: keep it out of git (`data/` is ignored).
+
+   ```bash
+   mkdir -p data
+   docker run --rm postgres:17-alpine pg_dump "$SUPABASE_DB_URL" -Fc > data/backup-before-drizzle.dump
+   ```
+
+2. **Pre-flight checks** (read-only; every row should say PASS):
+
+   ```bash
+   docker run --rm -i postgres:17-alpine psql "$SUPABASE_DB_URL" -X -q < scripts/db-preflight.sql
+   ```
+
+   [`scripts/db-preflight.sql`](scripts/db-preflight.sql) checks that the old files' last version ran (the
+   LinkedIn seed is recorded, the settings row exists, no `ai_filter` table from the first AI filter,
+   `ai_verdicts` keyed by job), that no migration ran yet (no `drizzle` schema), and that nothing but the app's
+   four functions is built on `offers_unique` (`0002_functions` drops and re-creates the view; anything else on
+   it, such as a view you made in the SQL Editor, would make the migration fail). A FAIL says what to do.
+
+3. **Optionally, rehearse on a copy:** dump the `public` schema and let `db:verify` start from it.
+
+   ```bash
+   docker run --rm postgres:17-alpine pg_dump "$SUPABASE_DB_URL" --schema=public > data/prod-public.sql
+   npm run db:verify -- --from-dump data/prod-public.sql
+   ```
+
+4. **Quiet the app while it runs:** Settings → ⏸ Pause scraping, and don't start AI checks. The migration
+   re-creates the `offers_unique` view and its functions, which takes locks those would wait on (or hold).
+5. **Vercel → Settings → Environment Variables:** add `SUPABASE_DB_URL` = the **Transaction pooler** URI
+   (Supabase → Connect → Transaction pooler, port **6543**, with the database password). Keep `SUPABASE_URL` and
+   `SUPABASE_SECRET_KEY` for now: parts of the app still use them.
+6. **`npm run db:migrate`**, once, locally. Everything runs in one transaction: if any statement fails, it prints
+   why and rolls back, and the database is as it was. On success it records the four migrations, so later ones
+   run normally.
+7. Redeploy, open `/api/health` (it should say `"db": "ok"`), and resume scraping in Settings.
 
 ## Notes
 

@@ -20,7 +20,7 @@ export async function sourceOptions(): Promise<SourceOption[]> {
     for (const r of rows) if (!(r.src in SOURCES) && !own.has(r.src)) own.set(r.src, BOARD_NAMES[r.src] ?? r.name);
     return [...builtIn, ...[...own].map(([id, label]) => ({ id, label }))];
   } catch {
-    return builtIn; // supabase/scraping.sql not run yet
+    return builtIn; // the migrations haven't run yet (npm run db:migrate)
   }
 }
 

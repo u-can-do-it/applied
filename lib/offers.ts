@@ -17,7 +17,7 @@ export type Offer = {
   first_seen: string;
   /** every board this job was posted on, earliest first */
   copies: Copy[];
-  /** the job's key (same for all its copies); missing before supabase/ai-filter.sql is run */
+  /** the job's key (same for all its copies); missing before the migrations have run */
   key: string | null;
   /** when you marked it applied */
   applied_at: string | null;
@@ -51,7 +51,7 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
     ai?: { profileId: string; version: number; rejected: boolean };
   };
 
-// offers_unique comes with supabase/ai-filter.sql; until it's run, fall back to the table
+// offers_unique comes with the migrations (drizzle/0002_functions.sql); until they've run, fall back to the table
 let viewMissing = false;
 // (HEAD responses have no body, so a missing view only shows as 404)
 const isMissingRelation = (e: unknown) =>

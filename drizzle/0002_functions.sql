@@ -1,104 +1,10 @@
--- App tables: AI filter (profiles, runs, verdicts, scraped ad text, duplicates) and applications.
--- Supabase -> SQL Editor -> paste -> Run (or: scripts/db-migrate.sh). Safe to re-run.
+-- Custom migration: what lib/db/schema.ts can't declare. The offers_unique view, the functions the
+-- app calls (PostgREST RPC until the queries move to Drizzle), and who may use them. Copied from
+-- supabase/ai-filter.sql and supabase/scraping.sql (the SQL files before Drizzle, in git history), and
+-- idempotent like them: the view and the functions that return its rows are dropped and created
+-- again (same definition, so nothing changes), the rest is `create or replace`.
 
-create schema if not exists extensions;
-create extension if not exists unaccent with schema extensions;
-create extension if not exists pg_trgm with schema extensions;   -- title similarity for AI duplicate candidates
--- the server key computes dup_key on insert (unaccent) and title similarity (pg_trgm) at query time;
--- Supabase grants this by default, a plain Postgres doesn't
-grant usage on schema extensions to service_role;
-
--- ---- 1. one key per job, whichever board it came from --------------------------------------
--- The job's key: company without legal suffix / country,
--- title without gender tags and ".js"; accents and punctuation ignored.
-create or replace function public.jw_unaccent(t text) returns text
-language sql immutable parallel safe set search_path = '' as $$
-  select extensions.unaccent('extensions.unaccent'::regdictionary, coalesce(t, ''))
-$$;
-
-create or replace function public.jw_dup_key(company text, title text) returns text
-language sql immutable parallel safe set search_path = '' as $$
-  select
-    regexp_replace(
-      regexp_replace(lower(public.jw_unaccent(company)),
-        '\y(sp\.?\s*z\.?\s*o\.?\s*o\.?|sp\.?\s*k\.?|sp\.?\s*j\.?|s\.?\s*a\.?|s\.?\s*c\.?|spolka\s+(z\s+ograniczona\s+odpowiedzialnoscia|akcyjna|komandytowa|jawna)|inc\.?|ltd\.?|llc|gmbh|s\.?r\.?o\.?|b\.?v\.?|polska|poland)(?=\W|$)',
-        ' ', 'g'),
-      '[^a-z0-9]+', '', 'g')
-    || '|' ||
-    regexp_replace(
-      regexp_replace(
-        regexp_replace(lower(public.jw_unaccent(title)),
-          '\(\s*([kmfdx]\s*/\s*[kmfdx](\s*/\s*[kmfdx])?|all genders?|any gender)\s*\)|\y[kmfdx]\s*/\s*[kmfdx](\s*/\s*[kmfdx])?\y',
-          ' ', 'g'),
-        '\.js\y', '', 'g'),
-      '[^a-z0-9]+', '', 'g')
-$$;
-
-alter table public.offers
-  add column if not exists dup_key text generated always as (public.jw_dup_key(company, title)) stored;
-create index if not exists offers_dup_key_idx on public.offers (dup_key, first_seen);
-
--- AI-confirmed duplicates whose keys differ ("Frontend Developer" vs "Front-end Engineer", "EPAM" vs
--- "EPAM Systems"): every key of a merged group points at the group's key (its earliest job).
-create table if not exists public.job_links (
-  dup_key    text        primary key,
-  job_key    text        not null,
-  created_at timestamptz not null default now()
-);
-create index if not exists job_links_job_key_idx on public.job_links (job_key);
-
--- every pair the AI has looked at, so no pair is ever asked twice
-create table if not exists public.ai_dup_pairs (
-  key_a      text        not null,
-  key_b      text        not null,
-  same       boolean     not null,
-  reason     text,
-  model      text,
-  decided_at timestamptz not null default now(),
-  primary key (key_a, key_b),
-  check (key_a < key_b)
-);
-
--- jobs you applied to; a snapshot of title / company / link, so the entry survives the offer row,
--- plus the complete ad text and its details (salary, location, contract, dates) saved when marked
-create table if not exists public.applications (
-  dup_key        text        primary key,      -- the job (see offers_unique)
-  src            text        not null,         -- the copy it was marked on
-  id             text        not null,
-  title          text        not null,
-  company        text,
-  url            text        not null,
-  applied_at     timestamptz not null default now(),
-  content        text,
-  details        jsonb,
-  content_status text        not null default 'pending' check (content_status in ('pending', 'ok', 'empty', 'failed')),
-  content_error  text,
-  scraped_at     timestamptz
-);
-create index if not exists applications_applied_at_idx on public.applications (applied_at desc);
-
--- where each application stands: the stage (submitted -> initial contact, id "invited" -> screening /
--- online test -> technical / hr -> offer) and its outcome; history keeps every change with its date
--- (for the timeline and the funnel)
-alter table public.applications add column if not exists stage text not null default 'submitted';
-alter table public.applications add column if not exists stage_state text not null default 'pending';
-alter table public.applications add column if not exists stage_updated_at timestamptz;
-alter table public.applications add column if not exists history jsonb not null default '[]';
-alter table public.applications drop constraint if exists applications_stage_check;
-alter table public.applications add constraint applications_stage_check
-  check (stage in ('submitted', 'invited', 'screening', 'technical', 'hr', 'offer'));
-alter table public.applications drop constraint if exists applications_stage_state_check;
-alter table public.applications add constraint applications_stage_state_check
-  check (stage_state in ('pending', 'passed', 'failed', 'ghosted', 'pool')); -- pool: "we'll keep your CV in our talent pool"
-update public.applications
-   set history = jsonb_build_array(jsonb_build_object('stage', 'submitted', 'state', 'pending', 'at', applied_at))
- where history = '[]'::jsonb;
-
--- your own notes about the application (recruiter's name, salary you asked for, next steps…)
-alter table public.applications add column if not exists note text;
-alter table public.applications add column if not exists note_updated_at timestamptz;
-alter table public.applications drop constraint if exists applications_note_length;
-alter table public.applications add constraint applications_note_length check (length(note) <= 10000);
+-- ---- applications: status changes ---------------------------------------------------------------
 
 -- one status change, appended to the history in the same statement
 create or replace function public.jw_set_application_status(p_key text, p_stage text, p_state text) returns void
@@ -108,6 +14,7 @@ language sql set search_path = '' as $$
          history = history || jsonb_build_array(jsonb_build_object('stage', p_stage, 'state', p_state, 'at', now()))
    where dup_key = p_key
 $$;
+--> statement-breakpoint
 
 -- No news for p_days since the last status change (or since applying): ghosted, at the same
 -- stage. Only what still waits for an answer: in progress, or passed and waiting for the next step
@@ -126,13 +33,21 @@ language sql set search_path = '' as $$
   )
   select count(*)::integer from stale
 $$;
+--> statement-breakpoint
 
--- derived objects are rebuilt on every run of this file (the functions below depend on the view)
+-- the view is dropped and created again, with the functions that read it. No `cascade` on the
+-- view: anything else built on it (a view made by hand) makes this fail and roll back instead of
+-- disappearing silently.
 drop function if exists public.ai_results(uuid, integer);
+--> statement-breakpoint
 drop function if exists public.ai_pending(uuid, integer, timestamptz, timestamptz);
+--> statement-breakpoint
 drop function if exists public.ai_range_stats(uuid, integer, timestamptz, timestamptz);
+--> statement-breakpoint
 drop function if exists public.ai_dup_candidates(timestamptz, timestamptz, integer);
-drop view if exists public.offers_unique cascade;
+--> statement-breakpoint
+drop view if exists public.offers_unique;
+--> statement-breakpoint
 
 -- Each job once: its earliest copy, plus every board it was posted on.
 -- dup_key here is the job's key: the offer's own key, or its group's after an AI merge.
@@ -152,82 +67,10 @@ from (
                rows between unbounded preceding and unbounded following)
 ) x
 where rn = 1;
+--> statement-breakpoint
 
--- ---- 2. profiles: criteria text + optional file (CV), one is "active" ------------------------
-create table if not exists public.ai_profiles (
-  id           uuid        primary key default gen_random_uuid(),
-  name         text        not null,
-  prompt       text        not null default '',
-  file_name    text,
-  file_text    text,                          -- text extracted from the uploaded PDF / TXT / MD
-  version      integer     not null default 1,  -- bumped when prompt or file change
-  last_used_at timestamptz not null default now(), -- the most recently used profile is the active one
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
-);
+-- ---- AI filter: queries the app calls (PostgREST RPC; filters/order/limit apply to their rows) ----
 
--- the first version of this feature had a single filter: keep it as a profile
-do $$
-begin
-  if to_regclass('public.ai_filter') is not null then
-    insert into public.ai_profiles (name, prompt, file_name, file_text)
-    select 'My profile', prompt, file_name, file_text from public.ai_filter
-    where coalesce(prompt, '') <> '' or file_text is not null;
-    drop table public.ai_filter;
-  end if;
-  if exists (select 1 from information_schema.columns
-             where table_schema = 'public' and table_name = 'ai_verdicts' and column_name = 'src') then
-    drop table public.ai_verdicts;
-  end if;
-end $$;
-
--- ---- 3. verdicts: per profile version and per job (not per copy) -----------------------------
-create table if not exists public.ai_verdicts (
-  profile_id      uuid        not null references public.ai_profiles (id) on delete cascade,
-  version         integer     not null,
-  dup_key         text        not null,       -- the job's key (see offers_unique)
-  match           boolean     not null,       -- fits the profile's criteria
-  score           integer     not null check (score between 0 and 100), -- skills fit, %
-  summary         text,
-  checks          jsonb       not null default '[]', -- [{ "item": "React 4+ yrs", "met": true }, ...]
-  had_description boolean     not null default false, -- false = judged on the title only
-  created_at      timestamptz not null default now(),
-  primary key (profile_id, version, dup_key)
-);
-
--- ---- 4. manual runs ("today", a date range): first duplicates, then the assessment -------------
-create table if not exists public.ai_runs (
-  id          uuid        primary key default gen_random_uuid(),
-  profile_id  uuid        not null references public.ai_profiles (id) on delete cascade,
-  version     integer     not null,
-  label       text        not null,
-  range_gte   timestamptz,
-  range_lt    timestamptz,
-  status      text        not null default 'running' check (status in ('running', 'done', 'failed', 'cancelled')),
-  total       integer     not null default 0,
-  done        integer     not null default 0,
-  error       text,
-  lock_until  timestamptz,                    -- one worker at a time
-  created_at  timestamptz not null default now(),
-  finished_at timestamptz
-);
-alter table public.ai_runs add column if not exists phase text not null default 'dedup';
-alter table public.ai_runs add column if not exists pairs_checked integer not null default 0;
-alter table public.ai_runs add column if not exists merged integer not null default 0;
-create index if not exists ai_runs_profile_idx on public.ai_runs (profile_id, created_at desc);
-
--- ---- 5. full ad text, scraped once per offer and reused by every profile ---------------------
-create table if not exists public.offer_details (
-  src         text        not null,
-  id          text        not null,
-  description text,
-  status      text        not null check (status in ('ok', 'empty')),
-  fetched_at  timestamptz not null default now(),
-  primary key (src, id),
-  foreign key (src, id) references public.offers (src, id) on delete cascade
-);
-
--- ---- 6. queries the app calls (PostgREST RPC; filters/order/limit apply to their rows) -------
 create or replace function public.ai_results(p_profile uuid, p_version integer)
 returns table (src text, id text, title text, company text, seniority text, remote boolean, url text,
                first_seen timestamptz, dup_key text, sources text[], copies jsonb, applied_at timestamptz,
@@ -239,6 +82,7 @@ language sql stable set search_path = '' as $$
   join public.ai_verdicts v on v.dup_key = u.dup_key
   where v.profile_id = p_profile and v.version = p_version
 $$;
+--> statement-breakpoint
 
 create or replace function public.ai_pending(p_profile uuid, p_version integer,
                                              p_gte timestamptz default null, p_lt timestamptz default null)
@@ -250,6 +94,7 @@ language sql stable set search_path = '' as $$
     and not exists (select 1 from public.ai_verdicts v
                     where v.profile_id = p_profile and v.version = p_version and v.dup_key = u.dup_key)
 $$;
+--> statement-breakpoint
 
 create or replace function public.ai_range_stats(p_profile uuid, p_version integer,
                                                  p_gte timestamptz default null, p_lt timestamptz default null)
@@ -261,6 +106,7 @@ language sql stable set search_path = '' as $$
     on v.dup_key = u.dup_key and v.profile_id = p_profile and v.version = p_version
   where (p_gte is null or u.first_seen >= p_gte) and (p_lt is null or u.first_seen < p_lt)
 $$;
+--> statement-breakpoint
 
 -- Pairs worth asking the AI about: a job in the range vs any job up to 45 days apart, same
 -- company (or one name a prefix of the other: "EPAM" / "EPAM Systems"), similar title, keys
@@ -310,6 +156,7 @@ language sql stable set search_path = '' as $$
   join jobs a on a.job_key = least(t.ka, t.kb)
   join jobs b on b.job_key = greatest(t.ka, t.kb)
 $$;
+--> statement-breakpoint
 
 -- Makes p_alias's group part of p_keep's group. Verdicts follow: the kept group's stay, the
 -- alias's are adopted where the kept group had none for that profile version.
@@ -333,35 +180,212 @@ begin
    where k.dup_key = p_keep and a.dup_key = p_alias and a.note is not null and a.note is distinct from k.note;
   delete from public.applications where dup_key = p_alias;
 end $$;
+--> statement-breakpoint
 
--- ---- 7. access: only the server's secret key (the CV lives here) -----------------------------
-alter table public.ai_profiles enable row level security;
-alter table public.ai_verdicts enable row level security;
-alter table public.ai_runs enable row level security;
-alter table public.offer_details enable row level security;
-alter table public.job_links enable row level security;
-alter table public.ai_dup_pairs enable row level security;
-alter table public.applications enable row level security;
+-- ---- scraping --------------------------------------------------------------------------------
+
+-- Saves what a run found. Returns only the rows that were really new, each with whether the same
+-- job (same company + title, any board) was already known. The subquery can't see the rows this
+-- statement inserts, so "seen_before" means "before this run".
+create or replace function public.jw_ingest_offers(p_rows jsonb)
+returns table (src text, id text, dup_key text, seen_before boolean)
+language sql set search_path = '' as $$
+  with incoming as (
+    select distinct on (x.src, x.id) x.*
+    from jsonb_to_recordset(p_rows) as x(src text, id text, title text, company text, seniority text, remote boolean, url text)
+    where x.src is not null and x.id is not null and x.url is not null
+  ),
+  ins as (
+    insert into public.offers (src, id, title, company, seniority, remote, url)
+    select i.src, i.id, coalesce(nullif(i.title, ''), '(no title)'), nullif(i.company, ''), nullif(i.seniority, ''),
+           coalesce(i.remote, false), i.url
+    from incoming i
+    on conflict (src, id) do nothing
+    returning offers.src, offers.id, offers.dup_key
+  )
+  select ins.src, ins.id, ins.dup_key,
+         exists (select 1 from public.offers o where o.dup_key = ins.dup_key) as seen_before
+  from ins
+$$;
+--> statement-breakpoint
+
+-- one run at a time; a crashed run frees the lock when it expires
+create or replace function public.jw_scrape_lock(p_seconds integer) returns boolean
+language sql set search_path = '' as $$
+  with got as (
+    update public.scrape_state set locked_until = now() + make_interval(secs => p_seconds), last_run_at = now()
+     where id and (locked_until is null or locked_until < now())
+    returning 1
+  )
+  select exists (select 1 from got)
+$$;
+--> statement-breakpoint
+
+create or replace function public.jw_source_counts()
+returns table (src text, offers bigint, newest timestamptz)
+language sql stable set search_path = '' as $$
+  select o.src, count(*), max(o.first_seen) from public.offers o group by o.src
+$$;
+--> statement-breakpoint
+
+-- Supabase Cron: calls the app on the schedule Settings makes (lib/scraping/cron.ts: the interval,
+-- within the hours, in UTC) and is switched off while scraping is paused; the app still decides
+-- whether a run is due. Called from Settings with the app's URL and secret, and again whenever the
+-- interval, the hours, the time zone or the pause change (jw_cron_reschedule).
+drop function if exists public.jw_cron_connect(text, text);
+--> statement-breakpoint
+create or replace function public.jw_cron_connect(p_url text, p_secret text, p_schedule text default '*/5 * * * *', p_active boolean default true)
+returns text language plpgsql security definer set search_path = '' as $$
+declare
+  id bigint;
+begin
+  if to_regnamespace('cron') is null then return 'pg_cron is not enabled (Supabase → Integrations → Cron)'; end if;
+  if to_regnamespace('net') is null then return 'pg_net is not enabled (Supabase → Database → Extensions)'; end if;
+  id := cron.schedule('jobwatch-scrape', p_schedule, format(
+    'select net.http_get(url := %L, headers := jsonb_build_object(%L, %L), timeout_milliseconds := 20000)',
+    p_url, 'Authorization', 'Bearer ' || p_secret));
+  perform cron.alter_job(id, active := p_active);
+  -- cron keeps every run's details forever; keep a week
+  perform cron.schedule('jobwatch-cron-cleanup', '17 3 * * *',
+    $c$delete from cron.job_run_details where end_time < now() - interval '7 days'$c$);
+  return 'ok';
+end $$;
+--> statement-breakpoint
+
+-- the connected job's new schedule, or off / on again; 'not connected' if there's none
+create or replace function public.jw_cron_reschedule(p_schedule text, p_active boolean) returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  id bigint;
+begin
+  if to_regnamespace('cron') is null then return 'not connected'; end if;
+  select j.jobid into id from cron.job j where j.jobname = 'jobwatch-scrape';
+  if not found then return 'not connected'; end if;
+  perform cron.alter_job(id, schedule := p_schedule, active := p_active);
+  return 'ok';
+end $$;
+--> statement-breakpoint
+
+create or replace function public.jw_cron_disconnect() returns text
+language plpgsql security definer set search_path = '' as $$
+begin
+  if to_regnamespace('cron') is null then return 'pg_cron is not enabled'; end if;
+  perform cron.unschedule(jobid) from cron.job where jobname in ('jobwatch-scrape', 'jobwatch-cron-cleanup');
+  return 'ok';
+end $$;
+--> statement-breakpoint
+
+-- what Settings shows: is the job there, and how did its last call go (and what the app said)
+create or replace function public.jw_cron_status() returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  job record;
+  res record;
+  out jsonb;
+begin
+  if to_regnamespace('cron') is null then return jsonb_build_object('available', false); end if;
+  select j.jobid, j.schedule, j.active, j.command into job from cron.job j where j.jobname = 'jobwatch-scrape';
+  if not found then return jsonb_build_object('available', true, 'scheduled', false); end if;
+  out := jsonb_build_object('available', true, 'scheduled', true, 'schedule', job.schedule, 'active', job.active,
+    -- the URL it calls, without the secret
+    'url', substring(job.command from 'url := ''([^'']+)'''));
+  begin
+    -- pg_net keeps responses for a few hours; ours are the ones that came back from /api/cron/scrape
+    select r.status_code, r.error_msg, r.created, r.content into res
+      from net._http_response r
+     where r.content like '%"jobwatch"%' or r.error_msg is not null
+     order by r.created desc limit 1;
+    if found then
+      out := out || jsonb_build_object('lastStatus', res.status_code, 'lastError', res.error_msg, 'lastAt', res.created);
+      begin -- {"jobwatch": "skipped", "reason": "outside 7:00–22:00 …"} or "started"
+        out := out || jsonb_build_object('lastResult', res.content::jsonb ->> 'jobwatch', 'lastReason', res.content::jsonb ->> 'reason');
+      exception when others then null;
+      end;
+    end if;
+  exception when others then null; -- no access to pg_net's table: show the job only
+  end;
+  return out;
+end $$;
+--> statement-breakpoint
+
+-- ---- access: only the server's secret key (the CV lives here) -----------------------------------
+-- RLS is on for every table with no policies (0001_baseline.sql): the anon / publishable key can't
+-- read or write anything; the server's secret key bypasses RLS.
 
 grant select, insert, update, delete on public.ai_profiles, public.ai_verdicts, public.ai_runs,
   public.offer_details, public.job_links, public.ai_dup_pairs, public.applications to service_role;
+--> statement-breakpoint
 grant select on public.offers to service_role;
+--> statement-breakpoint
 revoke all on public.offers_unique from anon, authenticated;
+--> statement-breakpoint
 grant select on public.offers_unique to service_role;
+--> statement-breakpoint
 
 revoke execute on function public.ai_results(uuid, integer) from public, anon, authenticated;
+--> statement-breakpoint
 revoke execute on function public.ai_pending(uuid, integer, timestamptz, timestamptz) from public, anon, authenticated;
+--> statement-breakpoint
 revoke execute on function public.ai_range_stats(uuid, integer, timestamptz, timestamptz) from public, anon, authenticated;
+--> statement-breakpoint
 revoke execute on function public.ai_dup_candidates(timestamptz, timestamptz, integer) from public, anon, authenticated;
+--> statement-breakpoint
 revoke execute on function public.jw_merge_jobs(text, text) from public, anon, authenticated;
+--> statement-breakpoint
 revoke execute on function public.jw_set_application_status(text, text, text) from public, anon, authenticated;
+--> statement-breakpoint
 revoke execute on function public.jw_ghost_stale_applications(integer) from public, anon, authenticated;
+--> statement-breakpoint
 grant execute on function public.ai_results(uuid, integer) to service_role;
+--> statement-breakpoint
 grant execute on function public.ai_pending(uuid, integer, timestamptz, timestamptz) to service_role;
+--> statement-breakpoint
 grant execute on function public.ai_range_stats(uuid, integer, timestamptz, timestamptz) to service_role;
+--> statement-breakpoint
 grant execute on function public.ai_dup_candidates(timestamptz, timestamptz, integer) to service_role;
+--> statement-breakpoint
 grant execute on function public.jw_merge_jobs(text, text) to service_role;
+--> statement-breakpoint
 grant execute on function public.jw_set_application_status(text, text, text) to service_role;
+--> statement-breakpoint
 grant execute on function public.jw_ghost_stale_applications(integer) to service_role;
+--> statement-breakpoint
+
+grant select, insert, update, delete on public.scrapers, public.scrape_settings, public.scrape_state,
+  public.scrape_runs, public.notify_queue to service_role;
+--> statement-breakpoint
+grant insert on public.offers to service_role;
+--> statement-breakpoint
+grant usage, select on all sequences in schema public to service_role;
+--> statement-breakpoint
+
+revoke execute on function public.jw_ingest_offers(jsonb) from public, anon, authenticated;
+--> statement-breakpoint
+revoke execute on function public.jw_scrape_lock(integer) from public, anon, authenticated;
+--> statement-breakpoint
+revoke execute on function public.jw_source_counts() from public, anon, authenticated;
+--> statement-breakpoint
+revoke execute on function public.jw_cron_connect(text, text, text, boolean) from public, anon, authenticated;
+--> statement-breakpoint
+revoke execute on function public.jw_cron_reschedule(text, boolean) from public, anon, authenticated;
+--> statement-breakpoint
+revoke execute on function public.jw_cron_disconnect() from public, anon, authenticated;
+--> statement-breakpoint
+revoke execute on function public.jw_cron_status() from public, anon, authenticated;
+--> statement-breakpoint
+grant execute on function public.jw_ingest_offers(jsonb) to service_role;
+--> statement-breakpoint
+grant execute on function public.jw_scrape_lock(integer) to service_role;
+--> statement-breakpoint
+grant execute on function public.jw_source_counts() to service_role;
+--> statement-breakpoint
+grant execute on function public.jw_cron_connect(text, text, text, boolean) to service_role;
+--> statement-breakpoint
+grant execute on function public.jw_cron_reschedule(text, boolean) to service_role;
+--> statement-breakpoint
+grant execute on function public.jw_cron_disconnect() to service_role;
+--> statement-breakpoint
+grant execute on function public.jw_cron_status() to service_role;
+--> statement-breakpoint
 
 notify pgrst, 'reload schema';

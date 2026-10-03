@@ -22,7 +22,7 @@ type Kind = {
   /** the built-in boards: a fixed parser and a fixed src, so their offers keep matching the database */
   src?: string;
   hint: string;
-  /** a new scraper of this kind starts with this search (the same as supabase/scraping.sql seeds) */
+  /** a new scraper of this kind starts with this search (the same as the seeds in drizzle/0003_seed.sql) */
   defaults?: Pick<ScraperConfig, 'url' | 'pages' | 'headers' | 'checkKeyword' | 'checkLocation'>;
 };
 

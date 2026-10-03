@@ -3,7 +3,7 @@ import { storedSettingsSchema } from '../shared/schemas/settings';
 import { rest, restUrl, rpcUrl } from '../supabase';
 import { isKind, type ScrapeSettings, type Scraper, type ScraperConfig } from './kinds';
 
-// Database side of scraping (supabase/scraping.sql).
+// Database side of scraping (the scrapers, scrape_* and notify_queue tables in lib/db/schema.ts).
 
 const SCRAPER_COLS =
   'id,position,name,src,kind,enabled,config,mark,last_run_at,last_status,last_found,last_kept,last_new,last_error,last_ms';

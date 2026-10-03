@@ -48,7 +48,7 @@ async function Settings() {
   } catch (e) {
     return (
       <div className="notice">
-        <strong>Can’t load the scraping settings.</strong> Did you run <code>scripts/db-migrate.sh</code>?
+        <strong>Can’t load the scraping settings.</strong> Did you run <code>npm run db:migrate</code>?
         <code>{message(e)}</code>
       </div>
     );

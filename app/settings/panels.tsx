@@ -315,7 +315,7 @@ function CronBox({
       <div className="cron-box">
         <p className="small">
           Supabase Cron isn’t enabled in the database{cron.error ? ` (${cron.error})` : ''}. Run{' '}
-          <code className="inline">scripts/db-migrate.sh</code> (it turns on pg_cron and pg_net), or enable Cron under
+          <code className="inline">npm run db:migrate</code> (it turns on pg_cron and pg_net), or enable Cron under
           Integrations in Supabase.
         </p>
       </div>
