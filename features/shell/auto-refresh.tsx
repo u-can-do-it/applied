@@ -1,7 +1,8 @@
 'use client';
 
+import { useQuery, type Query } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useTransition } from 'react';
 import { cn } from '@/lib/shared/cn';
 
 const EVERY_MS = 60_000; // scraping runs every 5 min at most, so asking once a minute is plenty
@@ -9,64 +10,60 @@ const ON_RETURN_MS = 15_000; // back in the browser tab: ask right away if the l
 
 const timeLabel = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-// For the whole visit (every page's header shares them): the data version the pages show, and
-// when the server was last asked.
-let known: string | null = null;
-let lastCheck = 0;
-
-async function serverVersion(): Promise<string | null> {
-  try {
-    const res = await fetch('/api/changes', { cache: 'no-store' });
-    return res.ok ? ((await res.json()) as { v: string }).v : null;
-  } catch {
-    return null; // offline, or logged out: next time
-  }
+async function serverVersion(): Promise<string> {
+  const res = await fetch('/api/changes', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`); // logged out: next time
+  return ((await res.json()) as { v: string }).v;
 }
+
+/** when the server was last asked (answered or not) */
+const lastAsked = (query: Query<string>) => Math.max(query.state.dataUpdatedAt, query.state.errorUpdatedAt);
+/** asks again on mount / on coming back only if the last answer is older than `ms` */
+const olderThan = (ms: number) => (query: Query<string>) => (Date.now() - lastAsked(query) > ms ? 'always' : false);
+/**
+ * A minute after the server was last asked, by whichever page. A page's timer starts when it's
+ * opened: counting a whole minute from there would wait up to two after the last check.
+ */
+const untilDue = (query: Query<string>) => {
+  const asked = lastAsked(query);
+  return asked ? Math.max(1000, EVERY_MS - (Date.now() - asked)) : EVERY_MS;
+};
 
 // Keeps the page current without loading it again on every visit. A page you go back to comes
 // from the client cache (staleTimes in next.config), so switching tabs is instant. While the tab
 // is visible, the server is asked once a minute whether anything changed (lib/changes.ts); only
 // then router.refresh() brings the new data into this page, in place (its <Suspense> keys stay,
 // so no skeleton). That refresh also drops the other pages from the cache: they load fresh once.
+//
+// The data version is one query for the whole visit (every page's header shares it): the minute is
+// the visit's, not the page's, and a page opened within it doesn't ask again.
 export function AutoRefresh() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [checkedAt, setCheckedAt] = useState<number | null>(null);
+  const { data: version, dataUpdatedAt } = useQuery({
+    queryKey: ['data-version'],
+    queryFn: serverVersion,
+    refetchInterval: untilDue, // while the tab is visible
+    refetchOnMount: olderThan(EVERY_MS),
+    refetchOnWindowFocus: olderThan(ON_RETURN_MS), // the tab shown again
+    refetchOnReconnect: 'always', // back online
+  });
 
+  // The version this page shows. A new one from the server refreshes the page; the first one (the
+  // visit's first page) or the one the page had when it was shown (another page, or this one coming
+  // back) is only learnt.
+  const shows = useRef<string | undefined>(undefined);
   useEffect(() => {
-    let shown = true; // false once the page is left (it stays mounted, hidden, for going back)
-    const check = async () => {
-      lastCheck = Date.now();
-      const version = await serverVersion();
-      if (!shown || version === null) return;
-      if (known !== null && version !== known) startTransition(() => router.refresh());
-      known = version;
-      setCheckedAt(lastCheck);
-    };
-    const due = (ms: number) => document.visibilityState === 'visible' && Date.now() - lastCheck > ms;
-
-    // the visit's first page: learn the version it shows; another one: ask only if it's been a minute
-    if (due(known === null ? 0 : EVERY_MS)) void check();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- module state shared by the visit's pages; not known while rendering on the server
-    else setCheckedAt(lastCheck || null);
-
-    // a ticker rather than a 60 s interval: each page restarts this, but the minute is the visit's
-    const id = setInterval(() => {
-      if (due(EVERY_MS)) void check();
-    }, 5_000);
-    const onVisible = () => {
-      if (due(ON_RETURN_MS)) void check();
-    };
-    const onOnline = () => void check();
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', onOnline);
-    return () => {
-      shown = false;
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', onOnline);
-    };
-  }, [router]);
+    if (version === undefined) return;
+    if (shows.current !== undefined && version !== shows.current) startTransition(() => router.refresh());
+    shows.current = version;
+  }, [version, router]);
+  useEffect(
+    () => () => {
+      shows.current = undefined; // left (it stays mounted, hidden, for going back)
+    },
+    [],
+  );
 
   return (
     <p
@@ -74,7 +71,7 @@ export function AutoRefresh() {
       aria-live="polite"
     >
       <span className={cn('size-[7px] rounded-full bg-success', pending && 'animate-pulse')} aria-hidden="true" />
-      {checkedAt === null ? 'Live' : pending ? 'Updating…' : `Updated ${timeLabel.format(checkedAt)}`}
+      {!dataUpdatedAt ? 'Live' : pending ? 'Updating…' : `Updated ${timeLabel.format(dataUpdatedAt)}`}
     </p>
   );
 }

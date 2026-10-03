@@ -15,7 +15,7 @@ const badgeVariants = cva(
         outline: 'border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground',
         ghost: 'hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50',
         link: 'text-primary underline-offset-4 hover:underline',
-        // the app's: a board or a scraper's kind; an application's outcome (applied-list.tsx); an AI fit
+        // the app's: a board or a scraper's kind; an application's outcome (features/applications/status-chip.tsx); an AI fit
         quiet:
           'border-border font-normal text-muted-foreground [a]:hover:border-muted-foreground [a]:hover:text-foreground',
         brand: 'border-brand text-brand',

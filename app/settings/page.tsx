@@ -19,8 +19,9 @@ import { Tabs, TabsFallback } from '@/features/shell/tabs';
 import { LoadError } from '@/components/load-error';
 import { TimeZone } from '@/components/time-zone';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FiltersPanel, SchedulePanel } from '@/features/scraping/panels';
-import { ScrapersPanel } from '@/features/scraping/scrapers';
+import { FiltersPanel } from '@/features/scraping/filters-panel';
+import { SchedulePanel } from '@/features/scraping/schedule-panel';
+import { ScrapersPanel } from '@/features/scraping/scrapers-panel';
 import { TelegramPanel } from '@/features/telegram/telegram-panel';
 
 export const metadata: Metadata = { title: 'Jobwatch · Settings' };

@@ -93,6 +93,9 @@ export function timeZones(): string[] {
   return ['UTC', ...all.filter((name) => name !== 'UTC')];
 }
 
+/** A zone as people read it: "America/New_York" -> "America/New York" */
+export const zoneName = (tz: string) => tz.replaceAll('_', ' ');
+
 /** This device's zone (in the browser: the browser's). */
 export function deviceTimeZone(): string {
   try {

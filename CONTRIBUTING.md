@@ -16,10 +16,19 @@ database code or the migrations; it needs Docker).
   "Scrape now" button), `telegram` (its Settings panel), `login`, and `shell` (the header, tabs, auto-refresh,
   telling the server the browser's time zone). A feature imports another's module by its `@/features/…` path.
 - **`components/`: pieces more than one feature uses** (`DateInput`, `TimeZone` / `useZone`, `useAction`,
-  `useConfirm()` for "are you sure?", `useReturnFocus()` for a dialog opened from code, `Field` / `CheckField` /
-  `Code`, `LoadError`, the search box's classes). They import nothing from `features/`. **`components/ui/`** holds the shadcn/ui components,
+  `useConfirm()` for "are you sure?", `useReturnFocus()` for a dialog opened from code, `useAutosave()` for a
+  field that saves itself, `useRefreshWhile()` for a page that refreshes while the server works, `Field` /
+  `CheckField` / `Code`, `LoadError`, the search box's classes, `QueryProvider`). They import nothing from `features/`. **`components/ui/`** holds the shadcn/ui components,
   added with `npx shadcn@latest add <name>` (`components.json` says where things go) and then the repo's own
   code: edit them like any other file.
+- **One component per file**, named after it, about 200 lines at most; a hook or helper that only it uses
+  stays in its file. ESLint's `max-lines` (300, blank lines and comments not counted) stops a file growing
+  into a god component.
+- **Reading data:** server components, and server actions for every change. A read the browser repeats on
+  its own (an application's ad text while it's fetched, AutoRefresh's "anything new?") is a TanStack Query
+  `useQuery` with its `refetchInterval`; a page whose server-rendered data moves while the server works
+  (pending ad texts in the list, an AI run) uses `useRefreshWhile()` instead, since the refresh is what
+  brings that data.
 - **`server/`: the request's gate.** The login cookie (`auth.ts`), `requireLogin()` (`session.ts`) and the
   action wrapper (`action.ts`).
 - **`lib/`: what the app knows, without the UI.** Boards, listings and the scrape pipeline, ads, AI, the

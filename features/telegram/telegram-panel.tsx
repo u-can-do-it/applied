@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import type { BotInfo } from '@/lib/telegram';
 import { cn } from '@/lib/shared/cn';
+import { PANEL, SMALL } from '@/features/scraping/panel-styles';
 import {
   sendQueueAction,
   setAiFilterAction,
@@ -19,10 +20,7 @@ import {
   telegramTestAction,
 } from './actions';
 
-// The Telegram panel in Settings. Its buttons behave like the other panels' (features/scraping/panels.tsx).
-
-const PANEL = 'mb-3.5 gap-2.5 py-3.5';
-const SMALL = 'my-1.5 text-xs';
+// The Telegram panel in Settings. Its buttons behave like the other panels' (features/scraping/use-server-form.ts).
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (

@@ -1,9 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
+import { startTransition, useRef, useState, useTransition } from 'react';
 import { CheckIcon, ChevronDownIcon, SparklesIcon, TriangleAlertIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRefreshWhile } from '@/components/use-refresh-while';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,7 +48,6 @@ export function AiControls({
   aiConfigured: boolean;
   models: { assess: { model: string; effort: string }; dedup: { model: string; effort: string } };
 }) {
-  const router = useRouter();
   const dialog = useRef<{ open: () => void }>(null);
   const [starting, start] = useTransition();
   const [error, setError] = useState<string | null>(null); // why a run didn't start
@@ -56,12 +55,9 @@ export function AiControls({
   const usable = Boolean(active && (active.prompt.trim() || active.fileName));
   const running = run?.status === 'running' && !run.stale;
 
-  // while a run is open, refresh so new verdicts show up and the next slice gets started
-  useEffect(() => {
-    if (!running) return;
-    const timer = setTimeout(() => router.refresh(), 4000);
-    return () => clearTimeout(timer);
-  }, [running, run?.done, run?.pairsChecked, run?.phase, router]);
+  // while a run is open, refresh every 4 s so new verdicts show up and the next slice gets started
+  // (the page does that), also when one refresh brings no progress
+  useRefreshWhile(running, 4000, run);
 
   const runFor = (input: { days?: string; from?: string; to?: string }) => {
     if (!activeId) return; // the buttons show only with a usable profile
