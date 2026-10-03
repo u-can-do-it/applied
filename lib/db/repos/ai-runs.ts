@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, desc, eq, getTableColumns, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { db } from '../client';
 import { first } from '../rows';
 import { aiProfiles, aiRuns, type AiRunRow } from '../schema';
@@ -31,6 +31,18 @@ export function recent(limit = 10): Promise<RunWithProfile[]> {
     .innerJoin(aiProfiles, eq(aiProfiles.id, aiRuns.profileId))
     .orderBy(desc(aiRuns.createdAt))
     .limit(limit);
+}
+
+/** For patch(): only while the run is still open. */
+export const isRunning = eq(aiRuns.status, 'running');
+
+/** Open runs no slice is working on (no lock, or one that ran out by `now`), oldest first. */
+export function waiting(now: string): Promise<Pick<Run, 'id'>[]> {
+  return db()
+    .select({ id: aiRuns.id })
+    .from(aiRuns)
+    .where(and(eq(aiRuns.status, 'running'), or(isNull(aiRuns.lockUntil), lt(aiRuns.lockUntil, now))))
+    .orderBy(asc(aiRuns.createdAt));
 }
 
 export async function insert(run: NewRun): Promise<Run> {

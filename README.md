@@ -49,7 +49,7 @@ All of it is set up in **Settings**; what it did is on the **Activity** tab. Eac
 - **Activity:** the scrape runs (filter by what started them, or the ones with errors; open one to see how many new
   offers each board gave and what failed), each scraper's last result, the Telegram queue, Supabase Cron's last
   call, and the AI runs (their two steps, Duplicates → Assessment, with counts, the profile version, and whether
-  one is paused until the AI tab is opened again).
+  one is paused between two slices).
 - **Scrapers:** the six built-in boards, each with its own parser (an offer keeps its id and link, so nothing gets
   duplicated), and LinkedIn's public job search (no login; two searches: Warszawa, and remote in
   Poland). LinkedIn's search isn't sorted by date, so its searches take what was posted in the last hour
@@ -144,8 +144,10 @@ How the **AI filter** tab works:
 - **What you see per offer:** match yes/no, a 0–100 % skills fit and a met/missing checklist of key requirements in
   the (i) tooltip. "show N rejected" lists what didn't match.
 - **Background work:** runs execute in `after()` in slices of about 3 minutes under a lock (Vercel's 300 s limit).
-  While a run is open, the page refreshes and starts the next slice, so a long run continues as long as the tab
-  stays open.
+  The next slice is started by whichever comes first: Supabase Cron's next call to `/api/cron/scrape` (after that
+  call's scrape, in the time the function has left) or the AI tab (it starts one on every load and refresh while a
+  run is open). The lock lets only one of them work on a run, and no tab needs to stay open. With scraping paused
+  (no Supabase Cron calls) or Supabase Cron not connected, a run still continues only while the AI tab is open.
 
 ## 5. Applied offers
 
@@ -241,8 +243,8 @@ scripts/db-reset-local.sh postgresql://postgres:pw@localhost:5432/postgres   # w
   Most are plain Drizzle. What is SQL by nature is called with the `sql` tag: the `offers_unique` view (queried
   like a table), `ai_dup_candidates` (trigram similarity), `jw_ingest_offers`, `jw_merge_jobs`, `jw_dup_key` and
   the Supabase Cron functions. `jw_set_application_status`, `jw_ghost_stale_applications`, `jw_scrape_lock`,
-  `jw_source_counts`, `ai_results`, `ai_pending` and `ai_range_stats` are no longer called (those queries are in
-  TypeScript now) but are still in the database; a later migration drops them.
+  `jw_source_counts`, `ai_results`, `ai_pending` and `ai_range_stats` were the PostgREST-era functions for queries
+  that are in TypeScript now; `0005_drop_unused_functions` drops them.
 - **Timeouts:** each connection asks for `statement_timeout` 30 s and `lock_timeout` 10 s. Supabase's
   transaction pooler may not pass those on (see the ADR); check with `show statement_timeout` through the
   6543 URI, and if it says `0`, set them on the database role instead (the ADR has the two statements).
@@ -302,6 +304,26 @@ The commands below use `SUPABASE_DB_URL` from `.env` (the **Session pooler** URI
 8. **Remove `SUPABASE_URL` and `SUPABASE_SECRET_KEY`** from Vercel and from your `.env`: nothing reads them any
    more. The secret key itself can then be deleted in Supabase (Project Settings → API Keys), since the app no
    longer uses Supabase's REST API.
+
+## Logs and outbound requests
+
+- **Logs:** the server writes one JSON line per event (`lib/log.ts`: `ts`, `level`, `msg`, and what it's about:
+  `runId`, `scrapeRunId`, `scraper`, `jobId`, `route`…), on stdout for `info` and stderr for `warn` / `error`. On
+  Vercel they're in the project's **Logs** (Runtime Logs; filter by level, or search for a `runId`), kept for a short
+  while on the free plan. That's where to look for what failed after an answer was sent (`after()`: the AI check and
+  Telegram after a scrape, an AI run's slice, an ad text being fetched) and for each scraper's failure. A log line
+  never has a secret in it: values under keys like `token`, `secret`, `password` or `authorization`, the configured
+  secrets themselves (the database URL, the bot token, the OpenAI key, `APP_PASSWORD`, `CRON_SECRET`), a URL's
+  password and its token-like query parameters are replaced with `[redacted]`, and a failed query is logged by its
+  cause, never its SQL or its values.
+- **Outbound requests** (scrapers' pages, ads, "Fill in from the link") go through `lib/outbound.ts`. In production
+  only http(s), and never the server's own network: a link's host is resolved and refused if any of its addresses is
+  private, loopback, link-local (the cloud metadata service), CGNAT, multicast, unspecified or reserved, IPv6 forms
+  that embed such an IPv4 address included (`[::ffff:7f00:1]`, decimal / hex / octal IPv4 are normalised first).
+  Redirects are followed by the app, at most 5 hops, each one checked the same way (an `Authorization` or `Cookie`
+  header isn't sent on to another site), and the connection itself only goes to an address that passed the check,
+  so a name that answers differently the second time (DNS rebinding) is refused too. A dev server (`npm run dev`)
+  may read localhost.
 
 ## Notes
 

@@ -20,6 +20,7 @@ import { boardIdOf, boardOf, cleanLink } from '@/lib/boards';
 import { env } from '@/lib/env';
 import { extractJob, type ExtractedJob } from '@/lib/ai/openai';
 import { readJobPage } from '@/lib/ads';
+import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import {
   addApplicationSchema,
@@ -36,10 +37,18 @@ import { appZone } from '@/lib/time-zone';
 
 // ---- applications --------------------------------------------------------------------
 
+/** saveContent() after the answer: what fails there is logged, nobody waits for it */
+const saveContentLater = (jobId: string) =>
+  after(() =>
+    saveContent(jobId).catch((error: unknown) => {
+      log.error('Saving the ad text failed', { jobId, error });
+    }),
+  );
+
 /** Marks the job applied and saves its complete ad text in the background. */
 export const applyAction = action(applySchema, async ({ jobId, src, id }) => {
   await markApplied(jobId, { src, id });
-  after(() => saveContent(jobId));
+  saveContentLater(jobId);
   refresh();
 });
 
@@ -161,7 +170,7 @@ export const addApplicationAction = action(addApplicationSchema, async (form) =>
   if (added.error) throw new Error(added.error);
   // less than a full ad (80 chars) and a link: fetch it after the answer, like "Mark applied" does (what you typed stays)
   const jobId = added.jobId;
-  if (added.fetch && jobId) after(() => saveContent(jobId));
+  if (added.fetch && jobId) saveContentLater(jobId);
   refresh();
   return { jobId };
 });
@@ -186,7 +195,7 @@ export const updateApplicationAction = action(updateApplicationSchema, async ({ 
   if (updated.error || !updated.app) throw new Error(updated.error ?? 'This application no longer exists.');
   const saved = updated.app.jobId;
   // what you typed stays over what the board says (details.typed)
-  if (updated.fetch) after(() => saveContent(saved));
+  if (updated.fetch) saveContentLater(saved);
   refresh();
   return updated.app;
 });

@@ -5,6 +5,7 @@ import * as queueRepo from '../../db/repos/notify-queue';
 import * as settingsRepo from '../../db/repos/scrape-settings';
 import * as stateRepo from '../../db/repos/scrape-state';
 import { env } from '../../env';
+import { log } from '../../log';
 import { message } from '../../shared/errors';
 import { formatNotification, sendMessage, type Outgoing } from '../../telegram';
 import { aiProfile } from './ai-filter';
@@ -82,7 +83,14 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
     } catch (sendError) {
       // back into the queue with their own time, so they're tried again (and still count as waiting)
       const left = new Set(messages.slice(i).flatMap((unsent) => unsent.offers.map(offerKey)));
-      await queueRepo.enqueue(claimed.filter((row) => left.has(offerKey(row)))).catch(() => {});
+      const unsent = claimed.filter((row) => left.has(offerKey(row)));
+      await queueRepo.enqueue(unsent).catch((failure: unknown) => {
+        // they're lost to Telegram (still in the database): say so where it can be seen
+        log.error('Telegram: putting unsent offers back in the queue failed', {
+          offers: unsent.length,
+          error: failure,
+        });
+      });
       return { sent, matched: profile ? matched.length : null, error: message(sendError) };
     }
     sent += messages[i].offers.length;

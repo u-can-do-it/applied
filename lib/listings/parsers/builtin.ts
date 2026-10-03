@@ -1,19 +1,33 @@
 // builtin.com: a search page of job cards (HTML).
-import { seniorityOf, strip } from '../extract';
+import { parsePage } from '../../dom';
+import { seniorityOf } from '../extract';
 import type { Found, ListingParser } from '../types';
+
+const MODE = /^((?:In-Office or )?Remote|In-Office|Hybrid)$/i;
+const line = (text: string | undefined) => text?.replace(/\s+/g, ' ').trim() ?? '';
 
 export const parseBuiltin: ListingParser = (body, { src }) => {
   if (!body.includes('data-id="job-card"'))
     throw new Error('Built In: no job cards in the page (blocked or the markup changed)');
-  const chunks = body.split(/<div id="job-card-(?=\d)/).slice(1); // one chunk per card
+  // one card per <div id="job-card-<job id>">
+  const cards = parsePage(body)
+    .querySelectorAll('div[id^="job-card-"]')
+    .filter((card) => /^job-card-\d+$/.test(card.id));
   const items: Found[] = [];
-  for (const card of chunks) {
-    const id = card.match(/^(\d+)/)?.[1];
-    const title = strip(card.match(/data-id="job-card-title"[^>]*>([\s\S]*?)<\/a>/)?.[1] ?? '');
-    const company = strip(card.match(/data-id="company-title"[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/)?.[1] ?? '');
-    const href = card.match(/href="(\/job\/[^"]+)"/)?.[1];
-    const mode = strip(card.match(/>((?:In-Office or )?Remote|In-Office|Hybrid)</i)?.[1] ?? '');
-    if (!id || !title || !href) continue;
+  for (const card of cards) {
+    const id = card.id.slice('job-card-'.length);
+    const title = line(card.querySelector('[data-id="job-card-title"]')?.text);
+    const company = line(card.querySelector('[data-id="company-title"] span')?.text);
+    const href = card
+      .querySelectorAll('a[href]')
+      .map((link) => link.getAttribute('href') ?? '')
+      .find((link) => link.startsWith('/job/'));
+    const mode =
+      card
+        .querySelectorAll('*')
+        .find((element) => MODE.test(element.text.trim()))
+        ?.text.trim() ?? '';
+    if (!title || !href) continue;
     items.push({
       src,
       id,
@@ -27,9 +41,5 @@ export const parseBuiltin: ListingParser = (body, { src }) => {
       sort: Number(id), // ascending job id = insert order
     });
   }
-  return {
-    total: chunks.length,
-    items,
-    sample: chunks[0] ? `<div id="job-card-${chunks[0].slice(0, 3000)}` : undefined,
-  };
+  return { total: cards.length, items, sample: cards[0]?.outerHTML.slice(0, 3000) };
 };

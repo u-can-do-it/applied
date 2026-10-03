@@ -1,9 +1,10 @@
 // bulldogjob.pl: a listing page whose offers are in its __NEXT_DATA__.
-import { arr, isObj, json, nameOf, sampleOf, scriptById, str, type Obj } from '../extract';
+import { parsePage, scriptById } from '../../dom';
+import { arr, isObj, json, nameOf, sampleOf, str, type Obj } from '../extract';
 import type { ListingParser } from '../types';
 
 export const parseBulldog: ListingParser = (body, { src }) => {
-  const raw = scriptById(body, '__NEXT_DATA__');
+  const raw = scriptById(parsePage(body), '__NEXT_DATA__');
   if (raw === null) throw new Error('Bulldog: no __NEXT_DATA__ in the page (blocked or the page changed)');
   const data = json(raw, 'Bulldog page data') as { props?: { pageProps?: { jobs?: unknown } } } | null;
   const jobs = data?.props?.pageProps?.jobs;

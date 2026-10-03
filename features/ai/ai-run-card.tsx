@@ -47,11 +47,12 @@ const BADGE: Record<RunBadge, 'brand' | 'warning-soft' | 'success' | 'danger' | 
 };
 
 /**
- * Why a paused run waits, and what continues it (Activity; the AI tab continues it itself):
- * reopen the AI tab; select its profile there first (only the active profile's run continues); or
- * nothing, since its profile changed and the next slice cancels it.
+ * Why a paused run waits, and what continues it (Activity; the AI tab continues it itself): Supabase
+ * Cron's next call, or opening the AI tab now; selecting its profile there first (the AI tab only
+ * continues the active profile's run); or nothing, since its profile changed and the next slice
+ * cancels it.
  */
-export type PausedHint = 'reopen' | 'select' | 'cancel';
+export type PausedHint = 'open' | 'select' | 'cancel';
 
 /**
  * The two steps of an AI run (Duplicates → Assessment) with their counts, the profile version it
@@ -61,7 +62,7 @@ export type PausedHint = 'reopen' | 'select' | 'cancel';
 export function AiRunCard({
   run,
   continuesHere = false,
-  pausedHint = 'reopen',
+  pausedHint = 'open',
   model,
 }: {
   run: RunInfo;
@@ -122,14 +123,15 @@ export function AiRunCard({
         {paused && (
           <p className="m-0 text-xs text-warning">
             {pausedHint === 'cancel' ? (
-              'Paused — it will be cancelled: the profile changed since it started.'
+              'Paused — it will be cancelled at the next scheduled run: the profile changed since it started.'
             ) : (
               <>
-                Paused — {pausedHint === 'select' ? `select “${run.profile.name}” on the ` : 'reopen the '}
+                Paused — continues at the next scheduled run, or now if you{' '}
+                {pausedHint === 'select' ? `select “${run.profile.name}” on the ` : 'open the '}
                 <Link href="/ai" className="text-brand underline-offset-4 hover:underline">
                   AI filter page
-                </Link>{' '}
-                to continue (a run only goes on while it’s open).
+                </Link>
+                .
               </>
             )}
           </p>

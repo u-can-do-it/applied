@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { runAll } from '@/lib/listings/run';
+import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import { fail, ok } from '@/lib/shared/result';
 import { AUTH_COOKIE, isValidToken } from '@/server/auth';
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(ok(summary), { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     // e.g. the database is down before the run starts (the lock): the button shows why
-    console.error('[scrape] manual run failed:', error);
+    log.error('Manual scrape run failed', { route: '/api/scrape', error });
     return NextResponse.json(fail(message(error)), { status: 500 });
   }
 }

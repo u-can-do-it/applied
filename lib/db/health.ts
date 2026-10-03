@@ -1,6 +1,7 @@
 import 'server-only';
 import { sql } from 'drizzle-orm';
 import journal from '@/drizzle/meta/_journal.json';
+import { log } from '../log';
 import { db } from './client';
 import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE } from './connection';
 
@@ -44,7 +45,7 @@ export async function checkDbHealth(): Promise<DbHealth> {
     last = await lastAppliedMigration();
   } catch (error) {
     // no SUPABASE_DB_URL, a wrong password, the pooler down: all the same to the caller
-    console.error('Database health check failed:', error);
+    log.error('Database health check failed', { error });
     return { db: 'unreachable', pending: [] };
   }
   const pending = pendingMigrations(journal.entries, last);

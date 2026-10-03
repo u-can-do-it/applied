@@ -1,9 +1,10 @@
 // nofluffjobs.com: a listing page whose offers are in the Angular state embedded in it.
-import { angular, arr, isObj, json, num, sampleOf, scriptById, str, type Obj } from '../extract';
+import { parsePage, scriptById } from '../../dom';
+import { angular, arr, isObj, json, num, sampleOf, str, type Obj } from '../extract';
 import type { ListingParser } from '../types';
 
 export const parseNofluff: ListingParser = (body, { src }) => {
-  const raw = scriptById(body, 'serverApp-state');
+  const raw = scriptById(parsePage(body), 'serverApp-state');
   if (raw === null) throw new Error('NoFluff: no serverApp-state in the page (blocked or the page changed)');
   const state = json(angular(raw), 'NoFluff page data');
   let postings: Obj[] | null = null;

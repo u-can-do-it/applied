@@ -1,21 +1,9 @@
-// The generic scrapers' parsers (JSON, HTML, RSS): they read a page the way the scraper's own config says.
+// The generic scrapers' parsers (JSON, HTML; RSS is in ./rss.ts): they read a page the way the scraper's own config says.
 import { parse as parseHtml, type HTMLElement } from 'node-html-parser';
 import { message } from '../../shared/errors';
 import type { FieldId, ScraperConfig } from '../config';
-import {
-  angular,
-  isObj,
-  json,
-  keysOf,
-  nameOf,
-  num,
-  sampleOf,
-  scriptById,
-  str,
-  strip,
-  time,
-  valuesAt,
-} from '../extract';
+import { parsePage, scriptById, scriptsOfType } from '../../dom';
+import { angular, isObj, json, keysOf, nameOf, num, sampleOf, str, strip, time, valuesAt } from '../extract';
 import type { Found, ListingParser } from '../types';
 
 const textOf = (value: unknown): string =>
@@ -58,16 +46,16 @@ function toFound(
 function jsonRoot(body: string, config: ScraperConfig): unknown {
   switch (config.from ?? 'body') {
     case 'next-data': {
-      const raw = scriptById(body, '__NEXT_DATA__');
+      const raw = scriptById(parsePage(body), '__NEXT_DATA__');
       if (raw === null) throw new Error('No <script id="__NEXT_DATA__"> in the page');
       return json(raw, '__NEXT_DATA__');
     }
     case 'ld-json': {
-      const blocks = [...body.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+      const blocks = scriptsOfType(parsePage(body), 'application/ld+json');
       if (!blocks.length) throw new Error('No <script type="application/ld+json"> in the page');
-      return blocks.map((match) => {
+      return blocks.map((block) => {
         try {
-          return JSON.parse(match[1]) as unknown;
+          return JSON.parse(block) as unknown;
         } catch {
           return null;
         }
@@ -75,7 +63,7 @@ function jsonRoot(body: string, config: ScraperConfig): unknown {
     }
     case 'script': {
       if (!config.scriptId) throw new Error('Give the id of the <script> that holds the JSON');
-      const raw = scriptById(body, config.scriptId);
+      const raw = scriptById(parsePage(body), config.scriptId);
       if (raw === null) throw new Error(`No <script id="${config.scriptId}"> in the page`);
       try {
         return JSON.parse(raw);
@@ -151,35 +139,4 @@ export const parseHtmlListing: ListingParser = (body, { src, url, config }) => {
     sample: cards[0].outerHTML.slice(0, 3000),
     items: cards.map((card) => toFound(src, card, get, link)),
   };
-};
-
-// ---- RSS / Atom ------------------------------------------------------------------------------
-
-function tag(block: string, name: string) {
-  const match = block.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, 'i'));
-  return match ? strip(match[1]) : '';
-}
-
-export const parseRss: ListingParser = (body, { src, url }) => {
-  const blocks = body.match(/<(item|entry)\b[\s\S]*?<\/\1>/gi) ?? [];
-  if (!blocks.length) throw new Error('No <item> or <entry> in the feed');
-  const items = blocks.map((block): Found => {
-    const link = absolute(tag(block, 'link') || (block.match(/<link\b[^>]*href=["']([^"']+)["']/i)?.[1] ?? ''), url);
-    const author = tag(block, 'dc:creator') || tag(block, 'name') || tag(block, 'author');
-    return {
-      src,
-      id: tag(block, 'guid') || tag(block, 'id') || link,
-      title: tag(block, 'title'),
-      company: author || null,
-      seniority: null,
-      remote: /remote|zdaln/i.test(tag(block, 'title')),
-      url: link,
-      locations: [],
-      skills: [...block.matchAll(/<category\b[^>]*>([\s\S]*?)<\/category>/gi)]
-        .map((match) => strip(match[1]))
-        .filter(Boolean),
-      sort: time(tag(block, 'pubDate') || tag(block, 'published') || tag(block, 'updated') || tag(block, 'dc:date')),
-    };
-  });
-  return { total: blocks.length, items, sample: blocks[0]?.slice(0, 3000) };
 };

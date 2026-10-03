@@ -24,7 +24,7 @@ async function load(range: { days: string; from: string; to: string }) {
       countPending(active, zone.resolveRange({ days: '1' })),
       range.days === '1' ? Promise.resolve(-1) : countPending(active, zone.resolveRange(range)),
     ]);
-    // an open run whose worker stopped (time limit, closed tab): continue it after this response
+    // an open run no slice works on (out of time, or waiting for the cron): continue it after this response
     const open = run;
     if (open && needsWorker(open)) after(() => continueRun(open.id));
   }

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks the migrations in drizzle/ against two throwaway LOCAL databases (never production):
 #   (a) a database set up the old way is left exactly as it was by `npm run db:migrate`: same
-#       schema, same rows (public and cron) but the board seed markers of 0004. "The old way" is either
+#       schema but the unused functions 0005 drops, same rows (public and cron) but the board seed
+#       markers of 0004. "The old way" is either
 #         - the old SQL files (supabase/reset.sql, ai-filter.sql, scraping.sql, as scripts/db-reset.sh +
 #           db-migrate.sh ran them), then some use: offers, a merged job, an application with its
 #           history, a profile and a verdict, scrapers edited and deleted, Supabase Cron connected; or
@@ -95,6 +96,20 @@ without_public_schema_acl() {
        /^--/ || /^$/ { next }
        !skip { print }' "$1" >"$2"
 }
+# 0005_drop_unused_functions drops these (the app's queries for them are in TypeScript): the one
+# change db:migrate makes to an existing database's schema. For the (a) comparison each pg_dump entry
+# becomes one line (its statements joined by " ↵ "), the dropped functions' entries are left out and
+# the rest sorted: without those functions pg_dump may put the same entries in another order.
+DROPPED_FUNCTIONS='jw_set_application_status|jw_ghost_stale_applications|jw_scrape_lock|jw_source_counts|ai_results|ai_pending|ai_range_stats'
+entries_without_dropped_functions() {
+  awk -v names="$DROPPED_FUNCTIONS" '
+    function flush() { if (entry != "" && !skip) print entry; entry = "" }
+    /^-- Name: / { flush(); skip = ($0 ~ ("^-- Name: (FUNCTION )?(" names ")\\(")); next }
+    # comments, blank lines, and the SETs pg_dump puts before whichever entry comes before the first table
+    /^--/ || /^$/ || /^SET default_table/ { next }
+    { entry = entry $0 " ↵ " }
+    END { flush() }' "$1" | LC_ALL=C sort >"$2"
+}
 seed_rows() {
   # config is left out: the seeds' URLs were updated after LEGACY_REF
   pg_tool psql "$1" -X -qtA -c 'select position, name, src, kind, enabled from public.scrapers order by position' \
@@ -182,7 +197,15 @@ data_dump "$url_a" "$work/a-before-data.sql"
 must_migrate "$url_a"
 schema_dump "$url_a" "$work/a-after.sql"
 data_dump "$url_a" "$work/a-after-data.sql"
-same "schema unchanged ($(wc -l <"$work/a-before.sql") lines of pg_dump)" "$work/a-before.sql" "$work/a-after.sql"
+entries_without_dropped_functions "$work/a-before.sql" "$work/a-before-kept.sql"
+entries_without_dropped_functions "$work/a-after.sql" "$work/a-after-kept.sql"
+same "schema unchanged but for the unused functions 0005 drops ($(wc -l <"$work/a-before.sql") lines of pg_dump)" \
+  "$work/a-before-kept.sql" "$work/a-after-kept.sql"
+if grep -Eq "^CREATE FUNCTION public\.($DROPPED_FUNCTIONS)\(" "$work/a-after.sql"; then
+  echo "   FAILED: an unused function is still there after db:migrate" >&2
+  exit 1
+fi
+echo "   ok: the unused functions are gone"
 grep -v '^board:' "$work/a-after-data.sql" >"$work/a-after-rows.sql" || true
 same "rows unchanged but for the board seed markers ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
   "$work/a-before-data.sql" "$work/a-after-rows.sql"

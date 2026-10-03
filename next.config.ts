@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Static shell (header, search, chips) is prerendered and prefetched once for the route;
   // the offer list streams into its <Suspense> fallback, so clicks commit immediately.
   cacheComponents: true,
+  // lib/outbound.ts connects through an undici Agent of its own (the SSRF checks at connect time):
+  // loaded from node_modules as is, next to Node's own fetch, rather than bundled
+  serverExternalPackages: ['undici'],
   partialPrefetching: true,
   experimental: {
     // the AI filter's file upload (5 MB max) goes through a server action; default is 1 MB

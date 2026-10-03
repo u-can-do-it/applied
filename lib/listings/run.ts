@@ -6,6 +6,7 @@ import * as runsRepo from '../db/repos/scrape-runs';
 import * as scrapersRepo from '../db/repos/scrapers';
 import * as settingsRepo from '../db/repos/scrape-settings';
 import * as stateRepo from '../db/repos/scrape-state';
+import { log } from '../log';
 import { message } from '../shared/errors';
 import { telegramReady } from '../telegram';
 import { aiFilter } from './pipeline/ai-filter';
@@ -55,6 +56,8 @@ export async function runAll(
 
     const summary = summarize({ fetched, owners, added, fresh, ms: Date.now() - startedAt });
     const { errors } = summary;
+    for (const failed of errors)
+      log.warn('Scraper failed', { scrapeRunId: runId, trigger, scraper: failed.scraper, error: failed.error });
     await runsRepo.finish(runId, {
       found: summary.found,
       kept: summary.kept,
@@ -73,7 +76,9 @@ export async function runAll(
     if (opts.background && (jobs.length || fresh.length)) {
       after(() =>
         tail()
-          .catch((failure: unknown) => console.error('[scrape] AI / Telegram failed:', failure))
+          .catch((failure: unknown) => {
+            log.error('Scrape run: AI check / Telegram failed', { scrapeRunId: runId, trigger, error: failure });
+          })
           .finally(() => stateRepo.unlock().catch(() => {})),
       );
       unlockLater = true; // only once after() took it: if that throws, `finally` below unlocks
@@ -83,6 +88,7 @@ export async function runAll(
     return { ...summary, notified: sent, errors: [...errors, ...more], ms: Date.now() - startedAt };
   } catch (error) {
     // the database or something unexpected: keep it in the run log, so Settings shows it
+    log.error('Scrape run failed', { scrapeRunId: runId, trigger, error });
     const errors = [{ scraper: 'Run', error: message(error) }];
     if (runId !== null) await runsRepo.finish(runId, { ...EMPTY, errors }).catch(() => {});
     return { ...EMPTY, errors, ms: Date.now() - startedAt };

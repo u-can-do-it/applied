@@ -375,6 +375,92 @@ describe('generic parsers', () => {
     });
     expect(() => parse('rss', '<rss></rss>')).toThrow(/No <item> or <entry>/);
   });
+
+  it('rss: CDATA (tags in it dropped), entities (in CDATA too), a guid as text', () => {
+    const rss = `<?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0"><channel><title>Jobs</title><link>https://feed.test/</link>
+        <item>
+          <title><![CDATA[Senior <b>React</b> Dev &amp; Lead]]></title>
+          <link><![CDATA[https://x.test/jobs?id=1&ref=feed]]></link>
+          <guid isPermaLink="false">0012</guid>
+          <author>jobs@acme.test (Acme &amp; Co)</author>
+          <category><![CDATA[C# &amp; .NET]]></category>
+          <category>React &#8211; Next</category>
+          <description><![CDATA[<p>Long text</p>]]></description>
+        </item>
+        <item><title>Dev &lt;b&gt;remote&lt;/b&gt; &#x2013; &nbsp;PL</title><link>https://x.test/2?a=1&amp;b=2</link></item>
+      </channel></rss>`;
+    const result = parse('rss', rss);
+    expect(result.total).toBe(2);
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        id: '0012', // text, not the number 12
+        title: 'Senior React Dev & Lead',
+        url: 'https://x.test/jobs?id=1&ref=feed',
+        company: 'jobs@acme.test (Acme & Co)',
+        skills: ['C# & .NET', 'React – Next'],
+        remote: false,
+      }),
+      expect.objectContaining({
+        id: 'https://x.test/2?a=1&b=2', // no guid: the link
+        title: 'Dev <b>remote</b> – PL', // escaped, it's the title's text
+        url: 'https://x.test/2?a=1&b=2',
+        remote: true,
+        company: null,
+      }),
+    ]);
+    expect(result.sample).toContain(`"guid": {`);
+  });
+
+  it('rss: namespaces (dc:, RSS 1.0 rdf:) and dates in any of the usual elements', () => {
+    const rdf = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/"
+        xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <channel rdf:about="https://feed.test/"><title>Jobs</title></channel>
+      <item rdf:about="https://x.test/a"><title>A</title><link>https://x.test/a</link>
+        <dc:creator>Acme</dc:creator><dc:date>2026-10-01T10:00:00Z</dc:date></item>
+    </rdf:RDF>`;
+    expect(parse('rss', rdf).items).toEqual([
+      expect.objectContaining({ id: 'https://x.test/a', company: 'Acme', sort: Date.parse('2026-10-01T10:00:00Z') }),
+    ]);
+  });
+
+  it('atom: the alternate link (entities decoded, relative to the feed), the author, categories by term', () => {
+    const atom = `<?xml version="1.0"?>
+      <feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+        <title>Jobs</title><link rel="self" href="https://feed.test/atom"/>
+        <entry>
+          <title type="html">Dev &amp;amp; Ops</title>
+          <link rel="self" href="/api/e/1"/>
+          <link rel="alternate" type="text/html" href="/e/1?a=1&amp;b=2"/>
+          <id>urn:uuid:e1</id>
+          <author><name>Beta</name><email>x@beta.test</email></author>
+          <category term="React"/><category term="Go" label="Golang"/>
+          <media:thumbnail url="https://x.test/t.png"/>
+          <published>2026-10-01T10:00:00Z</published><updated>2026-10-02T10:00:00Z</updated>
+        </entry>
+        <entry><title>Second</title><link href="https://x.test/e/2"/><id>e2</id></entry>
+      </feed>`;
+    const result = parse('rss', atom, 'https://feed.test/atom');
+    expect(result.items).toEqual([
+      {
+        src: 'rss',
+        id: 'urn:uuid:e1',
+        title: 'Dev & Ops',
+        company: 'Beta',
+        seniority: null,
+        remote: false,
+        url: 'https://feed.test/e/1?a=1&b=2',
+        locations: [],
+        skills: ['React', 'Go'],
+        sort: Date.parse('2026-10-01T10:00:00Z'),
+      },
+      expect.objectContaining({ id: 'e2', title: 'Second', url: 'https://x.test/e/2', company: null }),
+    ]);
+  });
+
+  it('rss: a page that is not a feed says so', () => {
+    expect(() => parse('rss', '<html><body><p>Not a feed</p></body></html>')).toThrow(/No <item> or <entry>/);
+  });
 });
 
 describe('valuesAt', () => {

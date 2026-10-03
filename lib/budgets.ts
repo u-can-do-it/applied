@@ -11,6 +11,9 @@ export const FUNCTION_LIMIT_MS = 300_000;
 /** One OpenAI call (an assessment batch or a duplicate check) gives up after this. */
 export const OPENAI_TIMEOUT_MS = 120_000;
 
+/** One request for an offer's ad (lib/ads/fetch.ts). */
+export const AD_TIMEOUT_MS = 12_000;
+
 /** After the last AI batch: saving verdicts, Telegram, the run log, unlocking. */
 export const WRAP_UP_MS = 30_000;
 
@@ -32,8 +35,9 @@ export const SCRAPE_LOCK_MS = AI_BUDGET_MS + OPENAI_TIMEOUT_MS + 10_000;
 export const SCRAPE_LOCK_SECONDS = SCRAPE_LOCK_MS / 1000;
 
 /**
- * An AI run's lock, renewed after every round: longer than one round (an OpenAI timeout plus
- * fetching the ads), so no second worker starts while a round is still out; a dead worker's run is
- * picked up again a minute or so after it would have finished.
+ * An AI run's lock, renewed after every round and again right before each OpenAI call: longer than
+ * either part of a round (fetching a batch's ads, a few at once; the OpenAI call), so no second
+ * worker starts while a round is still out; a dead worker's run is picked up again a minute or so
+ * after it would have finished.
  */
 export const AI_RUN_LOCK_MS = OPENAI_TIMEOUT_MS + 60_000;

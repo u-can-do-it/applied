@@ -53,15 +53,6 @@ export const seniorityOf = (title: string) =>
 export const angular = (text: string) =>
   text.replace(/&q;/g, '"').replace(/&a;/g, '&').replace(/&l;/g, '<').replace(/&g;/g, '>').replace(/&s;/g, "'");
 
-/** The text of <script id="…">, or null when the page has none. */
-export function scriptById(html: string, id: string) {
-  const re = new RegExp(
-    `<script[^>]*\\bid=["']${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>([\\s\\S]*?)</script>`,
-    'i',
-  );
-  return html.match(re)?.[1] ?? null;
-}
-
 /**
  * Every value at a path: "data", "props.pageProps.jobs", "locations[].city" ([] = each item of a
  * list, [0] = the first one). Missing parts give nothing instead of an error.

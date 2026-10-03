@@ -139,8 +139,9 @@ export async function Activity() {
         help={
           <p>
             An AI run checks a date range against a profile version in two steps: Duplicates (the AI merges offers of
-            the same job) then Assessment (a verdict for every job). It works in slices of a few minutes, and only while
-            the AI filter page is open: closed, a run waits, paused, until you open it again.
+            the same job) then Assessment (a verdict for every job). It works in slices of a few minutes. Between slices
+            it waits, paused, until Supabase Cron’s next call (the scraping schedule) or the AI filter page continues
+            it, whichever comes first; no tab needs to stay open.
           </p>
         }
       >
@@ -150,7 +151,7 @@ export async function Activity() {
               <AiRunCard
                 key={run.id}
                 pausedHint={
-                  run.profileVersion !== run.version ? 'cancel' : run.profileId === activeId ? 'reopen' : 'select'
+                  run.profileVersion !== run.version ? 'cancel' : run.profileId === activeId ? 'open' : 'select'
                 }
                 run={{
                   ...run,

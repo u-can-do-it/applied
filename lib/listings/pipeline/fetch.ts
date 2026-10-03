@@ -1,6 +1,6 @@
 import 'server-only';
 import type { Scraper } from '../../db/repos/scrapers';
-import { BROWSER_UA, checkUrl } from '../../outbound';
+import { BROWSER_UA, fetchOutbound, readText } from '../../outbound';
 import { message } from '../../shared/errors';
 import { areaTest, expandUrl, keywordTest, titleTest } from '../match';
 import { parseBody } from '../parse';
@@ -12,53 +12,25 @@ import type { Fetched } from './model';
 // cities, ignored titles). A scraper's failure is part of its result, never the run's.
 
 const TIMEOUT_MS = 20_000;
-const MAX_BYTES = 8 * 1024 * 1024;
 const PARALLEL = 4;
 
 export async function fetchPage(url: string, headers: Record<string, string> = {}): Promise<string> {
-  checkUrl(url);
   const sent = new Headers({
     'User-Agent': BROWSER_UA,
     'Accept-Language': 'pl,en;q=0.8',
     Accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
   });
   for (const [name, value] of Object.entries(headers)) sent.set(name, value); // the scraper's own headers win
-  const res = await fetch(url, {
+  const res = await fetchOutbound(url, {
     headers: sent,
     signal: AbortSignal.timeout(TIMEOUT_MS),
     cache: 'no-store',
-    redirect: 'follow',
   });
   if (!res.ok)
     throw new Error(
       `HTTP ${res.status}${res.status === 403 || res.status === 429 ? ' (the site blocks this server?)' : ''}`,
     );
-  if (!res.body) return '';
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  const reader = res.body.getReader();
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.length;
-    if (size > MAX_BYTES) {
-      await reader.cancel();
-      throw new Error('The page is bigger than 8 MB');
-    }
-    chunks.push(value);
-  }
-  const all = new Uint8Array(size);
-  let at = 0;
-  for (const chunk of chunks) {
-    all.set(chunk, at);
-    at += chunk.length;
-  }
-  const charset = /charset=["']?([\w-]+)/i.exec(res.headers.get('content-type') ?? '')?.[1];
-  try {
-    return new TextDecoder(charset || 'utf-8').decode(all);
-  } catch {
-    return new TextDecoder().decode(all);
-  }
+  return readText(res);
 }
 
 export type PageResult = {

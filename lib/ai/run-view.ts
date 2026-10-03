@@ -3,7 +3,7 @@ import type { Run } from '../db/repos/ai-runs';
 // An AI run as its card shows it (the AI tab, Activity): the run state machine's steps
 // (lib/ai/run-state.ts) as the user sees them. Between slices a run is stored as `running` with its
 // phase; it is working while a slice holds its lock, and paused when none does (the slice ran out
-// of time or crashed, and nothing has continued it: only an open AI tab does, for now).
+// of time or crashed, and nothing has continued it yet: Supabase Cron's next call or the AI tab will).
 //
 //   Duplicates (dedup) ──→ Assessment (assess) ──→ finished: done | failed | cancelled
 //         └──────── paused (no worker) ────────┘

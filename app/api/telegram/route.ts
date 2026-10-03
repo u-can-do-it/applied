@@ -8,6 +8,7 @@ import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
 import { env } from '@/lib/env';
 import { listProfiles } from '@/lib/ai/profiles';
+import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import { notify } from '@/lib/listings/pipeline/notify';
 import { runAll } from '@/lib/listings/run';
@@ -17,6 +18,8 @@ import { ownerChat, sendMessage, telegramReady, webhookSecret } from '@/lib/tele
 // Telegram webhook: the bot's commands. Connected from Settings; Telegram sends the secret
 // back in a header, and only your own chat (TELEGRAM_CHAT_ID) may give commands.
 export const maxDuration = 300;
+
+const ROUTE = '/api/telegram';
 
 const HELP =
   '/mute - hold notifications\n/send - deliver what is queued\n/resume - unmute and deliver\n/scrape - scrape now\n/status - scraping, the queue and the last run';
@@ -42,7 +45,10 @@ export async function POST(request: NextRequest) {
   const deliver = () =>
     after(async () => {
       const result = await notify({ manual: true }).catch((failure: unknown) => ({ error: message(failure) }));
-      if (result.error) await reply(`⚠️ ${result.error}`);
+      if (result.error) {
+        log.error('Telegram: sending the queue failed', { route: ROUTE, error: result.error });
+        await reply(`⚠️ ${result.error}`).catch(() => {});
+      }
     });
 
   if (['/mute', '/pause', '/stop'].includes(cmd)) {
@@ -77,7 +83,9 @@ export async function POST(request: NextRequest) {
         result.skipped
           ? `⏳ ${result.skipped}`
           : `✅ ${result.found} on the pages, ${result.added} new saved, ${result.notified} sent${errors}`,
-      );
+      ).catch((error: unknown) => {
+        log.error('Telegram: the /scrape reply failed', { route: ROUTE, error });
+      });
     });
   } else if (cmd === '/status') {
     const [state, waiting, counts, runs, settings, profiles] = await Promise.all([

@@ -1,16 +1,17 @@
 import 'server-only';
-import { BROWSER_UA, checkUrl } from '../outbound';
+import { AD_TIMEOUT_MS } from '../budgets';
+import { BROWSER_UA, fetchOutbound, readText } from '../outbound';
 
-const TIMEOUT_MS = 12_000;
-
-/** One request to a board, as a browser would make it; an HTTP error throws (so it can be retried later). */
+/**
+ * One request to a board, as a browser would make it; an HTTP error throws (so it can be retried
+ * later). The answer's body is read here, capped (readText), and handed back as a Response.
+ */
 export async function get(url: string, accept = 'text/html,application/json') {
-  checkUrl(url);
-  const res = await fetch(url, {
+  const res = await fetchOutbound(url, {
     headers: { 'User-Agent': BROWSER_UA, 'Accept-Language': 'pl,en;q=0.8', Accept: accept },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(AD_TIMEOUT_MS),
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res;
+  return new Response(await readText(res), { status: res.status, headers: res.headers });
 }

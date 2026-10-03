@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  AD_TIMEOUT_MS,
   AI_BUDGET_MS,
   AI_RUN_LOCK_MS,
   FUNCTION_LIMIT_MS,
@@ -33,12 +34,15 @@ describe('time budgets', () => {
   it('the scrape lock outlives a live run, and a crashed run frees it by the next knock', () => {
     expect(SCRAPE_LOCK_MS).toBeGreaterThanOrEqual(AI_BUDGET_MS + OPENAI_TIMEOUT_MS);
     expect(SCRAPE_LOCK_MS).toBeLessThan(Math.min(...INTERVALS) * 60_000);
-    // jw_scrape_lock takes whole seconds
+    // the scrape lock (lib/db/repos/scrape-state.ts lock) takes whole seconds (::int)
     expect(Number.isInteger(SCRAPE_LOCK_SECONDS)).toBe(true);
   });
 
-  it("an AI run's lock outlasts one round", () => {
-    expect(AI_RUN_LOCK_MS).toBeGreaterThan(OPENAI_TIMEOUT_MS);
+  it("an AI run's lock outlasts each part of a round", () => {
+    // renewed right before the OpenAI call: the call, then saving the round (which renews it again)
+    expect(AI_RUN_LOCK_MS).toBeGreaterThan(OPENAI_TIMEOUT_MS + 10_000);
+    // from the last renewal: a batch's ads, a few jobs at once, each job's boards one after another
+    expect(AI_RUN_LOCK_MS).toBeGreaterThanOrEqual(5 * AD_TIMEOUT_MS);
   });
 
   it('every maxDuration is the function limit, as a literal (Next reads it without running the code)', () => {

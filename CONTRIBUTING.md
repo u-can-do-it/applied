@@ -51,7 +51,10 @@ database code or the migrations; it needs Docker).
   action wrapper (`action.ts`).
 - **`lib/`: what the app knows, without the UI.** Boards, listings and the scrape pipeline, ads, AI, the
   database (`lib/db/`: schema and one repo per table), dates, Telegram. Server-only modules start with
-  `import 'server-only'`.
+  `import 'server-only'`. What goes wrong on the server is logged with `log.error/warn/info(message, context)`
+  (`lib/log.ts`: one JSON line, secrets redacted), not `console`; a request to a link from a user or a page goes
+  through `fetchOutbound()` (`lib/outbound.ts`, the SSRF checks), and a page is read with `parsePage()`
+  (`lib/dom.ts`) or, for a feed, `fast-xml-parser`, not regular expressions.
 - **`lib/shared/`: what client components may import, guaranteed** (errors, `Result`, formatting, URL filters,
   the Zod schemas the actions and their forms check the input with, `cn()` for class names). Nothing in it
   reads the database or a secret. The schemas are `zod/mini` (`import * as z from 'zod/mini'`: functions, not

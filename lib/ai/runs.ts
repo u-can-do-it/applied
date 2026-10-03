@@ -18,6 +18,7 @@ import { mergeDuplicatesRound } from './merge-duplicates';
 import { assessOffers, type OfferForAi } from './openai';
 import { getProfile, type Profile, type ProfileWithFile } from './profiles';
 import { scrapeOffer } from '../ads';
+import { log } from '../log';
 import { message } from '../shared/errors';
 
 // Manual AI runs: "check every offer in this date range that this profile hasn't judged yet".
@@ -26,8 +27,10 @@ import { message } from '../shared/errors';
 // profile version and per job, so a second "today" run only sends what's new.
 //
 // The work happens in after() on the server, in slices of a few minutes (a platform limit),
-// under a lock. While a run is open, the AI tab refreshes and starts the next slice. What a slice
-// does next is decided by the state machine in lib/ai/run-state.ts.
+// under a lock. The next slice is started by whatever comes first: Supabase Cron's next call
+// (/api/cron/scrape, after its scrape: continueWaitingRuns) or the AI tab, which starts one on
+// every load and refresh while a run is open. The lock makes sure only one of them works on a run.
+// What a slice does next is decided by the state machine in lib/ai/run-state.ts.
 
 export type AiRun = runsRepo.Run;
 export type Range = { gte?: string; lt?: string; label: string };
@@ -35,6 +38,7 @@ type Pending = Omit<offersRepo.Job, 'appliedAt'>;
 
 const BATCH = 4; // offers per OpenAI call (each carries a full ad)
 const PARALLEL = 3; // calls at once
+const ADS_PARALLEL = 4; // a batch's jobs whose ads are fetched at once
 
 // ---- reads -----------------------------------------------------------------------------
 
@@ -78,10 +82,32 @@ export async function startRun(profile: Profile, range: Range): Promise<AiRun> {
 const takeLock = (runId: string) =>
   runsRepo.takeLock(runId, new Date(Date.now() + AI_RUN_LOCK_MS).toISOString(), new Date().toISOString());
 
+/** The worker's lock, extended from now (right before an OpenAI call, which can take its whole timeout). */
+const renewLock = async (runId: string) => {
+  await runsRepo.patch(runId, { lockUntil: new Date(Date.now() + AI_RUN_LOCK_MS).toISOString() }, runsRepo.isRunning);
+};
+
+/** fn over the items, at most `limit` at once; results in the items' order. */
+async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
 const pendingRows = (run: AiRun, limit: number): Promise<Pending[]> =>
   verdictsRepo.unjudgedJobs({ id: run.profileId, version: run.version }, { gte: run.rangeGte, lt: run.rangeLt }, limit);
 
-/** Ad text for each job, by job id: cached in offer_details, else scraped from its offers (earliest first). */
+/**
+ * Ad text for each job, by job id: cached in offer_details, else scraped from its offers (earliest
+ * first; a job's offers one after another, a few jobs at once).
+ */
 async function descriptions(jobs: Pending[]): Promise<Map<string, string | null>> {
   const offers = jobs.flatMap((job) => job.offers);
   const cached = new Map<string, detailsRepo.Details>();
@@ -89,7 +115,7 @@ async function descriptions(jobs: Pending[]): Promise<Map<string, string | null>
 
   const out = new Map<string, string | null>();
   const toStore: detailsRepo.Details[] = [];
-  for (const job of jobs) {
+  await mapLimit(jobs, ADS_PARALLEL, async (job) => {
     let text: string | null = null;
     for (const offer of job.offers) {
       const hit = cached.get(`${offer.src}\u0001${offer.id}`);
@@ -117,12 +143,15 @@ async function descriptions(jobs: Pending[]): Promise<Map<string, string | null>
       }
     }
     out.set(job.jobId, text);
-  }
-  await detailsRepo.save(toStore).catch(() => {});
+  });
+  await detailsRepo.save(toStore).catch((error: unknown) => {
+    log.warn('AI run: caching ad texts failed', { offers: toStore.length, error });
+  });
   return out;
 }
 
-async function assessBatch(profile: ProfileWithFile, batch: Pending[]) {
+/** `beforeAsk`: right before the OpenAI call (an AI run renews its lock there). */
+async function assessBatch(profile: ProfileWithFile, batch: Pending[], beforeAsk?: () => Promise<void>) {
   const texts = await descriptions(batch);
   const file = profile.fileName && profile.fileText ? { name: profile.fileName, text: profile.fileText } : null;
   const input: OfferForAi[] = batch.map((job, i) => ({
@@ -133,6 +162,7 @@ async function assessBatch(profile: ProfileWithFile, batch: Pending[]) {
     remote: job.remote,
     description: texts.get(job.jobId) ?? null,
   }));
+  await beforeAsk?.();
   const assessments = await assessOffers(profile.prompt, file, input);
   const rows = assessments.map((assessment) => ({
     profileId: profile.id,
@@ -203,7 +233,7 @@ async function perform(state: SliceState, slice: Slice): Promise<SliceEvent> {
     case 'dedup': {
       if (Date.now() >= slice.deadline) return { type: 'outOfTime' };
       const round = await mergeDuplicatesRound(range, slice.asked);
-      if (round.error) console.error('[ai-run] duplicate check failed:', round.error);
+      if (round.error) log.warn('AI run: duplicate check failed', { runId: run.id, error: round.error });
       return { type: 'dedupRound', ...round, at: Date.now() };
     }
     case 'recount':
@@ -216,13 +246,15 @@ async function perform(state: SliceState, slice: Slice): Promise<SliceEvent> {
       for (let i = 0; i < Math.min(pending.length, BATCH * PARALLEL); i += BATCH)
         batches.push(pending.slice(i, i + BATCH));
 
-      const settled = await Promise.allSettled(batches.map((batch) => assessBatch(slice.profile, batch)));
+      const settled = await Promise.allSettled(
+        batches.map((batch) => assessBatch(slice.profile, batch, () => renewLock(run.id))),
+      );
       const results = settled.map((outcome, i): BatchResult => {
         const jobs = batches[i].map((job) => job.jobId);
         if (outcome.status === 'fulfilled')
           return { jobs, answered: [...outcome.value.answered], saved: outcome.value.saved };
         const error = message(outcome.reason);
-        console.error('[ai-run] batch failed:', error);
+        log.warn('AI run: batch failed', { runId: run.id, jobs: jobs.length, error: outcome.reason });
         return { jobs, error };
       });
       return { type: 'assessRound', batches: results, at: Date.now() };
@@ -237,11 +269,21 @@ async function perform(state: SliceState, slice: Slice): Promise<SliceEvent> {
 /**
  * Processes one slice of a run. Safe to call often: only one caller gets the lock. Takes the lock
  * (that loads the run), then: the next step from the state machine, do it, save, until the slice
- * is over.
+ * is over. `deadline`: no new round starts after it (by default SLICE_MS from now; the cron passes
+ * SLICE_MS from its own start, since its scrape came first).
  */
-export async function continueRun(runId: string): Promise<void> {
+export async function continueRun(runId: string, deadline = Date.now() + SLICE_MS): Promise<boolean> {
+  // it runs in after(): nobody waits for it to throw (the database down before the lock, say)
+  return runSlice(runId, deadline).catch((error: unknown) => {
+    log.error('AI run: slice failed to start', { runId, error });
+    return false;
+  });
+}
+
+/** One slice; false if another worker had the lock. */
+async function runSlice(runId: string, deadline: number): Promise<boolean> {
   const run = await takeLock(runId);
-  if (!run) return;
+  if (!run) return false;
 
   const profile = await getProfile(run.profileId);
   let state = transition(started(run), {
@@ -251,14 +293,14 @@ export async function continueRun(runId: string): Promise<void> {
   });
   if (!profile || isOver(state)) {
     await save(run.id, state);
-    return;
+    return true;
   }
 
   const slice: Slice = {
     run,
     profile,
     range: { gte: run.rangeGte, lt: run.rangeLt },
-    deadline: Date.now() + SLICE_MS,
+    deadline,
     asked: new Set(),
   };
   try {
@@ -268,8 +310,26 @@ export async function continueRun(runId: string): Promise<void> {
       state = next;
     }
   } catch (error) {
-    // `state` is the last one saved: the crash frees the lock from there, and the next page refresh continues
-    console.error(state.step === 'assess' ? '[ai-run] slice crashed:' : '[ai-run] duplicate slice crashed:', error);
-    await save(run.id, transition(state, { type: 'crashed', error: message(error) })).catch(() => {});
+    // `state` is the last one saved: the crash frees the lock from there, and the next slice continues
+    log.error('AI run: slice crashed', { runId: run.id, step: state.step, error });
+    await save(run.id, transition(state, { type: 'crashed', error: message(error) })).catch((failure: unknown) => {
+      log.error('AI run: saving the crash failed', { runId: run.id, error: failure });
+    });
   }
+  return true;
+}
+
+/**
+ * Every open run that no slice is working on, one after the other, until `deadline` (Supabase
+ * Cron's call: a run goes on without the AI tab open). A run another worker holds is left to it;
+ * one whose profile changed is cancelled by its slice without asking the AI. Answers how many it
+ * worked on (got the lock of).
+ */
+export async function continueWaitingRuns(deadline: number): Promise<number> {
+  let continued = 0;
+  for (const { id } of await runsRepo.waiting(new Date().toISOString())) {
+    if (Date.now() >= deadline) break;
+    if (await continueRun(id, deadline)) continued++;
+  }
+  return continued;
 }

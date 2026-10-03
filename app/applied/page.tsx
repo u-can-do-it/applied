@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { ghostStale, listApplications } from '@/lib/applications';
+import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import { labelsOf, boardOptions } from '@/lib/listings/board-filter';
 import { appTimeZone } from '@/lib/time-zone';
@@ -35,7 +36,9 @@ async function Applications() {
   let loaded: [Awaited<ReturnType<typeof listApplications>>, Awaited<ReturnType<typeof boardOptions>>, string];
   try {
     // a month without news turns "in progress" into "ghosted"; done on the way in, so the list is current
-    await ghostStale().catch((failure: unknown) => console.error('[applied] ghosting failed:', failure));
+    await ghostStale().catch((failure: unknown) => {
+      log.error('Ghosting stale applications failed', { route: '/applied', error: failure });
+    });
     loaded = await Promise.all([listApplications(), boardOptions(), appTimeZone()]);
   } catch (error) {
     return <LoadError title="Can’t load applications." detail={message(error)} />;

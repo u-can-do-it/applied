@@ -3,7 +3,8 @@
 // JobPosting (Eldorado, Bulldog, Solid.jobs), and any other site gives its <main> text.
 import 'server-only';
 import { byId, type BoardId } from '../boards';
-import { decodeEntities, htmlToText } from '../shared/html';
+import { mainText, pageTitle, parsePage } from '../dom';
+import { htmlToText } from '../shared/html';
 import { readBuiltin } from './builtin';
 import type { Ad, AdReader, JobDetails, OfferLink } from './details';
 import { get } from './fetch';
@@ -11,7 +12,7 @@ import { findJobPosting, fromJobPosting } from './job-posting';
 import { readJustjoin } from './justjoin';
 import { readLinkedin } from './linkedin';
 import { readNofluff } from './nofluff';
-import { mainText, readPage } from './page';
+import { readPage } from './page';
 
 export type Scraped = { status: 'ok' | 'empty'; text: string; details: JobDetails };
 
@@ -31,7 +32,7 @@ function readAd(offer: OfferLink): Promise<Ad> {
   if (reader) return reader(offer);
   // a board we scrape has nothing but its JobPosting to give; your own scrapers' boards and any
   // other site: no known layout, so the page's <main> (or <article>)
-  return readPage(offer.url, board?.listing ? undefined : mainText);
+  return readPage(offer.url, board?.listing ? undefined : (_, html) => mainText(html));
 }
 
 const result = (ad: Ad, max: number): Scraped => {
@@ -62,20 +63,22 @@ export async function readJobPage(offer: OfferLink) {
   } catch {
     // the board's API didn't answer: the page below still can
   }
-  let pageTitle = '';
+  let title = '';
   try {
     const html = await (await get(offer.url, 'text/html')).text();
-    pageTitle = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const page = parsePage(html);
+    title = pageTitle(page);
     if (ad.text.trim().length < 80) {
-      const jp = findJobPosting(html);
+      const jp = findJobPosting(page);
       ad = jp
         ? fromJobPosting(jp)
-        : { text: mainText(html) || htmlToText(html.match(/<body[\s\S]*<\/body>/i)?.[0] ?? html), details: ad.details };
+        : {
+            text: mainText(html) || htmlToText((page.querySelector('body') ?? page).innerHTML),
+            details: ad.details,
+          };
     }
   } catch (error) {
     if (ad.text.trim().length < 80) throw error; // nothing at all from this link
   }
-  return { pageTitle, text: ad.text.trim().slice(0, FULL_CHARS), details: ad.details };
+  return { pageTitle: title, text: ad.text.trim().slice(0, FULL_CHARS), details: ad.details };
 }

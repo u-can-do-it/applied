@@ -1,4 +1,5 @@
 // The schema.org JobPosting in a page (what Google Jobs reads): most boards' ad pages have one.
+import { scriptsOfType, type Page } from '../dom';
 import { htmlToText } from '../shared/html';
 import { CONTRACTS, day, money, asString, unique, unit, type Ad, type JobDetails } from './details';
 
@@ -12,11 +13,12 @@ const asText = (value: unknown): string => {
   return htmlToText(value);
 };
 
-export function findJobPosting(html: string): Record<string, unknown> | null {
-  for (const match of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+/** The first JobPosting in the page's JSON-LD blocks (at any depth, or in an @graph). */
+export function findJobPosting(page: Page): Record<string, unknown> | null {
+  for (const block of scriptsOfType(page, 'application/ld+json')) {
     let data: unknown;
     try {
-      data = JSON.parse(match[1]);
+      data = JSON.parse(block);
     } catch {
       continue;
     }
