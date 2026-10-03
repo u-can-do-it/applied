@@ -8,9 +8,9 @@ import { message } from '@/lib/shared/errors';
 import { fail } from '@/lib/shared/result';
 import type { ApplicationInput } from '@/lib/shared/schemas/applications';
 import { STAGES, outcomesFor, type StageId, type OutcomeId } from '@/lib/stages';
-import { addApplicationAction, fillFromLinkAction, updateApplicationAction } from '../actions';
-import { DateInput } from '../controls';
-import { useZone } from '../time-zone';
+import { addApplicationAction, fillFromLinkAction, updateApplicationAction } from './actions';
+import { DateInput } from '@/components/date-input';
+import { useZone } from '@/components/time-zone';
 
 // "+ Add application": an application you sent somewhere the scrapers don't see (or before they
 // did). Paste the link and "Fill in" reads the page (with the AI, if there's a key); everything

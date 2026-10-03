@@ -5,13 +5,15 @@ import { ghostStale, listApplications } from '@/lib/applications';
 import { message } from '@/lib/shared/errors';
 import { labelsOf, boardOptions } from '@/lib/listings/board-filter';
 import { appTimeZone } from '@/lib/time-zone';
-import { Header } from '../header';
-import { ResultsSkeleton } from '../results';
-import { Tabs, TabsFallback } from '../tabs';
-import { AppliedList } from './applied-list';
+import { Header } from '@/features/shell/header';
+import { ResultsSkeleton } from '@/features/offers/results';
+import { Tabs, TabsFallback } from '@/features/shell/tabs';
+import { AppliedList } from '@/features/applications/applied-list';
 
 export const metadata: Metadata = { title: 'Jobwatch · Applied' };
-export const maxDuration = 300; // "Scrape now" in the header
+// "+ Add application" reads the link's page and asks OpenAI; adding, editing and "Fetch again"
+// read the boards' pages (in after() or while you wait). ("Scrape now" is POST /api/scrape.)
+export const maxDuration = 300;
 
 export default function AppliedPage() {
   return (

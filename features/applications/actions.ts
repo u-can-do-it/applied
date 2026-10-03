@@ -1,11 +1,8 @@
 'use server';
 
 import { refresh } from 'next/cache';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { after } from 'next/server';
-import { action, formAction } from '@/lib/action';
-import { continueRun, startRun } from '@/lib/ai/runs';
+import { action } from '@/server/action';
 import {
   addApplication,
   appliedAtOf,
@@ -19,17 +16,11 @@ import {
   unmarkApplied,
   updateApplication,
 } from '@/lib/applications';
-import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
 import { boardIdOf, boardOf, cleanLink } from '@/lib/boards';
-import { describeRange, isTimeZone } from '@/lib/dates';
-import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import { env } from '@/lib/env';
 import { extractJob, type ExtractedJob } from '@/lib/ai/openai';
-import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/ai/profiles';
 import { readJobPage } from '@/lib/ads';
-import { syncCron } from '@/lib/listings/schedule';
 import { message } from '@/lib/shared/errors';
-import { profileIdSchema, profileSchema, startRunSchema } from '@/lib/shared/schemas/ai';
 import {
   addApplicationSchema,
   applySchema,
@@ -41,102 +32,7 @@ import {
   setStatusSchema,
   updateApplicationSchema,
 } from '@/lib/shared/schemas/applications';
-import { loginSchema } from '@/lib/shared/schemas/auth';
-import { browserTimeZoneSchema } from '@/lib/shared/schemas/settings';
 import { appZone } from '@/lib/time-zone';
-
-// ---- login ---------------------------------------------------------------------------
-
-export const login = formAction(
-  loginSchema,
-  async ({ password, next }) => {
-    if (!(await isValidPassword(password))) {
-      await new Promise((resolve) => setTimeout(resolve, 600)); // slow down guessing a little
-      throw new Error('Wrong password.');
-    }
-    (await cookies()).set(AUTH_COOKIE, await authToken(), {
-      httpOnly: true, // not readable from page scripts
-      secure: env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: AUTH_MAX_AGE,
-    });
-    redirect(next);
-  },
-  { public: true },
-);
-
-// ---- profiles ------------------------------------------------------------------------
-
-const MAX_TEXT = 60_000; // characters kept from a file
-
-async function fileToText(file: File): Promise<string> {
-  const name = file.name.toLowerCase();
-  if (name.endsWith('.pdf') || file.type === 'application/pdf') {
-    const { extractText, getDocumentProxy } = await import('unpdf');
-    const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
-    const { text } = await extractText(pdf, { mergePages: true });
-    return text;
-  }
-  if (/\.(txt|md|markdown)$/.test(name) || file.type.startsWith('text/')) return file.text();
-  throw new Error('Only PDF, TXT and MD files are supported.');
-}
-
-/** Saves the profile and makes it the active one; answers with its id. */
-export const saveProfileAction = formAction(
-  profileSchema,
-  async ({ profileId, name, prompt, file: upload, removeFile }) => {
-    let file: Parameters<typeof saveProfile>[0]['file'] = removeFile ? 'remove' : 'keep';
-    if (upload) {
-      let text: string;
-      try {
-        text = (await fileToText(upload)).replace(/\s+\n/g, '\n').trim();
-      } catch (error) {
-        // the PDF library can throw things that aren't Errors; "[object Object]" would say nothing
-        throw new Error(error instanceof Error ? error.message : 'Could not read the file.');
-      }
-      if (!text) throw new Error('No text found in that file (a scanned PDF?).');
-      file = { name: upload.name, text: text.slice(0, MAX_TEXT) };
-    }
-
-    const keepsFile =
-      file === 'keep' && profileId ? Boolean((await getProfile(profileId))?.fileName) : typeof file === 'object';
-    if (!prompt.trim() && !keepsFile) throw new Error('Describe what to look for, or add a file.');
-
-    const id = await saveProfile({ id: profileId, name, prompt, file });
-    refresh();
-    return { id };
-  },
-);
-
-export const selectProfileAction = action(profileIdSchema, async ({ id }) => {
-  await activateProfile(id);
-  refresh();
-});
-
-export const deleteProfileAction = action(profileIdSchema, async ({ id }) => {
-  await deleteProfile(id);
-  refresh();
-});
-
-// ---- runs ----------------------------------------------------------------------------
-
-/** Checks the offers in a date range that the profile hasn't judged yet (today if no range). */
-export const startRunAction = action(startRunSchema, async ({ profileId, days, from, to }) => {
-  const profile = await getProfile(profileId);
-  if (!isUsable(profile)) throw new Error('Set up the profile first.');
-
-  const filter = days ? { days } : { from, to };
-  const { gte, lt } = (await appZone()).resolveRange(filter);
-  const label = describeRange(filter) || 'all offers';
-
-  const run = await startRun(profile, { gte, lt, label });
-  if (run.status === 'running') after(() => continueRun(run.id));
-  refresh();
-  return run.status === 'running'
-    ? { started: true, message: `Checking ${run.total - run.done} offer(s) from ${label}…` }
-    : { started: false, message: `Nothing new to check in ${label}.` };
-});
 
 // ---- applications --------------------------------------------------------------------
 
@@ -293,23 +189,4 @@ export const updateApplicationAction = action(updateApplicationSchema, async ({ 
   if (updated.fetch) after(() => saveContent(saved));
   refresh();
   return updated.app;
-});
-
-// ---- time zone ---------------------------------------------------------------------------
-
-/**
- * The browser says which zone it's in. Kept as the zone that "the browser's" (the default) means,
- * so the cron and Telegram use it too; the page shows it at once if that's what the app follows.
- */
-export const reportBrowserTimeZoneAction = action(browserTimeZoneSchema, async ({ tz }) => {
-  if (!isTimeZone(tz)) return;
-  // not appSettings(): the page refreshed below is rendered in this same request, and it must
-  // read the settings as saved here, not as cached from before
-  const settings = await settingsRepo.get().catch(() => null);
-  if (!settings || settings.browserTimeZone === tz) return;
-  const next = { ...settings, browserTimeZone: tz };
-  await settingsRepo.save(next);
-  if (settings.timeZone) return; // a zone of its own is picked: nothing that shows or runs changes
-  await syncCron(next); // the hours are this zone's now (if that fails, Settings shows it)
-  refresh();
 });

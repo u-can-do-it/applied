@@ -2,13 +2,13 @@ import { connection } from 'next/server';
 import { Suspense } from 'react';
 import type { SearchParams } from '@/lib/shared/search-params';
 import { filterBoards, boardOptions } from '@/lib/listings/board-filter';
-import { AiFilterBar } from './ai-filter-bar';
+import { AiFilterBar } from '@/features/ai/ai-filter-bar';
 import { Controls, ControlsFallback } from './controls';
-import { Header } from './header';
+import { Header } from '@/features/shell/header';
 import { NavProvider } from './nav';
 import { Results, ResultsSkeleton } from './results';
 import { ResultsBoundary } from './results-boundary';
-import { Tabs, TabsFallback } from './tabs';
+import { Tabs, TabsFallback } from '@/features/shell/tabs';
 
 // Shared by "/" (all offers) and "/ai" (the same list, narrowed by the AI filter).
 // Nothing here awaits, so everything outside the <Suspense> boundaries is static shell.

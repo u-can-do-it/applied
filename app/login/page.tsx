@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { LoginForm } from './login-form';
+import { LoginForm } from '@/features/login/login-form';
 
 export const metadata: Metadata = { title: 'Jobwatch · log in' };
 

@@ -1,6 +1,8 @@
 'use client';
 
 import { startTransition, useEffect, useEffectEvent, useOptimistic, useRef, useState, useTransition } from 'react';
+import { Feedback, useAction } from '@/components/use-action';
+import { useZone } from '@/components/time-zone';
 import { byId } from '@/lib/boards';
 import { FIELDS, JSON_SOURCES, type FieldId, type JsonSource } from '@/lib/listings/config';
 import { KIND_IDS, isGeneric, kindOf, type KindId } from '@/lib/listings/kinds';
@@ -16,8 +18,6 @@ import {
   toggleScraperAction,
   type TestResult,
 } from './actions';
-import { useZone } from '../time-zone';
-import { Feedback, useAction } from './panels';
 
 // The scrapers: the built-in boards, plus your own (JSON / HTML / RSS) set up here.
 

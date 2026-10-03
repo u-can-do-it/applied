@@ -1,5 +1,5 @@
 import 'server-only';
-import { hmac } from './auth';
+import { hmac } from './hmac';
 import { env } from './env';
 import type { Queued } from './db/repos/notify-queue';
 

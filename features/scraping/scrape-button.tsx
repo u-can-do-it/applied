@@ -1,13 +1,24 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { startTransition, useEffect, useState, useTransition } from 'react';
+import type { RunSummary } from '@/lib/listings/pipeline/model';
 import { message } from '@/lib/shared/errors';
-import { fail } from '@/lib/shared/result';
-import { scrapeNowAction } from './settings/actions';
+import { fail, type Result } from '@/lib/shared/result';
+
+/** POST /api/scrape (app/api/scrape/route.ts). */
+async function scrapeNow(): Promise<Result<RunSummary>> {
+  // a lapsed login gets proxy.ts's redirect to /login: not followed, it would answer with that page
+  const response = await fetch('/api/scrape', { method: 'POST', redirect: 'manual' });
+  if (response.type === 'opaqueredirect') return fail('Not logged in: reload the page.');
+  const answer = (await response.json().catch(() => null)) as Result<RunSummary> | null;
+  return answer ?? fail(`The server answered ${response.status}.`);
+}
 
 // "Scrape now" in the header: a full run, like the scheduled one (new offers also go to
 // Telegram). The page refreshes with the new offers when it's done.
 export function ScrapeButton() {
+  const router = useRouter();
   const [busy, start] = useTransition();
   const [result, setResult] = useState<{ text: string; title?: string; bad?: boolean } | null>(null);
 
@@ -21,7 +32,7 @@ export function ScrapeButton() {
     setResult(null);
     start(async () => {
       let next: typeof result;
-      const answer = await scrapeNowAction().catch((failure: unknown) => fail(message(failure)));
+      const answer = await scrapeNow().catch((failure: unknown) => fail(message(failure)));
       if (answer.ok) {
         const report = answer.data;
         const errors = report.errors.map((failure) => `${failure.scraper}: ${failure.error}`).join('\n');
@@ -39,7 +50,11 @@ export function ScrapeButton() {
       } else {
         next = { text: '⚠ failed', title: answer.error, bad: true };
       }
-      startTransition(() => setResult(next)); // with the refreshed list, not a frame before it
+      // with the refreshed list, not a frame before it
+      startTransition(() => {
+        setResult(next);
+        if (answer.ok) router.refresh();
+      });
     });
   };
 

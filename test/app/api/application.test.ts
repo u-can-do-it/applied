@@ -4,7 +4,7 @@ import { GET } from '@/app/api/application/route';
 import { getApplication } from '@/lib/applications';
 
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: () => ({ value: 'token' }) }) }));
-vi.mock('@/lib/auth', () => ({ AUTH_COOKIE: 'auth', isValidToken: () => Promise.resolve(true) }));
+vi.mock('@/server/auth', () => ({ AUTH_COOKIE: 'auth', isValidToken: () => Promise.resolve(true) }));
 vi.mock('@/lib/applications', () => ({ getApplication: vi.fn() }));
 const load = vi.mocked(getApplication);
 

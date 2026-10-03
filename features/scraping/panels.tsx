@@ -1,39 +1,22 @@
 'use client';
 
-import {
-  startTransition,
-  useMemo,
-  useOptimistic,
-  useState,
-  useSyncExternalStore,
-  useTransition,
-  type SubmitEvent,
-} from 'react';
+import { startTransition, useMemo, useOptimistic, useState, useSyncExternalStore, type SubmitEvent } from 'react';
+import { Feedback, useAction } from '@/components/use-action';
+import { useZone } from '@/components/time-zone';
 import { deviceTimeZone, timeZones } from '@/lib/dates';
 import { cronSchedule, describeSchedule } from '@/lib/listings/cron';
 import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/listings/settings';
 import type { CronStatus } from '@/lib/db/repos/cron';
 import type { ScrapeRun } from '@/lib/db/repos/scrape-runs';
 import type { ScrapeState } from '@/lib/db/repos/scrape-state';
-import { message } from '@/lib/shared/errors';
 import { seconds } from '@/lib/shared/format';
-import { fail, type Result } from '@/lib/shared/result';
-import type { BotInfo } from '@/lib/telegram';
-import { useZone } from '../time-zone';
 import {
   cronConnectAction,
   cronDisconnectAction,
   saveFiltersAction,
   saveScheduleAction,
-  sendQueueAction,
-  setAiFilterAction,
-  setMutedAction,
-  setNotifyAction,
   setScrapingPausedAction,
   setTimeZoneAction,
-  telegramConnectAction,
-  telegramDisconnectAction,
-  telegramTestAction,
 } from './actions';
 
 // How every change here behaves (the Next.js "interactive apps" patterns):
@@ -42,27 +25,6 @@ import {
 //   only where you haven't typed since;
 // - answers ("Saved.") and closing a dialog are wrapped in startTransition after the await, so
 //   they land in the same frame as the refreshed data instead of a moment before it.
-
-/** What an action answers here: a message to show ("Saved."), or anything else (not shown). */
-type Answer = Result<unknown>;
-
-/**
- * Runs an action from a button or a form: busy state, an optimistic update to show right away, and
- * its answer, which shows with the refreshed page.
- */
-export function useAction() {
-  const [busy, start] = useTransition();
-  const [state, setState] = useState<Answer | null>(null);
-  const run = (fn: () => Promise<Answer>, optimistic?: () => void) => {
-    setState(null);
-    start(async () => {
-      optimistic?.();
-      const answer = await fn().catch((failure: unknown) => fail(message(failure)));
-      startTransition(() => setState(answer));
-    });
-  };
-  return { busy, state, run, clear: () => setState(null) };
-}
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -78,21 +40,6 @@ function useServerForm<T extends object>(server: T) {
   return { form, setForm, dirty: !same(form, server) };
 }
 
-export function Feedback({ state }: { state: Result<unknown> | null | undefined }) {
-  if (state?.ok === false)
-    return (
-      <p className="form-error" role="alert">
-        {state.error}
-      </p>
-    );
-  if (typeof state?.data === 'string' && state.data)
-    return (
-      <p className="form-ok" role="status">
-        {state.data}
-      </p>
-    );
-  return null;
-}
 const zoneName = (tz: string) => tz.replaceAll('_', ' '); // "America/New York"
 
 // ---- schedule + what calls the endpoint --------------------------------------------------
@@ -470,171 +417,6 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
           <Feedback state={save.state} />
         </div>
       </form>
-    </section>
-  );
-}
-
-// ---- Telegram -----------------------------------------------------------------------------
-
-export function TelegramPanel({
-  ready,
-  bot,
-  notify,
-  muted,
-  queued,
-  ai,
-  webhookUrl,
-}: {
-  ready: boolean;
-  bot: (BotInfo & { error?: undefined }) | { error: string } | null;
-  notify: boolean;
-  muted: boolean;
-  queued: number;
-  /** the AI filter: on in settings, the active profile (if usable), whether OPENAI_API_KEY is set */
-  ai: { on: boolean; profile: string | null; keySet: boolean };
-  webhookUrl: string;
-}) {
-  const act = useAction();
-  // what the buttons show right away; the refreshed page brings the real values
-  type View = { notify: boolean; muted: boolean; queued: number; aiOn: boolean };
-  const [view, show] = useOptimistic<View, Partial<View>>({ notify, muted, queued, aiOn: ai.on }, (cur, patch) => ({
-    ...cur,
-    ...patch,
-  }));
-  if (!ready) {
-    return (
-      <section className="panel" aria-labelledby="tg-h">
-        <h2 id="tg-h">Telegram</h2>
-        <p className="small">
-          Set <code className="inline">TELEGRAM_BOT_TOKEN</code> and <code className="inline">TELEGRAM_CHAT_ID</code> in
-          Vercel → Settings → Environment Variables and redeploy. The token: @BotFather → /mybots → your bot → API
-          Token. The chat id: write to the bot, open{' '}
-          <code className="inline">api.telegram.org/bot&lt;token&gt;/getUpdates</code> and copy{' '}
-          <code className="inline">message.chat.id</code> (a group’s starts with -).
-        </p>
-      </section>
-    );
-  }
-  const info = bot && !bot.error ? (bot as BotInfo) : null;
-  const hooked = info?.webhook === webhookUrl;
-  return (
-    <section className="panel" aria-labelledby="tg-h">
-      <h2 id="tg-h">Telegram</h2>
-      <p className="small">
-        {info ? (
-          <>
-            Bot <strong>@{info.username}</strong>
-          </>
-        ) : (
-          <span className="warn">Can’t reach the bot: {bot?.error}</span>
-        )}
-      </p>
-      <div className="form-line">
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={view.notify}
-            onChange={(event) => {
-              const on = event.target.checked;
-              act.run(
-                () => setNotifyAction({ on }),
-                () => show({ notify: on }),
-              );
-            }}
-          />{' '}
-          Send new offers
-        </label>
-        <span className="small">
-          {view.muted ? `🔕 Muted, ${view.queued} waiting` : view.queued ? `🔔 On, ${view.queued} waiting` : '🔔 On'}
-        </span>
-        <button
-          type="button"
-          className="secondary"
-          aria-busy={act.busy || undefined}
-          onClick={() => {
-            const mute = !view.muted;
-            act.run(
-              () => setMutedAction({ muted: mute }),
-              () => show(mute ? { muted: true } : { muted: false, queued: 0 }),
-            );
-          }}
-        >
-          {view.muted ? 'Unmute and send' : 'Mute'}
-        </button>
-        {view.queued > 0 && (
-          <button
-            type="button"
-            className="secondary"
-            aria-busy={act.busy || undefined}
-            onClick={() => act.run(sendQueueAction, () => show({ queued: 0 }))}
-          >
-            Send the {view.queued} now
-          </button>
-        )}
-        <button type="button" className="secondary" disabled={act.busy} onClick={() => act.run(telegramTestAction)}>
-          Test message
-        </button>
-      </div>
-      <label className="check ai-filter">
-        <input
-          type="checkbox"
-          checked={view.aiOn}
-          onChange={(event) => {
-            const on = event.target.checked;
-            act.run(
-              () => setAiFilterAction({ on }),
-              () => show({ aiOn: on }),
-            );
-          }}
-        />{' '}
-        ✦ Only offers the AI profile matches{ai.profile ? ` (“${ai.profile}”)` : ''}
-      </label>
-      <p className="muted small field-note-under">
-        {!view.aiOn
-          ? 'Off: every new offer is sent.'
-          : !ai.keySet
-            ? 'Set OPENAI_API_KEY to use it: until then every new offer is sent.'
-            : !ai.profile
-              ? 'No AI profile yet (AI filter tab → ✦ Profile): until then every new offer is sent.'
-              : 'Every new offer is checked right after scraping (as the AI tab would; also the ones that aren’t sent, like a new scraper’s first run). The message lists the matches with their fit; if none match, it just says how many new offers there are. One the AI can’t check for 20 minutes is sent anyway, marked.'}
-      </p>
-      <p className="small">
-        Commands in the chat (/mute, /resume, /send, /scrape, /status):{' '}
-        {hooked ? (
-          <span className="ok-text">✓ connected</span>
-        ) : info?.webhook ? (
-          <span className="warn">the bot sends them to {info.webhook}</span>
-        ) : (
-          'not connected'
-        )}
-        {info?.webhookError && <span className="warn"> · last error: {info.webhookError}</span>}
-      </p>
-      <div className="button-row">
-        <button
-          type="button"
-          className={hooked ? 'secondary' : undefined}
-          disabled={act.busy}
-          onClick={() => act.run(telegramConnectAction)}
-        >
-          {act.busy ? 'Working…' : hooked ? 'Reconnect commands' : 'Connect commands'}
-        </button>
-        {info?.webhook && (
-          <button
-            type="button"
-            className="secondary"
-            disabled={act.busy}
-            onClick={() => act.run(telegramDisconnectAction)}
-          >
-            Disconnect
-          </button>
-        )}
-      </div>
-      {!hooked && (
-        <p className="muted small">
-          A bot gets commands either by webhook or by polling, not both: nothing else may be reading this bot’s updates.
-        </p>
-      )}
-      <Feedback state={act.state} />
     </section>
   );
 }

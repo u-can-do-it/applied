@@ -6,7 +6,7 @@ The app scrapes the boards itself and sends new offers to Telegram. Changing it,
 
 ```
 Supabase Cron ─as in Settings→ /api/cron/scrape (Vercel) ─→ scrapers → filters → Supabase (offers)
-"↻ Scrape now" ───────────────────────────────────────────┘                    └→ Telegram (new jobs)
+"↻ Scrape now" ─→ /api/scrape ────────────────────────────┘                    └→ Telegram (new jobs)
 Telegram /mute /send /status ─→ /api/telegram
 ```
 

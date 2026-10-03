@@ -2,7 +2,7 @@
 
 import { startTransition, useOptimistic, useState, useTransition } from 'react';
 import { zoneOf } from '@/lib/dates';
-import { applyAction, unapplyAction } from './actions';
+import { applyAction, unapplyAction } from '@/features/applications/actions';
 
 /** "Mark applied" / "✓ Applied 02.10.2026" - flips on the click frame, the server catches up. */
 export function ApplyButton({

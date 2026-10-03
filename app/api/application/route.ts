@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getApplication } from '@/lib/applications';
-import { AUTH_COOKIE, isValidToken } from '@/lib/auth';
+import { AUTH_COOKIE, isValidToken } from '@/server/auth';
 
 // GET /api/application?jobId=<job id> -> the saved application with its complete ad text.
 // The list only loads titles; the text (can be long) comes when a row is opened. `?key=` is the

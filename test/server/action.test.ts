@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { action, formAction } from '@/lib/action';
-import { requireLogin } from '@/lib/session';
+import { action, formAction } from '@/server/action';
+import { requireLogin } from '@/server/session';
 
-vi.mock('@/lib/session', () => ({ requireLogin: vi.fn() }));
+vi.mock('@/server/session', () => ({ requireLogin: vi.fn() }));
 const login = vi.mocked(requireLogin);
 
 const schema = z.object({ name: z.string().min(1, 'Give it a name.'), count: z.number().default(1) });

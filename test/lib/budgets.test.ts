@@ -15,7 +15,8 @@ import { INTERVALS } from '@/lib/listings/settings';
 
 // The relationships the budgets must keep, whatever a later change does to one of them.
 
-const app = join(import.meta.dirname, '../../app');
+const root = join(import.meta.dirname, '../..');
+const app = join(root, 'app');
 const MAX_DURATION = /export\s+const\s+maxDuration\b[^=]*=\s*([^;\n]+)/g;
 
 describe('time budgets', () => {
@@ -43,14 +44,28 @@ describe('time budgets', () => {
   it('every maxDuration is the function limit, as a literal (Next reads it without running the code)', () => {
     const files = readdirSync(app, { recursive: true, encoding: 'utf8' }).filter((file) => /\.tsx?$/.test(file));
     const mentioning = files.filter((file) => readFileSync(join(app, file), 'utf8').includes('maxDuration'));
-    // the routes that scrape or call OpenAI, and the pages whose server actions do ("Scrape now", AI runs)
-    expect(mentioning.length).toBeGreaterThanOrEqual(6);
+    // the routes that scrape or call OpenAI ("Scrape now" is one), and the pages whose server actions
+    // or after() do (AI runs, reading an ad, "+ Add application", testing a scraper)
+    expect(mentioning.length).toBeGreaterThanOrEqual(7);
+    expect(mentioning).toEqual(
+      expect.arrayContaining([join('api', 'scrape', 'route.ts'), join('api', 'cron', 'scrape', 'route.ts')]),
+    );
     for (const file of mentioning) {
       const declared = [...readFileSync(join(app, file), 'utf8').matchAll(MAX_DURATION)].map((match) =>
         match[1].trim(),
       );
       expect(declared, file).not.toEqual([]);
       for (const value of declared) expect(value, file).toBe(String(FUNCTION_LIMIT_MS / 1000));
+    }
+  });
+
+  it('no maxDuration outside app/ (Next reads it only from a page, layout or route file)', () => {
+    for (const dir of ['features', 'components', 'server', 'lib']) {
+      const files = readdirSync(join(root, dir), { recursive: true, encoding: 'utf8' }).filter((file) =>
+        /\.tsx?$/.test(file),
+      );
+      for (const file of files)
+        expect(readFileSync(join(root, dir, file), 'utf8'), join(dir, file)).not.toMatch(MAX_DURATION);
     }
   });
 });

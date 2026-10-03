@@ -37,9 +37,9 @@ import {
   setApplicationNoteAction,
   setApplicationStatusAction,
   unapplyAction,
-} from '../actions';
-import { SearchIcon } from '../search-box';
-import { TimeZone, useZone } from '../time-zone';
+} from './actions';
+import { SearchIcon } from '@/components/search-icon';
+import { TimeZone, useZone } from '@/components/time-zone';
 import { AddApplication, ApplicationForm } from './add-application';
 
 /** "02.10.2026" of an instant, in the app's time zone */

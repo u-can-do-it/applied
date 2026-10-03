@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { AUTH_COOKIE, isValidToken } from '@/lib/auth';
+import { AUTH_COOKIE, isValidToken } from '@/server/auth';
 import { dataVersion } from '@/lib/changes';
 
 // GET /api/changes -> { v }: changes when a scrape or a Telegram command changed what the pages

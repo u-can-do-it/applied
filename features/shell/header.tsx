@@ -2,8 +2,8 @@ import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { appSettings } from '@/lib/time-zone';
 import { AutoRefresh } from './auto-refresh';
-import { ScrapeButton } from './scrape-button';
-import { BrowserZone } from './time-zone';
+import { ScrapeButton } from '@/features/scraping/scrape-button';
+import { BrowserZone } from './browser-zone';
 
 export function Header() {
   return (

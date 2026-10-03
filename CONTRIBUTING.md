@@ -3,6 +3,33 @@
 Before you push: `npm run typecheck && npm run lint && npm test` (and `npm run test:db` when you touched the
 database code or the migrations; it needs Docker).
 
+## Where things live
+
+- **`app/`: routes only.** Pages, layouts, `error.tsx`, and `api/*/route.ts`. A page puts features together;
+  what it renders lives in `features/`. A page's `maxDuration` covers its server actions and their `after()`
+  work, so it's set where those need longer (the literal `300`: `test/lib/budgets.test.ts`). An operation that
+  needs the time on its own is a route with its own `maxDuration`, like `POST /api/scrape` ("Scrape now").
+- **`features/<feature>/`: one area of the app**, its components and its server actions (`actions.ts`, starting
+  with `'use server'`, every action built with `action()` / `formAction()` from `server/action.ts`).
+  `offers` (the lists, filters, Mark applied's button), `ai` (profiles, AI runs), `applications` (the Applied
+  tab, applying, the add/edit form), `scraping` (Settings: schedule, filters, scrapers, Supabase Cron, the
+  "Scrape now" button), `telegram` (its Settings panel), `login`, and `shell` (the header, tabs, auto-refresh,
+  telling the server the browser's time zone). A feature imports another's module by its `@/features/…` path.
+- **`components/`: pieces more than one feature uses** (`DateInput`, `SearchIcon`, `TimeZone` / `useZone`,
+  `useAction` + `Feedback`). They import nothing from `features/`.
+- **`server/`: the request's gate.** The login cookie (`auth.ts`), `requireLogin()` (`session.ts`) and the
+  action wrapper (`action.ts`).
+- **`lib/`: what the app knows, without the UI.** Boards, listings and the scrape pipeline, ads, AI, the
+  database (`lib/db/`: schema and one repo per table), dates, Telegram. Server-only modules start with
+  `import 'server-only'`.
+- **`lib/shared/`: what client components may import, guaranteed** (errors, `Result`, formatting, URL filters,
+  the Zod schemas the actions check their input with). Nothing in it reads the database or a secret. Other
+  `lib/` modules without `import 'server-only'` (e.g. `lib/dates.ts`, `lib/stages.ts`) may be imported by client
+  components too; check that line first.
+- **Imports:** `app/`, `features/`, `components/` and `server/` use `@/…`, except between files of the same
+  folder (`./…`). `lib/` uses relative paths within itself (`../db/…`), and `.ts` in them where a script runs
+  the module in plain Node. Client components start with `'use client'`.
+
 ## Naming
 
 - **The glossary's words** ([docs/GLOSSARY.md](docs/GLOSSARY.md)), one per idea: a _board_ (a site), a

@@ -2,8 +2,8 @@ import 'server-only';
 import { unstable_rethrow } from 'next/navigation';
 import type { z } from 'zod';
 import { requireLogin } from './session';
-import { message } from './shared/errors';
-import { fail, ok, type Result } from './shared/result';
+import { message } from '@/lib/shared/errors';
+import { fail, ok, type Result } from '@/lib/shared/result';
 
 // Every server action is built here: it checks the login, then the input against its schema
 // (the browser can send anything, whatever the TypeScript types say), and answers with a Result

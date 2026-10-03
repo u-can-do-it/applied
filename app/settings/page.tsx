@@ -14,14 +14,16 @@ import * as stateRepo from '@/lib/db/repos/scrape-state';
 import * as scrapersRepo from '@/lib/db/repos/scrapers';
 import { message } from '@/lib/shared/errors';
 import { botInfo, telegramReady } from '@/lib/telegram';
-import { Header } from '../header';
-import { Tabs, TabsFallback } from '../tabs';
-import { TimeZone } from '../time-zone';
-import { FiltersPanel, SchedulePanel, TelegramPanel } from './panels';
-import { ScrapersPanel } from './scrapers';
+import { Header } from '@/features/shell/header';
+import { Tabs, TabsFallback } from '@/features/shell/tabs';
+import { TimeZone } from '@/components/time-zone';
+import { FiltersPanel, SchedulePanel } from '@/features/scraping/panels';
+import { ScrapersPanel } from '@/features/scraping/scrapers';
+import { TelegramPanel } from '@/features/telegram/telegram-panel';
 
 export const metadata: Metadata = { title: 'Jobwatch · Settings' };
-// "Scrape now" and the scraper tests run in this page's server actions
+// Testing a scraper fetches its pages; unmuting Telegram and "Send the N now" run the AI check first.
+// ("Scrape now" in the header is POST /api/scrape, with a limit of its own.)
 export const maxDuration = 300;
 
 export default function SettingsPage() {

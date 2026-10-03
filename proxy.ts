@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { AUTH_COOKIE, authEnabled, isValidToken } from './lib/auth';
-import { env } from './lib/env';
+import { AUTH_COOKIE, authEnabled, isValidToken } from '@/server/auth';
+import { env } from '@/lib/env';
 
 // Every page and server action needs the login cookie, except the login page itself and the two
 // endpoints machines call (they check their own secret: the cron one, and Telegram's).

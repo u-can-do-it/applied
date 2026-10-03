@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useActionState } from 'react';
-import { login } from '../actions';
+import { login } from './actions';
 
 export function LoginForm() {
   const next = useSearchParams().get('next') ?? '/';

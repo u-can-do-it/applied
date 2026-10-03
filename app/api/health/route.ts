@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { AUTH_COOKIE, isValidToken } from '@/lib/auth';
+import { AUTH_COOKIE, isValidToken } from '@/server/auth';
 import { checkDbHealth } from '@/lib/db/health';
 
 // GET /api/health -> { db: 'ok' | 'behind' | 'unreachable', pending: [migration names] }: whether the

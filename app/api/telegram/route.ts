@@ -1,5 +1,5 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
-import { sameString } from '@/lib/auth';
+import { sameString } from '@/lib/hmac';
 import { zoneOf } from '@/lib/dates';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
 import * as offersRepo from '@/lib/db/repos/offers';

@@ -1,6 +1,6 @@
 import 'server-only';
 import { headers } from 'next/headers';
-import { hmac, sameString } from '../auth';
+import { hmac, sameString } from '../hmac';
 import * as cronRepo from '../db/repos/cron';
 import * as settingsRepo from '../db/repos/scrape-settings';
 import * as stateRepo from '../db/repos/scrape-state';
