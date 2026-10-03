@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
+import { cn } from '@/lib/shared/cn';
 
 const EVERY_MS = 60_000; // scraping runs every 5 min at most, so asking once a minute is plenty
 const ON_RETURN_MS = 15_000; // back in the browser tab: ask right away if the last answer is older
@@ -68,8 +69,11 @@ export function AutoRefresh() {
   }, [router]);
 
   return (
-    <p className="live" aria-live="polite">
-      <span className={`dot${pending ? ' busy' : ''}`} aria-hidden="true" />
+    <p
+      className="m-0 flex items-center gap-1.5 text-[13px] text-muted-foreground tabular-nums max-[480px]:hidden"
+      aria-live="polite"
+    >
+      <span className={cn('size-[7px] rounded-full bg-success', pending && 'animate-pulse')} aria-hidden="true" />
       {checkedAt === null ? 'Live' : pending ? 'Updating…' : `Updated ${timeLabel.format(checkedAt)}`}
     </p>
   );

@@ -4,9 +4,10 @@ import { BOARD_RE, boardOf, isLink } from '../../boards';
 import { validDay } from '../../dates';
 import type { JobDetails } from '../../ads/details';
 import { isOutcome, isStage, type OutcomeId, type StageId } from '../../stages';
+import { DAY_ERROR, NOTE_MAX } from '../application-messages';
 import { jobId, text } from './common';
 
-export const NOTE_MAX = 10_000;
+export { DAY_ERROR, NOTE_CONFLICT, NOTE_MAX } from '../application-messages';
 
 const stage = (error?: string) => z.custom<StageId>(isStage, error);
 const outcome = (error?: string) => z.custom<OutcomeId>(isOutcome, error);
@@ -36,14 +37,8 @@ export const setNoteSchema = z.object({
   seenAt: z.iso.datetime({ offset: true }).nullable(),
 });
 
-/** Why a note wasn't saved: it was changed elsewhere since the window read it. */
-export const NOTE_CONFLICT =
-  'This note was changed in another tab or window since you opened it, so your text wasn’t saved. It’s kept here and in this browser.';
-
 const LINK_NEEDED = 'Paste a link that starts with https://';
 export const fillFromLinkSchema = z.object({ link: z.string({ error: LINK_NEEDED }).refine(isLink, LINK_NEEDED) });
-
-export const DAY_ERROR = 'Pick the day you applied (not in the future).';
 
 // in the order the form is checked: the first problem is the one shown
 const fields = z.object({

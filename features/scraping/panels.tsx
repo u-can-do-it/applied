@@ -2,8 +2,16 @@
 
 import { startTransition, useMemo, useOptimistic, useState, useSyncExternalStore, type SubmitEvent } from 'react';
 import { CircleSmallIcon, PauseIcon, PlayIcon, SparklesIcon } from 'lucide-react';
-import { Feedback, useAction } from '@/components/use-action';
+import { useConfirm } from '@/components/confirm';
+import { CheckField, Code, Field } from '@/components/field';
+import { ActionError, useAction } from '@/components/use-action';
 import { useZone } from '@/components/time-zone';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { cn } from '@/lib/shared/cn';
 import { deviceTimeZone, timeZones } from '@/lib/dates';
 import { cronSchedule, describeSchedule } from '@/lib/listings/cron';
 import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/listings/settings';
@@ -24,8 +32,7 @@ import {
 // - toggles show the new value at once (useOptimistic) until the refreshed page has it;
 // - forms keep what you typed (controlled, no automatic form reset) and take the server's values
 //   only where you haven't typed since;
-// - answers ("Saved.") and closing a dialog are wrapped in startTransition after the await, so
-//   they land in the same frame as the refreshed data instead of a moment before it.
+// - "Saved." is a toast; what went wrong shows next to the control until the next try (useAction).
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -42,6 +49,12 @@ function useServerForm<T extends object>(server: T) {
 }
 
 const zoneName = (tz: string) => tz.replaceAll('_', ' '); // "America/New York"
+
+/** a Settings panel (scrapers.tsx has the same) */
+const PANEL = 'mb-3.5 gap-2.5 py-3.5';
+const PANEL_TITLE = 'm-0 text-base font-semibold';
+const SUBHEAD = 'mt-4 mb-1.5 text-[13px] font-semibold tracking-[0.04em] text-muted-foreground uppercase';
+const SMALL = 'my-1.5 text-xs';
 
 // ---- schedule + what calls the endpoint --------------------------------------------------
 
@@ -66,10 +79,7 @@ export function SchedulePanel({
     toHour: String(settings.toHour),
   });
   const save = useAction();
-  const edit = (patch: Partial<typeof form>) => {
-    save.clear();
-    setForm((current) => ({ ...current, ...patch }));
-  };
+  const edit = (patch: Partial<typeof form>) => setForm((current) => ({ ...current, ...patch }));
   const submit = (event: SubmitEvent) => {
     event.preventDefault();
     save.run(() => saveScheduleAction({ ...form, fromHour: Number(form.fromHour), toHour: Number(form.toHour) }));
@@ -80,135 +90,152 @@ export function SchedulePanel({
   const zone = useZone();
 
   return (
-    <section className="panel" aria-labelledby="schedule-h">
-      <h2 id="schedule-h">Scraping</h2>
-      <div className={`pause-row${paused ? ' is-paused' : ''}`}>
-        <p className="small">
-          {paused ? (
-            <>
-              <strong className="warn">
-                <PauseIcon /> Paused
-              </strong>
-              : nothing scrapes on its own; “Scrape now” still works.
-            </>
-          ) : (
-            <>
-              <strong className="ok-text">
-                <CircleSmallIcon fill="currentColor" /> Running
-              </strong>
-              : every {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
-              {settings.fromHour}:00–{settings.toHour}:00 ({zoneName(zone.tz)}).
-            </>
+    <Card className={PANEL} role="region" aria-labelledby="schedule-h">
+      <CardHeader className="px-4">
+        <h2 id="schedule-h" className={PANEL_TITLE}>
+          Scraping
+        </h2>
+      </CardHeader>
+      <CardContent className="px-4">
+        <div
+          className={cn(
+            'mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border bg-background px-3 py-2.5',
+            paused && 'border-warning',
           )}
-        </p>
-        <button
-          type="button"
-          className={paused ? undefined : 'secondary'}
-          aria-busy={pause.busy || undefined}
-          onClick={() => {
-            const next = !paused;
-            pause.run(
-              () => setScrapingPausedAction({ paused: next }),
-              () => showPaused(next),
-            );
-          }}
         >
-          {paused ? (
-            <>
-              <PlayIcon /> Resume scraping
-            </>
-          ) : (
-            <>
-              <PauseIcon /> Pause scraping
-            </>
-          )}
-        </button>
-        <Feedback state={pause.state} />
-      </div>
-      <form onSubmit={submit} className="form-line">
-        <label className="inline-field">
-          every
-          <select value={form.everyMinutes} onChange={(event) => edit({ everyMinutes: Number(event.target.value) })}>
-            {INTERVALS.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="inline-field">
-          from
-          <input
-            className="hour"
-            type="number"
-            min={0}
-            max={24}
-            value={form.fromHour}
-            onChange={(event) => edit({ fromHour: event.target.value })}
-          />
-          to
-          <input
-            className="hour"
-            type="number"
-            min={0}
-            max={24}
-            value={form.toHour}
-            onChange={(event) => edit({ toHour: event.target.value })}
-          />
-          <span className="muted">o’clock</span>
-        </label>
-        <button type="submit" disabled={save.busy || !dirty} aria-busy={save.busy || undefined}>
-          {save.busy ? 'Saving…' : 'Save'}
-        </button>
-        <Feedback state={save.state} />
-      </form>
-      <TimeZoneField value={settings.timeZone} />
-
-      <h3>Last runs</h3>
-      {running && (
-        <p className="muted small">
-          <CircleSmallIcon fill="currentColor" /> A run is going right now.
-        </p>
-      )}
-      {runs.length ? (
-        <ol className="runs">
-          {runs.map((run) => (
-            <li key={run.id}>
-              <span className="run-time">{zone.formatDateTime(run.startedAt)}</span>
-              <span className="muted">{run.trigger}</span>
-              {run.finishedAt ? (
-                <span>
-                  {seconds(Date.parse(run.finishedAt) - Date.parse(run.startedAt))} · {run.found} on the pages ·{' '}
-                  {run.kept} kept · <strong>{run.added} new</strong>
-                  {run.matched !== null && (
-                    <>
-                      {' · '}
-                      <SparklesIcon /> {run.matched} matched
-                    </>
-                  )}
-                  {run.notified ? ` · ${run.notified} sent` : ''}
-                </span>
-              ) : (
-                <span className="muted">unfinished</span>
-              )}
-              {run.errors.map((failure, i) => (
-                <span key={i} className="run-error">
-                  {failure.scraper}: {failure.error}
-                </span>
+          <p className="m-0 text-xs">
+            {paused ? (
+              <>
+                <strong className="text-warning">
+                  <PauseIcon /> Paused
+                </strong>
+                : nothing scrapes on its own; “Scrape now” still works.
+              </>
+            ) : (
+              <>
+                <strong className="text-success">
+                  <CircleSmallIcon fill="currentColor" /> Running
+                </strong>
+                : every{' '}
+                {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
+                {settings.fromHour}:00–{settings.toHour}:00 ({zoneName(zone.tz)}).
+              </>
+            )}
+          </p>
+          <Button
+            type="button"
+            variant={paused ? 'default' : 'outline'}
+            aria-busy={pause.busy || undefined}
+            onClick={() => {
+              const next = !paused;
+              pause.run(
+                () => setScrapingPausedAction({ paused: next }),
+                () => showPaused(next),
+              );
+            }}
+          >
+            {paused ? (
+              <>
+                <PlayIcon /> Resume scraping
+              </>
+            ) : (
+              <>
+                <PauseIcon /> Pause scraping
+              </>
+            )}
+          </Button>
+          <ActionError error={pause.error} className="mt-0 basis-full" />
+        </div>
+        <form onSubmit={submit} className="flex flex-wrap items-center gap-x-3.5 gap-y-2 text-sm">
+          <label className="inline-flex items-center gap-1.5">
+            every
+            <NativeSelect
+              value={form.everyMinutes}
+              onChange={(event) => edit({ everyMinutes: Number(event.target.value) })}
+            >
+              {INTERVALS.map((minutes) => (
+                <NativeSelectOption key={minutes} value={minutes}>
+                  {minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}
+                </NativeSelectOption>
               ))}
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="muted small">No runs yet. Use “Scrape now” at the top.</p>
-      )}
-      {state.lastCallAt && (
-        <p className="muted small">Last call from a scheduler: {zone.formatDateTime(state.lastCallAt)}</p>
-      )}
+            </NativeSelect>
+          </label>
+          <label className="inline-flex items-center gap-1.5">
+            from
+            <Input
+              className="w-16"
+              type="number"
+              min={0}
+              max={24}
+              value={form.fromHour}
+              onChange={(event) => edit({ fromHour: event.target.value })}
+            />
+            to
+            <Input
+              className="w-16"
+              type="number"
+              min={0}
+              max={24}
+              value={form.toHour}
+              onChange={(event) => edit({ toHour: event.target.value })}
+            />
+            <span className="text-muted-foreground">o’clock</span>
+          </label>
+          <Button type="submit" disabled={save.busy || !dirty} aria-busy={save.busy || undefined}>
+            {save.busy ? 'Saving…' : 'Save'}
+          </Button>
+          <ActionError error={save.error} className="mt-0 basis-full" />
+        </form>
+        <TimeZoneField value={settings.timeZone} />
 
-      <h3>What calls it</h3>
-      <CronBox cron={cron} settings={settings} endpoint={endpoint} act={act} />
-    </section>
+        <h3 className={SUBHEAD}>Last runs</h3>
+        {running && (
+          <p className={cn(SMALL, 'text-muted-foreground')}>
+            <CircleSmallIcon fill="currentColor" /> A run is going right now.
+          </p>
+        )}
+        {runs.length ? (
+          <ol className="m-0 flex list-none flex-col gap-1 p-0 text-[13px]">
+            {runs.map((run) => (
+              <li key={run.id} className="flex flex-wrap gap-x-2.5 gap-y-1">
+                <span className="tabular-nums">{zone.formatDateTime(run.startedAt)}</span>
+                <span className="text-muted-foreground">{run.trigger}</span>
+                {run.finishedAt ? (
+                  <span>
+                    {seconds(Date.parse(run.finishedAt) - Date.parse(run.startedAt))} · {run.found} on the pages ·{' '}
+                    {run.kept} kept · <strong>{run.added} new</strong>
+                    {run.matched !== null && (
+                      <>
+                        {' · '}
+                        <SparklesIcon /> {run.matched} matched
+                      </>
+                    )}
+                    {run.notified ? ` · ${run.notified} sent` : ''}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">unfinished</span>
+                )}
+                {run.errors.map((failure, i) => (
+                  <span key={i} className="basis-full text-xs text-destructive [overflow-wrap:anywhere]">
+                    {failure.scraper}: {failure.error}
+                  </span>
+                ))}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className={cn(SMALL, 'text-muted-foreground')}>No runs yet. Use “Scrape now” at the top.</p>
+        )}
+        {state.lastCallAt && (
+          <p className={cn(SMALL, 'text-muted-foreground')}>
+            Last call from a scheduler: {zone.formatDateTime(state.lastCallAt)}
+          </p>
+        )}
+
+        <h3 className={SUBHEAD}>What calls it</h3>
+        <CronBox cron={cron} settings={settings} endpoint={endpoint} act={act} />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -222,10 +249,11 @@ function TimeZoneField({ value }: { value: string }) {
   const device = useSyncExternalStore(noSubscribe, deviceTimeZone, () => null);
   const zones = useMemo(() => timeZones(), []);
   return (
-    <div className="tz-row">
-      <label className="inline-field">
+    <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <label className="inline-flex max-w-full min-w-0 flex-1 items-center gap-1.5 text-sm whitespace-nowrap">
         Time zone
-        <select
+        <NativeSelect
+          className="max-w-[340px] min-w-0 flex-1"
           value={shown}
           aria-busy={save.busy || undefined}
           onChange={(event) => {
@@ -236,18 +264,18 @@ function TimeZoneField({ value }: { value: string }) {
             );
           }}
         >
-          <option value="">This browser’s{device ? ` (${zoneName(device)})` : ''}</option>
+          <NativeSelectOption value="">This browser’s{device ? ` (${zoneName(device)})` : ''}</NativeSelectOption>
           {zones.map((tz) => (
-            <option key={tz} value={tz}>
+            <NativeSelectOption key={tz} value={tz}>
               {zoneName(tz)}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
+        </NativeSelect>
       </label>
-      <Feedback state={save.state} />
-      <p className="muted small">
+      <p className="m-0 basis-full text-xs text-muted-foreground">
         For the hours above, and every day and time the app shows (lists, date filters, Telegram).
       </p>
+      <ActionError error={save.error} className="mt-1 basis-full" />
     </div>
   );
 }
@@ -272,39 +300,49 @@ function CronBox({
   act: ReturnType<typeof useAction>;
 }) {
   const { formatTime } = useZone();
+  const confirm = useConfirm();
   const connect = (label: string) => (
-    <button
+    <Button
       type="button"
       onClick={() => act.run(cronConnectAction)}
       disabled={act.busy}
       aria-busy={act.busy || undefined}
     >
       {act.busy ? 'Working…' : label}
-    </button>
+    </Button>
   );
+  const disconnect = async () => {
+    const yes = await confirm({
+      title: 'Stop Supabase Cron?',
+      description: 'Nothing will scrape on its own until you connect it again.',
+      action: 'Disconnect',
+      destructive: true,
+    });
+    if (yes) act.run(cronDisconnectAction);
+  };
   if (!cron.available) {
     return (
-      <div className="cron-box">
-        <p className="small">
+      <div className="text-sm">
+        <p className={SMALL}>
           Supabase Cron isn’t enabled in the database{cron.error ? ` (${cron.error})` : ''}. Run{' '}
-          <code className="inline-code">npm run db:migrate</code> (it turns on pg_cron and pg_net), or enable Cron under
-          Integrations in Supabase.
+          <Code>npm run db:migrate</Code> (it turns on pg_cron and pg_net), or enable Cron under Integrations in
+          Supabase.
         </p>
       </div>
     );
   }
   if (!cron.scheduled) {
     return (
-      <div className="cron-box">
-        <p className="small">
-          <span className="status-off">
+      <div className="text-sm">
+        <p className={SMALL}>
+          <span className="font-semibold text-muted-foreground">
             <CircleSmallIcon /> Not connected
           </span>
           : nothing scrapes on its own, only “Scrape now”. Connecting makes Supabase call the app{' '}
           {describeSchedule(settings)}; the app decides whether a run is due.
         </p>
-        <div className="button-row">{connect('Connect Supabase Cron')}</div>
-        <Feedback state={act.state} />
+        <div className={BUTTONS}>{connect('Connect Supabase Cron')}</div>
+        <ActionError error={act.error} />
       </div>
     );
   }
@@ -325,18 +363,18 @@ function CronBox({
               ? `The last call failed: ${cron.lastError}. If it keeps failing, try Reconnect.`
               : null;
   return (
-    <div className="cron-box">
-      <p className="small">
+    <div className="text-sm">
+      <p className={SMALL}>
         {problem ? (
-          <span className="warn">
+          <span className="text-warning">
             <CircleSmallIcon fill="currentColor" /> Connected, with a problem
           </span>
         ) : paused ? (
-          <span className="status-off">
+          <span className="font-semibold text-muted-foreground">
             <CircleSmallIcon fill="currentColor" /> Connected, paused
           </span>
         ) : (
-          <span className="ok-text">
+          <span className="text-success">
             <CircleSmallIcon fill="currentColor" /> Connected
           </span>
         )}
@@ -346,29 +384,22 @@ function CronBox({
           : `Supabase calls the app ${describeSchedule(settings)}, and it scrapes when a run is due.`}
         {cron.lastAt && !cron.lastError && ` Last call ${formatTime(cron.lastAt)}: ${lastAnswer(cron)}.`}
       </p>
-      <p className="muted small">
-        The job (UTC, so an hour wider where clocks change): <code className="inline-code">{cron.schedule}</code> →{' '}
-        <code className="inline-code">{cron.url}</code>
+      <p className={cn(SMALL, 'text-muted-foreground')}>
+        The job (UTC, so an hour wider where clocks change): <Code>{cron.schedule}</Code> → <Code>{cron.url}</Code>
       </p>
-      {problem && <p className="small warn">{problem}</p>}
-      <div className="button-row">
+      {problem && <p className={cn(SMALL, 'text-warning')}>{problem}</p>}
+      <div className={BUTTONS}>
         {problem && connect('Reconnect')}
-        <button
-          type="button"
-          className="secondary"
-          disabled={act.busy}
-          onClick={() =>
-            confirm('Stop Supabase Cron? Nothing will scrape on its own until you connect it again.') &&
-            act.run(cronDisconnectAction)
-          }
-        >
+        <Button type="button" variant="outline" disabled={act.busy} onClick={() => void disconnect()}>
           Disconnect
-        </button>
+        </Button>
       </div>
-      <Feedback state={act.state} />
+      <ActionError error={act.error} />
     </div>
   );
 }
+
+const BUTTONS = 'mt-1.5 flex flex-wrap items-center gap-2';
 
 // ---- filters ------------------------------------------------------------------------------
 
@@ -384,10 +415,7 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
     mute: join(settings.mute),
   });
   const save = useAction();
-  const edit = (patch: Partial<typeof form>) => {
-    save.clear();
-    setForm((current) => ({ ...current, ...patch }));
-  };
+  const edit = (patch: Partial<typeof form>) => setForm((current) => ({ ...current, ...patch }));
   const submit = (event: SubmitEvent) => {
     event.preventDefault();
     // shown the way it's saved ("React,Vue " -> "React, Vue"), so it matches the refreshed page
@@ -404,51 +432,52 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
     onChange: (event: { target: { value: string } }) => edit({ [field]: event.target.value }),
   });
   return (
-    <section className="panel" aria-labelledby="filters-h">
-      <h2 id="filters-h">Filters</h2>
-      <form onSubmit={submit} className="form-stack">
-        <label className="field">
-          <span>Keywords</span>
-          <input {...text('keywords')} placeholder="React, Next.js" />
-          <small>
-            Searched on every board (<code className="inline-code">{'{keyword}'}</code> in a scraper’s link) and, where
-            a scraper checks it, required in the offer’s title or skills. A keyword starts a word: “react” matches
-            ReactJS, not Preact.
-          </small>
-        </label>
-        <label className="field">
-          <span>Cities</span>
-          <input {...text('cities')} placeholder="warszaw, warsaw" />
-          <small>
-            Part of a name is enough: “warszaw” matches Warszawa and Warszawie. Empty = anywhere. Offers that don’t say
-            where pass.
-          </small>
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={form.remoteOk}
-            onChange={(event) => edit({ remoteOk: event.target.checked })}
-          />{' '}
-          Remote offers are fine wherever they are
-        </label>
-        <label className="field">
-          <span>Skip titles with</span>
-          <input {...text('ignore')} placeholder="PHP, Angular" />
-          <small>Not saved at all.</small>
-        </label>
-        <label className="field">
-          <span>Save, but don’t send to Telegram</span>
-          <input {...text('mute')} />
-          <small>Whole words: “java” doesn’t hit JavaScript, “.net” also hits ASP.NET.</small>
-        </label>
-        <div className="button-row">
-          <button type="submit" disabled={save.busy || !dirty} aria-busy={save.busy || undefined}>
-            {save.busy ? 'Saving…' : 'Save filters'}
-          </button>
-          <Feedback state={save.state} />
-        </div>
-      </form>
-    </section>
+    <Card className={PANEL} role="region" aria-labelledby="filters-h">
+      <CardHeader className="px-4">
+        <h2 id="filters-h" className={PANEL_TITLE}>
+          Filters
+        </h2>
+      </CardHeader>
+      <CardContent className="px-4">
+        <form onSubmit={submit} className="flex flex-col gap-3">
+          <Field
+            label="Keywords"
+            hint={
+              <>
+                Searched on every board (<Code>{'{keyword}'}</Code> in a scraper’s link) and, where a scraper checks it,
+                required in the offer’s title or skills. A keyword starts a word: “react” matches ReactJS, not Preact.
+              </>
+            }
+          >
+            <Input {...text('keywords')} placeholder="React, Next.js" />
+          </Field>
+          <Field
+            label="Cities"
+            hint="Part of a name is enough: “warszaw” matches Warszawa and Warszawie. Empty = anywhere. Offers that don’t say where pass."
+          >
+            <Input {...text('cities')} placeholder="warszaw, warsaw" />
+          </Field>
+          <CheckField>
+            <Checkbox checked={form.remoteOk} onCheckedChange={(checked) => edit({ remoteOk: checked === true })} />
+            Remote offers are fine wherever they are
+          </CheckField>
+          <Field label="Skip titles with" hint="Not saved at all.">
+            <Input {...text('ignore')} placeholder="PHP, Angular" />
+          </Field>
+          <Field
+            label="Save, but don’t send to Telegram"
+            hint="Whole words: “java” doesn’t hit JavaScript, “.net” also hits ASP.NET."
+          >
+            <Input {...text('mute')} />
+          </Field>
+          <div className={BUTTONS}>
+            <Button type="submit" disabled={save.busy || !dirty} aria-busy={save.busy || undefined}>
+              {save.busy ? 'Saving…' : 'Save filters'}
+            </Button>
+          </div>
+          <ActionError error={save.error} className="mt-0" />
+        </form>
+      </CardContent>
+    </Card>
   );
 }

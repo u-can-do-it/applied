@@ -9,6 +9,7 @@ import { Header } from '@/features/shell/header';
 import { ResultsSkeleton } from '@/features/offers/results';
 import { Tabs, TabsFallback } from '@/features/shell/tabs';
 import { AppliedList } from '@/features/applications/applied-list';
+import { LoadError } from '@/components/load-error';
 
 export const metadata: Metadata = { title: 'Jobwatch · Applied' };
 // "+ Add application" reads the link's page and asks OpenAI; adding, editing and "Fetch again"
@@ -37,12 +38,7 @@ async function Applications() {
     await ghostStale().catch((failure: unknown) => console.error('[applied] ghosting failed:', failure));
     loaded = await Promise.all([listApplications(), boardOptions(), appTimeZone()]);
   } catch (error) {
-    return (
-      <div className="notice">
-        <strong>Can’t load applications.</strong>
-        <code>{message(error)}</code>
-      </div>
-    );
+    return <LoadError title="Can’t load applications." detail={message(error)} />;
   }
   const [apps, boards, tz] = loaded;
   return <AppliedList apps={apps} labels={labelsOf(boards)} tz={tz} />;

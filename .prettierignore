@@ -11,5 +11,3 @@ supabase/
 drizzle/
 # written by `next dev`
 AGENTS.md
-# kept in its compact one-rule-per-line form; most of it goes when the UI moves to shadcn/ui + Tailwind (docs/code-review.md)
-app/globals.css

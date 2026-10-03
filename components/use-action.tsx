@@ -1,44 +1,45 @@
 'use client';
 
 import { startTransition, useState, useTransition } from 'react';
+import { TriangleAlertIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { message } from '@/lib/shared/errors';
 import { fail, type Result } from '@/lib/shared/result';
+import { cn } from '@/lib/shared/cn';
 
-// Settings' buttons and forms run their actions through these (features/scraping, features/telegram).
+// Settings' buttons, toggles and forms run their actions through this (features/scraping, features/telegram).
 
 /** What an action answers here: a message to show ("Saved."), or anything else (not shown). */
 type Answer = Result<unknown>;
 
 /**
- * Runs an action from a button or a form: busy state, an optimistic update to show right away, and
- * its answer, which shows with the refreshed page.
+ * Runs an action from a button, a toggle or a form: busy state, an optimistic update to show right away,
+ * and its answer: "Saved." as a toast; what went wrong in `error`, for an <ActionError> next to the control
+ * (it stays until the next try, and lands with the refreshed page).
  */
 export function useAction() {
   const [busy, start] = useTransition();
-  const [state, setState] = useState<Answer | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const run = (fn: () => Promise<Answer>, optimistic?: () => void) => {
-    setState(null);
+    setError(null);
     start(async () => {
       optimistic?.();
       const answer = await fn().catch((failure: unknown) => fail(message(failure)));
-      startTransition(() => setState(answer));
+      if (!answer.ok) startTransition(() => setError(answer.error));
+      else if (typeof answer.data === 'string' && answer.data) toast.success(answer.data);
     });
   };
-  return { busy, state, run, clear: () => setState(null) };
+  return { busy, error, run };
 }
 
-export function Feedback({ state }: { state: Result<unknown> | null | undefined }) {
-  if (state?.ok === false)
-    return (
-      <p className="form-error" role="alert">
-        {state.error}
-      </p>
-    );
-  if (typeof state?.data === 'string' && state.data)
-    return (
-      <p className="form-ok" role="status">
-        {state.data}
-      </p>
-    );
-  return null;
+/** What went wrong, next to the control that did it; nothing when nothing did. */
+export function ActionError({ error, className }: { error: string | null | undefined; className?: string }) {
+  if (!error) return null;
+  return (
+    <Alert variant="destructive" className={cn('mt-2', className)}>
+      <TriangleAlertIcon />
+      <AlertTitle className="font-normal [overflow-wrap:anywhere]">{error}</AlertTitle>
+    </Alert>
+  );
 }

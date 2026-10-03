@@ -2,6 +2,7 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { SearchIcon } from 'lucide-react';
+import { searchBox, searchInput } from '@/components/search-field';
 import { withParams } from '@/lib/shared/search-params';
 import { useNav } from './nav';
 
@@ -35,11 +36,12 @@ export function SearchBox({ query }: { query: URLSearchParams }) {
   }, [value]);
 
   return (
-    <form className="search" action={path} method="get" role="search" onSubmit={(event) => event.preventDefault()}>
+    <form className={searchBox} action={path} method="get" role="search" onSubmit={(event) => event.preventDefault()}>
       <SearchIcon className="size-4.5" />
       <input
         type="search"
         name="q"
+        className={searchInput}
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder="Search title or company…"

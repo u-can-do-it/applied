@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   addDays,
+  dateToDay,
+  dayToDate,
   DEFAULT_TZ,
   describeRange,
   deviceTimeZone,
@@ -244,5 +246,57 @@ describe('zoneOf()', () => {
         gte: '2026-09-19T22:00:00.000Z',
       });
     });
+  });
+});
+
+// The date picker works with Dates on the device's clock: a day must come back as the same day in any
+// device zone, also on the days the clocks change (America/Santiago skips 00:00 when summer time starts).
+describe('days in the date picker', () => {
+  const deviceZone = process.env.TZ;
+  afterEach(() => {
+    if (deviceZone === undefined) delete process.env.TZ;
+    else process.env.TZ = deviceZone;
+  });
+
+  const zones = ['Europe/Warsaw', 'America/Santiago', 'America/New_York', 'Pacific/Kiritimati', 'UTC'];
+  const changeDays = ['2026-03-29', '2026-10-25', '2026-04-05', '2026-09-06', '2026-03-08', '2026-11-01'];
+
+  it('dayToDate is noon of that day on the device, dateToDay reads the day back', () => {
+    // the device zone does follow process.env.TZ here (else these tests would only ever see one zone)
+    process.env.TZ = 'Europe/Warsaw';
+    expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-120);
+    for (const zone of zones) {
+      process.env.TZ = zone;
+      for (const day of changeDays) {
+        const date = dayToDate(day);
+        expect(date?.getHours(), `${zone} ${day}`).toBe(12);
+        expect(date && dateToDay(date), `${zone} ${day}`).toBe(day);
+      }
+    }
+  });
+
+  it('every day of a year goes there and back unchanged, whatever the device zone', () => {
+    for (const zone of zones) {
+      process.env.TZ = zone;
+      for (let day = '2026-01-01'; day < '2027-01-01'; day = addDays(day, 1)) {
+        const date = dayToDate(day);
+        if (!date || dateToDay(date) !== day) expect.fail(`${zone}: ${day} came back as ${date && dateToDay(date)}`);
+      }
+    }
+  });
+
+  it("a day picked at the device's midnight is that day, also where midnight is skipped", () => {
+    process.env.TZ = 'America/Santiago';
+    // 6 Sep 2026: clocks go from 24:00 to 01:00, so "midnight" is 01:00
+    expect(dateToDay(new Date(2026, 8, 6))).toBe('2026-09-06');
+    process.env.TZ = 'Europe/Warsaw';
+    expect(dateToDay(new Date(2026, 2, 29))).toBe('2026-03-29');
+    expect(dateToDay(new Date(2026, 9, 25))).toBe('2026-10-25');
+  });
+
+  it('rejects what is not a real date', () => {
+    expect(dayToDate('2026-02-30')).toBeUndefined();
+    expect(dayToDate('')).toBeUndefined();
+    expect(dateToDay(new Date(1999, 11, 31, 12))).toBe('');
   });
 });

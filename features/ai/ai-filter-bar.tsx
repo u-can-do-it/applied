@@ -7,6 +7,7 @@ import { isUsable, listProfiles } from '@/lib/ai/profiles';
 import { message } from '@/lib/shared/errors';
 import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { appZone } from '@/lib/time-zone';
+import { LoadError } from '@/components/load-error';
 import { AiControls } from './ai-controls';
 
 async function load(range: { days: string; from: string; to: string }) {
@@ -38,12 +39,7 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
   try {
     loaded = await load({ days, from, to });
   } catch (error) {
-    return (
-      <div className="notice">
-        <strong>Can’t load the AI filter.</strong>
-        <code>{message(error)}</code>
-      </div>
-    );
+    return <LoadError title="Can’t load the AI filter." detail={message(error)} />;
   }
   const { profiles, active, run, todayNew, rangeNew } = loaded;
   return (

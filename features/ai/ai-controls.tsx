@@ -2,7 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
-import { CheckIcon, ChevronDownIcon, SparklesIcon } from 'lucide-react';
+import { CheckIcon, ChevronDownIcon, SparklesIcon, TriangleAlertIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/shared/cn';
 import { startRunAction } from './actions';
 import { ProfileDialog, type ProfileOption } from './profile-dialog';
 
@@ -45,7 +51,7 @@ export function AiControls({
   const router = useRouter();
   const dialog = useRef<{ open: () => void }>(null);
   const [starting, start] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // why a run didn't start
   const active = profiles.find((profile) => profile.id === activeId) ?? null;
   const usable = Boolean(active && (active.prompt.trim() || active.fileName));
   const running = run?.status === 'running' && !run.stale;
@@ -59,12 +65,12 @@ export function AiControls({
 
   const runFor = (input: { days?: string; from?: string; to?: string }) => {
     if (!activeId) return; // the buttons show only with a usable profile
-    setMessage(null);
+    setError(null);
     start(async () => {
       const res = await startRunAction({ profileId: activeId, ...input });
-      // with the refreshed progress bar, not a frame before it
-      // "Checking 12 offer(s)…" is what the progress bar shows; only "nothing to check" needs saying
-      startTransition(() => setMessage(res.ok ? (res.data.started ? null : res.data.message) : res.error));
+      // "Checking 12 offer(s)…" is what the progress card shows; only "nothing to check" needs saying
+      if (!res.ok) startTransition(() => setError(res.error));
+      else if (!res.data.started) toast.info(res.data.message);
     });
   };
 
@@ -72,19 +78,21 @@ export function AiControls({
   const doneShown = run ? Math.min(run.done, run.total) : 0;
   const pct = run && run.total ? Math.round((doneShown / run.total) * 100) : 0;
 
+  const busy = running || starting || undefined;
+
   return (
-    <div className="ai-bar">
-      <div className="ai-row">
-        <button type="button" className="ai-button" onClick={() => dialog.current?.open()}>
+    <div className="mb-3 flex min-h-9 flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="brand" onClick={() => dialog.current?.open()}>
           <SparklesIcon /> {active ? active.name : 'Profile'} <ChevronDownIcon />
-        </button>
+        </Button>
 
         {usable && (
-          <button
+          <Button
             type="button"
-            className="secondary"
+            variant="outline"
             disabled={disabled || todayNew === 0}
-            aria-busy={running || starting || undefined}
+            aria-busy={busy}
             onClick={() => runFor({ days: '1' })}
           >
             {todayNew === 0 ? (
@@ -94,15 +102,15 @@ export function AiControls({
             ) : (
               `Check today · ${todayNew} new`
             )}
-          </button>
+          </Button>
         )}
 
         {usable && range && (
-          <button
+          <Button
             type="button"
-            className="secondary"
+            variant="outline"
             disabled={disabled || range.newCount === 0}
-            aria-busy={running || starting || undefined}
+            aria-busy={busy}
             onClick={() =>
               runFor({ days: range.days || undefined, from: range.from || undefined, to: range.to || undefined })
             }
@@ -115,38 +123,62 @@ export function AiControls({
             ) : (
               `Check ${range.label} · ${range.newCount} new`
             )}
-          </button>
+          </Button>
         )}
       </div>
 
-      {!aiConfigured && <p className="form-error">OPENAI_API_KEY is not set on the server.</p>}
-      {!active && <p className="muted small">Create a profile: what you&apos;re looking for, plus your CV.</p>}
+      {!aiConfigured && (
+        <Alert variant="destructive">
+          <TriangleAlertIcon />
+          <AlertTitle>OPENAI_API_KEY is not set on the server.</AlertTitle>
+        </Alert>
+      )}
+      {error && !running && (
+        <Alert variant="destructive">
+          <TriangleAlertIcon />
+          <AlertTitle className="font-normal">{error}</AlertTitle>
+        </Alert>
+      )}
+      {!active && (
+        <p className="m-0 text-xs text-muted-foreground">
+          Create a profile: what you&apos;re looking for, plus your CV.
+        </p>
+      )}
 
       {running ? (
-        run.phase === 'dedup' ? (
-          <div className="ai-progress" role="status">
-            <span className="dot busy" aria-hidden="true" />
-            Looking for duplicates in {run.label}… {run.pairsChecked} pair{run.pairsChecked === 1 ? '' : 's'} checked
-            {run.merged > 0 && <> · {run.merged} merged</>}
-            <span className="muted small">
-              {models.dedup.model} · {models.dedup.effort}
-            </span>
-          </div>
-        ) : (
-          <div className="ai-progress" role="status">
-            <span className="dot busy" aria-hidden="true" />
-            Checking {run.label}: {doneShown}/{run.total}
-            {run.merged > 0 && <span className="muted small"> · {run.merged} duplicates merged</span>}
-            <span className="bar-track" aria-hidden="true">
-              <span className="bar-fill" style={{ width: `${pct}%` }} />
-            </span>
-            <span className="muted small">
-              {models.assess.model} · {models.assess.effort}
-            </span>
-          </div>
-        )
+        <Card size="sm" className="mt-1 gap-0 py-2.5 text-[13px]" role="status">
+          <CardContent className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="size-[7px] animate-pulse rounded-full bg-brand" aria-hidden="true" />
+              {run.phase === 'dedup' ? (
+                <span>
+                  Looking for duplicates in {run.label}… {run.pairsChecked} pair{run.pairsChecked === 1 ? '' : 's'}{' '}
+                  checked
+                  {run.merged > 0 && <> · {run.merged} merged</>}
+                </span>
+              ) : (
+                <span>
+                  Checking {run.label}: {doneShown}/{run.total}
+                  {run.merged > 0 && <span className="text-muted-foreground"> · {run.merged} duplicates merged</span>}
+                </span>
+              )}
+              <span className="ml-auto text-xs text-muted-foreground">
+                {run.phase === 'dedup'
+                  ? `${models.dedup.model} · ${models.dedup.effort}`
+                  : `${models.assess.model} · ${models.assess.effort}`}
+              </span>
+            </div>
+            {run.phase === 'assess' && (
+              <Progress
+                value={pct}
+                aria-label={`Checked ${doneShown} of ${run.total}`}
+                className="h-1.5 [&>[data-slot=progress-indicator]]:bg-brand"
+              />
+            )}
+          </CardContent>
+        </Card>
       ) : run && !run.stale && run.finishedAt ? (
-        <p className={`muted small${run.status === 'failed' ? ' form-error' : ''}`}>
+        <p className={cn('m-0 text-xs text-muted-foreground', run.status === 'failed' && 'text-destructive')}>
           Last run: {run.label} · {doneShown} checked
           {run.merged > 0 && (
             <>
@@ -163,7 +195,6 @@ export function AiControls({
           {run.status === 'done' && run.error && <> · {run.error}</>}
         </p>
       ) : null}
-      {message && !running && <p className="muted small">{message}</p>}
 
       <ProfileDialog ref={dialog} profiles={profiles} activeId={activeId} />
     </div>

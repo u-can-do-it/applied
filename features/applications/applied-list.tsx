@@ -18,6 +18,7 @@ import {
   NotebookPenIcon,
   PencilIcon,
   SearchIcon,
+  TriangleAlertIcon,
   XIcon,
 } from 'lucide-react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
@@ -38,7 +39,7 @@ import {
   type OutcomeId,
 } from '@/lib/stages';
 import { message } from '@/lib/shared/errors';
-import { NOTE_CONFLICT } from '@/lib/shared/schemas/applications';
+import { NOTE_CONFLICT } from '@/lib/shared/application-messages';
 import { unwrap } from '@/lib/shared/result';
 import {
   refetchContentAction,
@@ -47,7 +48,21 @@ import {
   setApplicationStatusAction,
   unapplyAction,
 } from './actions';
+import { useConfirm } from '@/components/confirm';
+import { useReturnFocus } from '@/components/return-focus';
+import { keepOpenOnToast } from '@/components/toasts';
+import { searchBox, searchInput } from '@/components/search-field';
 import { TimeZone, useZone } from '@/components/time-zone';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { cn } from '@/lib/shared/cn';
 import { AddApplication, ApplicationForm } from './add-application';
 
 /** "02.10.2026" of an instant, in the app's time zone */
@@ -67,6 +82,42 @@ const CONTENT: Record<Application['contentStatus'], string> = {
   empty: 'no ad text',
   failed: 'couldn’t fetch the ad',
 };
+const CONTENT_COLOUR: Record<Application['contentStatus'], string> = {
+  pending: 'text-muted-foreground',
+  ok: 'text-success',
+  empty: 'text-destructive',
+  failed: 'text-destructive',
+};
+
+// an outcome's colour: its badge, its text in the history, its button when picked
+const OUTCOME_BADGE = {
+  pending: 'brand',
+  passed: 'success',
+  failed: 'danger',
+  ghosted: 'dashed',
+  pool: 'pool',
+} as const satisfies Record<OutcomeId, string>;
+const OUTCOME_TEXT: Record<OutcomeId, string> = {
+  pending: 'text-muted-foreground',
+  passed: 'text-success',
+  failed: 'text-destructive',
+  ghosted: 'text-muted-foreground',
+  pool: 'text-pool',
+};
+const OUTCOME_ON: Record<OutcomeId, string> = {
+  pending: 'data-[state=on]:border-brand data-[state=on]:bg-brand data-[state=on]:text-brand-foreground',
+  passed: 'data-[state=on]:border-success data-[state=on]:bg-success data-[state=on]:text-success-foreground',
+  failed:
+    'data-[state=on]:border-destructive data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground',
+  ghosted:
+    'data-[state=on]:border-muted-foreground data-[state=on]:bg-muted-foreground data-[state=on]:text-background',
+  pool: 'data-[state=on]:border-pool data-[state=on]:bg-pool data-[state=on]:text-pool-foreground',
+};
+/** a chip in the status editor (a stage, an outcome) */
+const STEP =
+  'h-auto min-w-0 rounded-full border bg-transparent px-2.5 py-1 text-[13px] font-normal text-muted-foreground hover:bg-transparent hover:text-foreground';
+const META =
+  "mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']";
 
 type Filter = { label: string; test: (app: Application) => boolean } | null;
 /** a note saved in the window, and its note_updated_at once the database answered */
@@ -143,8 +194,8 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
 
   if (!apps.length) {
     return (
-      <div className="empty">
-        <p>
+      <div className="mt-8 text-center text-muted-foreground">
+        <p className="mb-2">
           Nothing here yet. Use <strong>Mark applied</strong> on an offer: it shows up here with its complete ad text.
           Or add one you sent elsewhere:
         </p>
@@ -157,11 +208,12 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
     <>
       <AppliedStats apps={apps} filter={filter} setFilter={setFilter} />
 
-      <div className="applied-tools">
-        <div className="search">
+      <div className="flex items-stretch gap-2 max-[560px]:flex-col">
+        <div className={cn(searchBox, 'flex-1')}>
           <SearchIcon className="size-4.5" />
           <input
             type="search"
+            className={searchInput}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search title, company or note…"
@@ -170,41 +222,60 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
         </div>
         <AddApplication />
       </div>
-      <p className="count">
-        <strong>{shown.length}</strong>
+      <p className="mt-1 mb-0 min-h-[19px] text-[13px] text-muted-foreground tabular-nums">
+        <strong className="font-semibold text-foreground">{shown.length}</strong>
         {shown.length !== apps.length && <> of {apps.length}</>} applied
         {filter && (
           <>
             {' · '}
             {filter.label}{' '}
-            <button type="button" className="link" onClick={() => setFilter(null)} aria-label="Clear the filter">
+            <Button
+              type="button"
+              variant="link"
+              size="icon-xs"
+              onClick={() => setFilter(null)}
+              aria-label="Clear the filter"
+            >
               <XIcon />
-            </button>
+            </Button>
           </>
         )}
       </p>
 
-      <ol className="applied-list">
+      <ol className="mt-3 mb-0 list-none divide-y rounded-[10px] border bg-card p-0">
         {shown.map((app) => (
           <li key={app.jobId}>
-            <button type="button" className="applied-row" onClick={() => setOpen(app)}>
-              <time dateTime={app.appliedAt}>{day(app.appliedAt)}</time>
-              <span className="body">
-                <span className="title">{app.title}</span>
-                <span className="meta">
+            <button
+              type="button"
+              className="group/row grid w-full cursor-pointer grid-cols-[84px_1fr_auto] items-start gap-3 px-3.5 py-3 text-left max-[560px]:grid-cols-[1fr_auto]"
+              onClick={() => setOpen(app)}
+            >
+              <time
+                dateTime={app.appliedAt}
+                className="pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full"
+              >
+                {day(app.appliedAt)}
+              </time>
+              <span className="flex min-w-0 flex-col">
+                <span className="font-semibold [overflow-wrap:anywhere] group-hover/row:text-brand group-hover/row:underline group-hover/row:underline-offset-2">
+                  {app.title}
+                </span>
+                <span className={META}>
                   {app.company && <span>{app.company}</span>}
                   {facts(app.details) && <span>{facts(app.details)}</span>}
                 </span>
                 {app.note?.trim() && (
-                  <span className="note-line">
+                  <span className="mt-[3px] truncate text-[13px] text-muted-foreground">
                     <NotebookPenIcon /> {app.note.trim().split('\n')[0]}
                   </span>
                 )}
               </span>
-              <span className="side">
+              <span className="flex flex-col items-end gap-1 max-[560px]:max-w-[42vw]">
                 <StatusChip stage={app.stage} outcome={app.outcome} />
-                <span className="src">{labels[app.src] ?? app.src}</span>
-                <span className={`status status-${app.contentStatus}`}>
+                <Badge variant="quiet" className="rounded-md">
+                  {labels[app.src] ?? app.src}
+                </Badge>
+                <span className={cn('text-xs whitespace-nowrap', CONTENT_COLOUR[app.contentStatus])}>
                   {app.contentStatus === 'ok' && <FileTextIcon />} {CONTENT[app.contentStatus]}
                 </span>
               </span>
@@ -234,9 +305,13 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
 
 function StatusChip({ stage, outcome }: { stage: StageId; outcome: OutcomeId }) {
   return (
-    <span className={`stage-chip state-${outcome}`}>
+    // a long status ("HR · CV do bazy, ty do dupy") takes two lines on a phone rather than the title's room
+    <Badge
+      variant={OUTCOME_BADGE[outcome]}
+      className="font-normal max-[560px]:h-auto max-[560px]:rounded-[10px] max-[560px]:text-right max-[560px]:whitespace-normal"
+    >
       {stageOf(stage).short} · {outcomeLabel(stage, outcome)}
-    </span>
+    </Badge>
   );
 }
 
@@ -257,142 +332,197 @@ function AppliedStats({
   const on = (label: string) => (filter?.label === label ? 'true' : undefined);
 
   const tiles = [
-    { label: 'Sent', value: counts.sent, sub: '', test: () => true, cls: '' },
+    { label: 'Sent', value: counts.sent, sub: '', test: () => true, tone: '' },
     {
       label: 'Positive replies',
       value: counts.positive,
       sub: pct(counts.positive, counts.sent),
       test: (app: Application) => app.stage !== 'submitted',
-      cls: 'good',
+      tone: 'good',
     },
     {
       label: 'Offers',
       value: counts.offers,
       sub: pct(counts.offers, counts.sent),
       test: (app: Application) => app.stage === 'offer',
-      cls: 'good',
+      tone: 'good',
     },
-    { label: 'In progress', value: counts.active, sub: '', test: (app: Application) => isActive(app), cls: '' },
+    { label: 'In progress', value: counts.active, sub: '', test: (app: Application) => isActive(app), tone: '' },
     {
       label: 'Rejected',
       value: counts.rejected,
       sub: pct(counts.rejected, counts.sent),
       test: (app: Application) => isRejected(app),
-      cls: 'bad',
+      tone: 'bad',
     },
     {
       label: 'Ghosted',
       value: counts.ghosted,
       sub: pct(counts.ghosted, counts.sent),
       test: (app: Application) => app.outcome === 'ghosted',
-      cls: 'bad',
+      tone: 'bad',
     },
     {
       label: outcomeHeading('pool'),
       value: counts.pool,
       sub: pct(counts.pool, counts.sent),
       test: (app: Application) => app.outcome === 'pool',
-      cls: 'bad',
+      tone: 'bad',
     },
   ];
 
   return (
-    <section className="app-stats" aria-label="Application statistics">
-      <div className="stat-tiles">
+    <section className="mb-3.5 flex flex-col gap-2.5" aria-label="Application statistics">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2">
         {tiles.map((tile) => (
-          <button
+          <Card
             key={tile.label}
-            type="button"
-            className={`stat-tile ${tile.cls}`}
-            aria-pressed={on(tile.label)}
-            onClick={tile.label === 'Sent' ? () => setFilter(null) : pick(tile.label, tile.test)}
+            size="sm"
+            className="py-0 transition-shadow hover:ring-muted-foreground has-aria-pressed:ring-2 has-aria-pressed:ring-brand"
           >
-            <span className="stat-value">{tile.value}</span>
-            <span className="stat-label">{tile.label}</span>
-            {tile.sub && <span className="stat-sub">{tile.sub}</span>}
-          </button>
+            <button
+              type="button"
+              className="flex flex-col items-start px-3 py-2.5 text-left focus-visible:outline-offset-[-2px]"
+              aria-pressed={on(tile.label)}
+              onClick={tile.label === 'Sent' ? () => setFilter(null) : pick(tile.label, tile.test)}
+            >
+              <span className="text-[22px] leading-[1.2] font-bold tabular-nums">{tile.value}</span>
+              <span className="text-xs text-muted-foreground">{tile.label}</span>
+              {tile.sub && (
+                <span
+                  className={cn(
+                    'text-xs tabular-nums',
+                    tile.tone === 'good' && 'text-success',
+                    tile.tone === 'bad' && 'text-destructive',
+                  )}
+                >
+                  {tile.sub}
+                </span>
+              )}
+            </button>
+          </Card>
         ))}
       </div>
 
       {/* where applications are: each one at the stage of its last status (a stage it was taken back
           from doesn't count), as a share of all sent */}
-      <ol className="funnel" aria-label="By stage, as they are now">
-        {counts.now.map((atStage) => {
-          const label = stageOf(atStage.stage).label;
-          return (
-            <li key={atStage.stage}>
-              <button
-                type="button"
-                aria-pressed={on(label)}
-                onClick={pick(label, (app) => app.stage === atStage.stage)}
-              >
-                <span
-                  className="funnel-bar"
-                  style={{ width: `${counts.sent ? Math.max(4, (atStage.count / counts.sent) * 100) : 0}%` }}
-                />
-                <span className="funnel-text">
-                  <strong>{atStage.count}</strong> {label}
-                  <span className="muted"> · {pct(atStage.count, counts.sent)} of sent</span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+      <Funnel
+        stages={counts.now.map((atStage) => ({ ...atStage, label: stageOf(atStage.stage).label }))}
+        sent={counts.sent}
+        isOn={(label) => Boolean(on(label))}
+        onPick={(label, stage) => pick(label, (app) => app.stage === stage)()}
+      />
 
-      <details className="stage-table">
-        <summary>Where they are now</summary>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Stage</th>
+      <details className="overflow-x-auto">
+        <summary className="cursor-pointer text-[13px] text-muted-foreground">Where they are now</summary>
+        <Table className="mt-1.5 text-[13px] tabular-nums">
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead
+                scope="col"
+                className="h-auto px-2 py-1.5 text-xs font-medium text-muted-foreground max-[480px]:px-1"
+              >
+                Stage
+              </TableHead>
               {OUTCOMES.map((outcome) => (
-                <th key={outcome.id} scope="col" className={`state-${outcome.id}`}>
+                <TableHead
+                  key={outcome.id}
+                  scope="col"
+                  className="h-auto px-2 py-1.5 text-right text-xs font-medium text-muted-foreground max-[480px]:px-1"
+                >
                   {outcomeHeading(outcome.id)}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="[&_tr:last-child]:border-b">
             {STAGES.map((stage) => (
-              <tr key={stage.id}>
-                <th scope="row">{stage.label}</th>
+              <TableRow key={stage.id} className="hover:bg-transparent">
+                <TableHead scope="row" className="h-auto px-2 py-1.5 font-medium max-[480px]:px-1">
+                  {stage.label}
+                </TableHead>
                 {OUTCOMES.map((outcome) => {
                   const count = counts.byStage[stage.id][outcome.id];
                   const label = `${stage.short} · ${outcomeLabel(stage.id, outcome.id)}`;
+                  const cell = 'px-2 py-1.5 text-right max-[480px]:px-1';
                   // an offer has its own outcomes (Received / Accepted / Rejected) and is never ghosted
                   if (!outcomesFor(stage.id).some((possible) => possible.id === outcome.id))
                     return (
-                      <td key={outcome.id} className="muted">
+                      <TableCell key={outcome.id} className={cn(cell, 'text-muted-foreground')}>
                         –
-                      </td>
+                      </TableCell>
                     );
                   return (
-                    <td key={outcome.id}>
+                    <TableCell key={outcome.id} className={cell}>
                       {count ? (
-                        <button
+                        <Button
                           type="button"
-                          className="link"
+                          variant="link"
+                          size="xs"
+                          className="h-auto p-0 text-[13px] aria-pressed:underline"
                           aria-pressed={on(label)}
                           onClick={pick(label, (app) => app.stage === stage.id && app.outcome === outcome.id)}
                         >
                           {count}
-                        </button>
+                        </Button>
                       ) : (
-                        <span className="muted">0</span>
+                        <span className="text-muted-foreground">0</span>
                       )}
                       {stage.id === 'offer' && (
-                        <small className="muted"> {outcomeLabel(stage.id, outcome.id).toLowerCase()}</small>
+                        <small className="text-muted-foreground">
+                          {' '}
+                          {outcomeLabel(stage.id, outcome.id).toLowerCase()}
+                        </small>
                       )}
-                    </td>
+                    </TableCell>
                   );
                 })}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </details>
     </section>
+  );
+}
+
+/** Applications by the stage they're at now: one bar per stage, its length the share of all sent. */
+function Funnel({
+  stages,
+  sent,
+  isOn,
+  onPick,
+}: {
+  stages: { stage: StageId; label: string; count: number }[];
+  sent: number;
+  isOn: (label: string) => boolean;
+  onPick: (label: string, stage: StageId) => void;
+}) {
+  return (
+    <ol
+      className="m-0 flex list-none flex-col gap-1 rounded-xl bg-card px-3 py-2.5 ring-1 ring-foreground/10"
+      aria-label="By stage, as they are now"
+    >
+      {stages.map(({ stage, label, count }) => (
+        <li key={stage}>
+          <button
+            type="button"
+            className="relative block w-full overflow-hidden rounded-md px-2 py-1 text-left text-[13px] aria-pressed:outline-2 aria-pressed:outline-brand"
+            aria-pressed={isOn(label) || undefined}
+            onClick={() => onPick(label, stage)}
+          >
+            <span
+              className="absolute inset-y-0 left-0 rounded-md bg-accent"
+              style={{ width: `${sent ? Math.max(4, (count / sent) * 100) : 0}%` }}
+            />
+            <span className="relative tabular-nums">
+              <strong>{count}</strong> {label}
+              <span className="text-muted-foreground"> · {pct(count, sent)} of sent</span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -430,8 +560,17 @@ function AdModal({
   const [jobId, setJobId] = useState(initial.jobId); // an edit can make it another job's (see updateApplication)
   const day = useDay();
   const [editing, setEditing] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(true);
+  const confirm = useConfirm();
+  const focus = useReturnFocus();
   const note = useRef<NoteHandle>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  // back from the form to the window: focus where you left it (the form, now gone, had it)
+  const stopEditing = () => {
+    setEditing(false);
+    requestAnimationFrame(() => editButton.current?.focus());
+  };
+  const closedWith = useRef<string | null | undefined>(undefined); // the note as the window closed
   const [app, setApp] = useState<Shown>(initial);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -461,7 +600,6 @@ function AdModal({
     void follow();
   });
   useEffect(() => {
-    if (!dialog.current?.open) dialog.current?.showModal();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- follow() sets state only after its fetch, not synchronously
     opened();
     const loads = run;
@@ -497,15 +635,18 @@ function AdModal({
 
   // a step clicked by mistake: out of the history with every step after it, the status goes back
   // to the step before
-  const removeStep = (i: number) => {
+  const removeStep = async (i: number) => {
     const all = app.history;
     const step = all[i];
     const later = all.length - 1 - i;
     if (
       later > 0 &&
-      !confirm(
-        `Remove “${stageOf(step.stage).label} · ${outcomeLabel(step.stage, step.state)}” of ${day(step.at)} and the ${later === 1 ? 'step' : `${later} steps`} after it?`,
-      )
+      !(await confirm({
+        title: `Remove “${stageOf(step.stage).label} · ${outcomeLabel(step.stage, step.state)}” of ${day(step.at)}?`,
+        description: `${later === 1 ? 'The step after it goes' : `The ${later} steps after it go`} too, and the status goes back to the step before.`,
+        action: 'Remove',
+        destructive: true,
+      }))
     )
       return;
     run.current++;
@@ -530,7 +671,12 @@ function AdModal({
     if (fresh.contentStatus === 'pending') void follow(fresh.jobId);
   };
 
-  const close = () => dialog.current?.close();
+  // Escape, a click outside, the X and Close all end here; the note's last words are saved on the way
+  // out, and the list hears of them once the window has gone (onCloseAutoFocus)
+  const close = () => {
+    closedWith.current = gone.current ? undefined : note.current?.flush();
+    setOpen(false);
+  };
   const details = app.details;
   const rows: [string, string | undefined][] = [
     ['Salary', details?.salary],
@@ -540,204 +686,268 @@ function AdModal({
     ['Valid until', details?.validUntil ? formatDay(details.validUntil) : undefined],
   ];
   const been = reached(app);
+  const subtitle = (
+    <>
+      {app.company && <>{app.company} · </>}
+      {labels[app.src] ?? app.src} · applied {day(app.appliedAt)}
+    </>
+  );
+  const unmark = async () => {
+    const yes = await confirm({
+      title: 'Unmark as applied?',
+      description: 'Its saved ad text, status history and note are deleted too.',
+      action: 'Unmark',
+      destructive: true,
+    });
+    if (!yes) return;
+    act(async () => {
+      unwrap(await unapplyAction({ jobId }));
+      gone.current = true;
+      writeDraft(jobId, null);
+      close();
+    });
+  };
   const waiting = app.content === undefined || app.contentStatus === 'pending';
   const hasText = app.contentStatus === 'ok' && !!app.content;
 
+  // A side panel: it reads like a page about one application, as tall as the screen, with the list
+  // still in view beside it on a wide one
   return (
-    <dialog
-      ref={dialog}
-      className="modal modal-wide modal-sheet"
-      aria-labelledby={editing ? 'edit-title' : 'ad-title'}
-      // Esc, a click outside and Close all end here; the note's last words are saved on the way out
-      onClose={() => onClose(gone.current ? undefined : note.current?.flush(), jobId)}
-      // editing: Esc goes back to the window, and a click outside does nothing (the form would be lost)
-      onCancel={(event) => {
-        if (!editing) return;
-        event.preventDefault();
-        setEditing(false);
-      }}
-      onClick={(event) => event.target === dialog.current && !editing && close()}
-    >
-      {editing && (
-        <ApplicationForm app={app as ApplicationWithContent} onCancel={() => setEditing(false)} onSaved={saved} />
-      )}
-      {/* hidden, not gone, while editing: the note keeps what you typed */}
-      <div className="modal-body" style={editing ? { display: 'none' } : undefined}>
-        <div className="sheet-head">
-          <h2 id="ad-title">{app.title}</h2>
-          <p className="muted">
-            {app.company && <>{app.company} · </>}
-            {labels[app.src] ?? app.src} · applied {day(app.appliedAt)}
-          </p>
-        </div>
-
-        <div className="sheet-scroll">
-          <section className="status-editor" aria-label="Status" aria-busy={busy || undefined}>
-            <div className="stage-steps" role="group" aria-label="Stage">
-              {STAGES.map((stage) => (
-                <button
-                  key={stage.id}
-                  type="button"
-                  className={`step${been.has(stage.id) ? ' reached' : ''}`}
-                  aria-pressed={app.stage === stage.id}
-                  title={'hint' in stage ? `${stage.label}: ${stage.hint}` : stage.label}
-                  // a new stage starts "in progress"; clicking the current one keeps its outcome
-                  onClick={() => setStatus(stage.id, stage.id === app.stage ? app.outcome : 'pending')}
-                >
-                  {been.has(stage.id) && <CheckIcon className="step-check" role="img" aria-label="reached" />}
-                  {stage.short}
-                </button>
-              ))}
-            </div>
-            <div className="state-steps" role="group" aria-label="Outcome of this stage">
-              {outcomesFor(app.stage).map((outcome) => (
-                <button
-                  key={outcome.id}
-                  type="button"
-                  className={`state-btn state-${outcome.id}`}
-                  aria-pressed={app.outcome === outcome.id}
-                  title={outcome.hint}
-                  onClick={() => setStatus(app.stage, outcome.id)}
-                >
-                  {outcome.label}
-                </button>
-              ))}
-            </div>
-            {app.history.length > 0 && (
-              // newest first; the X takes a step away with the ones after it (above it here), not the first one: applying
-              <ol className="timeline" aria-label="History">
-                {app.history
-                  .map((step, i) => ({ step, i }))
-                  .reverse()
-                  .map(({ step, i }) => {
-                    const later = app.history.length - 1 - i;
-                    return (
-                      <li key={`${step.at}|${step.stage}|${step.state}|${i}`}>
-                        <time dateTime={step.at}>{day(step.at)}</time>
-                        <span>{stageOf(step.stage).label} ·</span>
-                        <span className={`state-text state-${step.state}`}>{outcomeLabel(step.stage, step.state)}</span>
-                        {step.auto && (
-                          <span className="muted" title={`No news for ${GHOST_AFTER_DAYS} days`}>
-                            (auto)
-                          </span>
-                        )}
-                        {i > 0 && (
-                          <button
-                            type="button"
-                            className="step-remove"
-                            title={
-                              later ? 'Remove this step and the ones after it' : 'Remove this step (clicked by mistake)'
-                            }
-                            aria-label={`Remove “${stageOf(step.stage).label} · ${outcomeLabel(step.stage, step.state)}” of ${day(step.at)}${later ? ` and the ${later} after it` : ''}`}
-                            disabled={busy}
-                            onClick={() => removeStep(i)}
-                          >
-                            <XIcon />
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-              </ol>
-            )}
-          </section>
-
-          <NoteEditor
-            ref={note}
-            jobId={jobId}
-            initial={initial.note ?? ''}
-            seenAt={initial.noteUpdatedAt}
-            editedAt={app.noteUpdatedAt}
-            onSaved={(text, at) => onNoteSaved(jobId, text, at)}
-            onStale={() => onNoteStale(jobId)}
-          />
-
-          {rows.some(([, value]) => value) && (
-            <dl className="ad-facts">
-              {rows
-                .filter((row): row is [string, string] => Boolean(row[1]))
-                .map(([label, value]) => (
-                  <div key={label} className={label === 'Salary' && value.includes('; ') ? 'wide' : undefined}>
-                    <dt>{label}</dt>
-                    {/* one line per contract type: "14 000–18 000 PLN / month (B2B)" */}
-                    <dd>
-                      {value.split('; ').map((line, i) => (
-                        <span key={i} className="fact-line">
-                          {line}
-                        </span>
-                      ))}
-                    </dd>
-                  </div>
-                ))}
-            </dl>
-          )}
-
-          {/* the ad text loads into this box, which has the same place and size before and after */}
-          <div className="ad-text" aria-busy={waiting || undefined}>
-            {waiting ? (
-              loadError ? (
-                <p className="form-error">Couldn’t load the ad: {loadError}</p>
-              ) : (
-                <div
-                  className="skeleton ad-skeleton"
-                  role="status"
-                  aria-label={app.contentStatus === 'pending' ? 'Saving the ad text' : 'Loading the ad text'}
-                >
-                  {Array.from({ length: 10 }, (_, i) => (
-                    <span key={i} className="bar" style={{ width: `${58 + ((i * 29) % 40)}%` }} />
-                  ))}
-                </div>
-              )
-            ) : hasText ? (
-              app.content
+    <Sheet open={open} onOpenChange={(next) => !next && close()}>
+      <SheetContent
+        className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]"
+        showCloseButton={!editing}
+        // editing: Esc goes back to the window, and a click outside does nothing (the form would be lost)
+        onEscapeKeyDown={(event) => {
+          if (!editing) return;
+          event.preventDefault();
+          stopEditing();
+        }}
+        onInteractOutside={(event) => (editing ? event.preventDefault() : keepOpenOnToast(event))}
+        onCloseAutoFocus={(event) => {
+          focus.onCloseAutoFocus(event);
+          onClose(closedWith.current, jobId);
+        }}
+      >
+        {editing && <ApplicationForm app={app as ApplicationWithContent} onCancel={stopEditing} onSaved={saved} />}
+        {/* hidden, not gone, while editing: the note keeps what you typed */}
+        <div className={cn('flex min-h-0 flex-1 flex-col', editing && 'hidden')}>
+          <SheetHeader className="gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">
+            {/* the form has the window's title while it's open */}
+            {editing ? (
+              <h2 className="m-0 text-lg font-semibold">{app.title}</h2>
             ) : (
-              <p className="form-error">
-                {app.contentStatus === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'}{' '}
-                {app.contentError}
-              </p>
+              <SheetTitle className="text-lg font-semibold">{app.title}</SheetTitle>
+            )}
+            {editing ? (
+              <p className="m-0 text-[13px] text-muted-foreground">{subtitle}</p>
+            ) : (
+              <SheetDescription className="text-[13px]">{subtitle}</SheetDescription>
+            )}
+          </SheetHeader>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-3.5 py-3 [scrollbar-gutter:stable] *:shrink-0 sm:px-5 sm:py-3.5">
+            <section
+              className="flex flex-col gap-2 rounded-lg border px-3 py-2.5"
+              aria-label="Status"
+              aria-busy={busy || undefined}
+            >
+              <ToggleGroup
+                type="single"
+                spacing={1.5}
+                className="flex-wrap"
+                aria-label="Stage"
+                value={app.stage}
+                // a new stage starts "in progress"; the current one clicked again keeps its outcome
+                onValueChange={(stage) => stage && setStatus(stage as StageId, 'pending')}
+              >
+                {STAGES.map((stage) => (
+                  <ToggleGroupItem
+                    key={stage.id}
+                    value={stage.id}
+                    title={'hint' in stage ? `${stage.label}: ${stage.hint}` : stage.label}
+                    className={cn(
+                      STEP,
+                      been.has(stage.id) && 'text-foreground',
+                      'data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background',
+                    )}
+                  >
+                    {been.has(stage.id) && (
+                      <CheckIcon
+                        className="text-success group-data-[state=on]/toggle:text-current"
+                        role="img"
+                        aria-label="reached"
+                      />
+                    )}
+                    {stage.short}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <ToggleGroup
+                type="single"
+                spacing={1.5}
+                className="flex-wrap"
+                aria-label="Outcome of this stage"
+                value={app.outcome}
+                onValueChange={(outcome) => outcome && setStatus(app.stage, outcome as OutcomeId)}
+              >
+                {outcomesFor(app.stage).map((outcome) => (
+                  <ToggleGroupItem
+                    key={outcome.id}
+                    value={outcome.id}
+                    title={outcome.hint}
+                    className={cn(STEP, OUTCOME_ON[outcome.id])}
+                  >
+                    {outcome.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              {app.history.length > 0 && (
+                // newest first; the X takes a step away with the ones after it (above it here), not the first one: applying
+                <ol
+                  className="m-0 flex list-none flex-col gap-0.5 p-0 text-xs text-muted-foreground"
+                  aria-label="History"
+                >
+                  {app.history
+                    .map((step, i) => ({ step, i }))
+                    .reverse()
+                    .map(({ step, i }) => {
+                      const later = app.history.length - 1 - i;
+                      return (
+                        <li
+                          key={`${step.at}|${step.stage}|${step.state}|${i}`}
+                          // what an X takes away, struck through while it's pointed at: its step and the later
+                          // ones, listed above it
+                          className="group/step flex flex-wrap items-center gap-1 [&>:not(button)]:decoration-destructive has-[button:hover:not(:disabled)]:[&>:not(button)]:line-through has-[~li_button:hover:not(:disabled)]:[&>:not(button)]:line-through"
+                        >
+                          <time dateTime={step.at} className="mr-1 tabular-nums">
+                            {day(step.at)}
+                          </time>
+                          <span>{stageOf(step.stage).label} ·</span>
+                          <span className={OUTCOME_TEXT[step.state]}>{outcomeLabel(step.stage, step.state)}</span>
+                          {step.auto && <span title={`No news for ${GHOST_AFTER_DAYS} days`}>(auto)</span>}
+                          {i > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              // shown on the step under the pointer (or with the keyboard); a touch screen can't
+                              // hover: always there
+                              className="h-5 text-muted-foreground transition-opacity hover:bg-background hover:text-destructive focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover/step:opacity-100 pointer-fine:focus-visible:opacity-100"
+                              title={
+                                later
+                                  ? 'Remove this step and the ones after it'
+                                  : 'Remove this step (clicked by mistake)'
+                              }
+                              aria-label={`Remove “${stageOf(step.stage).label} · ${outcomeLabel(step.stage, step.state)}” of ${day(step.at)}${later ? ` and the ${later} after it` : ''}`}
+                              disabled={busy}
+                              onClick={() => void removeStep(i)}
+                            >
+                              <XIcon />
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                </ol>
+              )}
+            </section>
+
+            <NoteEditor
+              ref={note}
+              jobId={jobId}
+              initial={initial.note ?? ''}
+              seenAt={initial.noteUpdatedAt}
+              editedAt={app.noteUpdatedAt}
+              onSaved={(text, at) => onNoteSaved(jobId, text, at)}
+              onStale={() => onNoteStale(jobId)}
+            />
+
+            {rows.some(([, value]) => value) && (
+              <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-x-4 gap-y-2 rounded-lg border bg-background px-3 py-2.5">
+                {rows
+                  .filter((row): row is [string, string] => Boolean(row[1]))
+                  .map(([label, value]) => (
+                    <div key={label} className={label === 'Salary' && value.includes('; ') ? 'col-span-2' : undefined}>
+                      <dt className="text-[11px] tracking-[0.05em] text-muted-foreground uppercase">{label}</dt>
+                      {/* one line per contract type: "14 000–18 000 PLN / month (B2B)" */}
+                      <dd className="mt-0.5 ml-0 text-sm">
+                        {value.split('; ').map((line, i) => (
+                          <span key={i} className="block">
+                            {line}
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
+                  ))}
+              </dl>
+            )}
+
+            {/* the ad text loads into this box, which has the same place and size before and after; it
+                fills what's left, so a short ad or the placeholder look the same as a long one */}
+            <div
+              className="min-h-[180px] flex-[1_0_auto]! rounded-lg border bg-background px-3.5 py-3 text-sm leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]"
+              aria-busy={waiting || undefined}
+            >
+              {waiting ? (
+                loadError ? (
+                  <p className="m-0 text-[13px] text-destructive">Couldn’t load the ad: {loadError}</p>
+                ) : (
+                  <div
+                    className="flex animate-appear-late flex-col gap-[13px] pt-1"
+                    role="status"
+                    aria-label={app.contentStatus === 'pending' ? 'Saving the ad text' : 'Loading the ad text'}
+                  >
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <Skeleton key={i} className="h-[11px] rounded-sm" style={{ width: `${58 + ((i * 29) % 40)}%` }} />
+                    ))}
+                  </div>
+                )
+              ) : hasText ? (
+                app.content
+              ) : (
+                <p className="m-0 text-[13px] text-destructive">
+                  {app.contentStatus === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'}{' '}
+                  {app.contentError}
+                </p>
+              )}
+            </div>
+            {app.scrapedAt && hasText && (
+              <p className="m-0 -mt-1.5 text-xs text-muted-foreground">Ad saved {day(app.scrapedAt)}.</p>
             )}
           </div>
-          {app.scrapedAt && hasText && <p className="muted small ad-saved">Ad saved {day(app.scrapedAt)}.</p>}
-        </div>
 
-        <div className="sheet-foot">
-          {actionError && (
-            <p className="form-error" role="alert">
-              {actionError}
-            </p>
-          )}
-          <div className="modal-actions">
-            <button
+          <SheetFooter className="mt-0 flex-row flex-wrap items-center justify-end gap-2 border-t px-3.5 py-2.5 sm:px-5 sm:py-3">
+            {actionError && (
+              <Alert variant="destructive" className="basis-full">
+                <TriangleAlertIcon />
+                <AlertTitle className="font-normal">{actionError}</AlertTitle>
+              </Alert>
+            )}
+            <Button
               type="button"
-              className="secondary danger"
+              variant="destructive"
+              className="mr-auto"
               disabled={busy}
               aria-busy={busy || undefined}
-              onClick={() => {
-                if (!confirm('Unmark as applied? Its saved ad text, status history and note are deleted too.')) return;
-                act(async () => {
-                  unwrap(await unapplyAction({ jobId }));
-                  gone.current = true;
-                  writeDraft(jobId, null);
-                  close();
-                });
-              }}
+              onClick={() => void unmark()}
             >
               Unmark applied
-            </button>
-            <span className="spacer" />
-            <button
+            </Button>
+            <Button
               type="button"
-              className="secondary"
+              variant="outline"
               disabled={busy || waiting}
               title={waiting ? 'Once the ad text is in' : undefined}
+              ref={editButton}
               onClick={() => setEditing(true)}
             >
               <PencilIcon /> Edit
-            </button>
+            </Button>
             {!waiting && !hasText && (
-              <button
+              <Button
                 type="button"
-                className="secondary"
+                variant="outline"
                 disabled={busy}
                 aria-busy={busy || undefined}
                 onClick={() => {
@@ -749,20 +959,25 @@ function AdModal({
                 }}
               >
                 Fetch again
-              </button>
+              </Button>
             )}
             {app.url && (
-              <a className="button-link" href={app.url} target="_blank" rel="noopener noreferrer">
+              <a
+                className={buttonVariants({ variant: 'outline' })}
+                href={app.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Open original <ExternalLinkIcon />
               </a>
             )}
-            <button type="button" onClick={close}>
+            <Button type="button" onClick={close}>
               Close
-            </button>
-          </div>
+            </Button>
+          </SheetFooter>
         </div>
-      </div>
-    </dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -938,12 +1153,12 @@ function NoteEditor({
       ? `edited ${day(editedAt)}`
       : NOTE_STATUS[status];
   return (
-    <div className="note-field">
-      <label className="field">
+    <div className="flex flex-col gap-1.5">
+      <label className="flex flex-col gap-1.5 text-[13px] text-muted-foreground">
         <span>
           Note
           {shownStatus && (
-            <span className={`note-status${status === 'error' || theirs ? ' warn' : ''}`} aria-live="polite">
+            <span className={cn(status === 'error' || theirs ? 'text-warning' : undefined)} aria-live="polite">
               {' · '}
               {shownStatus}
               {!theirs && status === 'saved' && (
@@ -955,9 +1170,10 @@ function NoteEditor({
             </span>
           )}
         </span>
-        <textarea
+        <Textarea
           rows={3}
           maxLength={10_000}
+          className="max-h-[40vh] min-h-[4.6em] resize-y bg-background text-sm text-foreground md:text-sm dark:bg-background"
           value={text}
           onChange={(event) => {
             const value = event.target.value;
@@ -977,22 +1193,26 @@ function NoteEditor({
         />
       </label>
       {problem && !theirs && status === 'error' && (
-        <p className="form-error" role="alert">
+        <p className="m-0 text-[13px] text-destructive" role="alert">
           {problem}
         </p>
       )}
       {theirs && (
-        <div className="note-conflict" role="alert">
-          <p className="form-error">{problem ?? NOTE_CONFLICT}</p>
-          <p className="muted small">The note now{theirs.at ? ` (edited ${day(theirs.at)})` : ''}:</p>
-          <blockquote className="note-theirs">{theirs.note.trim() || <em>empty</em>}</blockquote>
-          <div className="modal-actions">
-            <button type="button" className="secondary" onClick={() => pick(false)}>
+        <div className="flex flex-col gap-1.5" role="alert">
+          <p className="m-0 text-[13px] text-destructive">{problem ?? NOTE_CONFLICT}</p>
+          <p className="m-0 text-xs text-muted-foreground">
+            The note now{theirs.at ? ` (edited ${day(theirs.at)})` : ''}:
+          </p>
+          <blockquote className="m-0 max-h-[30vh] overflow-auto border-l-3 bg-background px-2.5 py-2 text-[13px] whitespace-pre-wrap">
+            {theirs.note.trim() || <em>empty</em>}
+          </blockquote>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => pick(false)}>
               Use that one
-            </button>
-            <button type="button" onClick={() => pick(true)}>
+            </Button>
+            <Button type="button" onClick={() => pick(true)}>
               Keep mine (replaces it)
-            </button>
+            </Button>
           </div>
         </div>
       )}

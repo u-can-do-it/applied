@@ -2,8 +2,13 @@
 
 import { useOptimistic } from 'react';
 import { BellIcon, BellOffIcon, CheckIcon, SparklesIcon } from 'lucide-react';
-import { Feedback, useAction } from '@/components/use-action';
+import { CheckField, Code } from '@/components/field';
+import { ActionError, useAction } from '@/components/use-action';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import type { BotInfo } from '@/lib/telegram';
+import { cn } from '@/lib/shared/cn';
 import {
   sendQueueAction,
   setAiFilterAction,
@@ -15,6 +20,22 @@ import {
 } from './actions';
 
 // The Telegram panel in Settings. Its buttons behave like the other panels' (features/scraping/panels.tsx).
+
+const PANEL = 'mb-3.5 gap-2.5 py-3.5';
+const SMALL = 'my-1.5 text-xs';
+
+function Panel({ children }: { children: React.ReactNode }) {
+  return (
+    <Card className={PANEL} role="region" aria-labelledby="tg-h">
+      <CardHeader className="px-4">
+        <h2 id="tg-h" className="m-0 text-base font-semibold">
+          Telegram
+        </h2>
+      </CardHeader>
+      <CardContent className="px-4">{children}</CardContent>
+    </Card>
+  );
+}
 
 export function TelegramPanel({
   ready,
@@ -43,48 +64,43 @@ export function TelegramPanel({
   }));
   if (!ready) {
     return (
-      <section className="panel" aria-labelledby="tg-h">
-        <h2 id="tg-h">Telegram</h2>
-        <p className="small">
-          Set <code className="inline-code">TELEGRAM_BOT_TOKEN</code> and{' '}
-          <code className="inline-code">TELEGRAM_CHAT_ID</code> in Vercel → Settings → Environment Variables and
-          redeploy. The token: @BotFather → /mybots → your bot → API Token. The chat id: write to the bot, open{' '}
-          <code className="inline-code">api.telegram.org/bot&lt;token&gt;/getUpdates</code> and copy{' '}
-          <code className="inline-code">message.chat.id</code> (a group’s starts with -).
+      <Panel>
+        <p className={SMALL}>
+          Set <Code>TELEGRAM_BOT_TOKEN</Code> and <Code>TELEGRAM_CHAT_ID</Code> in Vercel → Settings → Environment
+          Variables and redeploy. The token: @BotFather → /mybots → your bot → API Token. The chat id: write to the bot,
+          open <Code>api.telegram.org/bot&lt;token&gt;/getUpdates</Code> and copy <Code>message.chat.id</Code> (a
+          group’s starts with -).
         </p>
-      </section>
+      </Panel>
     );
   }
   const info = bot && !bot.error ? (bot as BotInfo) : null;
   const hooked = info?.webhook === webhookUrl;
   return (
-    <section className="panel" aria-labelledby="tg-h">
-      <h2 id="tg-h">Telegram</h2>
-      <p className="small">
+    <Panel>
+      <p className={SMALL}>
         {info ? (
           <>
             Bot <strong>@{info.username}</strong>
           </>
         ) : (
-          <span className="warn">Can’t reach the bot: {bot?.error}</span>
+          <span className="text-warning">Can’t reach the bot: {bot?.error}</span>
         )}
       </p>
-      <div className="form-line">
-        <label className="check">
-          <input
-            type="checkbox"
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 text-sm">
+        <CheckField>
+          <Switch
             checked={view.notify}
-            onChange={(event) => {
-              const on = event.target.checked;
+            onCheckedChange={(on) => {
               act.run(
                 () => setNotifyAction({ on }),
                 () => show({ notify: on }),
               );
             }}
-          />{' '}
+          />
           Send new offers
-        </label>
-        <span className="small">
+        </CheckField>
+        <span className="text-xs">
           {view.muted ? (
             <>
               <BellOffIcon /> Muted, {view.queued} waiting
@@ -95,9 +111,9 @@ export function TelegramPanel({
             </>
           )}
         </span>
-        <button
+        <Button
           type="button"
-          className="secondary"
+          variant="outline"
           aria-busy={act.busy || undefined}
           onClick={() => {
             const mute = !view.muted;
@@ -108,36 +124,36 @@ export function TelegramPanel({
           }}
         >
           {view.muted ? 'Unmute and send' : 'Mute'}
-        </button>
+        </Button>
         {view.queued > 0 && (
-          <button
+          <Button
             type="button"
-            className="secondary"
+            variant="outline"
             aria-busy={act.busy || undefined}
             onClick={() => act.run(sendQueueAction, () => show({ queued: 0 }))}
           >
             Send the {view.queued} now
-          </button>
+          </Button>
         )}
-        <button type="button" className="secondary" disabled={act.busy} onClick={() => act.run(telegramTestAction)}>
+        <Button type="button" variant="outline" disabled={act.busy} onClick={() => act.run(telegramTestAction)}>
           Test message
-        </button>
+        </Button>
       </div>
-      <label className="check ai-filter">
-        <input
-          type="checkbox"
+      <CheckField className="mt-2.5">
+        <Switch
           checked={view.aiOn}
-          onChange={(event) => {
-            const on = event.target.checked;
+          onCheckedChange={(on) => {
             act.run(
               () => setAiFilterAction({ on }),
               () => show({ aiOn: on }),
             );
           }}
-        />{' '}
-        <SparklesIcon /> Only offers the AI profile matches{ai.profile ? ` (“${ai.profile}”)` : ''}
-      </label>
-      <p className="muted small field-note-under">
+        />
+        <span>
+          <SparklesIcon /> Only offers the AI profile matches{ai.profile ? ` (“${ai.profile}”)` : ''}
+        </span>
+      </CheckField>
+      <p className="mt-0.5 mb-2 ml-10 text-xs text-muted-foreground">
         {!view.aiOn
           ? 'Off: every new offer is sent.'
           : !ai.keySet
@@ -146,45 +162,40 @@ export function TelegramPanel({
               ? 'No AI profile yet (AI filter tab → Profile): until then every new offer is sent.'
               : 'Every new offer is checked right after scraping (as the AI tab would; also the ones that aren’t sent, like a new scraper’s first run). The message lists the matches with their fit; if none match, it just says how many new offers there are. One the AI can’t check for 20 minutes is sent anyway, marked.'}
       </p>
-      <p className="small">
+      <p className={SMALL}>
         Commands in the chat (/mute, /resume, /send, /scrape, /status):{' '}
         {hooked ? (
-          <span className="ok-text">
+          <span className="text-success">
             <CheckIcon /> connected
           </span>
         ) : info?.webhook ? (
-          <span className="warn">the bot sends them to {info.webhook}</span>
+          <span className="text-warning">the bot sends them to {info.webhook}</span>
         ) : (
           'not connected'
         )}
-        {info?.webhookError && <span className="warn"> · last error: {info.webhookError}</span>}
+        {info?.webhookError && <span className="text-warning"> · last error: {info.webhookError}</span>}
       </p>
-      <div className="button-row">
-        <button
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <Button
           type="button"
-          className={hooked ? 'secondary' : undefined}
+          variant={hooked ? 'outline' : 'default'}
           disabled={act.busy}
           onClick={() => act.run(telegramConnectAction)}
         >
           {act.busy ? 'Working…' : hooked ? 'Reconnect commands' : 'Connect commands'}
-        </button>
+        </Button>
         {info?.webhook && (
-          <button
-            type="button"
-            className="secondary"
-            disabled={act.busy}
-            onClick={() => act.run(telegramDisconnectAction)}
-          >
+          <Button type="button" variant="outline" disabled={act.busy} onClick={() => act.run(telegramDisconnectAction)}>
             Disconnect
-          </button>
+          </Button>
         )}
       </div>
       {!hooked && (
-        <p className="muted small">
+        <p className={cn(SMALL, 'text-muted-foreground')}>
           A bot gets commands either by webhook or by polling, not both: nothing else may be reading this bot’s updates.
         </p>
       )}
-      <Feedback state={act.state} />
-    </section>
+      <ActionError error={act.error} />
+    </Panel>
   );
 }

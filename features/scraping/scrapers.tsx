@@ -1,9 +1,24 @@
 'use client';
 
-import { startTransition, useEffect, useEffectEvent, useOptimistic, useRef, useState, useTransition } from 'react';
-import { CheckIcon, ExternalLinkIcon, TriangleAlertIcon, XIcon } from 'lucide-react';
-import { Feedback, useAction } from '@/components/use-action';
+import { startTransition, useEffect, useEffectEvent, useOptimistic, useState, useTransition } from 'react';
+import { CheckIcon, ExternalLinkIcon, PlusIcon, TriangleAlertIcon, XIcon } from 'lucide-react';
+import { useConfirm } from '@/components/confirm';
+import { CheckField, Code, Field } from '@/components/field';
+import { useReturnFocus } from '@/components/return-focus';
+import { keepOpenOnToast } from '@/components/toasts';
+import { ActionError, useAction } from '@/components/use-action';
 import { useZone } from '@/components/time-zone';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/shared/cn';
 import { byId } from '@/lib/boards';
 import { FIELDS, JSON_SOURCES, type FieldId, type JsonSource } from '@/lib/listings/config';
 import { KIND_IDS, isGeneric, kindOf, type KindId } from '@/lib/listings/kinds';
@@ -128,58 +143,65 @@ export function ScrapersPanel({
   );
 
   return (
-    <section className="panel" aria-labelledby="scrapers-h">
-      <div className="panel-head">
-        <h2 id="scrapers-h">Scrapers</h2>
-        <button type="button" onClick={() => edit(blank('html'))}>
-          + Add scraper
-        </button>
-      </div>
-      <ul className="scrapers">
-        {list.map((scraper) => (
-          <li key={scraper.id} className={scraper.enabled ? undefined : 'off'}>
-            <input
-              type="checkbox"
-              checked={scraper.enabled}
-              aria-label={`${scraper.name} on`}
-              onChange={(event) => {
-                const enabled = event.target.checked;
-                act.run(
-                  () => toggleScraperAction({ id: scraper.id, enabled }),
-                  () => toggle({ id: scraper.id, enabled }),
-                );
-              }}
-            />
-            <div className="scraper-main">
-              <div>
-                <strong>{scraper.name}</strong> <span className="badge">{kindOf(scraper.kind).label}</span>{' '}
-                <span className="muted small">
-                  {scraper.src}
-                  {counts[scraper.src] ? ` · ${counts[scraper.src]?.offers} saved` : ''}
-                </span>
+    <Card className={PANEL} role="region" aria-labelledby="scrapers-h">
+      <CardHeader className="flex items-center justify-between gap-3 px-4">
+        <h2 id="scrapers-h" className="m-0 text-base font-semibold">
+          Scrapers
+        </h2>
+        <Button type="button" onClick={() => edit(blank('html'))}>
+          <PlusIcon /> Add scraper
+        </Button>
+      </CardHeader>
+      <CardContent className="px-4">
+        <ul className="m-0 list-none border-t p-0">
+          {list.map((scraper) => (
+            <li
+              key={scraper.id}
+              className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 border-b py-2.5 max-[560px]:grid-cols-[auto_1fr]"
+            >
+              <Switch
+                className="mt-0.5"
+                checked={scraper.enabled}
+                aria-label={`${scraper.name} on`}
+                onCheckedChange={(enabled) => {
+                  act.run(
+                    () => toggleScraperAction({ id: scraper.id, enabled }),
+                    () => toggle({ id: scraper.id, enabled }),
+                  );
+                }}
+              />
+              <div className={cn('min-w-0 text-sm', !scraper.enabled && 'opacity-55')}>
+                <div>
+                  <strong>{scraper.name}</strong> <Badge variant="quiet">{kindOf(scraper.kind).label}</Badge>{' '}
+                  <span className="text-xs text-muted-foreground">
+                    {scraper.src}
+                    {counts[scraper.src] ? ` · ${counts[scraper.src]?.offers} saved` : ''}
+                  </span>
+                </div>
+                <ScraperStatus scraper={scraper} />
               </div>
-              <ScraperStatus scraper={scraper} />
-            </div>
-            <div className="scraper-actions">
-              <button type="button" className="secondary" onClick={() => edit(toDraft(scraper), true)}>
-                Test
-              </button>
-              <button type="button" className="secondary" onClick={() => edit(toDraft(scraper))}>
-                Edit
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                title="A copy, e.g. for another search on the same board"
-                onClick={() => edit({ ...toDraft(scraper), id: undefined, name: `${scraper.name} (copy)` })}
-              >
-                Copy
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <Feedback state={act.state} />
+              <div className="flex flex-wrap justify-end gap-1.5 max-[560px]:col-start-2 max-[560px]:justify-start">
+                <Button type="button" variant="outline" size="sm" onClick={() => edit(toDraft(scraper), true)}>
+                  Test
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => edit(toDraft(scraper))}>
+                  Edit
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  title="A copy, e.g. for another search on the same board"
+                  onClick={() => edit({ ...toDraft(scraper), id: undefined, name: `${scraper.name} (copy)` })}
+                >
+                  Copy
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <ActionError error={act.error} />
+      </CardContent>
       {open && (
         <ScraperEditor
           key={open.n}
@@ -189,40 +211,43 @@ export function ScrapersPanel({
           onClose={() => setOpen(null)}
         />
       )}
-    </section>
+    </Card>
   );
 }
+
+/** a Settings panel (panels.tsx has the same) */
+const PANEL = 'mb-3.5 gap-2.5 py-3.5';
 
 function ScraperStatus({ scraper }: { scraper: Scraper }) {
   const { formatTime } = useZone();
   if (!scraper.lastRunAt)
     return (
-      <p className="muted small">
+      <p className="m-0 mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
         Not run yet{scraper.mark === null ? ' · its first run only saves (no Telegram)' : ''}
       </p>
     );
   const when = formatTime(scraper.lastRunAt);
   if (scraper.lastStatus === 'error' && !scraper.lastFound) {
     return (
-      <p className="small">
-        <span className="warn">
+      <p className="m-0 mt-0.5 text-xs [overflow-wrap:anywhere]">
+        <span className="text-warning">
           <XIcon role="img" aria-label="Failed" /> {when} · {scraper.lastError}
         </span>
       </p>
     );
   }
   return (
-    <p className="small">
-      <CheckIcon className="ok-text" role="img" aria-label="OK" /> {when} · {scraper.lastFound} on the page ·{' '}
+    <p className="m-0 mt-0.5 text-xs [overflow-wrap:anywhere]">
+      <CheckIcon className="text-success" role="img" aria-label="OK" /> {when} · {scraper.lastFound} on the page ·{' '}
       {scraper.lastKept} kept · {scraper.lastNew} new
-      {scraper.lastMs !== null && <span className="muted"> · {seconds(scraper.lastMs, 1)}</span>}
+      {scraper.lastMs !== null && <span className="text-muted-foreground"> · {seconds(scraper.lastMs, 1)}</span>}
       {scraper.lastError && (
-        <span className="warn">
+        <span className="text-warning">
           {' · '}
           <TriangleAlertIcon /> {scraper.lastError}
         </span>
       )}
-      {scraper.mark === null && <span className="muted"> · next run only saves</span>}
+      {scraper.mark === null && <span className="text-muted-foreground"> · next run only saves</span>}
     </p>
   );
 }
@@ -263,7 +288,9 @@ function ScraperEditor({
   keywords: string[];
   onClose: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(true);
+  const confirm = useConfirm();
+  const focus = useReturnFocus();
   const [draft, setDraft] = useState(initial);
   const [test, setTest] = useState<Result<TestResult> | null>(null);
   const [testing, startTest] = useTransition();
@@ -280,7 +307,6 @@ function ScraperEditor({
     });
 
   const opened = useEffectEvent(() => {
-    if (!dialog.current?.open) dialog.current?.showModal();
     if (autoTest) runTest();
   });
   useEffect(() => opened(), []);
@@ -291,18 +317,35 @@ function ScraperEditor({
     setError(null);
     startSave(async () => {
       const answer = await fn().catch((failure: unknown) => fail(message(failure)));
-      startTransition(() => (answer.ok ? onClose() : setError(answer.error)));
+      startTransition(() => (answer.ok ? setOpen(false) : setError(answer.error)));
     });
   };
   const save = () => commit(() => saveScraperAction(toForm(draft)));
-  const remove = () => {
+  const remove = async () => {
     const id = draft.id;
-    if (!id || !confirm(`Delete “${draft.name}”? Offers it already saved stay.`)) return;
+    if (
+      !id ||
+      !(await confirm({
+        title: `Delete “${draft.name}”?`,
+        description: 'Offers it already saved stay.',
+        action: 'Delete',
+        destructive: true,
+      }))
+    )
+      return;
     commit(() => deleteScraperAction({ id }));
   };
-  const changeKind = (kind: KindId) => {
+  const changeKind = async (kind: KindId) => {
     // a built-in board brings its own link and board id; between generic kinds keep what's typed
-    if (draft.id && !confirm('Change the type? The link and fields may not fit the new type.')) return;
+    if (
+      draft.id &&
+      !(await confirm({
+        title: 'Change the type?',
+        description: 'The link and fields may not fit the new type.',
+        action: 'Change',
+      }))
+    )
+      return;
     setDraft((current) =>
       isGeneric(kind) && isGeneric(current.kind)
         ? { ...current, kind }
@@ -316,187 +359,193 @@ function ScraperEditor({
   const usesKeyword = /\{keyword(_slug)?\}/.test(draft.url);
   const paged = /\{(start|page)\}/.test(draft.url);
 
+  // A side panel: a long form whose test result (the offers it found, a sample) reads best at full height,
+  // with the list of scrapers still in view beside it on a wide screen
   return (
-    <dialog
-      ref={dialog}
-      className="modal modal-wide modal-sheet"
-      aria-labelledby="scraper-title"
-      onClose={onClose}
-      onClick={(event) => event.target === dialog.current && dialog.current.close()}
-    >
-      <div className="modal-body">
-        <div className="sheet-head">
-          <h2 id="scraper-title">{draft.id ? initial.name : 'New scraper'}</h2>
-          <p className="muted">{kindOf(draft.kind).hint}</p>
-        </div>
+    // Escape, a click outside and Cancel close it
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent
+        className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]"
+        onInteractOutside={keepOpenOnToast}
+        onCloseAutoFocus={(event) => {
+          focus.onCloseAutoFocus(event);
+          onClose();
+        }}
+      >
+        <SheetHeader className="gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">
+          <SheetTitle className="text-lg font-semibold">{draft.id ? initial.name : 'New scraper'}</SheetTitle>
+          <SheetDescription className="text-[13px]">{kindOf(draft.kind).hint}</SheetDescription>
+        </SheetHeader>
 
-        <div className="sheet-scroll">
-          <div className="field-row">
-            <label className="field">
-              <span>Type</span>
-              <select value={draft.kind} onChange={(event) => changeKind(event.target.value as KindId)}>
+        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-3.5 py-3 [scrollbar-gutter:stable] *:shrink-0 sm:px-5 sm:py-3.5">
+          <div className={ROW}>
+            <Field label="Type">
+              <NativeSelect
+                className="w-full"
+                value={draft.kind}
+                onChange={(event) => void changeKind(event.target.value as KindId)}
+              >
                 {KIND_IDS.map((kind) => (
-                  <option key={kind} value={kind}>
+                  <NativeSelectOption key={kind} value={kind}>
                     {kindOf(kind).label}
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Name</span>
-              <input
+              </NativeSelect>
+            </Field>
+            <Field label="Name">
+              <Input
                 value={draft.name}
                 onChange={(event) => set({ name: event.target.value })}
                 placeholder="LinkedIn – React"
               />
-            </label>
-            <label className="field">
-              <span>Source id</span>
+            </Field>
+            <Field label="Source id">
               {generic ? (
-                <input
+                <Input
                   value={draft.src}
                   onChange={(event) => set({ src: event.target.value.toLowerCase() })}
                   placeholder="linkedin"
                 />
               ) : (
-                <input value={draft.src} readOnly aria-readonly="true" />
+                <Input value={draft.src} readOnly aria-readonly="true" className="text-muted-foreground" />
               )}
-            </label>
+            </Field>
           </div>
-          <p className="muted small field-note">
+          <p className="-mt-1.5 mb-0 text-xs text-muted-foreground">
             {generic
               ? 'The source id is saved with each offer and shows as its board (lowercase, e.g. linkedin). Searches on one site share it.'
               : 'Fixed for this board, so its offers keep matching the ones already saved.'}
           </p>
 
-          <label className="field">
-            <span>Link</span>
-            <textarea
+          <Field
+            label="Link"
+            hint={
+              <>
+                <Code>{'{keyword}'}</Code> and <Code>{'{keyword_slug}'}</Code> become each keyword from Filters (
+                {keywords.join(', ') || 'none set'}): one search per keyword.
+                {!usesKeyword && ' Without them the link is fetched as it is.'} <Code>{'{start}'}</Code> (0, 10, 20…) or{' '}
+                <Code>{'{page}'}</Code> (1, 2, 3…) fetch several pages.
+              </>
+            }
+          >
+            <Textarea
               rows={2}
+              className={TEXTAREA}
               value={draft.url}
               onChange={(event) => set({ url: event.target.value })}
               placeholder="https://…"
               spellCheck={false}
             />
-            <small>
-              <code className="inline-code">{'{keyword}'}</code> and{' '}
-              <code className="inline-code">{'{keyword_slug}'}</code> become each keyword from Filters (
-              {keywords.join(', ') || 'none set'}): one search per keyword.
-              {!usesKeyword && ' Without them the link is fetched as it is.'}{' '}
-              <code className="inline-code">{'{start}'}</code> (0, 10, 20…) or{' '}
-              <code className="inline-code">{'{page}'}</code> (1, 2, 3…) fetch several pages.
-            </small>
-          </label>
+          </Field>
           {paged && (
-            <label className="field pages-field">
-              <span>Pages</span>
-              <input
+            <Field label="Pages" hint="per keyword, per run">
+              <Input
                 type="number"
                 min={1}
                 max={5}
+                className="w-24"
                 value={draft.pages}
                 onChange={(event) => set({ pages: Math.max(1, Math.min(5, Number(event.target.value) || 1)) })}
               />
-              <small>per keyword, per run</small>
-            </label>
+            </Field>
           )}
-          <label className="field">
-            <span>Headers</span>
-            <textarea
+          <Field label="Headers" hint="One per line, “Name: value”. A browser User-Agent is sent unless you set one.">
+            <Textarea
               rows={2}
+              className={TEXTAREA}
               value={draft.headers}
               onChange={(event) => set({ headers: event.target.value })}
               placeholder="X-Api-Version: 1.0"
               spellCheck={false}
             />
-            <small>One per line, “Name: value”. A browser User-Agent is sent unless you set one.</small>
-          </label>
-          <label className="check">
-            <input
-              type="checkbox"
+          </Field>
+          <CheckField>
+            <Checkbox
               checked={draft.checkKeyword}
-              onChange={(event) => set({ checkKeyword: event.target.checked })}
-            />{' '}
+              onCheckedChange={(checked) => set({ checkKeyword: checked === true })}
+            />
             The offer must mention a keyword (title or skills)
-          </label>
-          <label className="check">
-            <input
-              type="checkbox"
+          </CheckField>
+          <CheckField>
+            <Checkbox
               checked={draft.checkLocation}
-              onChange={(event) => set({ checkLocation: event.target.checked })}
-            />{' '}
+              onCheckedChange={(checked) => set({ checkLocation: checked === true })}
+            />
             Only remote or in the cities from Filters
-          </label>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={draft.enabled}
-              onChange={(event) => set({ enabled: event.target.checked })}
-            />{' '}
+          </CheckField>
+          <CheckField>
+            <Checkbox checked={draft.enabled} onCheckedChange={(checked) => set({ enabled: checked === true })} />
             On
-          </label>
+          </CheckField>
 
           {draft.kind === 'json' && (
-            <div className="field-row">
-              <label className="field">
-                <span>Where the JSON is</span>
-                <select value={draft.from} onChange={(event) => set({ from: event.target.value as JsonSource })}>
+            <div className={ROW}>
+              <Field label="Where the JSON is">
+                <NativeSelect
+                  className="w-full"
+                  value={draft.from}
+                  onChange={(event) => set({ from: event.target.value as JsonSource })}
+                >
                   {JSON_SOURCES.map((source) => (
-                    <option key={source.id} value={source.id}>
+                    <NativeSelectOption key={source.id} value={source.id}>
                       {source.label}
-                    </option>
+                    </NativeSelectOption>
                   ))}
-                </select>
-              </label>
+                </NativeSelect>
+              </Field>
               {draft.from === 'script' && (
-                <label className="field">
-                  <span>Script id</span>
-                  <input
+                <Field label="Script id">
+                  <Input
                     value={draft.scriptId}
                     onChange={(event) => set({ scriptId: event.target.value })}
                     placeholder="serverApp-state"
                   />
-                </label>
+                </Field>
               )}
             </div>
           )}
           {mapped && (
-            <label className="field">
-              <span>{draft.kind === 'json' ? 'Path to the list of offers' : 'One offer (CSS selector)'}</span>
-              <input
+            <Field
+              label={draft.kind === 'json' ? 'Path to the list of offers' : 'One offer (CSS selector)'}
+              hint={
+                draft.kind === 'json'
+                  ? 'Keys with dots between them; [] = each item of a list, e.g. results[].job. Test shows the first offer’s JSON to find the paths.'
+                  : 'Test shows the first one’s HTML, to find the selectors for the fields.'
+              }
+            >
+              <Input
                 value={draft.items}
                 onChange={(event) => set({ items: event.target.value })}
                 placeholder={draft.kind === 'json' ? 'data, or props.pageProps.jobs' : 'li.job-card'}
                 spellCheck={false}
               />
-              <small>
-                {draft.kind === 'json'
-                  ? 'Keys with dots between them; [] = each item of a list, e.g. results[].job. Test shows the first offer’s JSON to find the paths.'
-                  : 'Test shows the first one’s HTML, to find the selectors for the fields.'}
-              </small>
-            </label>
+            </Field>
           )}
           {mapped && (
-            <fieldset className="fields">
-              <legend>
+            <fieldset className="m-0 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-3 gap-y-2.5 rounded-lg border px-3 py-2.5">
+              <legend className="px-1 text-[13px] text-muted-foreground">
                 {draft.kind === 'json' ? 'Fields: a path inside one offer' : 'Fields: a CSS selector inside one offer'}
               </legend>
               {FIELDS.map((field) => (
-                <label key={field.id} className="field">
-                  <span>
-                    {field.label}
-                    {'required' in field && ' *'}
-                    {'hint' in field && <em className="muted"> · {field.hint}</em>}
-                  </span>
-                  <input
+                <Field
+                  key={field.id}
+                  label={
+                    <>
+                      {field.label}
+                      {'required' in field && ' *'}
+                      {'hint' in field && <span className="text-muted-foreground"> · {field.hint}</span>}
+                    </>
+                  }
+                >
+                  <Input
                     value={draft.fields[field.id] ?? ''}
                     onChange={(event) => setField(field.id, event.target.value)}
                     placeholder={PLACEHOLDERS[draft.kind as 'json' | 'html'][field.id]}
                     spellCheck={false}
                   />
-                </label>
+                </Field>
               ))}
-              <small>
+              <small className="col-span-full text-xs text-muted-foreground">
                 {draft.kind === 'json'
                   ? 'The link can be a template filled from the offer: https://site.com/job/{slug}. Relative links are fine.'
                   : '“h3 a” = its text, “h3 a@href” = an attribute, “@data-id” = the offer element’s own attribute. Relative links are fine.'}
@@ -507,47 +556,57 @@ function ScraperEditor({
           {test && <TestView test={test} />}
         </div>
 
-        <div className="sheet-foot">
+        <SheetFooter className="mt-0 gap-2 border-t px-3.5 py-2.5 sm:px-5 sm:py-3">
           {error && (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
+            <Alert variant="destructive">
+              <TriangleAlertIcon />
+              <AlertTitle className="font-normal">{error}</AlertTitle>
+            </Alert>
           )}
-          <div className="modal-actions">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {draft.id && (
-              <button type="button" className="secondary danger" onClick={remove} disabled={saving}>
+              <Button
+                type="button"
+                variant="destructive"
+                className="mr-auto"
+                onClick={() => void remove()}
+                disabled={saving}
+              >
                 Delete
-              </button>
+              </Button>
             )}
-            <span className="spacer" />
-            <button
+            <Button
               type="button"
-              className="secondary"
+              variant="outline"
               onClick={runTest}
               disabled={testing}
               aria-busy={testing || undefined}
             >
               {testing ? 'Testing…' : 'Test'}
-            </button>
-            <button type="button" className="secondary" onClick={() => dialog.current?.close()}>
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
-            </button>
-            <button type="button" onClick={save} disabled={saving} aria-busy={saving || undefined}>
+            </Button>
+            <Button type="button" onClick={save} disabled={saving} aria-busy={saving || undefined}>
               {saving ? 'Saving…' : 'Save'}
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
-    </dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
+
+const ROW = 'grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-3 gap-y-2.5';
+const TEXTAREA = 'field-sizing-fixed resize-y font-mono text-[13px] md:text-[13px]';
 
 function TestView({ test }: { test: Result<TestResult> }) {
   if (!test.ok) {
     return (
-      <p className="form-error" role="alert">
-        {test.error}
-      </p>
+      <Alert variant="destructive">
+        <TriangleAlertIcon />
+        <AlertTitle className="font-normal">{test.error}</AlertTitle>
+      </Alert>
     );
   }
   const result = test.data;
@@ -557,27 +616,31 @@ function TestView({ test }: { test: Result<TestResult> }) {
     result.skipped.ignored && `${result.skipped.ignored} by title`,
   ].filter(Boolean);
   return (
-    <section className="test-view" aria-label="Test result" aria-live="polite">
-      <p>
+    <section
+      className="rounded-lg border bg-background px-3 py-2.5 text-sm [&_a]:text-foreground"
+      aria-label="Test result"
+      aria-live="polite"
+    >
+      <p className="mt-0 mb-1.5">
         {result.ok ? (
-          <CheckIcon className="ok-text" role="img" aria-label="OK" />
+          <CheckIcon className="text-success" role="img" aria-label="OK" />
         ) : (
-          <XIcon className="warn" role="img" aria-label="Failed" />
+          <XIcon className="text-warning" role="img" aria-label="Failed" />
         )}{' '}
         {result.found} on the page
         {result.pages.length > 1 ? 's' : ''} → <strong>{result.kept} kept</strong>, {result.fresh} of them not saved yet
         · {seconds(result.ms, 1)}
-        {skipped.length > 0 && <span className="muted"> · skipped: {skipped.join(', ')}</span>}
+        {skipped.length > 0 && <span className="text-muted-foreground"> · skipped: {skipped.join(', ')}</span>}
       </p>
       {result.pages.length > 1 || !result.ok ? (
-        <ul className="test-pages">
+        <ul className="my-1.5 list-disc pl-5 text-[13px]">
           {result.pages.map((page) => (
             <li key={page.url}>
               {[page.keyword, result.pages.some((other) => other.page > 1) && `page ${page.page}`]
                 .filter(Boolean)
                 .join(', ') || 'page'}
-              : {page.ok ? `${page.total} → ${page.kept}` : <span className="warn">{page.error}</span>}{' '}
-              <a href={page.url} target="_blank" rel="noopener noreferrer">
+              : {page.ok ? `${page.total} → ${page.kept}` : <span className="text-warning">{page.error}</span>}{' '}
+              <a href={page.url} target="_blank" rel="noopener noreferrer" className="underline">
                 open <ExternalLinkIcon />
               </a>
             </li>
@@ -585,14 +648,14 @@ function TestView({ test }: { test: Result<TestResult> }) {
         </ul>
       ) : null}
       {result.offers.length > 0 && (
-        <ol className="test-offers">
+        <ol className="my-1.5 list-decimal pl-5 text-[13px]">
           {result.offers.map((offer) => (
-            <li key={offer.id}>
-              <a href={offer.url} target="_blank" rel="noopener noreferrer">
+            <li key={offer.id} className="my-[3px] [overflow-wrap:anywhere]">
+              <a href={offer.url} target="_blank" rel="noopener noreferrer" className="underline">
                 {offer.title}
               </a>{' '}
-              {!offer.known && <span className="badge new">new</span>}
-              <span className="muted small">
+              {!offer.known && <Badge variant="success">new</Badge>}
+              <span className="text-xs text-muted-foreground">
                 {' '}
                 {[offer.company, offer.remote ? 'remote' : offer.locations.join(', '), offer.seniority]
                   .filter(Boolean)
@@ -604,9 +667,13 @@ function TestView({ test }: { test: Result<TestResult> }) {
         </ol>
       )}
       {result.sample && (
-        <details className="sample">
-          <summary>The first offer as the scraper sees it</summary>
-          <pre>{result.sample}</pre>
+        <details>
+          <summary className="cursor-pointer text-[13px] text-muted-foreground">
+            The first offer as the scraper sees it
+          </summary>
+          <pre className="mt-1.5 mb-0 max-h-80 overflow-auto rounded-md bg-card p-2 text-xs whitespace-pre-wrap [overflow-wrap:anywhere]">
+            {result.sample}
+          </pre>
         </details>
       )}
     </section>

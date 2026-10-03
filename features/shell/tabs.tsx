@@ -10,20 +10,27 @@ const TABS = [
   { path: '/settings', label: 'Settings' },
 ];
 
+// The app's pages, drawn like shadcn's line tabs but kept as a <nav> of links with aria-current: each one
+// loads another page (a URL, middle-click, back), which is navigation, not the tablist pattern (tabs show
+// panels of one page, and arrow keys move between them).
+const NAV = 'mb-3.5 -mt-1 flex gap-1 border-b';
+const TAB =
+  '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground no-underline transition-colors hover:text-foreground aria-[current=page]:border-foreground aria-[current=page]:font-semibold aria-[current=page]:text-foreground';
+
 // Switching tabs keeps search / board / dates, only the page number resets.
 export function Tabs() {
   const pathname = usePathname();
-  const sp = new URLSearchParams(useSearchParams());
-  sp.delete('page');
-  const qs = sp.toString();
+  const params = new URLSearchParams(useSearchParams());
+  params.delete('page');
+  const queryString = params.toString();
   return (
-    <nav className="tabs" aria-label="View">
+    <nav className={NAV} aria-label="View">
       {TABS.map((tab) => (
         <Link
           key={tab.path}
-          href={qs && (tab.path === '/' || tab.path === '/ai') ? `${tab.path}?${qs}` : tab.path}
+          href={queryString && (tab.path === '/' || tab.path === '/ai') ? `${tab.path}?${queryString}` : tab.path}
           aria-current={pathname === tab.path ? 'page' : undefined}
-          className="tab"
+          className={TAB}
         >
           {tab.label}
         </Link>
@@ -34,9 +41,9 @@ export function Tabs() {
 
 export function TabsFallback() {
   return (
-    <nav className="tabs" aria-hidden="true">
+    <nav className={NAV} aria-hidden="true">
       {TABS.map((tab) => (
-        <span key={tab.path} className="tab">
+        <span key={tab.path} className={TAB}>
           {tab.label}
         </span>
       ))}

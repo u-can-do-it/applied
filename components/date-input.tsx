@@ -1,13 +1,22 @@
 'use client';
 
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useEffectEvent, useState } from 'react';
 import { CalendarIcon } from 'lucide-react';
-import { formatDay, parseDay } from '@/lib/dates';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { dateToDay, dayToDate, formatDay, parseDay } from '@/lib/dates';
+import { cn } from '@/lib/shared/cn';
+import { useZone } from './time-zone';
 
-// A native <input type="date"> shows the browser's own format (mm/dd/yyyy in an English
-// browser) and a page can't change that. So the visible field is text in dd.mm.rrrr, typed
-// with the dots filled in automatically; the calendar button opens the browser's calendar through a
-// hidden date input. The URL keeps ISO dates (2026-10-02).
+// A day as dd.mm.rrrr text, typed with the dots filled in automatically, or picked in a calendar
+// (the button). A native <input type="date"> would show the browser's own format (mm/dd/yyyy in an
+// English browser), which a page can't change. The URL keeps ISO dates (2026-10-02).
+// The calendar (react-day-picker with date-fns, ~30 kB gzipped) loads when it's first wanted: pointing at
+// or focusing the button starts the download, so it's usually in by the time the popover opens.
+const loadCalendar = () => import('@/components/ui/calendar');
+const Calendar = lazy(() => loadCalendar().then((module) => ({ default: module.Calendar })));
+
 const mask = (text: string) => {
   const digits = text.replace(/\D/g, '').slice(0, 8);
   return (
@@ -22,16 +31,20 @@ export function DateInput({
   value,
   min,
   max,
+  highlighted = false,
   onCommit,
 }: {
   label: string;
   value: string; // ISO day or ''
   min?: string;
   max?: string;
+  /** drawn as the filter in use (the custom range) */
+  highlighted?: boolean;
   onCommit: (day: string) => void;
 }) {
   const [text, setText] = useState(formatDay(value));
-  const picker = useRef<HTMLInputElement>(null);
+  const [picking, setPicking] = useState(false);
+  const zone = useZone();
   const commit = useEffectEvent(onCommit);
 
   // follow the URL (presets, back/forward); adjusted while rendering, not in an effect
@@ -51,12 +64,15 @@ export function DateInput({
 
   const iso = parseDay(text);
   const invalid = text.length === 10 && !iso;
+  const selected = dayToDate(iso || value);
+  const before = min ? dayToDate(min) : undefined;
+  const after = max ? dayToDate(max) : undefined;
 
   return (
-    <label className="date-field">
+    <label className="flex items-center gap-1.5">
       <span>{label}</span>
-      <span className={`date-box${invalid ? ' invalid' : ''}`}>
-        <input
+      <span className="relative inline-flex items-center">
+        <Input
           type="text"
           inputMode="numeric"
           placeholder="dd.mm.rrrr"
@@ -65,32 +81,46 @@ export function DateInput({
           maxLength={10}
           value={text}
           onChange={(event) => setText(mask(event.target.value))}
+          className={cn(
+            'h-7 w-[calc(10ch+3rem)] rounded-full bg-card pr-8 text-[13px] text-foreground tabular-nums md:text-[13px] dark:bg-card',
+            highlighted && 'border-foreground',
+          )}
         />
-        <button
-          type="button"
-          className="cal"
-          aria-label={`Pick the ${label.toLowerCase()} date`}
-          onClick={() => {
-            try {
-              picker.current?.showPicker();
-            } catch {
-              picker.current?.focus(); // older browsers: focusing the input opens its picker
-            }
-          }}
-        >
-          <CalendarIcon />
-        </button>
-        <input
-          ref={picker}
-          type="date"
-          className="picker"
-          tabIndex={-1}
-          aria-hidden="true"
-          value={iso || value}
-          min={min}
-          max={max}
-          onChange={(event) => setText(formatDay(event.target.value))}
-        />
+        <Popover open={picking} onOpenChange={setPicking}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="absolute right-1 rounded-full text-muted-foreground"
+              aria-label={`Pick the ${label.toLowerCase()} date`}
+              onPointerEnter={() => void loadCalendar()}
+              onFocus={() => void loadCalendar()}
+            >
+              <CalendarIcon />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Suspense fallback={<div className="h-[280px] w-[212px]" aria-busy="true" />}>
+              <Calendar
+                mode="single"
+                weekStartsOn={1}
+                // today in the app's time zone, not the device's
+                today={dayToDate(zone.day())}
+                selected={selected}
+                defaultMonth={selected ?? after}
+                disabled={[...(before ? [{ before }] : []), ...(after ? [{ after }] : [])]}
+                onSelect={(date) => {
+                  const day = date ? dateToDay(date) : '';
+                  if (!day) return; // the selected day clicked again: keep it
+                  setText(formatDay(day));
+                  setPicking(false);
+                  if (day !== value) onCommit(day); // picked: no need to wait as for typing
+                }}
+              />
+            </Suspense>
+          </PopoverContent>
+        </Popover>
       </span>
     </label>
   );

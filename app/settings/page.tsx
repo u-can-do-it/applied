@@ -16,7 +16,9 @@ import { message } from '@/lib/shared/errors';
 import { botInfo, telegramReady } from '@/lib/telegram';
 import { Header } from '@/features/shell/header';
 import { Tabs, TabsFallback } from '@/features/shell/tabs';
+import { LoadError } from '@/components/load-error';
 import { TimeZone } from '@/components/time-zone';
+import { Skeleton } from '@/components/ui/skeleton';
 import { FiltersPanel, SchedulePanel } from '@/features/scraping/panels';
 import { ScrapersPanel } from '@/features/scraping/scrapers';
 import { TelegramPanel } from '@/features/telegram/telegram-panel';
@@ -54,12 +56,7 @@ async function Settings() {
     ]);
     data = { settings, scrapers, state, runs, queued, counts };
   } catch (error) {
-    return (
-      <div className="notice">
-        <strong>Can’t load the scraping settings.</strong>
-        <code>{message(error)}</code>
-      </div>
-    );
+    return <LoadError title="Can’t load the scraping settings." detail={message(error)} />;
   }
   const [cron, bot, origin, profiles] = await Promise.all([
     cronRepo.status().catch((failure: unknown): cronRepo.CronStatus & { error: string } => ({
@@ -107,10 +104,11 @@ async function Settings() {
 }
 
 function SettingsSkeleton() {
+  // visible after 150 ms, so a fast load doesn't flash it
   return (
-    <div className="skeleton" aria-busy="true" aria-label="Loading">
+    <div className="animate-appear-late" aria-busy="true" aria-label="Loading">
       {[180, 260, 140, 320].map((height, i) => (
-        <div key={i} className="panel" style={{ height }} />
+        <Skeleton key={i} className="mb-3.5 rounded-xl" style={{ height }} />
       ))}
     </div>
   );

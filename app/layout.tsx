@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { ConfirmProvider } from '@/components/confirm';
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -10,7 +13,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <TooltipProvider delayDuration={150}>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </TooltipProvider>
+        {/* at the top: an open Sheet keeps its buttons at the bottom */}
+        <Toaster position="top-center" />
+      </body>
     </html>
   );
 }

@@ -7,9 +7,9 @@ import { BrowserZone } from './browser-zone';
 
 export function Header() {
   return (
-    <header className="top">
-      <h1>Jobwatch</h1>
-      <div className="top-side">
+    <header className="mb-4 flex items-baseline justify-between gap-3 max-[480px]:flex-wrap">
+      <h1 className="m-0 text-[22px] font-bold tracking-[-0.01em]">Jobwatch</h1>
+      <div className="flex items-center gap-3">
         <ScrapeButton />
         <AutoRefresh />
       </div>

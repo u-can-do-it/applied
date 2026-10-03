@@ -38,6 +38,25 @@ export function parseDay(text: string): string {
   return match ? validDay(`${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`) : '';
 }
 
+// A calendar picker (react-day-picker) works with Dates on the device's clock, whatever the app's time zone.
+// A day goes there as noon of that day (a zone whose clocks skip midnight when summer time starts still
+// has that day's noon) and comes back as the device's calendar day of the picked Date: no zone
+// arithmetic, so a day stays the same day.
+
+/** "2026-10-25" -> that day at 12:00 on this device's clock (undefined if it's not a real date) */
+export function dayToDate(day: string): Date | undefined {
+  const valid = validDay(day);
+  if (!valid) return undefined;
+  const [year, month, dayOfMonth] = parts(valid);
+  return new Date(year, month - 1, dayOfMonth, 12);
+}
+
+/** A Date from the picker -> its day on this device's calendar, "2026-10-25" ('' before 2000) */
+export function dateToDay(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return validDay(`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`);
+}
+
 /** "today", "last 7 days", "20.09.2026 – 28.09.2026", "since 20.09.2026", "until 28.09.2026", "" (no range) */
 export function describeRange({ days, from, to }: DateFilter): string {
   const fmt = formatDay;

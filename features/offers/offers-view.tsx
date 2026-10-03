@@ -1,7 +1,9 @@
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import type { SearchParams } from '@/lib/shared/search-params';
+import { DEFAULT_TZ } from '@/lib/dates';
 import { filterBoards, boardOptions } from '@/lib/listings/board-filter';
+import { appTimeZone } from '@/lib/time-zone';
 import { AiFilterBar } from '@/features/ai/ai-filter-bar';
 import { Controls, ControlsFallback } from './controls';
 import { Header } from '@/features/shell/header';
@@ -9,6 +11,10 @@ import { NavProvider } from './nav';
 import { Results, ResultsSkeleton } from './results';
 import { ResultsBoundary } from './results-boundary';
 import { Tabs, TabsFallback } from '@/features/shell/tabs';
+
+// the list area never collapses while loading, so the page height (and your scroll position on the
+// chips) stays put when the rows are replaced by the skeleton
+const RESULTS = 'min-h-screen';
 
 // Shared by "/" (all offers) and "/ai" (the same list, narrowed by the AI filter).
 // Nothing here awaits, so everything outside the <Suspense> boundaries is static shell.
@@ -24,7 +30,7 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
 
       {mode === 'ai' && (
         // profiles, runs and "N new" counts; reads the date filter from the URL
-        <Suspense fallback={<div className="ai-bar ai-bar-loading" aria-busy="true" />}>
+        <Suspense fallback={<div className="mb-3 min-h-9" aria-busy="true" />}>
           <AiFilterBar searchParams={searchParams} />
         </Suspense>
       )}
@@ -34,7 +40,7 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
         fallback={
           <>
             <ControlsFallback labels={filterBoards().map((board) => board.label)} />
-            <div className="results">
+            <div className={RESULTS}>
               <ResultsSkeleton />
             </div>
           </>
@@ -53,10 +59,12 @@ async function OffersBody({ searchParams, mode }: { searchParams: SearchParams; 
   await connection();
   // without the database (it's down) the chips are the built-in boards; the list says what's wrong
   const boards = boardOptions().catch(() => filterBoards());
+  // the date picker's "today" is the app's (the list's days are)
+  const tz = appTimeZone().catch(() => DEFAULT_TZ);
   return (
     <NavProvider>
-      <Controls boards={boards} />
-      <div className="results">
+      <Controls boards={boards} tz={tz} />
+      <div className={RESULTS}>
         {/* the only part that waits for Supabase (and, on /ai, the verdicts) */}
         <ResultsBoundary fallback={<ResultsSkeleton />}>
           <Results searchParams={searchParams} mode={mode} boards={boards} />
