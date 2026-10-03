@@ -2,6 +2,7 @@
 
 import { useOptimistic, useState } from 'react';
 import { PlusIcon } from 'lucide-react';
+import { PanelHeading } from '@/components/help';
 import { ActionError, useAction } from '@/components/use-action';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,9 +15,27 @@ import { toggleScraperAction } from './actions';
 import { PANEL } from './panel-styles';
 import { blank, toDraft, type Draft } from './scraper-draft';
 import { LazyScraperEditor, loadEditor } from './lazy-scraper-editor';
-import { ScraperStatus } from './scraper-status';
+import { ScraperBrief } from './scraper-status';
 
 // The scrapers: the built-in boards, plus your own (JSON / HTML / RSS) set up here.
+
+const saved = (offers = 0) => (offers ? ` · ${offers} offer${offers === 1 ? '' : 's'} saved` : '');
+
+const HELP = (
+  <>
+    <p>
+      A scraper is one saved search on a board: its link and its filters. The built-in boards come with theirs; “Add
+      scraper” sets up your own from a JSON API, an HTML page or an RSS feed. Searches on one board share its id, which
+      every offer they find is saved under.
+    </p>
+    <p>
+      Test fetches the pages with the scraper’s values without saving anything. Copy starts a new scraper from this one,
+      e.g. for another search on the same board. A new scraper’s first run (or the first after its search changed) only
+      saves its offers, so Telegram isn’t flooded with old ones.
+    </p>
+    <p>What each scraper’s last run found is on the Activity tab.</p>
+  </>
+);
 
 export function ScrapersPanel({
   scrapers,
@@ -43,13 +62,12 @@ export function ScrapersPanel({
       onPointerOver={() => void loadEditor()}
       onFocus={() => void loadEditor()}
     >
-      <CardHeader className="flex items-center justify-between gap-3 px-4">
-        <h2 id="scrapers-h" className="m-0 text-base font-semibold">
-          Scrapers
-        </h2>
-        <Button type="button" onClick={() => edit(blank('html'))}>
-          <PlusIcon /> Add scraper
-        </Button>
+      <CardHeader className="px-4">
+        <PanelHeading id="scrapers-h" title="Scrapers" help={HELP}>
+          <Button type="button" onClick={() => edit(blank('html'))}>
+            <PlusIcon /> Add scraper
+          </Button>
+        </PanelHeading>
       </CardHeader>
       <CardContent className="px-4">
         <ul className="m-0 list-none border-t p-0">
@@ -73,11 +91,11 @@ export function ScrapersPanel({
                 <div>
                   <strong>{scraper.name}</strong> <Badge variant="quiet">{kindOf(scraper.kind).label}</Badge>{' '}
                   <span className="text-xs text-muted-foreground">
-                    {scraper.src}
-                    {counts[scraper.src] ? ` · ${counts[scraper.src]?.offers} saved` : ''}
+                    on {scraper.src}
+                    {saved(counts[scraper.src]?.offers)}
                   </span>
                 </div>
-                <ScraperStatus scraper={scraper} />
+                <ScraperBrief scraper={scraper} />
               </div>
               <div className="flex flex-wrap justify-end gap-1.5 max-[560px]:col-start-2 max-[560px]:justify-start">
                 <Button type="button" variant="outline" size="sm" onClick={() => edit(toDraft(scraper), true)}>

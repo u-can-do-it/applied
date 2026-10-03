@@ -19,9 +19,10 @@ export async function enqueue(rows: (Queued & { queuedAt?: string })[]) {
     .onConflictDoNothing({ target: [notifyQueue.src, notifyQueue.id] });
 }
 
-/** Oldest first. */
-export function list(): Promise<QueuedAt[]> {
-  return db().select().from(notifyQueue).orderBy(asc(notifyQueue.queuedAt));
+/** Oldest first; the first `limit` of them if given. */
+export function list(limit?: number): Promise<QueuedAt[]> {
+  const query = db().select().from(notifyQueue).orderBy(asc(notifyQueue.queuedAt));
+  return limit === undefined ? query : query.limit(limit);
 }
 
 /**

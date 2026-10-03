@@ -2,23 +2,23 @@ import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { env } from '@/lib/env';
-import { isUsable, listProfiles } from '@/lib/ai/profiles';
+import { isUsable } from '@/lib/ai/profiles';
 import { effectiveTimeZone } from '@/lib/listings/settings';
 import { requestOrigin } from '@/lib/listings/schedule';
-import * as cronRepo from '@/lib/db/repos/cron';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
 import * as offersRepo from '@/lib/db/repos/offers';
-import * as runsRepo from '@/lib/db/repos/scrape-runs';
-import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
 import * as scrapersRepo from '@/lib/db/repos/scrapers';
 import { message } from '@/lib/shared/errors';
-import { botInfo, telegramReady } from '@/lib/telegram';
+import { botAnswer, cronInfo, profileList } from '@/lib/health/reads';
+import { appSettings } from '@/lib/time-zone';
+import { telegramReady } from '@/lib/telegram';
 import { Header } from '@/features/shell/header';
 import { Tabs, TabsFallback } from '@/features/shell/tabs';
 import { LoadError } from '@/components/load-error';
 import { TimeZone } from '@/components/time-zone';
 import { Skeleton } from '@/components/ui/skeleton';
+import { HealthCard, HealthCardFallback } from '@/features/health/health-card';
 import { FiltersPanel } from '@/features/scraping/filters-panel';
 import { SchedulePanel } from '@/features/scraping/schedule-panel';
 import { ScrapersPanel } from '@/features/scraping/scrapers-panel';
@@ -36,6 +36,9 @@ export default function SettingsPage() {
       <Suspense fallback={<TabsFallback />}>
         <Tabs />
       </Suspense>
+      <Suspense fallback={<HealthCardFallback />}>
+        <HealthCard />
+      </Suspense>
       <Suspense fallback={<SettingsSkeleton />}>
         <Settings />
       </Suspense>
@@ -44,30 +47,22 @@ export default function SettingsPage() {
 }
 
 async function Settings() {
-  await connection(); // always fresh: runs and statuses change all the time
+  await connection(); // always fresh: statuses change all the time
   let data;
   try {
-    const [settings, scrapers, state, runs, queued, counts] = await Promise.all([
-      settingsRepo.get(),
+    const [settings, scrapers, state, queued, counts] = await Promise.all([
+      appSettings(),
       scrapersRepo.list(),
       stateRepo.get(),
-      runsRepo.list(12),
       queueRepo.size(),
       offersRepo.countPerBoard(),
     ]);
-    data = { settings, scrapers, state, runs, queued, counts };
+    data = { settings, scrapers, state, queued, counts };
   } catch (error) {
-    return <LoadError title="Can’t load the scraping settings." detail={message(error)} />;
+    return <LoadError title="Can’t load the settings." detail={message(error)} />;
   }
-  const [cron, bot, origin, profiles] = await Promise.all([
-    cronRepo.status().catch((failure: unknown): cronRepo.CronStatus & { error: string } => ({
-      available: false,
-      error: message(failure),
-    })),
-    telegramReady() ? botInfo().catch((failure: unknown) => ({ error: message(failure) })) : Promise.resolve(null),
-    requestOrigin(),
-    listProfiles().catch(() => []),
-  ]);
+  // the same answers the Health card above got (read once per request)
+  const [cron, origin, profiles] = await Promise.all([cronInfo(), requestOrigin(), profileList().catch(() => [])]);
   // what the AI filter would check new offers against: the active profile, if it can work
   const active = profiles[0];
   const ai = {
@@ -75,33 +70,32 @@ async function Settings() {
     profile: isUsable(active) ? active.name : null,
     keySet: Boolean(env.OPENAI_API_KEY),
   };
-  const { settings, scrapers, state, runs, queued, counts } = data;
+  const { settings, scrapers, state, queued, counts } = data;
+  const timeZone = effectiveTimeZone(settings);
 
   return (
     // times in the app's time zone (a new pick shows once the page is refreshed with it)
-    <TimeZone tz={effectiveTimeZone(settings)}>
-      <SchedulePanel
-        settings={settings}
-        state={state}
-        // eslint-disable-next-line react-hooks/purity -- a server component renders once per request: "now" is that request's time
-        running={Boolean(state.lockedUntil && Date.parse(state.lockedUntil) > Date.now())}
-        runs={runs}
-        cron={cron}
-        endpoint={`${origin}/api/cron/scrape`}
-      />
+    <TimeZone tz={timeZone}>
+      <SchedulePanel settings={settings} timeZone={timeZone} cron={cron} endpoint={`${origin}/api/cron/scrape`} />
       <FiltersPanel settings={settings} />
-      <TelegramPanel
-        ready={telegramReady()}
-        bot={bot}
-        notify={settings.notify}
-        muted={state.muted}
-        queued={queued}
-        ai={ai}
-        webhookUrl={`${origin}/api/telegram`}
-      />
+      {/* the bot is asked over the network: a slow answer holds up only this panel */}
+      <Suspense fallback={<Skeleton className="mb-3.5 h-36 rounded-xl" />}>
+        <TelegramSection
+          ready={telegramReady()}
+          notify={settings.notify}
+          muted={state.muted}
+          queued={queued}
+          ai={ai}
+          webhookUrl={`${origin}/api/telegram`}
+        />
+      </Suspense>
       <ScrapersPanel scrapers={scrapers} counts={counts} keywords={settings.keywords} />
     </TimeZone>
   );
+}
+
+async function TelegramSection(props: Omit<React.ComponentProps<typeof TelegramPanel>, 'bot'>) {
+  return <TelegramPanel {...props} bot={await botAnswer()} />;
 }
 
 function SettingsSkeleton() {

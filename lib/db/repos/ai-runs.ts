@@ -1,8 +1,8 @@
 import 'server-only';
-import { and, desc, eq, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { db } from '../client';
 import { first } from '../rows';
-import { aiRuns, type AiRunRow } from '../schema';
+import { aiProfiles, aiRuns, type AiRunRow } from '../schema';
 
 // AI runs: "check the jobs in this date range with this profile version", worked off in slices.
 
@@ -18,6 +18,19 @@ export async function latest(profileId: string): Promise<Run | null> {
   return first(
     await db().select().from(aiRuns).where(eq(aiRuns.profileId, profileId)).orderBy(desc(aiRuns.createdAt)).limit(1),
   );
+}
+
+/** A run with its profile's name and the version the profile is at now. */
+export type RunWithProfile = Run & { profileName: string; profileVersion: number };
+
+/** The newest runs of every profile, newest first (Activity). */
+export function recent(limit = 10): Promise<RunWithProfile[]> {
+  return db()
+    .select({ ...getTableColumns(aiRuns), profileName: aiProfiles.name, profileVersion: aiProfiles.version })
+    .from(aiRuns)
+    .innerJoin(aiProfiles, eq(aiProfiles.id, aiRuns.profileId))
+    .orderBy(desc(aiRuns.createdAt))
+    .limit(limit);
 }
 
 export async function insert(run: NewRun): Promise<Run> {

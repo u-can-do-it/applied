@@ -27,11 +27,13 @@ async function saveSchedule(next: ScrapeSettings) {
   return cronError ? `Saved, but Supabase Cron kept its old schedule: ${cronError}` : 'Saved.';
 }
 
-/** The app's time zone: '' = the browser's (`browser`: the one it's in now), or a fixed one. */
-export const setTimeZoneAction = action(timeZoneSchema, async ({ tz, browser }) => {
-  const settings = await settingsRepo.get();
-  return saveSchedule({ ...settings, timeZone: tz, browserTimeZone: browser ?? settings.browserTimeZone });
-});
+/**
+ * The app's time zone, as picked in Settings: the only thing that changes it (the hours of Supabase
+ * Cron's schedule are that zone's). Opening the app in a browser elsewhere doesn't.
+ */
+export const setTimeZoneAction = action(timeZoneSchema, async ({ tz }) =>
+  saveSchedule({ ...(await settingsRepo.get()), timeZone: tz }),
+);
 
 /** Pause / resume the scheduled runs ("Scrape now" works either way); paused, Supabase Cron is off too. */
 export const setScrapingPausedAction = action(pausedSchema, async ({ paused }) =>

@@ -19,7 +19,7 @@ import { ownerChat, sendMessage, telegramReady, webhookSecret } from '@/lib/tele
 export const maxDuration = 300;
 
 const HELP =
-  '/mute - hold notifications\n/send - deliver what is queued\n/resume - unmute and deliver\n/scrape - scrape now\n/status - show state';
+  '/mute - hold notifications\n/send - deliver what is queued\n/resume - unmute and deliver\n/scrape - scrape now\n/status - scraping, the queue and the last run';
 
 export async function POST(request: NextRequest) {
   if (!telegramReady()) return NextResponse.json({ ok: false }, { status: 503 });

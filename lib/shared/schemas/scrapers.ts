@@ -62,9 +62,9 @@ export const scraperSchema = z.pipe(
     // a built-in board's id is fixed, so its offers keep matching the ones already saved
     const src = kindOf(kind).src ?? input.src.trim().toLowerCase();
     if (!BOARD_RE.test(src))
-      return problem(ctx, 'Source id: lowercase letters, digits, - or _, e.g. "linkedin".', ['src']);
+      return problem(ctx, 'Board id: lowercase letters, digits, - or _, e.g. "linkedin".', ['src']);
     if (isGeneric(kind) && SCRAPED_SRCS.has(src))
-      return problem(ctx, `"${src}" belongs to a built-in board; pick another source id.`, ['src']);
+      return problem(ctx, `"${src}" belongs to a built-in board; pick another board id.`, ['src']);
 
     const given = input.config;
     const config: ScraperConfig = {

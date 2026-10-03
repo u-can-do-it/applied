@@ -32,7 +32,7 @@ export function LazyScraperEditor(props: ComponentProps<typeof ScraperEditor>) {
           <SheetDescription className="text-[13px]">{kindOf(initial.kind).hint}</SheetDescription>
         </SheetHeader>
       }
-      // type / name / source id, link, headers, the mapping
+      // type / name / board id, link, headers, the mapping
       fields={['h-8', 'h-14', 'h-14', 'h-40']}
     >
       <ScraperEditor {...props} />

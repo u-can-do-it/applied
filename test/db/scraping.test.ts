@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { expect, it } from 'vitest';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
+import * as offersRepo from '@/lib/db/repos/offers';
 import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
@@ -118,6 +119,30 @@ describeDb('scraping settings, state and runs', () => {
     expect(runs[0].finishedAt).toMatch(ISO);
     const [json] = await exec(sql`select jsonb_typeof(errors) as errors from public.scrape_runs where id = ${id}`);
     expect(json).toEqual({ errors: 'array' });
+  });
+
+  it('tells which board each run added offers from (the offers first seen while it ran)', async () => {
+    const offer = (src: string, id: string) => ({
+      src,
+      id,
+      title: `Dev ${id}`,
+      company: 'ACME',
+      seniority: null,
+      remote: false,
+      url: `https://${src}.example/${id}`,
+    });
+    const before = await runsRepo.start('cron');
+    await runsRepo.finish(before, { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] });
+    const run = await runsRepo.start('manual');
+    await offersRepo.ingest([offer('justjoin', '1'), offer('justjoin', '2'), offer('nofluff', '3')]);
+    await runsRepo.finish(run, { found: 3, kept: 3, added: 3, fresh: 3, notified: 0, errors: [] });
+    const unfinished = await runsRepo.start('cron');
+    await offersRepo.ingest([offer('linkedin', '4')]);
+    expect(await runsRepo.addedPerBoard([before, run, unfinished])).toEqual([
+      { runId: run, board: 'justjoin', added: 2 },
+      { runId: run, board: 'nofluff', added: 1 },
+    ]);
+    expect(await runsRepo.addedPerBoard([])).toEqual([]);
   });
 });
 

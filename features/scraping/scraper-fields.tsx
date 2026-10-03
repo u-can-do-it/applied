@@ -44,10 +44,10 @@ export const ScraperFields = withForm({
           <form.AppField name="src">
             {(field) =>
               generic ? (
-                <field.TextField label="Source id" placeholder="linkedin" normalize={(src) => src.toLowerCase()} />
+                <field.TextField label="Board id" placeholder="linkedin" normalize={(src) => src.toLowerCase()} />
               ) : (
                 <field.TextField
-                  label="Source id"
+                  label="Board id"
                   readOnly
                   aria-readonly="true"
                   controlClassName="text-muted-foreground"
@@ -58,7 +58,7 @@ export const ScraperFields = withForm({
         </div>
         <p className="-mt-1.5 mb-0 text-xs text-muted-foreground">
           {generic
-            ? 'The source id is saved with each offer and shows as its board (lowercase, e.g. linkedin). Searches on one site share it.'
+            ? 'The board every offer it finds is saved under (lowercase, e.g. linkedin). Searches on one site share it.'
             : 'Fixed for this board, so its offers keep matching the ones already saved.'}
         </p>
 

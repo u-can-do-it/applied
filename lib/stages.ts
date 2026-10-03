@@ -29,12 +29,11 @@ export const OUTCOMES = [
   { id: 'failed', label: 'Rejected' },
   { id: 'ghosted', label: 'Ghosted' },
   // "we'll keep your CV in our talent pool": an answer, so it never turns into "ghosted" by itself.
-  // short: where it heads a column or a tile
+  // The hint keeps the Polish joke ("your CV into the database, you out the door"); the id is what's stored.
   {
     id: 'pool',
-    label: 'CV do bazy, ty do dupy',
-    short: 'Talent pool',
-    hint: 'Talent pool: they keep your CV, there’s no job',
+    label: 'Talent pool',
+    hint: '“CV do bazy, ty do dupy”: they keep your CV, there’s no job',
   },
 ] as const;
 
@@ -70,10 +69,7 @@ export function outcomesFor(stage: StageId): { id: OutcomeId; label: string; hin
       }));
 }
 /** An outcome's name as a heading (a column, a tile). */
-export const outcomeHeading = (id: OutcomeId) => {
-  const outcome = outcomeOf(id);
-  return 'short' in outcome ? outcome.short : outcome.label;
-};
+export const outcomeHeading = (id: OutcomeId): string => outcomeOf(id).label;
 export const outcomeLabel = (stage: StageId, outcome: OutcomeId) =>
   (stage === 'offer' ? OFFER_LABELS[outcome] : undefined) ?? outcomeOf(outcome).label;
 

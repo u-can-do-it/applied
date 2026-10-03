@@ -22,9 +22,12 @@ export type ScrapeSettings = {
   notify: boolean;
   /** check new offers against the active AI profile first; Telegram gets only the matches */
   aiFilter: boolean;
-  /** the app's time zone (days, times, date filters, the hours above): '' = the browser's, else a fixed one */
+  /** the app's time zone (days, times, date filters, the hours above), as picked in Settings; '' = none picked yet */
   timeZone: string;
-  /** the zone of the browser the app was last opened in (what '' follows) */
+  /**
+   * Before the time zone was a setting of its own, the app followed the browser it was opened in and
+   * kept its zone here. No longer written: an install that never picked a zone keeps using that one.
+   */
   browserTimeZone: string;
 };
 
@@ -46,7 +49,7 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
 
 export const INTERVALS = [5, 10, 15, 30, 60, 120] as const;
 
-/** The zone the app runs in: the one picked, else the browser's (as last reported), else DEFAULT_TZ. */
+/** The zone the app runs in: the one picked, else the browser's as last reported before that (older installs), else DEFAULT_TZ. */
 export const effectiveTimeZone = (settings: Pick<ScrapeSettings, 'timeZone' | 'browserTimeZone'> | null | undefined) =>
   settings?.timeZone || settings?.browserTimeZone || DEFAULT_TZ;
 

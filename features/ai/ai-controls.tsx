@@ -6,30 +6,11 @@ import { toast } from 'sonner';
 import { useRefreshWhile } from '@/components/use-refresh-while';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/shared/cn';
 import { startRunAction } from './actions';
+import { ago } from '@/lib/shared/format';
+import { AiRunCard, type RunInfo } from './ai-run-card';
 import { loadProfileForm, ProfileDialog, type ProfileOption } from './profile-dialog';
-
-type RunInfo = {
-  id: string;
-  label: string;
-  status: 'running' | 'done' | 'failed' | 'cancelled';
-  phase: 'dedup' | 'assess';
-  pairsChecked: number;
-  merged: number;
-  total: number;
-  done: number;
-  error: string | null;
-  finishedAt: string | null;
-  stale: boolean; // belongs to an older version of the profile
-};
-
-const ago = (iso: string) => {
-  const min = Math.round((Date.now() - Date.parse(iso)) / 60_000);
-  return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.round(min / 60)} h ago`;
-};
 
 export function AiControls({
   profiles,
@@ -72,7 +53,6 @@ export function AiControls({
 
   const disabled = !usable || !aiConfigured || running || starting;
   const doneShown = run ? Math.min(run.done, run.total) : 0;
-  const pct = run && run.total ? Math.round((doneShown / run.total) * 100) : 0;
 
   const busy = running || starting || undefined;
 
@@ -148,47 +128,19 @@ export function AiControls({
       )}
 
       {running ? (
-        <Card size="sm" className="mt-1 gap-0 py-2.5 text-[13px]" role="status">
-          <CardContent className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="size-[7px] animate-pulse rounded-full bg-brand" aria-hidden="true" />
-              {run.phase === 'dedup' ? (
-                <span>
-                  Looking for duplicates in {run.label}… {run.pairsChecked} pair{run.pairsChecked === 1 ? '' : 's'}{' '}
-                  checked
-                  {run.merged > 0 && <> · {run.merged} merged</>}
-                </span>
-              ) : (
-                <span>
-                  Checking {run.label}: {doneShown}/{run.total}
-                  {run.merged > 0 && <span className="text-muted-foreground"> · {run.merged} duplicates merged</span>}
-                </span>
-              )}
-              <span className="ml-auto text-xs text-muted-foreground">
-                {run.phase === 'dedup'
-                  ? `${models.dedup.model} · ${models.dedup.effort}`
-                  : `${models.assess.model} · ${models.assess.effort}`}
-              </span>
-            </div>
-            {run.phase === 'assess' && (
-              <Progress
-                value={pct}
-                aria-label={`Checked ${doneShown} of ${run.total}`}
-                className="h-1.5 [&>[data-slot=progress-indicator]]:bg-brand"
-              />
-            )}
-          </CardContent>
-        </Card>
+        <AiRunCard
+          run={run}
+          continuesHere
+          model={
+            run.phase === 'dedup'
+              ? `${models.dedup.model} · ${models.dedup.effort}`
+              : `${models.assess.model} · ${models.assess.effort}`
+          }
+        />
       ) : run && !run.stale && run.finishedAt ? (
         <p className={cn('m-0 text-xs text-muted-foreground', run.status === 'failed' && 'text-destructive')}>
-          Last run: {run.label} · {doneShown} checked
-          {run.merged > 0 && (
-            <>
-              {' '}
-              · {run.merged} duplicate{run.merged === 1 ? '' : 's'} merged
-            </>
-          )}{' '}
-          · {/* "3 min ago" depends on the clock: server and browser may differ by a minute, the browser wins */}
+          Last run: {run.label} · Duplicates: {run.merged} merged · Assessment: {doneShown} checked ·{' '}
+          {/* "3 min ago" depends on the clock: server and browser may differ by a minute, the browser wins */}
           <time dateTime={run.finishedAt} suppressHydrationWarning>
             {ago(run.finishedAt)}
           </time>

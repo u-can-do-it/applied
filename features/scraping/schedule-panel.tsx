@@ -11,6 +11,7 @@ import {
   useAppForm,
   useFollowServer,
 } from '@/components/form';
+import { PanelHeading } from '@/components/help';
 import { ActionError, useAction } from '@/components/use-action';
 import { useZone } from '@/components/time-zone';
 import { Button } from '@/components/ui/button';
@@ -19,32 +20,27 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { cn } from '@/lib/shared/cn';
 import { zoneName } from '@/lib/dates';
 import { INTERVALS, type ScrapeSettings } from '@/lib/listings/settings';
-import type { CronStatus } from '@/lib/db/repos/cron';
-import type { ScrapeRun } from '@/lib/db/repos/scrape-runs';
-import type { ScrapeState } from '@/lib/db/repos/scrape-state';
+import type { CronInfo } from '@/lib/db/repos/cron';
 import { saveScheduleAction, setScrapingPausedAction } from './actions';
 import { loadSettingsSchemas } from './settings-schemas';
 import { CronBox } from './cron-box';
-import { LastRuns } from './last-runs';
-import { PANEL, PANEL_TITLE, SUBHEAD } from './panel-styles';
+import { PANEL, SUBHEAD } from './panel-styles';
+import { ScrapingHelp } from './scraping-help';
 import { TimeZoneField } from './time-zone-field';
 
-// Scraping: paused or running, when (the schedule and the time zone), the last runs, and what calls
-// the endpoint (Supabase Cron).
+// Scraping: paused or running, when (the schedule and the time zone), and what calls the endpoint
+// (Supabase Cron). What the runs did is on the Activity tab.
 
 export function SchedulePanel({
   settings,
-  state,
-  running,
-  runs,
+  timeZone,
   cron,
   endpoint,
 }: {
   settings: ScrapeSettings;
-  state: ScrapeState;
-  running: boolean;
-  runs: ScrapeRun[];
-  cron: CronStatus & { error?: string };
+  /** the zone the app uses (the one picked, or what it used before one was) */
+  timeZone: string;
+  cron: CronInfo;
   endpoint: string;
 }) {
   const form = useScheduleForm(settings);
@@ -56,9 +52,7 @@ export function SchedulePanel({
   return (
     <Card className={PANEL} role="region" aria-labelledby="schedule-h">
       <CardHeader className="px-4">
-        <h2 id="schedule-h" className={PANEL_TITLE}>
-          Scraping
-        </h2>
+        <PanelHeading id="schedule-h" title="Scraping" help={<ScrapingHelp cron={cron} />} />
       </CardHeader>
       <CardContent className="px-4">
         <div
@@ -146,10 +140,7 @@ export function SchedulePanel({
           </form.Subscribe>
           <FormError form={form} className="mt-0 basis-full" />
         </form>
-        <TimeZoneField value={settings.timeZone} />
-
-        <h3 className={SUBHEAD}>Last runs</h3>
-        <LastRuns runs={runs} running={running} lastCallAt={state.lastCallAt} />
+        <TimeZoneField value={settings.timeZone} effective={timeZone} />
 
         <h3 className={SUBHEAD}>What calls it</h3>
         <CronBox cron={cron} settings={settings} endpoint={endpoint} act={act} />

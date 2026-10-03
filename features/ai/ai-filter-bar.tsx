@@ -1,5 +1,6 @@
 import { after } from 'next/server';
 import { countPending, continueRun, latestRun, needsWorker, type AiRun } from '@/lib/ai/runs';
+import { isPaused } from '@/lib/ai/run-view';
 import { describeRange } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { aiConfig } from '@/lib/ai/openai';
@@ -53,18 +54,24 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
       }))}
       activeId={active?.id ?? null}
       run={
-        run && {
+        run &&
+        active && {
           id: run.id,
           label: run.label,
           status: run.status,
           phase: run.phase,
+          lockUntil: run.lockUntil,
           pairsChecked: run.pairsChecked,
           merged: run.merged,
           total: run.total,
           done: run.done,
           error: run.error,
           finishedAt: run.finishedAt,
-          stale: active?.version !== run.version,
+          createdAt: run.createdAt,
+          // eslint-disable-next-line react-hooks/purity -- a server component renders once per request: "now" is that request's time
+          paused: isPaused(run, Date.now()),
+          profile: { name: active.name, version: run.version },
+          stale: active.version !== run.version,
         }
       }
       todayNew={todayNew}

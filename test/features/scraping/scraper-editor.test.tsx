@@ -57,14 +57,14 @@ describe('ScraperEditor', () => {
     await answer('Cancel');
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(box('Type').value).toBe('html');
-    expect(box('Source id').value).toBe('myboard');
+    expect(box('Board id').value).toBe('myboard');
     expect(box('One offer (CSS selector)').value).toBe('li.job');
 
-    // yes: a built-in board brings its own link and source id; the name and "on" stay
+    // yes: a built-in board brings its own link and board id; the name and "on" stay
     pickType('justjoin');
     await answer('Change');
     await waitFor(() => expect(box('Type').value).toBe('justjoin'));
-    expect(box('Source id').value).toBe('justjoin');
+    expect(box('Board id').value).toBe('justjoin');
     expect(box('Link').value).toBe(kindOf('justjoin').defaults?.url);
     expect(box('Name').value).toBe('My board');
     expect(screen.queryByLabelText('One offer (CSS selector)')).toBeNull();

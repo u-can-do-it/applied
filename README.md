@@ -24,13 +24,17 @@ Telegram /mute /send /status ─→ /api/telegram
 
 ## 2. Scraping (Settings tab)
 
-All of it is set up in **Settings**:
+All of it is set up in **Settings**; what it did is on the **Activity** tab. Each panel's **?** explains it.
 
+- **Health** (the first card): one row per thing the app depends on (the database's migrations, scraping on or
+  paused, Supabase Cron, the last scrape run, Telegram, the OpenAI key, the AI profile), green, amber or red, with
+  why and the button or the step that fixes it.
 - **Scraping:** Pause / Resume at the top (paused, nothing runs on its own; "Scrape now" still does), every
-  5–120 min, between which hours. The last runs with what they found, and the errors per board.
+  5–120 min, between which hours.
 - **Time zone** (under the hours): the app's, for those hours and every day and time it shows (lists, date filters,
-  "applied on", Telegram). By default _this browser's_: it follows the browser you open the app in (the cron and
-  Telegram use the one last seen; Europe/Warsaw until then). Or pick a fixed one.
+  "applied on", Telegram). Only a pick there changes it (and reschedules Supabase Cron); the browser's zone is
+  offered ("Your browser is in …"), never saved by itself. An install from before this keeps the zone it used (the
+  last browser's it saw); Europe/Warsaw when there's none.
 - **Filters:** keywords (searched on every board through `{keyword}` in the links, and required in the offer's
   title or skills), cities ("warszaw" matches Warszawa and Warszawie), remote OK, titles to skip, and titles to save
   without a Telegram message (by default `.net, dotnet, go, golang, java`).
@@ -42,6 +46,10 @@ All of it is set up in **Settings**:
   While OpenAI doesn't answer, the offers wait; after 20 minutes they're sent anyway, marked "not checked". Without a
   usable profile or `OPENAI_API_KEY`, everything is sent as before. "Scrape now" doesn't wait for the AI: the check
   and the message follow in the background.
+- **Activity:** the scrape runs (filter by what started them, or the ones with errors; open one to see how many new
+  offers each board gave and what failed), each scraper's last result, the Telegram queue, Supabase Cron's last
+  call, and the AI runs (their two steps, Duplicates → Assessment, with counts, the profile version, and whether
+  one is paused until the AI tab is opened again).
 - **Scrapers:** the six built-in boards, each with its own parser (an offer keeps its id and link, so nothing gets
   duplicated), and LinkedIn's public job search (no login; two searches: Warszawa, and remote in
   Poland). LinkedIn's search isn't sorted by date, so its searches take what was posted in the last hour
@@ -64,7 +72,7 @@ only saves, so a new or changed scraper doesn't flood Telegram.
 2. Vercel → Settings → Environment Variables: `TELEGRAM_BOT_TOKEN` (@BotFather → /mybots → API Token) and
    `TELEGRAM_CHAT_ID` (write to the bot, then copy `message.chat.id` from `api.telegram.org/bot<token>/getUpdates`; a
    group's starts with `-`). Redeploy.
-3. Open Settings → **Scrape now** at the top. Check that every board shows a check mark (sites can block Vercel's servers;
+3. Open Settings → **Scrape now** at the top. Check on the Activity tab that every scraper shows a check mark (sites can block Vercel's servers;
    the error says so).
 4. Settings → **Connect Supabase Cron**: Supabase calls `/api/cron/scrape` on the schedule from Settings (the
    interval, only within the hours, none while paused; in UTC, an hour wider where clocks change) and the app checks
@@ -167,8 +175,8 @@ How the **AI filter** tab works:
 - **Status:** every application starts as _Submitted · In progress_.
   - Stages: Submitted → Initial contact (they got back to you) → Screening / online test → Technical interview →
     HR interview → Offer. Reaching a later stage counts the earlier contact as made.
-  - Each stage's outcome: In progress, Passed, Rejected, Ghosted, and _CV do bazy, ty do dupy_ (the talent pool:
-    "we'll keep your CV"). An offer has its own: Received, Accepted, Rejected (an accepted offer isn't "in
+  - Each stage's outcome: In progress, Passed, Rejected, Ghosted, and Talent pool ("we'll keep your CV"; its
+    hint keeps the Polish _CV do bazy, ty do dupy_). An offer has its own: Received, Accepted, Rejected (an accepted offer isn't "in
     progress", one you turned down isn't a rejection).
   - Set both in the window; every change goes into the history with its date. A step clicked by mistake goes with
     its remove button (an X, shown on hover), together with every step after it; the status goes back to the step before. The first

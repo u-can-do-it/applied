@@ -111,6 +111,10 @@ describeDb('AI verdicts and runs', () => {
     expect((await startRun(profile, { label: 'again' })).id).toBe(run.id); // the open one
     expect((await latestRun(id))?.id).toBe(run.id);
     expect(needsWorker(run)).toBe(true);
+    // Activity's list: every profile's runs, with the profile's name and the version it is at now
+    expect(await runsRepo.recent()).toEqual([
+      expect.objectContaining({ id: run.id, profileName: 'P', profileVersion: 1 }),
+    ]);
 
     const until = new Date(Date.now() + 60_000).toISOString();
     const now = new Date().toISOString();

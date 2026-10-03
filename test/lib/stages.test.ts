@@ -40,11 +40,11 @@ describe('stage and state names', () => {
   it('other stages have every outcome, with hints where there are any', () => {
     const states = outcomesFor('technical');
     expect(states.map((outcome) => outcome.id)).toEqual(OUTCOMES.map((outcome) => outcome.id));
-    expect(states.find((outcome) => outcome.id === 'pool')?.hint).toMatch(/Talent pool/);
+    expect(states.find((outcome) => outcome.id === 'pool')?.hint).toMatch(/CV do bazy/);
     expect(states.find((outcome) => outcome.id === 'pending')?.hint).toBeUndefined();
   });
 
-  it('outcomeLabel names the outcome at that stage; outcomeHeading prefers the short name', () => {
+  it('outcomeLabel names the outcome at that stage; outcomeHeading is its name as a heading', () => {
     expect(outcomeLabel('offer', 'passed')).toBe('Accepted');
     expect(outcomeLabel('offer', 'pending')).toBe('Received');
     expect(outcomeLabel('offer', 'ghosted')).toBe('Ghosted'); // not an offer outcome: the general name

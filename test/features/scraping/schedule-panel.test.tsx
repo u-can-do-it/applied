@@ -24,9 +24,7 @@ describe('SchedulePanel', () => {
       <ConfirmProvider>
         <SchedulePanel
           settings={{ ...DEFAULT_SETTINGS, everyMinutes: 15, fromHour: 7, toHour: 22 }}
-          state={{ lockedUntil: null, lastCallAt: null, lastRunAt: null, muted: false }}
-          running={false}
-          runs={[]}
+          timeZone="Europe/Warsaw"
           cron={{ available: false }}
           endpoint="http://localhost/api/cron/scrape"
         />

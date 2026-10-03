@@ -153,13 +153,10 @@ describe('scheduleSchema', () => {
 });
 
 describe('timeZoneSchema', () => {
-  it("accepts '' (the browser's) or a real zone, and keeps the browser's only if it is one", () => {
-    expect(timeZoneSchema.parse({ tz: '', browser: 'Europe/Warsaw' })).toEqual({ tz: '', browser: 'Europe/Warsaw' });
-    expect(timeZoneSchema.parse({ tz: 'Asia/Tokyo', browser: 'Mars/Base' })).toEqual({
-      tz: 'Asia/Tokyo',
-      browser: undefined,
-    });
-    expect(problem(timeZoneSchema, { tz: 'Mars/Base', browser: '' })).toBe('Unknown time zone.');
+  it('takes a real zone only: a pick, never "the browser\'s"', () => {
+    expect(timeZoneSchema.parse({ tz: 'Asia/Tokyo' })).toEqual({ tz: 'Asia/Tokyo' });
+    expect(problem(timeZoneSchema, { tz: '' })).toBe('Unknown time zone.');
+    expect(problem(timeZoneSchema, { tz: 'Mars/Base' })).toBe('Unknown time zone.');
   });
 });
 
@@ -233,7 +230,7 @@ describe('scraperSchema', () => {
     });
   });
 
-  it('gives a built-in board its own source id and leaves the generic settings out', () => {
+  it('gives a built-in board its own board id and leaves the generic settings out', () => {
     const parsed = scraperSchema.parse({ ...scraper, kind: 'justjoin', src: 'whatever' });
     expect(parsed.scraper.src).toBe('justjoin');
     expect(parsed.scraper.config.items).toBeUndefined();
@@ -251,10 +248,10 @@ describe('scraperSchema', () => {
       'Bad header name "Bad name".',
     );
     expect(problem(scraperSchema, { ...scraper, src: 'Not ok!' })).toBe(
-      'Source id: lowercase letters, digits, - or _, e.g. "linkedin".',
+      'Board id: lowercase letters, digits, - or _, e.g. "linkedin".',
     );
     expect(problem(scraperSchema, { ...scraper, src: 'linkedin' })).toBe(
-      '"linkedin" belongs to a built-in board; pick another source id.',
+      '"linkedin" belongs to a built-in board; pick another board id.',
     );
     expect(problem(scraperSchema, { ...scraper, config: { ...config, items: '' } })).toBe(
       'Give the CSS selector of one offer.',

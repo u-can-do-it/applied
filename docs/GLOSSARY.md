@@ -37,7 +37,8 @@ way, the entry says so (_stored as_): those names stay (production data and appl
   _Stored as:_ `ai_profiles.version`, `ai_verdicts.version`, `ai_runs.version`.
 - **verdict**: The AI's judgement of one job for one profile version: match or not, a score, a summary and the checks behind it.
   _Stored as:_ `ai_verdicts`.
-- **run**: Say which. A _scrape run_ is one pass over the due scrapers (`scrape_runs`, `lib/listings/run.ts`, `ScrapeRun`). An _AI run_ is a manual "check this date range" (`ai_runs`, `lib/ai/runs.ts`, `AiRun`): a duplicate check (merges; the `dedup` phase), then the verdicts (`assess`), in slices. Inside a module that only has one, `run` is enough.
+- **run**: Say which. A _scrape run_ is one pass over the due scrapers (`scrape_runs`, `lib/listings/run.ts`, `ScrapeRun`). An _AI run_ is a manual "check this date range" (`ai_runs`, `lib/ai/runs.ts`, `AiRun`): a duplicate check (merges; the `dedup` phase), then the verdicts (`assess`), in slices. The UI calls
+  the two steps _Duplicates_ → _Assessment_ (`lib/ai/run-view.ts`). Inside a module that only has one, `run` is enough.
   _Stored as:_ `scrape_runs`, `ai_runs`.
 - **ad**: An offer's full text and details as its board's page shows it (`lib/ads/`). Fetched once per offer for the AI (`offer_details`), and for an application into the application itself.
   _Stored as:_ `offer_details`, `applications.content`.
@@ -54,8 +55,8 @@ way, the entry says so (_stored as_): those names stay (production data and appl
 - **copy**: not a domain word. One board's posting of a job is an _offer_; "copy" only means a copy (of a URL,
   an object). The view's `copies` column is mapped to `offers` in TypeScript.
 - **source**: not a domain word. What the filter chips show are boards (`BoardOption`, `boardOptions()`); the
-  view's `sources` column (every board of a job) is mapped to `boards`. Some UI copy still says "source"
-  (to be aligned in the UX pass).
+  view's `sources` column (every board of a job) is mapped to `boards`. The UI says "board" (a scraper's
+  "Board id" is its `src`).
 - **z**: only Zod's `z`. A time zone's helpers are a `zone` (made by `zoneOf(tz)`); `tz` is a zone's name.
 
 ## Kept on the wire

@@ -11,10 +11,10 @@ database code or the migrations; it needs Docker).
   needs the time on its own is a route with its own `maxDuration`, like `POST /api/scrape` ("Scrape now").
 - **`features/<feature>/`: one area of the app**, its components and its server actions (`actions.ts`, starting
   with `'use server'`, every action built with `action()` / `formAction()` from `server/action.ts`).
-  `offers` (the lists, filters, Mark applied's button), `ai` (profiles, AI runs), `applications` (the Applied
-  tab, applying, the add/edit form), `scraping` (Settings: schedule, filters, scrapers, Supabase Cron, the
-  "Scrape now" button), `telegram` (its Settings panel), `login`, and `shell` (the header, tabs, auto-refresh,
-  telling the server the browser's time zone). A feature imports another's module by its `@/features/…` path.
+  `offers` (the lists, filters, Mark applied's button), `ai` (profiles, AI runs and their card), `applications`
+  (the Applied tab, applying, the add/edit form), `scraping` (Settings: schedule, time zone, filters, scrapers,
+  Supabase Cron, the "Scrape now" button), `telegram` (its Settings panel), `health` (Settings' Health card),
+  `activity` (the Activity tab: runs, scrapers' results, the queue, cron calls, AI runs), `login`, and `shell` (the header, tabs, auto-refresh). A feature imports another's module by its `@/features/…` path.
 - **`components/`: pieces more than one feature uses** (`DateInput`, `TimeZone` / `useZone`, `useAction` for
   a button or a toggle, `useAppForm` for a form (below), `useConfirm()` for "are you sure?", `useReturnFocus()` for a dialog opened from code, `useAutosave()` for a
   field that saves itself, `useRefreshWhile()` for a page that refreshes while the server works, `Field` /

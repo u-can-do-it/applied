@@ -8,6 +8,7 @@ import {
   type SliceEvent,
   type SliceState,
 } from './run-state';
+import { isPaused } from './run-view';
 import { AI_RUN_LOCK_MS, SLICE_MS } from '../budgets';
 import * as detailsRepo from '../db/repos/offer-details';
 import * as offersRepo from '../db/repos/offers';
@@ -48,8 +49,8 @@ export const countPending = (profile: ProfileVersion, range: { gte?: string | nu
 export const rangeStats = (profile: ProfileVersion, range: { gte?: string; lt?: string }) =>
   verdictsRepo.rangeStats(profile, range);
 
-export const needsWorker = (run: AiRun | null) =>
-  Boolean(run && run.status === 'running' && (!run.lockUntil || Date.parse(run.lockUntil) < Date.now()));
+/** Open and paused (no slice working on it): the next slice is due. */
+export const needsWorker = (run: AiRun | null) => Boolean(run && isPaused(run, Date.now()));
 
 // ---- start -----------------------------------------------------------------------------
 

@@ -1,0 +1,149 @@
+import { connection } from 'next/server';
+import { CircleAlertIcon, CircleCheckIcon, CircleXIcon } from 'lucide-react';
+import { checkDbHealth } from '@/lib/db/health';
+import { DEFAULT_TZ, zoneOf, type Zone } from '@/lib/dates';
+import { env } from '@/lib/env';
+import * as runsRepo from '@/lib/db/repos/scrape-runs';
+import {
+  cronCheck,
+  lastRunCheck,
+  migrationsCheck,
+  openAiCheck,
+  overall,
+  profileCheck,
+  runChecks,
+  scrapingCheck,
+  telegramCheck,
+  type HealthCheck,
+  type HealthLevel,
+} from '@/lib/health/checks';
+import { botAnswer, cronInfo, profileList } from '@/lib/health/reads';
+import { requestOrigin } from '@/lib/listings/schedule';
+import { effectiveTimeZone } from '@/lib/listings/settings';
+import { telegramReady } from '@/lib/telegram';
+import { appSettings } from '@/lib/time-zone';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { cn } from '@/lib/shared/cn';
+import { HealthFix } from './health-fix';
+
+// Settings' first card: is everything connected and working? Each row is checked on its own: one
+// that fails to check is a red row, and the card still shows.
+
+const LEVEL: Record<HealthLevel, { icon: typeof CircleCheckIcon; text: string; className: string }> = {
+  ok: { icon: CircleCheckIcon, text: 'OK', className: 'text-success' },
+  warn: { icon: CircleAlertIcon, text: 'Needs attention', className: 'text-warning' },
+  error: { icon: CircleXIcon, text: 'Problem', className: 'text-destructive' },
+};
+
+const SUMMARY: Record<HealthLevel, string> = {
+  ok: 'Everything is connected and working.',
+  warn: 'Working, with something to set up or look at.',
+  error: 'Something is broken.',
+};
+
+/**
+ * How long the card waits for the bot. Telegram can be slow (its own limit is 15 s); the card doesn't
+ * wait for it beyond this, and the Telegram panel below, in a Suspense of its own, gets the answer.
+ */
+const TELEGRAM_WAIT_MS = 3000;
+
+/** The answer, or "didn't answer" after `ms` (the call goes on, for whoever else waits for it). */
+async function withinTime<T>(answer: Promise<T>, ms: number): Promise<T | { error: string }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<{ error: string }>((resolve) => {
+    timer = setTimeout(() => resolve({ error: `no answer within ${ms / 1000} s` }), ms);
+  });
+  try {
+    return await Promise.race([answer, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** A time today as "14:35", another day's with its date. */
+const timeIn = (zone: Zone, now: number) => (iso: string) =>
+  zone.day(iso) === zone.day(now) ? zone.formatTime(iso) : zone.formatDateTime(iso);
+
+export async function HealthCard() {
+  await connection();
+  // eslint-disable-next-line react-hooks/purity -- a server component renders once per request: "now" is that request's time
+  const now = Date.now();
+  const origin = await requestOrigin();
+  const when = appSettings()
+    .then((settings) => timeIn(zoneOf(effectiveTimeZone(settings)), now))
+    .catch(() => timeIn(zoneOf(DEFAULT_TZ), now));
+  const checks: HealthCheck[] = [
+    { id: 'db', label: 'Database', check: async () => migrationsCheck(await checkDbHealth()) },
+    { id: 'scraping', label: 'Scraping', check: async () => scrapingCheck(await appSettings()) },
+    {
+      id: 'cron',
+      label: 'Supabase Cron',
+      check: async () => cronCheck(await cronInfo(), await appSettings(), `${origin}/api/cron/scrape`, await when),
+    },
+    {
+      id: 'last-run',
+      label: 'Last scrape run',
+      check: async () => lastRunCheck((await runsRepo.list(1)).at(0) ?? null, now, await when),
+    },
+    {
+      id: 'telegram',
+      label: 'Telegram',
+      check: async () =>
+        telegramCheck({
+          ready: telegramReady(),
+          bot: await withinTime(botAnswer(), TELEGRAM_WAIT_MS),
+          webhookUrl: `${origin}/api/telegram`,
+          notify: (await appSettings()).notify,
+        }),
+    },
+    { id: 'openai', label: 'OpenAI', check: () => openAiCheck(Boolean(env.OPENAI_API_KEY)) },
+    { id: 'profile', label: 'AI profile', check: async () => profileCheck(await profileList()) },
+  ];
+  const rows = await runChecks(checks);
+  const level = overall(rows);
+
+  return (
+    <Card className="mb-3.5 gap-2 py-3.5" role="region" aria-labelledby="health-h">
+      <CardHeader className="flex flex-wrap items-baseline gap-x-3 px-4">
+        <h2 id="health-h" className="m-0 text-base font-semibold">
+          Health
+        </h2>
+        <p className={cn('m-0 text-xs', LEVEL[level].className)}>{SUMMARY[level]}</p>
+      </CardHeader>
+      <CardContent className="px-4">
+        <ul className="m-0 list-none border-t p-0">
+          {rows.map((row) => {
+            const { icon: Icon, text, className } = LEVEL[row.level];
+            return (
+              <li
+                key={row.id}
+                data-level={row.level}
+                className="grid grid-cols-[auto_9rem_1fr_auto] items-center gap-x-2.5 gap-y-1 border-b py-2 text-sm max-[640px]:grid-cols-[auto_1fr]"
+              >
+                <Icon className={cn('size-4', className)} role="img" aria-label={text} />
+                <span className="font-medium">{row.label}</span>
+                <span className="text-[13px] text-muted-foreground [overflow-wrap:anywhere] max-[640px]:col-start-2">
+                  {row.reason}
+                </span>
+                <span className="flex flex-wrap items-center justify-end gap-2 max-[640px]:col-start-2 max-[640px]:justify-start">
+                  {row.fix && <HealthFix fix={row.fix} />}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function HealthCardFallback() {
+  return (
+    <Card className="mb-3.5 gap-2 py-3.5" aria-busy="true" aria-label="Checking health">
+      <CardHeader className="px-4">
+        <h2 className="m-0 text-base font-semibold">Health</h2>
+      </CardHeader>
+      <CardContent className="px-4 text-xs text-muted-foreground">Checking…</CardContent>
+    </Card>
+  );
+}

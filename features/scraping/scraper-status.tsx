@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { CheckIcon, TriangleAlertIcon, XIcon } from 'lucide-react';
 import { useZone } from '@/components/time-zone';
 import type { Scraper } from '@/lib/db/repos/scrapers';
@@ -36,6 +37,34 @@ export function ScraperStatus({ scraper }: { scraper: Scraper }) {
         </span>
       )}
       {scraper.mark === null && <span className="text-muted-foreground"> · next run only saves</span>}
+    </p>
+  );
+}
+
+/** Settings' line about a scraper: whether its last run went through (the details are on Activity). */
+export function ScraperBrief({ scraper }: { scraper: Scraper }) {
+  const { formatTime } = useZone();
+  const firstRun = scraper.mark === null && (
+    <span className="text-muted-foreground"> · its next run only saves (no Telegram)</span>
+  );
+  if (!scraper.lastRunAt) return <p className="m-0 mt-0.5 text-xs text-muted-foreground">Not run yet{firstRun}</p>;
+  const failed = scraper.lastStatus === 'error' || scraper.lastError;
+  return (
+    <p className="m-0 mt-0.5 text-xs">
+      {failed ? (
+        <span className="text-warning">
+          <TriangleAlertIcon /> The last run ({formatTime(scraper.lastRunAt)}) had a problem:{' '}
+          <Link href="/activity" className="text-brand underline-offset-4 hover:underline">
+            see Activity
+          </Link>
+        </span>
+      ) : (
+        <span className="text-muted-foreground">
+          <CheckIcon className="text-success" role="img" aria-label="OK" /> Last run {formatTime(scraper.lastRunAt)}:{' '}
+          {scraper.lastNew} new
+        </span>
+      )}
+      {firstRun}
     </p>
   );
 }

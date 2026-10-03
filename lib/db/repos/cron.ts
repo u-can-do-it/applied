@@ -20,6 +20,9 @@ export type CronStatus = {
   lastReason?: string | null;
 };
 
+/** The status as a page shows it: `readError` when it couldn't be read at all (the database down…). */
+export type CronInfo = CronStatus & { readError?: string };
+
 // A failure is rethrown as a new Error with the database's words only: the one drizzle-orm throws
 // carries the query's values, and jw_cron_connect's are the app's URL and the cron secret. Nothing
 // that logs or stores the error then can leak them.

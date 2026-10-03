@@ -59,18 +59,10 @@ export const scheduleSchema = z.object({
   toHour: hourOfDay,
 });
 
-/** '' = the browser's; `browser` is the zone the browser is in now (kept only if it is one). */
+/** The app's time zone, picked in Settings (the browser's is only offered there). */
 export const timeZoneSchema = z.object({
-  tz: z
-    .string({ error: 'Unknown time zone.' })
-    .check(z.refine((tz) => tz === '' || isTimeZone(tz), 'Unknown time zone.')),
-  browser: z.pipe(
-    string(),
-    z.transform((tz: string) => (isTimeZone(tz) ? tz : undefined)),
-  ),
+  tz: z.string({ error: 'Unknown time zone.' }).check(z.refine(isTimeZone, 'Unknown time zone.')),
 });
-
-export const browserTimeZoneSchema = z.object({ tz: z.string() });
 
 /** The lists come as typed ("React, Vue"); normalizeList is what's kept, on both sides. */
 const list = z.pipe(string(), z.transform(normalizeList));

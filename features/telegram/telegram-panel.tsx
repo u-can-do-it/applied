@@ -3,12 +3,12 @@
 import { useOptimistic } from 'react';
 import { BellIcon, BellOffIcon, CheckIcon, SparklesIcon } from 'lucide-react';
 import { CheckField, Code } from '@/components/field';
+import { PanelHeading } from '@/components/help';
 import { ActionError, useAction } from '@/components/use-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import type { BotInfo } from '@/lib/telegram';
-import { cn } from '@/lib/shared/cn';
 import { PANEL, SMALL } from '@/features/scraping/panel-styles';
 import {
   sendQueueAction,
@@ -19,6 +19,7 @@ import {
   telegramDisconnectAction,
   telegramTestAction,
 } from './actions';
+import { TelegramHelp } from './telegram-help';
 
 // The Telegram panel in Settings. Its buttons and toggles behave like the other panels': the new value
 // shows at once (useOptimistic), "Saved." is a toast, what went wrong shows next to the control (useAction).
@@ -27,9 +28,7 @@ function Panel({ children }: { children: React.ReactNode }) {
   return (
     <Card className={PANEL} role="region" aria-labelledby="tg-h">
       <CardHeader className="px-4">
-        <h2 id="tg-h" className="m-0 text-base font-semibold">
-          Telegram
-        </h2>
+        <PanelHeading id="tg-h" title="Telegram" help={<TelegramHelp />} />
       </CardHeader>
       <CardContent className="px-4">{children}</CardContent>
     </Card>
@@ -65,10 +64,8 @@ export function TelegramPanel({
     return (
       <Panel>
         <p className={SMALL}>
-          Set <Code>TELEGRAM_BOT_TOKEN</Code> and <Code>TELEGRAM_CHAT_ID</Code> in Vercel → Settings → Environment
-          Variables and redeploy. The token: @BotFather → /mybots → your bot → API Token. The chat id: write to the bot,
-          open <Code>api.telegram.org/bot&lt;token&gt;/getUpdates</Code> and copy <Code>message.chat.id</Code> (a
-          group’s starts with -).
+          <span className="text-warning">Not set up</span>: set <Code>TELEGRAM_BOT_TOKEN</Code> and{' '}
+          <Code>TELEGRAM_CHAT_ID</Code> (the <q>?</q> above says how).
         </p>
       </Panel>
     );
@@ -156,13 +153,13 @@ export function TelegramPanel({
         {!view.aiOn
           ? 'Off: every new offer is sent.'
           : !ai.keySet
-            ? 'Set OPENAI_API_KEY to use it: until then every new offer is sent.'
+            ? 'OPENAI_API_KEY isn’t set: until it is, every new offer is sent.'
             : !ai.profile
-              ? 'No AI profile yet (AI filter tab → Profile): until then every new offer is sent.'
-              : 'Every new offer is checked right after scraping (as the AI tab would; also the ones that aren’t sent, like a new scraper’s first run). The message lists the matches with their fit; if none match, it just says how many new offers there are. One the AI can’t check for 20 minutes is sent anyway, marked.'}
+              ? 'No AI profile yet (AI filter tab → Profile): until then, every new offer is sent.'
+              : 'On: only the matches are sent, with their fit.'}
       </p>
       <p className={SMALL}>
-        Commands in the chat (/mute, /resume, /send, /scrape, /status):{' '}
+        Commands in the chat:{' '}
         {hooked ? (
           <span className="text-success">
             <CheckIcon /> connected
@@ -189,11 +186,6 @@ export function TelegramPanel({
           </Button>
         )}
       </div>
-      {!hooked && (
-        <p className={cn(SMALL, 'text-muted-foreground')}>
-          A bot gets commands either by webhook or by polling, not both: nothing else may be reading this bot’s updates.
-        </p>
-      )}
       <ActionError error={act.error} />
     </Panel>
   );

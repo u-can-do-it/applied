@@ -12,7 +12,7 @@ const OUTCOME_BADGE = {
 
 export function StatusChip({ stage, outcome }: { stage: StageId; outcome: OutcomeId }) {
   return (
-    // a long status ("HR · CV do bazy, ty do dupy") takes two lines on a phone rather than the title's room
+    // a long status ("Screening / test · In progress") takes two lines on a phone rather than the title's room
     <Badge
       variant={OUTCOME_BADGE[outcome]}
       className="font-normal max-[560px]:h-auto max-[560px]:rounded-[10px] max-[560px]:text-right max-[560px]:whitespace-normal"

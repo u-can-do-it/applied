@@ -7,6 +7,7 @@ const TABS = [
   { path: '/', label: 'All offers' },
   { path: '/ai', label: 'AI filter' },
   { path: '/applied', label: 'Applied' },
+  { path: '/activity', label: 'Activity' },
   { path: '/settings', label: 'Settings' },
 ];
 

@@ -17,6 +17,7 @@ import { addedPerScraper, scraperOutcomes, summarize } from './pipeline/outcomes
 import { pickOwners } from './pipeline/owners';
 import { ingest, recordOutcomes } from './pipeline/persist';
 import type { ScrapeSettings } from './settings';
+import type { Trigger } from './triggers';
 
 export type { RunSummary } from './pipeline/model';
 
@@ -32,7 +33,7 @@ const EMPTY = { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] a
  * answer (the "Scrape now" button doesn't wait for OpenAI).
  */
 export async function runAll(
-  trigger: 'cron' | 'manual' | 'telegram',
+  trigger: Trigger,
   opts: { locked?: boolean; background?: boolean } = {},
 ): Promise<RunSummary> {
   if (!opts.locked && !(await stateRepo.lock(SCRAPE_LOCK_SECONDS)))
