@@ -3,7 +3,7 @@ import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE, withSsl } from './lib/db/connectio
 
 // `npm run db:generate` writes a migration from lib/db/schema.ts. Applying them is
 // `npm run db:migrate` (scripts/db-migrate.ts: the same migrator, but it says why when one fails).
-// Never `drizzle-kit push`: it changes the database without a migration file (README → Database).
+// Never `drizzle-kit push`: it changes the database without a migration file (docs/OPERATIONS.md → Database).
 // drizzle-kit reads .env itself; a variable already set in the shell wins.
 export default defineConfig({
   dialect: 'postgresql',

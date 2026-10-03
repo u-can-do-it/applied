@@ -1,0 +1,342 @@
+# Operations
+
+Deploying and running Jobwatch: where it runs, what it needs, how to tell it's healthy and what to do when it
+isn't. How it works inside: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+- [Deploy on Vercel](#deploy-on-vercel)
+- [Environment variables](#environment-variables)
+- [Database](#database) (set-up, migrations, [upgrading from before Drizzle](#upgrading-a-database-set-up-before-drizzle-once))
+- [Supabase Cron](#supabase-cron) · [Telegram](#telegram) · [OpenAI](#openai)
+- [Health](#health) · [Logs](#logs) · [SSRF policy](#ssrf-policy)
+- [Recovery](#recovery) · [Timeouts and the pooler](#timeouts-and-the-pooler)
+
+## Deploy on Vercel
+
+1. **Supabase:** create a project at supabase.com (the free tier is enough), or add Supabase from the Vercel
+   Marketplace. Under **Connect** you'll need two URIs, each with `[YOUR-PASSWORD]` replaced by the database
+   password: the **Session pooler** (port 5432) for migrations, and the **Transaction pooler** (port 6543) for
+   the app.
+2. **Migrate it** from your machine (Node from `.nvmrc`): put the Session pooler URI in `.env` as
+   `SUPABASE_DB_URL`, then `npm install` and `npm run db:migrate`. That creates the tables, the view, the
+   functions, the default settings and the boards' scrapers, and turns on `pg_cron` + `pg_net`.
+3. **Vercel:** push the repo to GitHub, then **Add New → Project → import it** (or `npx vercel` from the
+   folder). Under **Settings → Environment Variables** add at least `SUPABASE_DB_URL` (the **Transaction
+   pooler** URI) and `APP_PASSWORD`; the rest is optional ([below](#environment-variables)). Deploy. The
+   build needs no variables: nothing reads the database or the env while building.
+4. **Open the app**, log in, and check the [Health card](#health) at the top of Settings. Then
+   **Scrape now**, and on the Activity tab check that every scraper shows a check mark (a board may block
+   Vercel's servers; the error says so). LinkedIn's terms don't allow scraping, and it may refuse requests from
+   servers: its scrapers are seeded but can be switched off in Settings.
+5. **Connect Supabase Cron** ([below](#supabase-cron)) and, if you use it, [Telegram](#telegram).
+
+A change to an environment variable on Vercel takes effect with the next deploy (**Redeploy**). A deploy that
+brings a new migration needs `npm run db:migrate` too: until then the Health card and `/api/health` say the
+database is behind.
+
+## Environment variables
+
+Every variable the app reads is in [`lib/env.ts`](../lib/env.ts), parsed with Zod on first use (on every use
+in development, so an edited `.env` counts without a restart). A missing or malformed one fails where it's
+read, with its name, so the parts that don't need it keep working. Locally they come from `.env`
+(`.env.example` lists them, with comments); on Vercel from **Settings → Environment Variables**. An empty value
+(`VAR=`) counts as not set.
+
+| Variable                        | Required             | Default                     | What for                                                                                                                                                                             |
+| ------------------------------- | -------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SUPABASE_DB_URL`               | yes                  |                             | The database, a `postgres://` / `postgresql://` URI. Vercel: the Transaction pooler (6543). `npm run db:migrate`: the Session pooler (5432). Server-side only, never `NEXT_PUBLIC_`. |
+| `APP_PASSWORD`                  | in production        |                             | The login. Without it, production answers 503 everywhere (`proxy.ts`); a dev server stays open. Pages are also `noindex` (`app/layout.tsx`).                                         |
+| `CRON_SECRET`                   | no                   | derived from `APP_PASSWORD` | The bearer token Supabase Cron sends to `/api/cron/scrape`. Without it and without `APP_PASSWORD`, only a dev server accepts cron calls.                                             |
+| `OPENAI_API_KEY`                | no                   |                             | The AI filter, AI runs and "Fill in from the link". Without it the app runs without them.                                                                                            |
+| `OPENAI_MODEL`                  | no                   | `gpt-6-luna`                | The model for every AI job unless one below is set.                                                                                                                                  |
+| `OPENAI_ASSESS_MODEL`           | no                   | `OPENAI_MODEL`              | Judging jobs against a profile.                                                                                                                                                      |
+| `OPENAI_DEDUP_MODEL`            | no                   | `OPENAI_MODEL`              | Deciding whether two jobs are the same.                                                                                                                                              |
+| `OPENAI_EXTRACT_MODEL`          | no                   | `OPENAI_MODEL`              | "Fill in from the link" reading a page.                                                                                                                                              |
+| `OPENAI_ASSESS_EFFORT`          | no                   | `high`                      | Reasoning effort: `none`, `low`, `medium` or `high`. Dropped automatically when the model refuses it.                                                                                |
+| `OPENAI_DEDUP_EFFORT`           | no                   | `low`                       | Same, for duplicates.                                                                                                                                                                |
+| `OPENAI_EXTRACT_EFFORT`         | no                   | `low`                       | Same, for "Fill in from the link".                                                                                                                                                   |
+| `OPENAI_BASE_URL`               | no                   | `https://api.openai.com/v1` | Another OpenAI-compatible endpoint (a proxy, Azure-compatible). An http(s) URL; trailing slashes are trimmed.                                                                        |
+| `TELEGRAM_BOT_TOKEN`            | no (both or neither) |                             | The bot that sends new offers and takes commands. Without both, offers are saved but not sent.                                                                                       |
+| `TELEGRAM_CHAT_ID`              | no (both or neither) |                             | Your chat with the bot; the only chat whose commands count. A group's starts with `-`.                                                                                               |
+| `TELEGRAM_API_URL`              | no                   | `https://api.telegram.org`  | Another Bot API server (a local one, or a stand-in for tests).                                                                                                                       |
+| `VERCEL_PROJECT_PRODUCTION_URL` | set by Vercel        |                             | The production domain: links in Telegram, and the address Supabase Cron and the Telegram webhook are given. Locally the request's own address is used.                               |
+| `NODE_ENV`                      | set by Next          | `development`               | `production` turns on the login requirement and the [SSRF checks](#ssrf-policy).                                                                                                     |
+
+Read only by the scripts and tests, not by the app: `DOTENV=0` (`npm run db:migrate` ignores `.env`),
+`TEST_DATABASE_URL` (the database tests' local database), `SUPABASE_IMAGE` (`scripts/test-db.sh`'s and
+`scripts/db-verify-migrations.sh`'s image) and `PG_IMAGE` (the `psql` / `pg_dump` image in
+`scripts/lib-local-db.sh`).
+
+## Database
+
+The tables are declared in [`lib/db/schema.ts`](../lib/db/schema.ts) (Drizzle ORM); [`drizzle/`](../drizzle)
+holds the migrations, applied in order and recorded in the database (`drizzle.__drizzle_migrations`), so each
+runs once. What Drizzle can't declare (extensions, the `offers_unique` view, the `jw_*` / `ai_*` functions,
+grants, `pg_cron`, the seed rows) is in custom migrations: `0000_extensions`, `0002_functions`, `0003_seed`,
+`0004_board_seeds`, `0005_drop_unused_functions`. Every migration is idempotent. Why Drizzle:
+[ADR 0001](decisions/0001-drizzle-over-postgrest.md).
+
+```bash
+npm run db:migrate    # apply the pending migrations to SUPABASE_DB_URL (the shell's, else .env's; DOTENV=0: not .env)
+npm run db:generate   # after editing lib/db/schema.ts: write the migration for it, then read it and commit it
+npm run db:generate -- --custom --name=what   # an empty migration for SQL Drizzle can't express (a view, a function)
+npm run db:check      # the migration files are consistent with each other
+npm run db:verify     # the migrations against two throwaway Docker databases (never yours)
+scripts/db-reset-local.sh postgresql://postgres:local@localhost:5432/postgres   # wipe a LOCAL database and migrate it
+```
+
+- **`npm run db:migrate`** ([`scripts/db-migrate.ts`](../scripts/db-migrate.ts)) is drizzle-orm's migrator,
+  the one `drizzle-kit migrate` uses, run directly because drizzle-kit exits without saying why when a
+  statement fails. All pending migrations run in one transaction: if one fails, it prints why and nothing
+  changes. Then it adds the scrapers of any board not seeded yet (`lib/db/seed.ts`), in a second transaction;
+  if that fails, run it again.
+- **Never `drizzle-kit push`.** It changes the database straight from `schema.ts`, without a migration file
+  and without a record of it, and it doesn't know about the view, the functions or the grants, so it may try to
+  drop or alter what they depend on.
+- **Which URL:** migrations want the **Session pooler** (5432): the migrator uses prepared statements, which
+  the transaction pooler doesn't keep. The app uses the **Transaction pooler** (6543). TLS is added on its own
+  (`sslmode=require`) for anything that isn't localhost; that encrypts the connection but doesn't verify the
+  server's certificate (add `sslmode=verify-full` and `sslrootcert` to the URL for that).
+- **`npm run db:verify`** ([`scripts/db-verify-migrations.sh`](../scripts/db-verify-migrations.sh)) starts two
+  `supabase/postgres` containers and checks that (a) a database set up by the SQL files used before Drizzle,
+  then used a little, is left as it was by `npm run db:migrate` (but for what `0004` and `0005` change);
+  (b) an empty database gets the same schema from the migrations alone, every migration can run twice, and a
+  view built on `offers_unique` makes the migration fail and roll back instead of being dropped; (c)
+  `schema.ts` and the migrations agree. With `--from-dump file.sql`, (a) starts from a dump of production. It
+  refuses any database that isn't on localhost (`bash scripts/lib-local-db.sh` tests that guard) and reads the
+  old SQL files from git, so it needs the full history (`git fetch --unshallow` in a shallow clone). Run it
+  after changing a migration.
+- **RLS** is on for every table with no policies, so Supabase's public/anon key can't read anything.
+- **Retention:** the scrape run log keeps two weeks, Supabase Cron's own log (`cron.job_run_details`) a week.
+
+### A local database
+
+The migrations grant to Supabase's roles and enable `pg_cron` and `pg_net`, so use Supabase's image, not plain
+Postgres:
+
+```bash
+docker run -d --name jobwatch-db -e POSTGRES_PASSWORD=local -p 127.0.0.1:5432:5432 supabase/postgres:17.4.1.054
+# give it ~20 s: the image restarts Postgres once after its init scripts
+SUPABASE_DB_URL=postgresql://postgres:local@localhost:5432/postgres npm run db:migrate
+```
+
+Put the same URL in `.env` for `npm run dev`. `scripts/db-reset-local.sh <url>` wipes such a database and
+migrates it again. Supabase Cron can't call a dev server on localhost; use "Scrape now".
+
+### Upgrading a database set up before Drizzle (once)
+
+Until commit `a290945`, the schema came from `supabase/*.sql`, applied by `scripts/db-migrate.sh` (both now
+only in git history). The migrations up to `0003_seed` are written to be no-ops on a database those files
+built; `0004_board_seeds` adds the boards' seed markers, and `0005_drop_unused_functions` drops seven SQL
+functions only the old code called. The new code needs nothing that only the migrations create and calls none
+of the dropped functions, so it is deployed first, against the database as it is, and migrated after.
+`npm run db:verify` checks the migrations on a copy built from the old files; your production database has its
+own history, though, so check it first. The commands below use `SUPABASE_DB_URL` from `.env` (the **Session
+pooler** URI): `set -a; . ./.env; set +a` first.
+
+1. **Back it up.** The dump holds your data, CV included: keep it out of git (`data/` is ignored).
+
+   ```bash
+   mkdir -p data
+   docker run --rm postgres:17-alpine pg_dump "$SUPABASE_DB_URL" -Fc > data/backup-before-drizzle.dump
+   ```
+
+2. **Pre-flight checks** (read-only; every row should say PASS):
+
+   ```bash
+   docker run --rm -i postgres:17-alpine psql "$SUPABASE_DB_URL" -X -q < scripts/db-preflight.sql
+   ```
+
+   [`scripts/db-preflight.sql`](../scripts/db-preflight.sql) checks that the old files' last version ran (the
+   LinkedIn seed is recorded, the settings row exists, no `ai_filter` table from the first AI filter,
+   `ai_verdicts` keyed by job), that no migration ran yet (no `drizzle` schema), and that nothing but the app's
+   four functions is built on `offers_unique` (`0002_functions` drops and re-creates the view; anything else
+   on it, such as a view you made in the SQL Editor, would make the migration fail). A FAIL says what to do.
+
+3. **Optionally, rehearse on a copy:** dump the `public` schema and let `db:verify` start from it.
+
+   ```bash
+   docker run --rm postgres:17-alpine pg_dump "$SUPABASE_DB_URL" --schema=public > data/prod-public.sql
+   npm run db:verify -- --from-dump data/prod-public.sql
+   ```
+
+4. **Vercel → Settings → Environment Variables:** add `SUPABASE_DB_URL` = the **Transaction pooler** URI.
+   Keep `SUPABASE_URL` and `SUPABASE_SECRET_KEY` for now: the old deployment needs them if you roll back.
+5. **Deploy the new version** (push, or redeploy in Vercel) against the database as it is. Check that the
+   offers, Applied, AI and Settings pages load. `/api/health` answers `"db": "behind"` (503) and the Health card
+   lists the pending migrations: expected until step 6. If anything misbehaves, roll back with Vercel's
+   **Instant Rollback** to the old deployment; the database hasn't changed.
+6. **Migrate:** Settings → Pause scraping, and don't start AI checks (the migration re-creates the
+   `offers_unique` view and its functions, which takes locks those would wait on, or hold). Then
+   `npm run db:migrate`, once, locally, with the Session pooler URI. Everything runs in one transaction: if any
+   statement fails, it prints why and rolls back, and the database is as it was. On success it records the six
+   migrations, so later ones run normally; the boards' scrapers are not added again (their markers are there).
+   `/api/health` now says `"db": "ok"`. Resume scraping in Settings. Supabase Cron and the Telegram webhook keep
+   working: their secrets are derived as before.
+7. **Remove `SUPABASE_URL` and `SUPABASE_SECRET_KEY`** from Vercel and from your `.env` once you're satisfied:
+   nothing reads them any more. The secret key itself can then be deleted in Supabase (Project Settings → API
+   Keys), since the app no longer uses Supabase's REST API.
+
+**Rolling back after migrating.** The old deployment calls the seven functions `0005` dropped. Re-create them
+from the old SQL files (idempotent; never run `reset.sql`, which wipes the data):
+
+```bash
+git show a290945:supabase/ai-filter.sql | psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1
+git show a290945:supabase/scraping.sql | psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1
+```
+
+(`psql` from Docker works too: `docker run --rm -i postgres:17-alpine psql …`.) Then roll the Vercel
+deployment back to the old one, with `SUPABASE_URL` and `SUPABASE_SECRET_KEY` still set. Restoring the backup
+from step 1 (`pg_restore`) is the last resort: it loses everything written since.
+
+## Supabase Cron
+
+Supabase Cron (`pg_cron` + `pg_net`, both on every Supabase plan) calls `/api/cron/scrape` on the schedule
+Settings makes: the interval, only within the hours (in UTC, an hour wider where clocks change), none while
+paused. The app then checks again whether a run is due. Vercel's own cron can't do this on the free plan
+(Hobby allows one run a day).
+
+- **Connect:** Settings → **Connect Supabase Cron**, from the deployed app (the job is given this
+  deployment's address, `VERCEL_PROJECT_PRODUCTION_URL`, and the [cron secret](#environment-variables)). If it
+  says `pg_cron` or `pg_net` isn't enabled: Supabase → Integrations → Cron, or Database → Extensions, then
+  `npm run db:migrate` again.
+- **Changing** the interval, hours, time zone or pause reschedules the job by itself.
+- **Reconnect** when the Health card says so: the job calls another address (a new domain), its schedule isn't
+  the settings' (it was switched off or edited in Supabase), or the app refused its last call with 401 (the
+  secret changed: `APP_PASSWORD` or `CRON_SECRET`).
+- **By hand:** `curl -H 'Authorization: Bearer <cron secret>' 'https://<app>/api/cron/scrape?force=1&wait=1'`
+  runs even if not due (`force=1`) and answers with the result (`wait=1`). Every answer has `"jobwatch"` in it.
+- **Disconnect** removes both jobs (`jobwatch-scrape`, and the daily cleanup that keeps a week of its log).
+- Activity → "Supabase Cron" shows its last calls and what the app answered.
+
+## Telegram
+
+1. **A bot:** in Telegram, @BotFather → `/newbot`; its API token is `TELEGRAM_BOT_TOKEN`.
+2. **Your chat id:** write anything to the bot, then open `https://api.telegram.org/bot<token>/getUpdates` and
+   copy `message.chat.id` (a group's starts with `-`). Do this before connecting the commands: `getUpdates`
+   doesn't answer while a webhook is set.
+3. **Vercel → Settings → Environment Variables:** `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`; redeploy.
+4. **Settings → Telegram:** **Test message** sends one; **Connect commands** sets the webhook to
+   `/api/telegram` (a bot gets updates by webhook or by polling, not both). Telegram sends back a secret
+   derived from the token; only `TELEGRAM_CHAT_ID` may give commands, everyone else is ignored.
+
+Commands: `/mute` (also `/pause`, `/stop`: new offers wait in the queue), `/resume` (`/unmute`, `/start`:
+and send what waited), `/send` (`/flush`), `/scrape` (`/run`), `/status`. In Settings: send new offers on or
+off, the AI filter on or off, mute, and send the queue now. With the AI filter on, a message lists only the matches;
+an offer the AI couldn't check for 20 minutes is sent anyway, marked "not checked".
+
+## OpenAI
+
+`OPENAI_API_KEY` (platform.openai.com → API keys) turns on three jobs, each with its own model and effort
+([the variables](#environment-variables)): **assess** (a job against a profile, high effort), **dedup**
+(are two jobs the same, low effort) and **extract** ("Fill in from the link", low effort). Each call gives up
+after 120 s. Without the key: no AI runs, the AI filter lets everything through to Telegram, and "Fill in from
+the link" fills in only what the page says plainly. `OPENAI_BASE_URL` points it at another compatible endpoint.
+
+## Health
+
+- **The Health card** at the top of Settings has one row per dependency, green, amber or red, with the reason and
+  the fix (a button, a page, or a command): **Database** (reachable, every migration applied), **Scraping**
+  (on with its schedule, or paused), **Supabase Cron** (connected, following the settings, its last answer),
+  **Last run** (finished, which scrapers failed), **Telegram** (configured, reachable, commands connected),
+  **OpenAI** (key set), **AI profile** (one exists, with criteria or a CV). A check that throws is a red row
+  saying why; the others still show.
+- **`GET /api/health`** (logged in) answers `{ "db": "ok" | "behind" | "unreachable", "pending": ["0005_…"] }`,
+  with status 503 unless it's `ok`. `behind` lists the migrations this deployment has and the database hasn't
+  run: run `npm run db:migrate`. `unreachable`: check `SUPABASE_DB_URL` (and the logs for why).
+
+## Logs
+
+The server writes one JSON line per event ([`lib/log.ts`](../lib/log.ts): `ts`, `level`, `msg`, and what it's
+about: `runId`, `scrapeRunId`, `scraper`, `jobId`, `route`…), on stdout for `info` and stderr for `warn` /
+`error`. On Vercel they're in the project's **Logs** (runtime logs: filter by level, or search for a `runId`),
+kept for a short while on the free plan. That's where to look for what failed after an answer was sent
+(`after()`: the AI check and Telegram after a scrape, an AI run's slice, an ad text being fetched) and for each
+scraper's failure.
+
+**Redaction:** a log line never has a secret in it. Values under keys like `token`, `secret`, `password`,
+`cookie` or `authorization`, the configured secrets themselves (`SUPABASE_DB_URL` and its password,
+`APP_PASSWORD`, `CRON_SECRET`, `OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN`, also percent-encoded), a URL's password
+and its token-like query parameters, bearer tokens, OpenAI keys and bot tokens in free text are replaced with
+`[redacted]`. A failed query is logged by its cause, never its SQL or its values. Supabase Cron's functions
+rethrow the database's words only, since their arguments include the cron secret.
+
+## SSRF policy
+
+Everything the server fetches from a link it didn't choose (scrapers' pages, offers' ads, "Fill in from the
+link") goes through `fetchOutbound()` ([`lib/outbound.ts`](../lib/outbound.ts),
+[ADR 0008](decisions/0008-ssrf-policy-connect-time-checks.md)). In production:
+
+- only http(s), never `localhost`;
+- the host is resolved and refused if any address is private, loopback, link-local (the cloud metadata
+  service), CGNAT, multicast, unspecified or reserved, IPv6 forms that embed such an IPv4 address included
+  (`[::ffff:7f00:1]`; decimal, hex and octal IPv4 are normalised first);
+- redirects are followed by the app, at most 5 hops, each checked the same way; an `Authorization` or
+  `Cookie` header isn't sent on to another site;
+- the connection itself only goes to an address that passed the check, so a name that answers differently
+  the second time (DNS rebinding) is refused too;
+- a response body is read up to 8 MB.
+
+A dev server (`npm run dev`) may read localhost. A refused link fails with "Private addresses are not
+allowed"; a scraper shows it as its error.
+
+## Recovery
+
+- **A scrape that won't start** ("Another run is still going", or the cron answers `busy`): the run lock
+  (`scrape_state.locked_until`) is held. A crashed run's lock runs out by itself after `SCRAPE_LOCK_MS`
+  (280 s), before the next knock. If it doesn't, and no run is going (Activity, and the logs), clear it in the
+  Supabase SQL Editor: `update public.scrape_state set locked_until = null;`. A run whose function died stays
+  "didn't finish" in the run log; the next run is unaffected.
+- **An AI run that doesn't move:** between slices a run is paused, and the AI tab or Supabase Cron's next call
+  continues it; a dead worker's lock runs out after `AI_RUN_LOCK_MS` (3 min). With scraping paused or the cron
+  not connected, only the AI tab continues it: open it. A run whose OpenAI calls keep failing ends as `failed`
+  after three rounds (the logs say why). To stop one, edit the profile's text or file (a new version: the next
+  slice cancels the run), or in the SQL Editor:
+  `update public.ai_runs set status = 'cancelled', finished_at = now(), lock_until = null where status = 'running';`
+- **A migration fails:** nothing changed (one transaction). `npm run db:migrate` prints the database's error,
+  its detail and hint. `2BP01` means something of yours is built on what the migration replaces: see check 6
+  of `scripts/db-preflight.sql`, drop or move it, and run it again. If only adding the boards' scrapers failed,
+  the migrations did run: run it again. Rehearse a risky one with `npm run db:verify -- --from-dump` first;
+  never fix it with `drizzle-kit push`.
+- **Rotating `APP_PASSWORD`:** change it on Vercel (and `.env`), redeploy. Every browser is logged out. Without
+  `CRON_SECRET`, the cron's secret changes with it: Settings → Supabase Cron → **Reconnect** (the Health card
+  shows 401 until then).
+- **Rotating `CRON_SECRET`:** change it, redeploy, then **Reconnect** Supabase Cron (the job stores the
+  secret).
+- **Rotating the bot token:** @BotFather → `/revoke`, set the new `TELEGRAM_BOT_TOKEN`, redeploy,
+  then Settings → Telegram → **Connect commands**: the webhook's secret is derived from the token.
+- **Rotating the database password:** Supabase → Project Settings → Database, then the new password in
+  `SUPABASE_DB_URL` on Vercel (Transaction pooler) and in `.env` (Session pooler); redeploy.
+
+## Timeouts and the pooler
+
+All the time budgets derive from one platform limit in [`lib/budgets.ts`](../lib/budgets.ts) (a test checks
+their relationships and that every `maxDuration` matches):
+
+| Budget              | Value | What                                                                                                     |
+| ------------------- | ----- | -------------------------------------------------------------------------------------------------------- |
+| `FUNCTION_LIMIT_MS` | 300 s | A function's `maxDuration` (the routes and pages that start work).                                       |
+| `OPENAI_TIMEOUT_MS` | 120 s | One OpenAI call.                                                                                         |
+| `WRAP_UP_MS`        | 30 s  | After the last AI batch: verdicts, Telegram, the run log, unlocking.                                     |
+| `AI_BUDGET_MS`      | 150 s | A scrape's AI check starts no new batch after this, counted from the run's start.                        |
+| `SLICE_MS`          | 150 s | An AI run's slice starts no new round after this.                                                        |
+| `SCRAPE_LOCK_MS`    | 280 s | The scrape lock: outlives a live run's last AI batch, frees a crashed one before the next knock (5 min). |
+| `AI_RUN_LOCK_MS`    | 180 s | An AI run's lock, renewed after every round and before each OpenAI call.                                 |
+| `AD_TIMEOUT_MS`     | 12 s  | One request for an offer's ad.                                                                           |
+
+Elsewhere: a listing page 20 s (`lib/listings/pipeline/fetch.ts`), a Telegram call 15 s, Supabase Cron's call
+20 s (the app answers at once and scrapes after the response).
+
+**The connection** ([`lib/db/client.ts`](../lib/db/client.ts),
+[ADR 0001](decisions/0001-drizzle-over-postgrest.md)): through Supabase's transaction pooler, `prepare: false`
+(consecutive statements may land on different backends), at most 5 connections per function instance,
+10 s to connect, idle ones closed after 20 s. Each connection asks for `statement_timeout` 30 s and
+`lock_timeout` 10 s as startup parameters, so a slow query or a lock wait fails instead of running out a
+function's time. The transaction pooler may not pass those on: check with `show statement_timeout` through the
+6543 URI, and if it says `0`, set them on the role the app connects as:
+
+```sql
+alter role <app role> set statement_timeout = '30s';
+alter role <app role> set lock_timeout = '10s';
+```
+
+(Better on a role of the app's own than on `postgres`, which migrations and the SQL Editor use too.)

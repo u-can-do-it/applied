@@ -6,7 +6,7 @@
 #         - the old SQL files (supabase/reset.sql, ai-filter.sql, scraping.sql, as scripts/db-reset.sh +
 #           db-migrate.sh ran them), then some use: offers, a merged job, an application with its
 #           history, a profile and a verdict, scrapers edited and deleted, Supabase Cron connected; or
-#         - with --from-dump, a pg_dump of the production `public` schema, restored (see README →
+#         - with --from-dump, a pg_dump of the production `public` schema, restored (see docs/OPERATIONS.md →
 #           "Upgrading a database set up before Drizzle"). The closest thing to running it on production.
 #       scripts/db-preflight.sql must say PASS everywhere first.
 #   (b) an empty database gets, from `npm run db:migrate` alone, the same schema as (a) (with

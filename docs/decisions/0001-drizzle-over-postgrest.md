@@ -68,8 +68,8 @@ while Drizzle lets the same SQL live next to ordinary typed queries and transact
 ## Consequences
 
 - `SUPABASE_DB_URL` is the app's only database setting (Vercel: transaction pooler URI). `SUPABASE_URL` and
-  `SUPABASE_SECRET_KEY` are no longer read: every module queries through Drizzle (README → "Upgrading a
-  database set up before Drizzle" says when to remove them).
+  `SUPABASE_SECRET_KEY` are no longer read: every module queries through Drizzle ([OPERATIONS.md → "Upgrading a
+  database set up before Drizzle"](../OPERATIONS.md#upgrading-a-database-set-up-before-drizzle-once) says when to remove them).
 - Database access needs the Node runtime (not Edge). That's the case today.
 - Schema changes go through `lib/db/schema.ts` and `npm run db:generate`; a deploy with a new migration needs
   `npm run db:migrate`, and `/api/health` says "behind" until it's run.

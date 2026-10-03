@@ -2,6 +2,8 @@
 
 _3 October 2026_
 
+> The roadmap below has been implemented (see the git history after `201d4f4`); this document is kept as the review it was. The current docs: [ARCHITECTURE.md](ARCHITECTURE.md), [OPERATIONS.md](OPERATIONS.md), [CONTRIBUTING.md](../CONTRIBUTING.md).
+
 What to change so that someone who did not write Jobwatch can read it, extend it and trust it. Ordered by what unblocks the most further work.
 
 |                        |         |
