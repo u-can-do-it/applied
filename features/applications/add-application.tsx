@@ -1,6 +1,7 @@
 'use client';
 
 import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
+import { PlusIcon, SparklesIcon } from 'lucide-react';
 import type { ApplicationWithContent } from '@/lib/applications';
 import { BOARD_SUGGESTIONS, boardOf, isLink } from '@/lib/boards';
 import type { Zone } from '@/lib/dates';
@@ -15,7 +16,7 @@ import { useZone } from '@/components/time-zone';
 // "+ Add application": an application you sent somewhere the scrapers don't see (or before they
 // did). Paste the link and "Fill in" reads the page (with the AI, if there's a key); everything
 // stays editable. The window has the applied offer's layout: fixed height, the middle scrolls.
-// The same form edits an application in its own window ("✎ Edit"), without the status and the
+// The same form edits an application in its own window ("Edit"), without the status and the
 // note: the window has those.
 
 type Draft = ApplicationInput; // what the form sends
@@ -59,7 +60,7 @@ export function AddApplication() {
   return (
     <>
       <button type="button" className="secondary add-app" onClick={() => setFormKey((previous) => previous + 1)}>
-        + Add application
+        <PlusIcon /> Add application
       </button>
       {formKey > 0 && <AddDialog key={formKey} onClose={() => setFormKey(0)} />}
     </>
@@ -215,7 +216,13 @@ export function ApplicationForm(props: FormProps) {
             disabled={!isLink(draft.url) || filling}
             aria-busy={filling || undefined}
           >
-            {filling ? 'Reading the page…' : '✦ Fill in from the link'}
+            {filling ? (
+              'Reading the page…'
+            ) : (
+              <>
+                <SparklesIcon /> Fill in from the link
+              </>
+            )}
           </button>
         </div>
         {editing && (

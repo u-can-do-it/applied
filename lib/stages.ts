@@ -1,6 +1,6 @@
 // Application pipeline, shared by server and client. Stage = how far it got; outcome = how that
 // stage went (stored as stage_state, and as `state` in the history). Together they are the
-// application's status. The statistics go by the last status; the ✓ in the window by the
+// application's status. The statistics go by the last status; the check marks in the window by the
 // history (technical / HR come in either order, so not by the position in this list).
 
 // "invited" is the id of Initial contact (its first name): kept, so stored statuses stay valid

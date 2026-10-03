@@ -58,7 +58,7 @@ export const setStatus = (jobId: string, stage: StageId, outcome: OutcomeId) =>
 /**
  * Takes a step out of the status history together with every step after it (a mistaken click
  * and what followed it); the status becomes the last step left. The first one, applying, stays.
- * "Reached" stages come from the history, so the ✓ goes with them.
+ * "Reached" stages come from the history, so the check mark goes with them.
  */
 export async function removeStatusStep(jobId: string, step: HistoryEntry): Promise<{ error?: string }> {
   const app = await getApplication(jobId);
@@ -100,7 +100,7 @@ const patch = (jobId: string, fields: Partial<NewApplicationRow>) => application
 /** Added by hand or imported (not marked on a scraped offer): its id is ours, not a board's. */
 const ownId = (id: string) => /^(manual|import)-/.test(id);
 
-/** The details "Add application" and "✎ Edit" let you type; only these can be yours. */
+/** The details "Add application" and "Edit" let you type; only these can be yours. */
 export const TYPED_FIELDS = ['salary', 'contract', 'location', 'remote'] as const;
 export type TypedField = (typeof TYPED_FIELDS)[number];
 /** What an application keeps: the ad's details, plus which of them you typed (they stay over a new scrape). */
@@ -123,7 +123,7 @@ export function typedDetails(form: JobDetails | null | undefined): SavedDetails 
 }
 
 /**
- * The details after "✎ Edit", over the rest of what the board said (posted, valid until…). The form
+ * The details after "Edit", over the rest of what the board said (posted, valid until…). The form
  * shows the saved values, so a field is yours only if it already was or you changed it. A new link
  * is another ad: only what you filled in, without the old one's dates and company.
  */
@@ -296,7 +296,7 @@ export async function addApplication(
   return { jobId, fetch: fetchDue(content) };
 }
 
-// ---- edited in its window ("✎ Edit") -------------------------------------------------------
+// ---- edited in its window ("Edit") ---------------------------------------------------------
 
 export type ApplicationEdit = {
   url: string; // as typed ('' = none); cleaned if it's not the saved one

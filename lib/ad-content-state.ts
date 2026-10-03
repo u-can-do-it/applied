@@ -10,7 +10,7 @@ import type { ApplicationRow } from './db/schema';
 //   none ──added (less, no link)─────────────────→ empty                ├─fetchFoundNoText──→ empty
 //                                                                       └─fetchFailed───────→ failed
 //   any  ──edited──→ ok / pending / empty, or unchanged (see `edited`)
-//   any  ──fetch*──→ ok / empty / failed ("↻ Try again" fetches from whatever state it is in)
+//   any  ──fetch*──→ ok / empty / failed ("Fetch again" fetches from whatever state it is in)
 //
 // Outside `ok`, the text is always what you typed (a fetch saves text only with `ok`), so a fetch
 // that fails or finds no ad keeps it.
@@ -34,7 +34,7 @@ export type ContentEvent =
   | { type: 'added'; text: string; hasLink: boolean; at: string }
   /** "Mark applied" on a scraped offer: the ad is fetched right away */
   | { type: 'marked' }
-  /** "✎ Edit" saved: `text` as typed (trimmed), `hasLink`: the link after the edit */
+  /** "Edit" saved: `text` as typed (trimmed), `hasLink`: the link after the edit */
   | { type: 'edited'; text: string; hasLink: boolean; at: string }
   | { type: 'fetchSucceeded'; text: string; at: string }
   /** every offer's page answered, none with the ad text (removed or blocked) */

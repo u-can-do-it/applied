@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { startTransition, useEffect, useState, useTransition } from 'react';
+import { RotateCwIcon, TriangleAlertIcon } from 'lucide-react';
 import type { RunSummary } from '@/lib/listings/pipeline/model';
 import { message } from '@/lib/shared/errors';
 import { fail, type Result } from '@/lib/shared/result';
@@ -20,7 +21,10 @@ async function scrapeNow(): Promise<Result<RunSummary>> {
 export function ScrapeButton() {
   const router = useRouter();
   const [busy, start] = useTransition();
-  const [result, setResult] = useState<{ text: string; title?: string; bad?: boolean } | null>(null);
+  // errors: the scrapers that failed in a run that otherwise went through; failed: the run itself
+  const [result, setResult] = useState<{ text: string; title?: string; errors?: number; failed?: boolean } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!result) return;
@@ -39,16 +43,16 @@ export function ScrapeButton() {
         next = report.skipped
           ? { text: report.skipped }
           : {
-              text: `${report.added ? `${report.added} new` : 'nothing new'}${report.errors.length ? ` · ⚠ ${report.errors.length}` : ''}`,
+              text: report.added ? `${report.added} new` : 'nothing new',
               title: `${report.found} on the pages, ${report.kept} after filters, ${report.added} new${
                 report.notifyLater
                   ? ' · the AI check and Telegram run in the background'
                   : `, ${report.notified} sent to Telegram`
               }${errors ? `\n\n${errors}` : ''}`,
-              bad: report.errors.length > 0,
+              errors: report.errors.length,
             };
       } else {
-        next = { text: '⚠ failed', title: answer.error, bad: true };
+        next = { text: 'failed', title: answer.error, failed: true };
       }
       // with the refreshed list, not a frame before it
       startTransition(() => {
@@ -61,8 +65,23 @@ export function ScrapeButton() {
   return (
     <span className="scrape-now">
       {result && (
-        <span className={`scrape-result${result.bad ? ' warn' : ''}`} title={result.title} role="status">
+        <span
+          className={`scrape-result${result.failed || result.errors ? ' warn' : ''}`}
+          title={result.title}
+          role="status"
+        >
+          {result.failed && (
+            <>
+              <TriangleAlertIcon />{' '}
+            </>
+          )}
           {result.text}
+          {result.errors ? (
+            <>
+              {' · '}
+              <TriangleAlertIcon role="img" aria-label="errors:" /> {result.errors}
+            </>
+          ) : null}
         </span>
       )}
       <button
@@ -72,7 +91,13 @@ export function ScrapeButton() {
         disabled={busy}
         aria-busy={busy || undefined}
       >
-        {busy ? 'Scraping…' : '↻ Scrape now'}
+        {busy ? (
+          'Scraping…'
+        ) : (
+          <>
+            <RotateCwIcon /> Scrape now
+          </>
+        )}
       </button>
     </span>
   );

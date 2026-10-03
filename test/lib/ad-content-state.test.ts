@@ -75,7 +75,7 @@ describe('ad content: a new application', () => {
   });
 });
 
-describe('ad content: "✎ Edit" (the six outcomes)', () => {
+describe('ad content: "Edit" (the six outcomes)', () => {
   const edit = (state: AdContent, text: string, hasLink: boolean) =>
     transition(state, { type: 'edited', text, hasLink, at: AT });
 
@@ -148,7 +148,7 @@ describe('ad content: the fetch (saveContent)', () => {
     saved({ status: 'failed', text: null, error: 'HTTP 500' }),
   ];
 
-  it('succeeded: ok, from any state ("↻ Try again" too)', () => {
+  it('succeeded: ok, from any state ("Fetch again" too)', () => {
     for (const before of states)
       expect(next(before, { type: 'fetchSucceeded', text: FULL, at: AT })).toEqual({
         status: 'ok',
@@ -173,7 +173,7 @@ describe('ad content: the fetch (saveContent)', () => {
     });
   });
 
-  it('failed: failed, with the reason, keeping what you typed (also on "↻ Try again")', () => {
+  it('failed: failed, with the reason, keeping what you typed (also on "Fetch again")', () => {
     expect(next(waiting, { type: 'fetchFailed', error: 'HTTP 403', at: AT })).toEqual({
       status: 'failed',
       text: null,

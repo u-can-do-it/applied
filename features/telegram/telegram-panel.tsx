@@ -1,6 +1,7 @@
 'use client';
 
 import { useOptimistic } from 'react';
+import { BellIcon, BellOffIcon, CheckIcon, SparklesIcon } from 'lucide-react';
 import { Feedback, useAction } from '@/components/use-action';
 import type { BotInfo } from '@/lib/telegram';
 import {
@@ -45,11 +46,11 @@ export function TelegramPanel({
       <section className="panel" aria-labelledby="tg-h">
         <h2 id="tg-h">Telegram</h2>
         <p className="small">
-          Set <code className="inline">TELEGRAM_BOT_TOKEN</code> and <code className="inline">TELEGRAM_CHAT_ID</code> in
-          Vercel → Settings → Environment Variables and redeploy. The token: @BotFather → /mybots → your bot → API
-          Token. The chat id: write to the bot, open{' '}
-          <code className="inline">api.telegram.org/bot&lt;token&gt;/getUpdates</code> and copy{' '}
-          <code className="inline">message.chat.id</code> (a group’s starts with -).
+          Set <code className="inline-code">TELEGRAM_BOT_TOKEN</code> and{' '}
+          <code className="inline-code">TELEGRAM_CHAT_ID</code> in Vercel → Settings → Environment Variables and
+          redeploy. The token: @BotFather → /mybots → your bot → API Token. The chat id: write to the bot, open{' '}
+          <code className="inline-code">api.telegram.org/bot&lt;token&gt;/getUpdates</code> and copy{' '}
+          <code className="inline-code">message.chat.id</code> (a group’s starts with -).
         </p>
       </section>
     );
@@ -84,7 +85,15 @@ export function TelegramPanel({
           Send new offers
         </label>
         <span className="small">
-          {view.muted ? `🔕 Muted, ${view.queued} waiting` : view.queued ? `🔔 On, ${view.queued} waiting` : '🔔 On'}
+          {view.muted ? (
+            <>
+              <BellOffIcon /> Muted, {view.queued} waiting
+            </>
+          ) : (
+            <>
+              <BellIcon /> On{view.queued ? `, ${view.queued} waiting` : ''}
+            </>
+          )}
         </span>
         <button
           type="button"
@@ -126,7 +135,7 @@ export function TelegramPanel({
             );
           }}
         />{' '}
-        ✦ Only offers the AI profile matches{ai.profile ? ` (“${ai.profile}”)` : ''}
+        <SparklesIcon /> Only offers the AI profile matches{ai.profile ? ` (“${ai.profile}”)` : ''}
       </label>
       <p className="muted small field-note-under">
         {!view.aiOn
@@ -134,13 +143,15 @@ export function TelegramPanel({
           : !ai.keySet
             ? 'Set OPENAI_API_KEY to use it: until then every new offer is sent.'
             : !ai.profile
-              ? 'No AI profile yet (AI filter tab → ✦ Profile): until then every new offer is sent.'
+              ? 'No AI profile yet (AI filter tab → Profile): until then every new offer is sent.'
               : 'Every new offer is checked right after scraping (as the AI tab would; also the ones that aren’t sent, like a new scraper’s first run). The message lists the matches with their fit; if none match, it just says how many new offers there are. One the AI can’t check for 20 minutes is sent anyway, marked.'}
       </p>
       <p className="small">
         Commands in the chat (/mute, /resume, /send, /scrape, /status):{' '}
         {hooked ? (
-          <span className="ok-text">✓ connected</span>
+          <span className="ok-text">
+            <CheckIcon /> connected
+          </span>
         ) : info?.webhook ? (
           <span className="warn">the bot sends them to {info.webhook}</span>
         ) : (

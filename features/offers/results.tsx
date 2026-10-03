@@ -1,3 +1,4 @@
+import { ArrowLeftIcon, ArrowRightIcon, SparklesIcon } from 'lucide-react';
 import { rangeStats } from '@/lib/ai/runs';
 import { addDays, DEFAULT_TZ, describeRange, zoneOf, type Zone } from '@/lib/dates';
 import { getJobs, getTotalCount, PAGE_SIZE, type ListedJob } from '@/lib/jobs';
@@ -118,7 +119,7 @@ export async function Results({
   if (!data) {
     return (
       <p className="empty">
-        No profile yet. Click <strong>✦ Profile</strong> above, describe what you&apos;re looking for and add your CV.
+        No profile yet. Click <strong>Profile</strong> above, describe what you&apos;re looking for and add your CV.
       </p>
     );
   }
@@ -160,7 +161,7 @@ export async function Results({
                 : 'No matches here. Check the rejected ones, or loosen the profile.'
             : filtered
               ? 'Nothing matches these filters.'
-              : 'No offers yet. Use “↻ Scrape now” at the top, or wait for the next scheduled run.'}
+              : 'No offers yet. Use “Scrape now” at the top, or wait for the next scheduled run.'}
         </p>
       )}
 
@@ -184,7 +185,11 @@ export async function Results({
                       {job.remote ? 'Remote' : 'Office / hybrid'}
                     </span>
                   </div>
-                  {job.ai?.summary && <p className="ai-reason">✦ {job.ai.summary}</p>}
+                  {job.ai?.summary && (
+                    <p className="ai-reason">
+                      <SparklesIcon /> {job.ai.summary}
+                    </p>
+                  )}
                 </div>
                 <div className="side">
                   {job.ai && (
@@ -209,7 +214,7 @@ export async function Results({
         <nav className="pager" aria-label="Pages">
           {page > 0 ? (
             <NavLink href={withParams(current, { page: page - 1 }, path)} scrollTop>
-              ← Newer
+              <ArrowLeftIcon /> Newer
             </NavLink>
           ) : (
             <span />
@@ -219,7 +224,7 @@ export async function Results({
           </span>
           {page + 1 < pages ? (
             <NavLink href={withParams(current, { page: page + 1 }, path)} scrollTop>
-              Older →
+              Older <ArrowRightIcon />
             </NavLink>
           ) : (
             <span />

@@ -116,7 +116,7 @@ describeDb('applications', () => {
     expect(bare.fetch).toBe(false);
     let app = await getApplication(bare.jobId ?? '');
     expect(app).toMatchObject({ contentStatus: 'empty', content: null, contentError: NO_TEXT, scrapedAt: null });
-    // "↻ Try again" without a link: nothing to fetch from
+    // "Fetch again" without a link: nothing to fetch from
     await saveContent(bare.jobId ?? '');
     app = await getApplication(bare.jobId ?? '');
     expect(app).toMatchObject({ contentStatus: 'failed', content: null, contentError: NO_LINK });

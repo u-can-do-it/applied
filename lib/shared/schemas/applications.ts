@@ -97,7 +97,7 @@ export const addApplicationSchema = fields
     note: form.note || null,
   }));
 
-/** What "+ Add application" sends, every field filled in (day: YYYY-MM-DD in the app's time zone); "✎ Edit" sends the same without the status and the note. */
+/** What "Add application" sends, every field filled in (day: YYYY-MM-DD in the app's time zone); "Edit" sends the same without the status and the note. */
 export type ApplicationInput = Required<z.input<typeof addApplicationSchema>>;
 
 export const updateApplicationSchema = z.object({ jobId, input: fields.transform(toApplication) });

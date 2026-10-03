@@ -1,10 +1,11 @@
 'use client';
 
 import { startTransition, useOptimistic, useState, useTransition } from 'react';
+import { CheckIcon } from 'lucide-react';
 import { zoneOf } from '@/lib/dates';
 import { applyAction, unapplyAction } from '@/features/applications/actions';
 
-/** "Mark applied" / "✓ Applied 02.10.2026" - flips on the click frame, the server catches up. */
+/** "Mark applied" / "Applied 02.10.2026" with a check mark - flips on the click frame, the server catches up. */
 export function ApplyButton({
   jobId,
   src,
@@ -42,7 +43,13 @@ export function ApplyButton({
         aria-busy={pending || undefined}
         title={applied ? 'Click to unmark' : 'Saves that you applied, with the complete ad text'}
       >
-        {applied ? `✓ Applied ${zoneOf(tz).formatDayOf(applied)}` : 'Mark applied'}
+        {applied ? (
+          <>
+            <CheckIcon /> Applied {zoneOf(tz).formatDayOf(applied)}
+          </>
+        ) : (
+          'Mark applied'
+        )}
       </button>
       {error && <span className="form-error small">{error}</span>}
     </>

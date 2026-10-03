@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { SearchIcon } from '@/components/search-icon';
+import { SearchIcon } from 'lucide-react';
 import { withParams } from '@/lib/shared/search-params';
 import { useNav } from './nav';
 
@@ -36,7 +36,7 @@ export function SearchBox({ query }: { query: URLSearchParams }) {
 
   return (
     <form className="search" action={path} method="get" role="search" onSubmit={(event) => event.preventDefault()}>
-      <SearchIcon />
+      <SearchIcon className="size-4.5" />
       <input
         type="search"
         name="q"

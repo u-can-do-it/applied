@@ -10,6 +10,7 @@ import {
   type SubmitEvent,
   type Ref,
 } from 'react';
+import { PaperclipIcon } from 'lucide-react';
 import { message } from '@/lib/shared/errors';
 import { fail, type Result } from '@/lib/shared/result';
 import { deleteProfileAction, saveProfileAction, selectProfileAction } from './actions';
@@ -126,7 +127,15 @@ export function ProfileDialog({
           <span>CV or notes (optional) – PDF / TXT / MD, up to 5 MB. Used for the % fit.</span>
           {profile?.fileName && !picked && (
             <p className="file-row">
-              {removeFile ? <s>📎 {profile.fileName}</s> : <>📎 {profile.fileName}</>}
+              {removeFile ? (
+                <s>
+                  <PaperclipIcon /> {profile.fileName}
+                </s>
+              ) : (
+                <>
+                  <PaperclipIcon /> {profile.fileName}
+                </>
+              )}
               <button type="button" className="link" onClick={() => setRemoveFile(!removeFile)}>
                 {removeFile ? 'will be removed · undo' : 'remove'}
               </button>

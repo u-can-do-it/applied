@@ -6,7 +6,7 @@ The app scrapes the boards itself and sends new offers to Telegram. Changing it,
 
 ```
 Supabase Cron ─as in Settings→ /api/cron/scrape (Vercel) ─→ scrapers → filters → Supabase (offers)
-"↻ Scrape now" ─→ /api/scrape ────────────────────────────┘                    └→ Telegram (new jobs)
+"Scrape now" ─→ /api/scrape ──────────────────────────────┘                    └→ Telegram (new jobs)
 Telegram /mute /send /status ─→ /api/telegram
 ```
 
@@ -26,7 +26,7 @@ Telegram /mute /send /status ─→ /api/telegram
 
 All of it is set up in **Settings**:
 
-- **Scraping:** ⏸ Pause / ▶ Resume at the top (paused, nothing runs on its own; "Scrape now" still does), every
+- **Scraping:** Pause / Resume at the top (paused, nothing runs on its own; "Scrape now" still does), every
   5–120 min, between which hours. The last runs with what they found, and the errors per board.
 - **Time zone** (under the hours): the app's, for those hours and every day and time it shows (lists, date filters,
   "applied on", Telegram). By default _this browser's_: it follows the browser you open the app in (the cron and
@@ -64,7 +64,7 @@ only saves, so a new or changed scraper doesn't flood Telegram.
 2. Vercel → Settings → Environment Variables: `TELEGRAM_BOT_TOKEN` (@BotFather → /mybots → API Token) and
    `TELEGRAM_CHAT_ID` (write to the bot, then copy `message.chat.id` from `api.telegram.org/bot<token>/getUpdates`; a
    group's starts with `-`). Redeploy.
-3. Open Settings → **↻ Scrape now** at the top. Check that every board shows ✓ (sites can block Vercel's servers;
+3. Open Settings → **Scrape now** at the top. Check that every board shows a check mark (sites can block Vercel's servers;
    the error says so).
 4. Settings → **Connect Supabase Cron**: Supabase calls `/api/cron/scrape` on the schedule from Settings (the
    interval, only within the hours, none while paused; in UTC, an hour wider where clocks change) and the app checks
@@ -133,8 +133,8 @@ How the **AI filter** tab works:
 - **Ad text:** before judging, each offer's full ad is fetched once and cached. Sources: schema.org JobPosting on
   JustJoin, Eldorado, Bulldog and Solid.jobs, NoFluff's public API, and Built In's ad body.
   If an ad can't be read, the offer is judged on its title, and the tooltip says so.
-- **What you see per offer:** match yes/no, a 0–100 % skills fit and a ✓/✗ checklist of key requirements in the
-  ⓘ tooltip. "show N rejected" lists what didn't match.
+- **What you see per offer:** match yes/no, a 0–100 % skills fit and a met/missing checklist of key requirements in
+  the (i) tooltip. "show N rejected" lists what didn't match.
 - **Background work:** runs execute in `after()` in slices of about 3 minutes under a lock (Vercel's 300 s limit).
   While a run is open, the page refreshes and starts the next slice, so a long run continues as long as the tab
   stays open.
@@ -151,13 +151,13 @@ How the **AI filter** tab works:
 - **Applied tab:** your applications, newest first, with search (title, company and your note). Click one for a
   window with the status, your note, the saved ad and its details, "Open original", "Fetch again" (if fetching
   failed) and "Unmark applied". The window opens at once with what the list has; only the ad text loads.
-- **Add application** (button next to the search): one you sent elsewhere. Paste the link and **✦ Fill in from the
+- **Add application** (button next to the search): one you sent elsewhere. Paste the link and **Fill in from the
   link** reads the page (JustJoin, NoFluff and LinkedIn through their APIs, any other page by its text) and the AI
   (`OPENAI_EXTRACT_MODEL` / `OPENAI_EXTRACT_EFFORT`, default the luna model at low effort) fills in title, company,
   salary, contract and location; everything stays editable, with the board, the day you applied and the status. A
   link the scrapers already have joins that offer (the lists show it as applied). With less than a full ad (80
   characters) and a link, the ad is fetched from the link after saving; what you typed stays if that fails.
-- **✎ Edit** in an application's window: the same form, filled in (title, company, link, board, the day you applied,
+- **Edit** in an application's window: the same form, filled in (title, company, link, board, the day you applied,
   salary, contract, location, ad text). "Fill in from the link" fills only the empty fields there. A link the
   scrapers have joins that offer, as when adding; a job that already has an application is refused. The status and
   the note are set in the window itself.
@@ -171,7 +171,7 @@ How the **AI filter** tab works:
     "we'll keep your CV"). An offer has its own: Received, Accepted, Rejected (an accepted offer isn't "in
     progress", one you turned down isn't a rejection).
   - Set both in the window; every change goes into the history with its date. A step clicked by mistake goes with
-    its × (shown on hover), together with every step after it; the status goes back to the step before. The first
+    its remove button (an X, shown on hover), together with every step after it; the status goes back to the step before. The first
     step, applying, stays.
   - No news for 30 days since the last change (or since applying): it becomes _Ghosted_ by itself, at the same
     stage (in progress, or passed and waiting for the next step; not a rejection, the talent pool or an offer).
@@ -281,7 +281,7 @@ The commands below use `SUPABASE_DB_URL` from `.env` (the **Session pooler** URI
    npm run db:verify -- --from-dump data/prod-public.sql
    ```
 
-4. **Quiet the app while it runs:** Settings → ⏸ Pause scraping, and don't start AI checks. The migration
+4. **Quiet the app while it runs:** Settings → Pause scraping, and don't start AI checks. The migration
    re-creates the `offers_unique` view and its functions, which takes locks those would wait on (or hold).
 5. **Vercel → Settings → Environment Variables:** add `SUPABASE_DB_URL` = the **Transaction pooler** URI
    (Supabase → Connect → Transaction pooler, port **6543**, with the database password). Don't deploy yet: this

@@ -1,6 +1,7 @@
 'use client';
 
 import { startTransition, useMemo, useOptimistic, useState, useSyncExternalStore, type SubmitEvent } from 'react';
+import { CircleSmallIcon, PauseIcon, PlayIcon, SparklesIcon } from 'lucide-react';
 import { Feedback, useAction } from '@/components/use-action';
 import { useZone } from '@/components/time-zone';
 import { deviceTimeZone, timeZones } from '@/lib/dates';
@@ -85,12 +86,17 @@ export function SchedulePanel({
         <p className="small">
           {paused ? (
             <>
-              <strong className="warn">⏸ Paused</strong>: nothing scrapes on its own; “↻ Scrape now” still works.
+              <strong className="warn">
+                <PauseIcon /> Paused
+              </strong>
+              : nothing scrapes on its own; “Scrape now” still works.
             </>
           ) : (
             <>
-              <strong className="ok-text">● Running</strong>: every{' '}
-              {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
+              <strong className="ok-text">
+                <CircleSmallIcon fill="currentColor" /> Running
+              </strong>
+              : every {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
               {settings.fromHour}:00–{settings.toHour}:00 ({zoneName(zone.tz)}).
             </>
           )}
@@ -107,12 +113,20 @@ export function SchedulePanel({
             );
           }}
         >
-          {paused ? '▶ Resume scraping' : '⏸ Pause scraping'}
+          {paused ? (
+            <>
+              <PlayIcon /> Resume scraping
+            </>
+          ) : (
+            <>
+              <PauseIcon /> Pause scraping
+            </>
+          )}
         </button>
         <Feedback state={pause.state} />
       </div>
       <form onSubmit={submit} className="form-line">
-        <label className="inline">
+        <label className="inline-field">
           every
           <select value={form.everyMinutes} onChange={(event) => edit({ everyMinutes: Number(event.target.value) })}>
             {INTERVALS.map((minutes) => (
@@ -122,7 +136,7 @@ export function SchedulePanel({
             ))}
           </select>
         </label>
-        <label className="inline">
+        <label className="inline-field">
           from
           <input
             className="hour"
@@ -151,7 +165,11 @@ export function SchedulePanel({
       <TimeZoneField value={settings.timeZone} />
 
       <h3>Last runs</h3>
-      {running && <p className="muted small">● A run is going right now.</p>}
+      {running && (
+        <p className="muted small">
+          <CircleSmallIcon fill="currentColor" /> A run is going right now.
+        </p>
+      )}
       {runs.length ? (
         <ol className="runs">
           {runs.map((run) => (
@@ -162,7 +180,12 @@ export function SchedulePanel({
                 <span>
                   {seconds(Date.parse(run.finishedAt) - Date.parse(run.startedAt))} · {run.found} on the pages ·{' '}
                   {run.kept} kept · <strong>{run.added} new</strong>
-                  {run.matched !== null && ` · ✦ ${run.matched} matched`}
+                  {run.matched !== null && (
+                    <>
+                      {' · '}
+                      <SparklesIcon /> {run.matched} matched
+                    </>
+                  )}
                   {run.notified ? ` · ${run.notified} sent` : ''}
                 </span>
               ) : (
@@ -177,7 +200,7 @@ export function SchedulePanel({
           ))}
         </ol>
       ) : (
-        <p className="muted small">No runs yet. Use “↻ Scrape now” at the top.</p>
+        <p className="muted small">No runs yet. Use “Scrape now” at the top.</p>
       )}
       {state.lastCallAt && (
         <p className="muted small">Last call from a scheduler: {zone.formatDateTime(state.lastCallAt)}</p>
@@ -200,7 +223,7 @@ function TimeZoneField({ value }: { value: string }) {
   const zones = useMemo(() => timeZones(), []);
   return (
     <div className="tz-row">
-      <label className="inline">
+      <label className="inline-field">
         Time zone
         <select
           value={shown}
@@ -264,7 +287,7 @@ function CronBox({
       <div className="cron-box">
         <p className="small">
           Supabase Cron isn’t enabled in the database{cron.error ? ` (${cron.error})` : ''}. Run{' '}
-          <code className="inline">npm run db:migrate</code> (it turns on pg_cron and pg_net), or enable Cron under
+          <code className="inline-code">npm run db:migrate</code> (it turns on pg_cron and pg_net), or enable Cron under
           Integrations in Supabase.
         </p>
       </div>
@@ -274,8 +297,11 @@ function CronBox({
     return (
       <div className="cron-box">
         <p className="small">
-          <span className="status-off">○ Not connected</span>: nothing scrapes on its own, only “↻ Scrape now”.
-          Connecting makes Supabase call the app {describeSchedule(settings)}; the app decides whether a run is due.
+          <span className="status-off">
+            <CircleSmallIcon /> Not connected
+          </span>
+          : nothing scrapes on its own, only “Scrape now”. Connecting makes Supabase call the app{' '}
+          {describeSchedule(settings)}; the app decides whether a run is due.
         </p>
         <div className="button-row">{connect('Connect Supabase Cron')}</div>
         <Feedback state={act.state} />
@@ -302,11 +328,17 @@ function CronBox({
     <div className="cron-box">
       <p className="small">
         {problem ? (
-          <span className="warn">● Connected, with a problem</span>
+          <span className="warn">
+            <CircleSmallIcon fill="currentColor" /> Connected, with a problem
+          </span>
         ) : paused ? (
-          <span className="status-off">● Connected, paused</span>
+          <span className="status-off">
+            <CircleSmallIcon fill="currentColor" /> Connected, paused
+          </span>
         ) : (
-          <span className="ok-text">● Connected</span>
+          <span className="ok-text">
+            <CircleSmallIcon fill="currentColor" /> Connected
+          </span>
         )}
         :{' '}
         {paused
@@ -315,8 +347,8 @@ function CronBox({
         {cron.lastAt && !cron.lastError && ` Last call ${formatTime(cron.lastAt)}: ${lastAnswer(cron)}.`}
       </p>
       <p className="muted small">
-        The job (UTC, so an hour wider where clocks change): <code className="inline">{cron.schedule}</code> →{' '}
-        <code className="inline">{cron.url}</code>
+        The job (UTC, so an hour wider where clocks change): <code className="inline-code">{cron.schedule}</code> →{' '}
+        <code className="inline-code">{cron.url}</code>
       </p>
       {problem && <p className="small warn">{problem}</p>}
       <div className="button-row">
@@ -379,8 +411,8 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
           <span>Keywords</span>
           <input {...text('keywords')} placeholder="React, Next.js" />
           <small>
-            Searched on every board (<code className="inline">{'{keyword}'}</code> in a scraper’s link) and, where a
-            scraper checks it, required in the offer’s title or skills. A keyword starts a word: “react” matches
+            Searched on every board (<code className="inline-code">{'{keyword}'}</code> in a scraper’s link) and, where
+            a scraper checks it, required in the offer’s title or skills. A keyword starts a word: “react” matches
             ReactJS, not Preact.
           </small>
         </label>

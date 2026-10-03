@@ -11,6 +11,15 @@ import {
   useTransition,
   type Ref,
 } from 'react';
+import {
+  CheckIcon,
+  ExternalLinkIcon,
+  FileTextIcon,
+  NotebookPenIcon,
+  PencilIcon,
+  SearchIcon,
+  XIcon,
+} from 'lucide-react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 import { formatDay } from '@/lib/dates';
 import {
@@ -38,7 +47,6 @@ import {
   setApplicationStatusAction,
   unapplyAction,
 } from './actions';
-import { SearchIcon } from '@/components/search-icon';
 import { TimeZone, useZone } from '@/components/time-zone';
 import { AddApplication, ApplicationForm } from './add-application';
 
@@ -55,7 +63,7 @@ const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whol
 
 const CONTENT: Record<Application['contentStatus'], string> = {
   pending: 'saving the ad…',
-  ok: '📄 ad saved',
+  ok: 'ad saved',
   empty: 'no ad text',
   failed: 'couldn’t fetch the ad',
 };
@@ -151,7 +159,7 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
 
       <div className="applied-tools">
         <div className="search">
-          <SearchIcon />
+          <SearchIcon className="size-4.5" />
           <input
             type="search"
             value={search}
@@ -170,7 +178,7 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
             {' · '}
             {filter.label}{' '}
             <button type="button" className="link" onClick={() => setFilter(null)} aria-label="Clear the filter">
-              ✕
+              <XIcon />
             </button>
           </>
         )}
@@ -187,12 +195,18 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
                   {app.company && <span>{app.company}</span>}
                   {facts(app.details) && <span>{facts(app.details)}</span>}
                 </span>
-                {app.note?.trim() && <span className="note-line">📝 {app.note.trim().split('\n')[0]}</span>}
+                {app.note?.trim() && (
+                  <span className="note-line">
+                    <NotebookPenIcon /> {app.note.trim().split('\n')[0]}
+                  </span>
+                )}
               </span>
               <span className="side">
                 <StatusChip stage={app.stage} outcome={app.outcome} />
                 <span className="src">{labels[app.src] ?? app.src}</span>
-                <span className={`status status-${app.contentStatus}`}>{CONTENT[app.contentStatus]}</span>
+                <span className={`status status-${app.contentStatus}`}>
+                  {app.contentStatus === 'ok' && <FileTextIcon />} {CONTENT[app.contentStatus]}
+                </span>
               </span>
             </button>
           </li>
@@ -385,7 +399,7 @@ function AppliedStats({
 // ---- one application: status, timeline, note, saved ad ---------------------------------
 // Opens with what the list already has (title, status, details, note) and keeps one height:
 // only the ad text loads, into its own box, and everything between the title and the buttons
-// scrolls inside the window. "✎ Edit" shows the "Add application" form in its place.
+// scrolls inside the window. "Edit" shows the "Add application" form in its place.
 
 type Shown = Application & { content?: string | null }; // no content yet = still loading
 
@@ -570,6 +584,7 @@ function AdModal({
                   // a new stage starts "in progress"; clicking the current one keeps its outcome
                   onClick={() => setStatus(stage.id, stage.id === app.stage ? app.outcome : 'pending')}
                 >
+                  {been.has(stage.id) && <CheckIcon className="step-check" role="img" aria-label="reached" />}
                   {stage.short}
                 </button>
               ))}
@@ -589,7 +604,7 @@ function AdModal({
               ))}
             </div>
             {app.history.length > 0 && (
-              // newest first; × takes a step away with the ones after it (above it here), not the first one: applying
+              // newest first; the X takes a step away with the ones after it (above it here), not the first one: applying
               <ol className="timeline" aria-label="History">
                 {app.history
                   .map((step, i) => ({ step, i }))
@@ -617,7 +632,7 @@ function AdModal({
                             disabled={busy}
                             onClick={() => removeStep(i)}
                           >
-                            ×
+                            <XIcon />
                           </button>
                         )}
                       </li>
@@ -717,7 +732,7 @@ function AdModal({
               title={waiting ? 'Once the ad text is in' : undefined}
               onClick={() => setEditing(true)}
             >
-              ✎ Edit
+              <PencilIcon /> Edit
             </button>
             {!waiting && !hasText && (
               <button
@@ -738,7 +753,7 @@ function AdModal({
             )}
             {app.url && (
               <a className="button-link" href={app.url} target="_blank" rel="noopener noreferrer">
-                Open original ↗
+                Open original <ExternalLinkIcon />
               </a>
             )}
             <button type="button" onClick={close}>
@@ -793,7 +808,7 @@ const NOTE_STATUS: Record<NoteStatus, string> = {
   idle: '',
   typing: '…',
   saving: 'saving…',
-  saved: 'saved ✓',
+  saved: 'saved',
   error: 'not saved yet (kept in this browser, tries again on the next change)',
 };
 
@@ -931,6 +946,12 @@ function NoteEditor({
             <span className={`note-status${status === 'error' || theirs ? ' warn' : ''}`} aria-live="polite">
               {' · '}
               {shownStatus}
+              {!theirs && status === 'saved' && (
+                <>
+                  {' '}
+                  <CheckIcon />
+                </>
+              )}
             </span>
           )}
         </span>

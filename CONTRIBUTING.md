@@ -15,20 +15,29 @@ database code or the migrations; it needs Docker).
   tab, applying, the add/edit form), `scraping` (Settings: schedule, filters, scrapers, Supabase Cron, the
   "Scrape now" button), `telegram` (its Settings panel), `login`, and `shell` (the header, tabs, auto-refresh,
   telling the server the browser's time zone). A feature imports another's module by its `@/features/…` path.
-- **`components/`: pieces more than one feature uses** (`DateInput`, `SearchIcon`, `TimeZone` / `useZone`,
-  `useAction` + `Feedback`). They import nothing from `features/`.
+- **`components/`: pieces more than one feature uses** (`DateInput`, `TimeZone` / `useZone`, `useAction` +
+  `Feedback`). They import nothing from `features/`. **`components/ui/`** holds the shadcn/ui components,
+  added with `npx shadcn@latest add <name>` (`components.json` says where things go) and then the repo's own
+  code: edit them like any other file.
 - **`server/`: the request's gate.** The login cookie (`auth.ts`), `requireLogin()` (`session.ts`) and the
   action wrapper (`action.ts`).
 - **`lib/`: what the app knows, without the UI.** Boards, listings and the scrape pipeline, ads, AI, the
   database (`lib/db/`: schema and one repo per table), dates, Telegram. Server-only modules start with
   `import 'server-only'`.
 - **`lib/shared/`: what client components may import, guaranteed** (errors, `Result`, formatting, URL filters,
-  the Zod schemas the actions check their input with). Nothing in it reads the database or a secret. Other
+  the Zod schemas the actions check their input with, `cn()` for class names). Nothing in it reads the database or a secret. Other
   `lib/` modules without `import 'server-only'` (e.g. `lib/dates.ts`, `lib/stages.ts`) may be imported by client
   components too; check that line first.
 - **Imports:** `app/`, `features/`, `components/` and `server/` use `@/…`, except between files of the same
   folder (`./…`). `lib/` uses relative paths within itself (`../db/…`), and `.ts` in them where a script runs
   the module in plain Node. Client components start with `'use client'`.
+- **Styling:** Tailwind v4 and shadcn/ui. The colours are tokens in `app/globals.css` (shadcn's names:
+  `background`, `foreground`, `card`, `primary`, `muted`, `destructive`, `border`, `ring`…, plus the app's own
+  `brand`, `success`, `warning`, `pool`), one light set and one dark set that follows the system: use
+  `bg-card`, `text-muted-foreground`, `text-destructive` and the like, never a colour of its own and never a
+  `dark:` colour. New UI is utility classes; the older screens still use the global rules in that file's
+  `components` layer, which go as each screen moves over. Icons are `lucide-react` (`<CheckIcon />`): an icon
+  is hidden from screen readers unless you give it an `aria-label`, and an icon-only button needs one.
 
 ## Naming
 

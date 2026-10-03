@@ -1,6 +1,7 @@
 'use client';
 
 import { startTransition, useEffect, useEffectEvent, useOptimistic, useRef, useState, useTransition } from 'react';
+import { CheckIcon, ExternalLinkIcon, TriangleAlertIcon, XIcon } from 'lucide-react';
 import { Feedback, useAction } from '@/components/use-action';
 import { useZone } from '@/components/time-zone';
 import { byId } from '@/lib/boards';
@@ -205,17 +206,22 @@ function ScraperStatus({ scraper }: { scraper: Scraper }) {
     return (
       <p className="small">
         <span className="warn">
-          ✗ {when} · {scraper.lastError}
+          <XIcon role="img" aria-label="Failed" /> {when} · {scraper.lastError}
         </span>
       </p>
     );
   }
   return (
     <p className="small">
-      <span className="ok-text">✓</span> {when} · {scraper.lastFound} on the page · {scraper.lastKept} kept ·{' '}
-      {scraper.lastNew} new
+      <CheckIcon className="ok-text" role="img" aria-label="OK" /> {when} · {scraper.lastFound} on the page ·{' '}
+      {scraper.lastKept} kept · {scraper.lastNew} new
       {scraper.lastMs !== null && <span className="muted"> · {seconds(scraper.lastMs, 1)}</span>}
-      {scraper.lastError && <span className="warn"> · ⚠ {scraper.lastError}</span>}
+      {scraper.lastError && (
+        <span className="warn">
+          {' · '}
+          <TriangleAlertIcon /> {scraper.lastError}
+        </span>
+      )}
       {scraper.mark === null && <span className="muted"> · next run only saves</span>}
     </p>
   );
@@ -373,11 +379,12 @@ function ScraperEditor({
               spellCheck={false}
             />
             <small>
-              <code className="inline">{'{keyword}'}</code> and <code className="inline">{'{keyword_slug}'}</code>{' '}
-              become each keyword from Filters ({keywords.join(', ') || 'none set'}): one search per keyword.
+              <code className="inline-code">{'{keyword}'}</code> and{' '}
+              <code className="inline-code">{'{keyword_slug}'}</code> become each keyword from Filters (
+              {keywords.join(', ') || 'none set'}): one search per keyword.
               {!usesKeyword && ' Without them the link is fetched as it is.'}{' '}
-              <code className="inline">{'{start}'}</code> (0, 10, 20…) or <code className="inline">{'{page}'}</code> (1,
-              2, 3…) fetch several pages.
+              <code className="inline-code">{'{start}'}</code> (0, 10, 20…) or{' '}
+              <code className="inline-code">{'{page}'}</code> (1, 2, 3…) fetch several pages.
             </small>
           </label>
           {paged && (
@@ -552,7 +559,12 @@ function TestView({ test }: { test: Result<TestResult> }) {
   return (
     <section className="test-view" aria-label="Test result" aria-live="polite">
       <p>
-        {result.ok ? <span className="ok-text">✓</span> : <span className="warn">✗</span>} {result.found} on the page
+        {result.ok ? (
+          <CheckIcon className="ok-text" role="img" aria-label="OK" />
+        ) : (
+          <XIcon className="warn" role="img" aria-label="Failed" />
+        )}{' '}
+        {result.found} on the page
         {result.pages.length > 1 ? 's' : ''} → <strong>{result.kept} kept</strong>, {result.fresh} of them not saved yet
         · {seconds(result.ms, 1)}
         {skipped.length > 0 && <span className="muted"> · skipped: {skipped.join(', ')}</span>}
@@ -566,7 +578,7 @@ function TestView({ test }: { test: Result<TestResult> }) {
                 .join(', ') || 'page'}
               : {page.ok ? `${page.total} → ${page.kept}` : <span className="warn">{page.error}</span>}{' '}
               <a href={page.url} target="_blank" rel="noopener noreferrer">
-                open ↗
+                open <ExternalLinkIcon />
               </a>
             </li>
           ))}

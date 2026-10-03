@@ -1,11 +1,12 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { CheckIcon, InfoIcon, XIcon } from 'lucide-react';
 
 type Check = { item: string; met: boolean };
 
 /**
- * "82% ⓘ" with the requirement checklist on hover / focus / tap. The tip opens below the
+ * "82%" and an info icon, with the requirement checklist on hover / focus / tap. The tip opens below the
  * badge, or above it when there isn't room below (the last offers on the screen).
  */
 export function FitScore({
@@ -48,9 +49,7 @@ export function FitScore({
       onFocus={place}
     >
       {score}%
-      <span className="fit-info" aria-hidden="true">
-        ⓘ
-      </span>
+      <InfoIcon className="fit-info" />
       <span ref={tip} className="fit-tip" role="tooltip" id={tipId}>
         <strong>
           {score}% fit{checks.length > 0 && ` · ${met}/${checks.length} requirements met`}
@@ -60,7 +59,7 @@ export function FitScore({
           <span className="fit-checks">
             {checks.map((check, i) => (
               <span key={i} className={check.met ? 'met' : 'miss'}>
-                <span aria-hidden="true">{check.met ? '✓' : '✗'}</span> {check.item}
+                {check.met ? <CheckIcon /> : <XIcon />} {check.item}
                 <span className="sr-only">{check.met ? ' (you have it)' : ' (missing)'}</span>
               </span>
             ))}

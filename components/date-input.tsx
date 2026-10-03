@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { CalendarIcon } from 'lucide-react';
 import { formatDay, parseDay } from '@/lib/dates';
 
 // A native <input type="date"> shows the browser's own format (mm/dd/yyyy in an English
 // browser) and a page can't change that. So the visible field is text in dd.mm.rrrr, typed
-// with the dots filled in automatically; the 📅 button opens the browser's calendar through a
+// with the dots filled in automatically; the calendar button opens the browser's calendar through a
 // hidden date input. The URL keeps ISO dates (2026-10-02).
 const mask = (text: string) => {
   const digits = text.replace(/\D/g, '').slice(0, 8);
@@ -77,7 +78,7 @@ export function DateInput({
             }
           }}
         >
-          📅
+          <CalendarIcon />
         </button>
         <input
           ref={picker}

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
+import { CheckIcon, ChevronDownIcon, SparklesIcon } from 'lucide-react';
 import { startRunAction } from './actions';
 import { ProfileDialog, type ProfileOption } from './profile-dialog';
 
@@ -75,7 +76,7 @@ export function AiControls({
     <div className="ai-bar">
       <div className="ai-row">
         <button type="button" className="ai-button" onClick={() => dialog.current?.open()}>
-          ✦ {active ? active.name : 'Profile'} <span aria-hidden="true">▾</span>
+          <SparklesIcon /> {active ? active.name : 'Profile'} <ChevronDownIcon />
         </button>
 
         {usable && (
@@ -86,7 +87,13 @@ export function AiControls({
             aria-busy={running || starting || undefined}
             onClick={() => runFor({ days: '1' })}
           >
-            {todayNew === 0 ? '✓ Today checked' : `Check today · ${todayNew} new`}
+            {todayNew === 0 ? (
+              <>
+                <CheckIcon /> Today checked
+              </>
+            ) : (
+              `Check today · ${todayNew} new`
+            )}
           </button>
         )}
 
@@ -101,7 +108,13 @@ export function AiControls({
             }
             title="Uses the dates picked in the filter below"
           >
-            {range.newCount === 0 ? `✓ ${range.label} checked` : `Check ${range.label} · ${range.newCount} new`}
+            {range.newCount === 0 ? (
+              <>
+                <CheckIcon /> {range.label} checked
+              </>
+            ) : (
+              `Check ${range.label} · ${range.newCount} new`
+            )}
           </button>
         )}
       </div>

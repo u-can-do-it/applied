@@ -1,8 +1,8 @@
 'use client';
 
 import { use } from 'react';
+import { CalendarIcon, SearchIcon, XIcon } from 'lucide-react';
 import { DateInput } from '@/components/date-input';
-import { SearchIcon } from '@/components/search-icon';
 import { validDay } from '@/lib/dates';
 import type { BoardOption } from '@/lib/listings/board-filter';
 import { DAY_PRESETS, withParams } from '@/lib/shared/search-params';
@@ -73,7 +73,7 @@ function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
             href={withParams(query, { from: null, to: null }, path)}
             aria-label="Clear date range"
           >
-            ×
+            <XIcon />
           </NavLink>
         )}
       </div>
@@ -98,7 +98,7 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
   return (
     <>
       <div className="search" aria-hidden="true">
-        <SearchIcon />
+        <SearchIcon className="size-4.5" />
         <input disabled placeholder="Search title or company…" />
       </div>
       <nav className="chips" aria-hidden="true">
@@ -123,7 +123,7 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
               <span className="date-box">
                 <input type="text" disabled placeholder="dd.mm.rrrr" />
                 <span className="cal" aria-hidden="true">
-                  📅
+                  <CalendarIcon />
                 </span>
               </span>
             </label>
