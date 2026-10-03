@@ -157,24 +157,6 @@ export type ScraperConfig = {
   fields?: Partial<Record<FieldId, string>>;
 };
 
-export type Scraper = {
-  id: string;
-  position: number;
-  name: string;
-  src: string;
-  kind: KindId;
-  enabled: boolean;
-  config: ScraperConfig;
-  mark: number | null;
-  last_run_at: string | null;
-  last_status: 'ok' | 'error' | null;
-  last_found: number | null;
-  last_kept: number | null;
-  last_new: number | null;
-  last_error: string | null;
-  last_ms: number | null;
-};
-
 export type ScrapeSettings = {
   /** scheduled runs (the endpoint skips while off); "Scrape now" works either way */
   enabled: boolean;

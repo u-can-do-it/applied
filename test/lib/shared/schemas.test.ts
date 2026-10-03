@@ -5,6 +5,7 @@ import { PROFILE_FILE_MAX, profileSchema, startRunSchema } from '@/lib/shared/sc
 import {
   addApplicationSchema,
   removeStepSchema,
+  setNoteSchema,
   setStatusSchema,
   updateApplicationSchema,
   type ApplicationInput,
@@ -264,5 +265,23 @@ describe('scraperSchema', () => {
   it('reads JSON from the body unless told otherwise', () => {
     const json = { ...scraper, kind: 'json' as const, config: { ...scraper.config, from: 'nonsense' as 'body' } };
     expect(scraperSchema.parse(json).scraper.config.from).toBe('body');
+  });
+});
+
+describe('setNoteSchema', () => {
+  const note = (seenAt: unknown) => setNoteSchema.safeParse({ key: 'acme|dev', note: 'hi', seenAt }).success;
+
+  it('takes the note_updated_at the database gives (microseconds, +00:00), or null for a note never written', () => {
+    expect(note('2026-10-03T12:34:56.123456+00:00')).toBe(true);
+    expect(note('2026-10-03T12:34:56+02:00')).toBe(true);
+    expect(note('2026-10-03T12:34:56.123Z')).toBe(true);
+    expect(note(null)).toBe(true);
+  });
+
+  it('refuses anything else', () => {
+    expect(note('yesterday')).toBe(false);
+    expect(note('2026-10-03 12:34:56+00')).toBe(false);
+    expect(note(undefined)).toBe(false);
+    expect(note(1)).toBe(false);
   });
 });

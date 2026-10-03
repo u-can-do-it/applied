@@ -1,37 +1,19 @@
 import 'server-only';
-import { rest, restUrl } from './supabase';
+import * as profilesRepo from './db/repos/ai-profiles';
+import * as verdictsRepo from './db/repos/ai-verdicts';
 
-export type Profile = {
-  id: string;
-  name: string;
-  prompt: string;
-  file_name: string | null;
-  version: number;
-  last_used_at: string;
-  updated_at: string;
-};
-export type ProfileWithFile = Profile & { file_text: string | null };
+// AI profiles and the rule that versions them: a verdict belongs to the version it was made with.
 
-const COLS = 'id,name,prompt,file_name,version,last_used_at,updated_at';
+export type { Profile, ProfileWithFile } from './db/repos/ai-profiles';
 
 /** Most recently used first: the first one is the active profile. */
-export async function listProfiles(): Promise<Profile[]> {
-  const url = restUrl('ai_profiles');
-  url.searchParams.set('select', COLS);
-  url.searchParams.set('order', 'last_used_at.desc');
-  return (await rest(url)).json() as Promise<Profile[]>;
-}
+export const listProfiles = () => profilesRepo.list();
 
-export async function getProfile(id: string): Promise<ProfileWithFile | null> {
-  const url = restUrl('ai_profiles');
-  url.searchParams.set('select', `${COLS},file_text`);
-  url.searchParams.set('id', `eq.${id}`);
-  const rows = (await (await rest(url)).json()) as ProfileWithFile[];
-  return rows[0] ?? null;
-}
+export const getProfile = (id: string) => profilesRepo.get(id);
 
-export const isUsable = <P extends { prompt: string; file_name: string | null }>(p: P | null | undefined): p is P =>
-  Boolean(p && (p.prompt.trim() || p.file_name));
+export const isUsable = <P extends { prompt: string; fileName: string | null }>(
+  profile: P | null | undefined,
+): profile is P => Boolean(profile && (profile.prompt.trim() || profile.fileName));
 
 type FileChange = { name: string; text: string } | 'keep' | 'remove';
 
@@ -51,67 +33,40 @@ export async function saveProfile(input: {
 
   if (!input.id) {
     const file = typeof input.file === 'object' ? input.file : null;
-    const url = restUrl('ai_profiles');
-    const res = await rest(url, {
-      method: 'POST',
-      prefer: 'return=representation',
-      body: JSON.stringify({
-        name,
-        prompt: input.prompt,
-        file_name: file?.name ?? null,
-        file_text: file?.text ?? null,
-        last_used_at: now,
-      }),
-    });
-    return ((await res.json()) as Profile[])[0].id;
-  }
-
-  const current = await getProfile(input.id);
-  if (!current) throw new Error('That profile no longer exists.');
-  const file_name = input.file === 'keep' ? current.file_name : input.file === 'remove' ? null : input.file.name;
-  const file_text = input.file === 'keep' ? current.file_text : input.file === 'remove' ? null : input.file.text;
-  const changed = input.prompt !== current.prompt || file_text !== current.file_text;
-  const version = changed ? current.version + 1 : current.version;
-
-  const url = restUrl('ai_profiles');
-  url.searchParams.set('id', `eq.${input.id}`);
-  await rest(url, {
-    method: 'PATCH',
-    prefer: 'return=minimal',
-    body: JSON.stringify({
+    return profilesRepo.insert({
       name,
       prompt: input.prompt,
-      file_name,
-      file_text,
-      version,
-      updated_at: changed ? now : current.updated_at,
-      last_used_at: now,
-    }),
+      fileName: file?.name ?? null,
+      fileText: file?.text ?? null,
+      lastUsedAt: now,
+    });
+  }
+
+  const current = await profilesRepo.get(input.id);
+  if (!current) throw new Error('That profile no longer exists.');
+  const fileName = input.file === 'keep' ? current.fileName : input.file === 'remove' ? null : input.file.name;
+  const fileText = input.file === 'keep' ? current.fileText : input.file === 'remove' ? null : input.file.text;
+  const changed = input.prompt !== current.prompt || fileText !== current.fileText;
+  const version = changed ? current.version + 1 : current.version;
+
+  await profilesRepo.patch(input.id, {
+    name,
+    prompt: input.prompt,
+    fileName,
+    fileText,
+    version,
+    updatedAt: changed ? now : current.updatedAt,
+    lastUsedAt: now,
   });
 
   if (changed) {
     // verdicts of older versions are never shown again
-    const old = restUrl('ai_verdicts');
-    old.searchParams.set('profile_id', `eq.${input.id}`);
-    old.searchParams.set('version', `lt.${version}`);
-    await rest(old, { method: 'DELETE', prefer: 'return=minimal' }).catch(() => {});
+    await verdictsRepo.removeOlderThan({ id: input.id, version }).catch(() => {});
   }
   return input.id;
 }
 
-export async function activateProfile(id: string) {
-  const url = restUrl('ai_profiles');
-  url.searchParams.set('id', `eq.${id}`);
-  await rest(url, {
-    method: 'PATCH',
-    prefer: 'return=minimal',
-    body: JSON.stringify({ last_used_at: new Date().toISOString() }),
-  });
-}
+export const activateProfile = (id: string) => profilesRepo.patch(id, { lastUsedAt: new Date().toISOString() });
 
 /** Removes the profile with its runs and verdicts (cascade). */
-export async function deleteProfile(id: string) {
-  const url = restUrl('ai_profiles');
-  url.searchParams.set('id', `eq.${id}`);
-  await rest(url, { method: 'DELETE', prefer: 'return=minimal' });
-}
+export const deleteProfile = (id: string) => profilesRepo.remove(id);

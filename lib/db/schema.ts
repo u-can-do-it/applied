@@ -7,7 +7,8 @@
 // offers_unique view's definition, grants and the pg_cron setup. They live in custom migrations
 // (drizzle/0000_extensions.sql, drizzle/0002_functions.sql).
 //
-// No `server-only` here: drizzle-kit loads this file in plain Node.
+// No `server-only` here: drizzle-kit loads this file in plain Node. The `import type`s below are only
+// for `.$type<…>()` (what a jsonb or a constrained text column holds); they leave nothing at runtime.
 
 import { sql } from 'drizzle-orm';
 import {
@@ -26,8 +27,17 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import type { SavedDetails } from '../applications';
+import type { Copy } from '../offers';
+import type { Check } from '../openai';
+import type { KindId, ScraperConfig } from '../scraping/kinds';
+import type { HistoryEntry, StageId, StateId } from '../stages';
 
-const timestamptz = (name: string) => timestamp(name, { withTimezone: true });
+// Timestamps are strings, as they were from PostgREST: ISO 8601 with the microseconds, e.g.
+// "2026-10-03T12:34:56.123456+00:00" (lib/db/client.ts turns Postgres' text into that). They cross
+// into client components as they are, lib/dates.ts parses them, and one read back in a `where`
+// (a note's note_updated_at) matches to the microsecond. The mode changes no DDL.
+const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: 'string' });
 const createdAt = () => timestamptz('created_at').notNull().defaultNow();
 // Descending indexes below say `.nullsFirst()`: that's what Postgres' plain `desc` means, and what
 // the database has. drizzle-kit would otherwise write `desc nulls last`, a different index.
@@ -96,14 +106,15 @@ export const applications = pgTable(
     url: text('url').notNull(),
     appliedAt: timestamptz('applied_at').notNull().defaultNow(),
     content: text('content'),
-    details: jsonb('details'),
-    contentStatus: text('content_status').notNull().default('pending'),
+    details: jsonb('details').$type<SavedDetails>(),
+    contentStatus: text('content_status').$type<'pending' | 'ok' | 'empty' | 'failed'>().notNull().default('pending'),
     contentError: text('content_error'),
     scrapedAt: timestamptz('scraped_at'),
-    stage: text('stage').notNull().default('submitted'),
-    stageState: text('stage_state').notNull().default('pending'),
+    stage: text('stage').$type<StageId>().notNull().default('submitted'),
+    stageState: text('stage_state').$type<StateId>().notNull().default('pending'),
     stageUpdatedAt: timestamptz('stage_updated_at'),
     history: jsonb('history')
+      .$type<HistoryEntry[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
     note: text('note'),
@@ -143,6 +154,7 @@ export const aiVerdicts = pgTable(
     score: integer('score').notNull(), // skills fit, %
     summary: text('summary'),
     checks: jsonb('checks')
+      .$type<Check[]>()
       .notNull()
       .default(sql`'[]'::jsonb`), // [{ "item": "React 4+ yrs", "met": true }, ...]
     hadDescription: boolean('had_description').notNull().default(false), // false = judged on the title only
@@ -168,14 +180,14 @@ export const aiRuns = pgTable(
     label: text('label').notNull(),
     rangeGte: timestamptz('range_gte'),
     rangeLt: timestamptz('range_lt'),
-    status: text('status').notNull().default('running'),
+    status: text('status').$type<'running' | 'done' | 'failed' | 'cancelled'>().notNull().default('running'),
     total: integer('total').notNull().default(0),
     done: integer('done').notNull().default(0),
     error: text('error'),
     lockUntil: timestamptz('lock_until'), // one worker at a time
     createdAt: createdAt(),
     finishedAt: timestamptz('finished_at'),
-    phase: text('phase').notNull().default('dedup'),
+    phase: text('phase').$type<'dedup' | 'assess'>().notNull().default('dedup'),
     pairsChecked: integer('pairs_checked').notNull().default(0),
     merged: integer('merged').notNull().default(0),
   },
@@ -197,7 +209,7 @@ export const offerDetails = pgTable(
     src: text('src').notNull(),
     id: text('id').notNull(),
     description: text('description'),
-    status: text('status').notNull(),
+    status: text('status').$type<'ok' | 'empty'>().notNull(),
     fetchedAt: timestamptz('fetched_at').notNull().defaultNow(),
   },
   (table) => [
@@ -221,16 +233,17 @@ export const scrapers = pgTable(
     position: integer('position').notNull().default(0),
     name: text('name').notNull(),
     src: text('src').notNull(),
-    kind: text('kind').notNull(),
+    kind: text('kind').$type<KindId>().notNull(),
     enabled: boolean('enabled').notNull().default(true),
     config: jsonb('config')
+      .$type<ScraperConfig>()
       .notNull()
       .default(sql`'{}'::jsonb`), // url, headers, filters, field paths…
     // newest "sort value" seen; older offers that show up later are saved but not announced.
     // null = never ran: the first run only saves, so a new scraper doesn't flood Telegram.
     mark: doublePrecision('mark'),
     lastRunAt: timestamptz('last_run_at'),
-    lastStatus: text('last_status'),
+    lastStatus: text('last_status').$type<'ok' | 'error'>(),
     lastFound: integer('last_found'),
     lastKept: integer('last_kept'),
     lastNew: integer('last_new'),
@@ -294,6 +307,7 @@ export const scrapeRuns = pgTable(
     fresh: integer('fresh').notNull().default(0), // new jobs worth a message (not a copy of a known one)
     notified: integer('notified').notNull().default(0), // sent to Telegram in this run
     errors: jsonb('errors')
+      .$type<{ scraper: string; error: string }[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
     matched: integer('matched'), // null = no AI filter
@@ -334,7 +348,7 @@ export const offersUnique = pgView('offers_unique', {
   firstSeen: timestamptz('first_seen').notNull(),
   dupKey: text('dup_key').notNull(), // the job's key: the offer's own, or its group's after an AI merge
   sources: text('sources').array().notNull(),
-  copies: jsonb('copies').$type<{ src: string; id: string; url: string }[]>().notNull(),
+  copies: jsonb('copies').$type<Copy[]>().notNull(),
   companyKey: text('company_key').notNull(),
   appliedAt: timestamptz('applied_at'),
 }).existing();

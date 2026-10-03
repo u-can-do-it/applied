@@ -1,7 +1,7 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
 import { LOCK_SECONDS, runAll } from '@/lib/scraping/run';
 import { checkDue, isCronRequest } from '@/lib/scraping/schedule';
-import { lock } from '@/lib/scraping/store';
+import { lock } from '@/lib/db/repos/scrape-state';
 
 // GET or POST /api/cron/scrape with "Authorization: Bearer <secret>" (see lib/scraping/schedule.ts).
 // Supabase Cron calls it on the schedule Settings makes (the interval within the hours; paused =

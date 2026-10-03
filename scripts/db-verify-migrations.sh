@@ -53,39 +53,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
-wait_for() {
-  # the image restarts Postgres once after its init scripts; wait until it answers twice in a row
-  local url=$1 ok=0
-  for _ in $(seq 1 90); do
-    if pg_tool psql "$url" -X -qtAc 'select 1' >/dev/null 2>&1; then
-      ((++ok >= 2)) && return 0
-    else
-      ok=0
-    fi
-    sleep 1
-  done
-  echo "Database at $url did not come up." >&2
-  exit 1
-}
-
-# prints the URL; runs in a subshell, so the caller records the name for cleanup
-start_container() {
-  docker run --rm -d --name "$1" -e POSTGRES_PASSWORD=verify -p 127.0.0.1::5432 "$IMAGE" >/dev/null
-  echo "postgresql://postgres:verify@localhost:$(docker port "$1" 5432/tcp | head -1 | sed 's/.*://')/postgres"
-}
-
 if (($# == 2)); then
   url_a=$1 url_b=$2
 else
   echo "== starting two $IMAGE containers"
   containers=("jw-verify-a-$$" "jw-verify-b-$$")
-  url_a=$(start_container "${containers[0]}")
-  url_b=$(start_container "${containers[1]}")
+  url_a=$(start_local_db "${containers[0]}" "$IMAGE")
+  url_b=$(start_local_db "${containers[1]}" "$IMAGE")
 fi
 require_local_db "$url_a"
 require_local_db "$url_b"
-wait_for "$url_a"
-wait_for "$url_b"
+wait_for_db "$url_a"
+wait_for_db "$url_b"
 
 # what npm run db:migrate runs, without its .env (which may hold the production URL)
 migrate() { SUPABASE_DB_URL=$1 node scripts/db-migrate.ts >"$work/migrate.log" 2>&1; }

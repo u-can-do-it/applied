@@ -29,6 +29,7 @@ import {
   type StateId,
 } from '@/lib/stages';
 import { message } from '@/lib/shared/errors';
+import { NOTE_CONFLICT } from '@/lib/shared/schemas/applications';
 import { unwrap } from '@/lib/shared/result';
 import {
   refetchContentAction,
@@ -50,7 +51,7 @@ const facts = (d: Application['details']) =>
   [d?.salary?.split('; ')[0], d?.contract, d?.remote ? 'Remote' : null, d?.location].filter(Boolean).join(' · ');
 const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : '–');
 
-const CONTENT: Record<Application['content_status'], string> = {
+const CONTENT: Record<Application['contentStatus'], string> = {
   pending: 'saving the ad…',
   ok: '📄 ad saved',
   empty: 'no ad text',
@@ -58,6 +59,11 @@ const CONTENT: Record<Application['content_status'], string> = {
 };
 
 type Filter = { label: string; test: (a: Application) => boolean } | null;
+/** a note saved in the window, and its note_updated_at once the database answered */
+type NoteOverlay = { note: string | null; at?: string | null };
+/** the database's note is newer than the one saved here (changed elsewhere since): the list shows that one */
+const newer = (database: string | null, saved: string | null | undefined) =>
+  Boolean(database && saved && Date.parse(database) > Date.parse(saved));
 
 /** tz: the app's time zone, for every day shown here and in the windows */
 export function AppliedList({ tz, ...props }: { apps: Application[]; labels: Record<string, string>; tz: string }) {
@@ -74,12 +80,17 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>(null);
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
-  const pending = fromServer.some((a) => a.content_status === 'pending');
+  const pending = fromServer.some((a) => a.contentStatus === 'pending');
 
-  // notes written in the window show in the list at once; the next refresh brings them from the database
-  const [notes, setNotes] = useState<Record<string, string | null>>({});
+  // notes written in the window show in the list at once, with when the database took them (the
+  // window sends that back with the next save); the next refresh brings them from the database
+  const [notes, setNotes] = useState<Partial<Record<string, NoteOverlay>>>({});
   const apps = useMemo(
-    () => fromServer.map((a) => (a.dup_key in notes ? { ...a, note: notes[a.dup_key] } : a)),
+    () =>
+      fromServer.map((a) => {
+        const mine = notes[a.dupKey];
+        return mine ? { ...a, note: mine.note, noteUpdatedAt: mine.at === undefined ? a.noteUpdatedAt : mine.at } : a;
+      }),
     [fromServer, notes],
   );
   // a new list from the server: keep only what the database doesn't have yet (and nothing for offers
@@ -89,7 +100,9 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
     setNotesOf(fromServer);
     setNotes((cur) => {
       const left = Object.fromEntries(
-        Object.entries(cur).filter(([k, v]) => fromServer.some((a) => a.dup_key === k && a.note !== v)),
+        Object.entries(cur).filter(
+          ([k, v]) => v && fromServer.some((a) => a.dupKey === k && a.note !== v.note && !newer(a.noteUpdatedAt, v.at)),
+        ),
       );
       return Object.keys(left).length === Object.keys(cur).length ? cur : left;
     });
@@ -156,9 +169,9 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
 
       <ol className="applied-list">
         {shown.map((a) => (
-          <li key={a.dup_key}>
+          <li key={a.dupKey}>
             <button type="button" className="applied-row" onClick={() => setOpen(a)}>
-              <time dateTime={a.applied_at}>{day(a.applied_at)}</time>
+              <time dateTime={a.appliedAt}>{day(a.appliedAt)}</time>
               <span className="body">
                 <span className="title">{a.title}</span>
                 <span className="meta">
@@ -168,9 +181,9 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
                 {a.note?.trim() && <span className="note-line">📝 {a.note.trim().split('\n')[0]}</span>}
               </span>
               <span className="side">
-                <StatusChip stage={a.stage} state={a.stage_state} />
+                <StatusChip stage={a.stage} state={a.stageState} />
                 <span className="src">{labels[a.src] ?? a.src}</span>
-                <span className={`status status-${a.content_status}`}>{CONTENT[a.content_status]}</span>
+                <span className={`status status-${a.contentStatus}`}>{CONTENT[a.contentStatus]}</span>
               </span>
             </button>
           </li>
@@ -179,13 +192,17 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
 
       {open && (
         <AdModal
-          key={open.dup_key}
+          key={open.dupKey}
           initial={open}
           labels={labels}
           onClose={(note, key) => {
             setOpen(null);
-            if (note !== undefined && note !== open.note) setNotes((cur) => ({ ...cur, [key]: note }));
+            if (note !== undefined && note !== open.note)
+              setNotes((cur) => ({ ...cur, [key]: { note, at: cur[key]?.at } }));
           }}
+          onNoteSaved={(key, note, at) => setNotes((cur) => ({ ...cur, [key]: { note, at } }))}
+          // changed elsewhere: what the window saved before is outdated, the list shows the database's
+          onNoteStale={(key) => setNotes((cur) => ({ ...cur, [key]: undefined }))}
         />
       )}
     </>
@@ -244,14 +261,14 @@ function AppliedStats({
       label: 'Ghosted',
       value: s.ghosted,
       sub: pct(s.ghosted, s.sent),
-      test: (a: Application) => a.stage_state === 'ghosted',
+      test: (a: Application) => a.stageState === 'ghosted',
       cls: 'bad',
     },
     {
       label: stateHeading('pool'),
       value: s.pool,
       sub: pct(s.pool, s.sent),
-      test: (a: Application) => a.stage_state === 'pool',
+      test: (a: Application) => a.stageState === 'pool',
       cls: 'bad',
     },
   ];
@@ -330,7 +347,7 @@ function AppliedStats({
                           type="button"
                           className="link"
                           aria-pressed={on(label)}
-                          onClick={pick(label, (a) => a.stage === st.id && a.stage_state === x.id)}
+                          onClick={pick(label, (a) => a.stage === st.id && a.stageState === x.id)}
                         >
                           {n}
                         </button>
@@ -372,12 +389,16 @@ function AdModal({
   initial,
   labels,
   onClose,
+  onNoteSaved,
+  onNoteStale,
 }: {
   initial: Application;
   labels: Record<string, string>;
   onClose: (note: string | null | undefined, key: string) => void;
+  onNoteSaved: (key: string, note: string | null, at: string) => void;
+  onNoteStale: (key: string) => void;
 }) {
-  const [key, setKey] = useState(initial.dup_key); // an edit can make it another job's (see updateApplication)
+  const [key, setKey] = useState(initial.dupKey); // an edit can make it another job's (see updateApplication)
   const day = useDay();
   const [editing, setEditing] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -398,7 +419,7 @@ function AdModal({
         if (me !== run.current) return;
         setApp(data);
         setLoadError(null);
-        if (data.content_status !== 'pending') return;
+        if (data.contentStatus !== 'pending') return;
         await new Promise((r) => setTimeout(r, 3000));
         if (me !== run.current) return;
       }
@@ -431,12 +452,12 @@ function AdModal({
     });
 
   const setStatus = (stage: StageId, state: StateId) => {
-    if (stage === app.stage && state === app.stage_state) return;
+    if (stage === app.stage && state === app.stageState) return;
     run.current++; // a load already on its way would bring the old status back
     setApp({
       ...app,
       stage,
-      stage_state: state,
+      stageState: state,
       history: [...app.history, { stage, state, at: new Date().toISOString() }],
     });
     act(async () => {
@@ -461,7 +482,7 @@ function AdModal({
     run.current++;
     const history = all.slice(0, i);
     const last = history.at(-1);
-    setApp({ ...app, history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending' }); // instant
+    setApp({ ...app, history, stage: last?.stage ?? 'submitted', stageState: last?.state ?? 'pending' }); // instant
     act(async () => {
       unwrap(await removeStatusStepAction({ key, step: h }));
       await follow();
@@ -470,14 +491,14 @@ function AdModal({
 
   // saved in the form: back to the window with it (under its new key, if it's another job's now)
   const saved = (fresh: ApplicationWithContent) => {
-    if (fresh.dup_key !== key) {
-      moveDraft(key, fresh.dup_key);
-      setKey(fresh.dup_key);
+    if (fresh.dupKey !== key) {
+      moveDraft(key, fresh.dupKey);
+      setKey(fresh.dupKey);
     }
     run.current++; // a load on its way would bring the old details back
     setApp(fresh);
     setEditing(false);
-    if (fresh.content_status === 'pending') void follow(fresh.dup_key);
+    if (fresh.contentStatus === 'pending') void follow(fresh.dupKey);
   };
 
   const close = () => dialog.current?.close();
@@ -490,8 +511,8 @@ function AdModal({
     ['Valid until', d?.validUntil ? formatDay(d.validUntil) : undefined],
   ];
   const been = reached(app);
-  const waiting = app.content === undefined || app.content_status === 'pending';
-  const hasText = app.content_status === 'ok' && !!app.content;
+  const waiting = app.content === undefined || app.contentStatus === 'pending';
+  const hasText = app.contentStatus === 'ok' && !!app.content;
 
   return (
     <dialog
@@ -517,7 +538,7 @@ function AdModal({
           <h2 id="ad-title">{app.title}</h2>
           <p className="muted">
             {app.company && <>{app.company} · </>}
-            {labels[app.src] ?? app.src} · applied {day(app.applied_at)}
+            {labels[app.src] ?? app.src} · applied {day(app.appliedAt)}
           </p>
         </div>
 
@@ -532,7 +553,7 @@ function AdModal({
                   aria-pressed={app.stage === st.id}
                   title={'hint' in st ? `${st.label}: ${st.hint}` : st.label}
                   // a new stage starts "in progress"; clicking the current one keeps its outcome
-                  onClick={() => setStatus(st.id, st.id === app.stage ? app.stage_state : 'pending')}
+                  onClick={() => setStatus(st.id, st.id === app.stage ? app.stageState : 'pending')}
                 >
                   {st.short}
                 </button>
@@ -544,7 +565,7 @@ function AdModal({
                   key={x.id}
                   type="button"
                   className={`state-btn state-${x.id}`}
-                  aria-pressed={app.stage_state === x.id}
+                  aria-pressed={app.stageState === x.id}
                   title={x.hint}
                   onClick={() => setStatus(app.stage, x.id)}
                 >
@@ -591,7 +612,15 @@ function AdModal({
             )}
           </section>
 
-          <NoteEditor ref={note} appKey={key} initial={initial.note ?? ''} editedAt={app.note_updated_at} />
+          <NoteEditor
+            ref={note}
+            appKey={key}
+            initial={initial.note ?? ''}
+            seenAt={initial.noteUpdatedAt}
+            editedAt={app.noteUpdatedAt}
+            onSaved={(text, at) => onNoteSaved(key, text, at)}
+            onStale={() => onNoteStale(key)}
+          />
 
           {rows.some(([, v]) => v) && (
             <dl className="ad-facts">
@@ -622,7 +651,7 @@ function AdModal({
                 <div
                   className="skeleton ad-skeleton"
                   role="status"
-                  aria-label={app.content_status === 'pending' ? 'Saving the ad text' : 'Loading the ad text'}
+                  aria-label={app.contentStatus === 'pending' ? 'Saving the ad text' : 'Loading the ad text'}
                 >
                   {Array.from({ length: 10 }, (_, i) => (
                     <span key={i} className="bar" style={{ width: `${58 + ((i * 29) % 40)}%` }} />
@@ -633,12 +662,12 @@ function AdModal({
               app.content
             ) : (
               <p className="form-error">
-                {app.content_status === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'}{' '}
-                {app.content_error}
+                {app.contentStatus === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'}{' '}
+                {app.contentError}
               </p>
             )}
           </div>
-          {app.scraped_at && hasText && <p className="muted small ad-saved">Ad saved {day(app.scraped_at)}.</p>}
+          {app.scrapedAt && hasText && <p className="muted small ad-saved">Ad saved {day(app.scrapedAt)}.</p>}
         </div>
 
         <div className="sheet-foot">
@@ -710,10 +739,15 @@ function AdModal({
 // ---- your note: saves itself when you stop typing, leave the box or close the window ------
 // Until the database has it, the text is also kept in this browser, so a dropped connection or
 // a closed tab doesn't lose it: it's back (and saved) the next time you open this application.
+// A save says which version of the note it was written over (note_updated_at); if the note was
+// changed elsewhere since (another tab), nothing is overwritten: you see both and pick.
 
-type NoteHandle = { flush: () => string | null }; // saves what's left, returns the note
+type NoteHandle = { flush: () => string | null | undefined }; // saves what's left, returns the note (undefined: not saved, see the conflict)
 type NoteStatus = 'idle' | 'typing' | 'saving' | 'saved' | 'error';
-type Draft = { text: string; base: string }; // base = the saved note it was written over
+/** base = the saved note it was written over (another one in the database = changed elsewhere) */
+type Draft = { text: string; base: string };
+/** the note as it is in the database, when it isn't the one this was written over */
+type Theirs = { note: string; at: string | null };
 
 const draftKey = (key: string) => `jobwatch:note:${key}`;
 function readDraft(key: string): Draft | null {
@@ -749,38 +783,77 @@ const NOTE_STATUS: Record<NoteStatus, string> = {
 function NoteEditor({
   appKey,
   initial,
+  seenAt,
   editedAt,
+  onSaved,
+  onStale,
   ref,
 }: {
   appKey: string;
+  /** the note as the window opened with it, and its note_updated_at */
   initial: string;
+  seenAt: string | null;
   editedAt: string | null;
+  onSaved: (note: string | null, at: string) => void;
+  /** the note was changed elsewhere: the list's copy of it is outdated */
+  onStale: () => void;
   ref: Ref<NoteHandle>;
 }) {
   const day = useDay();
-  // an unsaved draft of this note comes back, unless the note was changed somewhere else since
+  const router = useRouter();
+  // an unsaved draft of this note comes back; if the note was changed somewhere else meanwhile, it
+  // comes back next to that version, for you to pick (it's never dropped without asking)
   const [restored] = useState(() => {
     const d = readDraft(appKey);
-    return d && d.base === initial && d.text !== initial ? d.text : initial;
+    if (!d || d.text === initial) return { text: initial, theirs: null };
+    // written over the note as it is now: carry on with it (if the list's copy was outdated, the first
+    // save finds that out)
+    if (d.base === initial) return { text: d.text, theirs: null };
+    // the note was changed elsewhere since: both are shown, and you pick
+    return { text: d.text, theirs: { note: initial, at: seenAt } };
   });
-  const [text, setText] = useState(restored);
-  const [status, setStatus] = useState<NoteStatus>(restored === initial ? 'idle' : 'typing');
-  const latest = useRef(restored); // what's in the box
+  const [text, setText] = useState(restored.text);
+  const [status, setStatus] = useState<NoteStatus>(restored.text === initial ? 'idle' : 'typing');
+  const [problem, setProblem] = useState<string | null>(null); // why the last save didn't go through
+  const [theirs, setTheirs] = useState<Theirs | null>(restored.theirs);
+  const latest = useRef(restored.text); // what's in the box
   const saved = useRef(initial); // what the database has
+  const savedAt = useRef(seenAt); // ... and its note_updated_at, sent with the next save
+  const conflict = useRef(Boolean(restored.theirs)); // no saving until you pick a version
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const saving = useRef<Promise<void> | null>(null);
+
+  // after a failed save: if the note isn't the one this was written over any more, show the other one
+  const lookAgain = async (value: string) => {
+    const fresh = await loadApplication(appKey).catch(() => null);
+    if (!fresh || fresh.noteUpdatedAt === savedAt.current) return;
+    conflict.current = true;
+    setTheirs({ note: fresh.note ?? '', at: fresh.noteUpdatedAt });
+    writeDraft(appKey, { text: latest.current || value, base: saved.current });
+    onStale();
+    router.refresh(); // the list shows the note as it is now
+  };
 
   // one save at a time, always of the newest text
   const save = (): Promise<void> => {
     clearTimeout(timer.current);
+    if (conflict.current) return Promise.resolve();
     if (saving.current) return saving.current.then(save);
     const value = latest.current;
     if (value === saved.current) return Promise.resolve();
     setStatus('saving');
-    saving.current = setApplicationNoteAction({ key: appKey, note: value })
-      .then((res) => {
-        unwrap(res);
+    saving.current = setApplicationNoteAction({ key: appKey, note: value, seenAt: savedAt.current })
+      .then(async (res) => {
+        if (!res.ok) {
+          setProblem(res.error);
+          setStatus('error');
+          await lookAgain(value);
+          return;
+        }
         saved.current = value;
+        savedAt.current = res.data.noteUpdatedAt;
+        setProblem(null);
+        onSaved(noteValue(value), res.data.noteUpdatedAt);
         const now = latest.current;
         writeDraft(appKey, now === value ? null : { text: now, base: value });
         setStatus(now === value ? 'saved' : 'typing');
@@ -794,13 +867,32 @@ function NoteEditor({
 
   useImperativeHandle(ref, () => ({
     flush: () => {
+      if (conflict.current) return undefined; // the list keeps the database's note
       void save();
       return noteValue(latest.current);
     },
   }));
 
+  // the version you pick becomes the one the database has; "mine" is then saved over "theirs"
+  const pick = (mine: boolean) => {
+    if (!theirs) return;
+    conflict.current = false;
+    saved.current = theirs.note;
+    savedAt.current = theirs.at;
+    setTheirs(null);
+    setProblem(null);
+    if (mine) void save();
+    else {
+      latest.current = theirs.note;
+      setText(theirs.note);
+      writeDraft(appKey, null);
+      setStatus('idle');
+    }
+  };
+
   // a restored draft is saved right away; an outdated one is dropped
   const mounted = useEffectEvent(() => {
+    if (conflict.current) return;
     if (latest.current === saved.current) writeDraft(appKey, null);
     else void save();
   });
@@ -808,34 +900,64 @@ function NoteEditor({
     mounted();
   }, []);
 
-  const shownStatus = status === 'idle' && initial && editedAt ? `edited ${day(editedAt)}` : NOTE_STATUS[status];
+  const shownStatus = theirs
+    ? 'not saved: changed elsewhere'
+    : status === 'idle' && initial && editedAt
+      ? `edited ${day(editedAt)}`
+      : NOTE_STATUS[status];
   return (
-    <label className="field note-field">
-      <span>
-        Note
-        {shownStatus && (
-          <span className={`note-status${status === 'error' ? ' warn' : ''}`} aria-live="polite">
-            {' · '}
-            {shownStatus}
-          </span>
-        )}
-      </span>
-      <textarea
-        rows={3}
-        maxLength={10_000}
-        value={text}
-        onChange={(e) => {
-          const value = e.target.value;
-          setText(value);
-          latest.current = value;
-          writeDraft(appKey, value === saved.current ? null : { text: value, base: saved.current });
-          setStatus(value === saved.current ? (status === 'idle' ? 'idle' : 'saved') : 'typing');
-          clearTimeout(timer.current);
-          timer.current = setTimeout(() => void save(), 700);
-        }}
-        onBlur={() => void save()}
-        placeholder="Recruiter's name, the salary you asked for, what they asked in the interview, next steps…"
-      />
-    </label>
+    <div className="note-field">
+      <label className="field">
+        <span>
+          Note
+          {shownStatus && (
+            <span className={`note-status${status === 'error' || theirs ? ' warn' : ''}`} aria-live="polite">
+              {' · '}
+              {shownStatus}
+            </span>
+          )}
+        </span>
+        <textarea
+          rows={3}
+          maxLength={10_000}
+          value={text}
+          onChange={(e) => {
+            const value = e.target.value;
+            setText(value);
+            latest.current = value;
+            writeDraft(
+              appKey,
+              value === saved.current && !conflict.current ? null : { text: value, base: saved.current },
+            );
+            if (conflict.current) return; // nothing is saved until you pick
+            setStatus(value === saved.current ? (status === 'idle' ? 'idle' : 'saved') : 'typing');
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => void save(), 700);
+          }}
+          onBlur={() => void save()}
+          placeholder="Recruiter's name, the salary you asked for, what they asked in the interview, next steps…"
+        />
+      </label>
+      {problem && !theirs && status === 'error' && (
+        <p className="form-error" role="alert">
+          {problem}
+        </p>
+      )}
+      {theirs && (
+        <div className="note-conflict" role="alert">
+          <p className="form-error">{problem ?? NOTE_CONFLICT}</p>
+          <p className="muted small">The note now{theirs.at ? ` (edited ${day(theirs.at)})` : ''}:</p>
+          <blockquote className="note-theirs">{theirs.note.trim() || <em>empty</em>}</blockquote>
+          <div className="modal-actions">
+            <button type="button" className="secondary" onClick={() => pick(false)}>
+              Use that one
+            </button>
+            <button type="button" onClick={() => pick(true)}>
+              Keep mine (replaces it)
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -43,9 +43,9 @@ const draftOf = (a: ApplicationWithContent, z: Zone): Draft => ({
   title: a.title,
   company: a.company ?? '',
   board: a.src,
-  day: z.day(a.applied_at),
+  day: z.day(a.appliedAt),
   stage: a.stage,
-  state: a.stage_state,
+  state: a.stageState,
   salary: a.details?.salary ?? '',
   contract: a.details?.contract ?? '',
   location: a.details?.location ?? '',
@@ -144,7 +144,7 @@ export function ApplicationForm(props: FormProps) {
           return next;
         });
         // editing one that's this scraped offer already: nothing to say
-        setInfo({ warning: f.warning, known: f.knownKey && f.knownKey === props.app?.dup_key ? null : f.known });
+        setInfo({ warning: f.warning, known: f.knownKey && f.knownKey === props.app?.dupKey ? null : f.known });
       });
     });
   };
@@ -156,7 +156,7 @@ export function ApplicationForm(props: FormProps) {
       if (props.app) {
         const { url, title, company, board, day, salary, contract, location, remote, content } = d; // not the status, not the note
         const r = await updateApplicationAction({
-          key: props.app.dup_key,
+          key: props.app.dupKey,
           input: { url, title, company, board, day, salary, contract, location, remote, content },
         }).catch(failed);
         const onSaved = props.onSaved;

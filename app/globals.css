@@ -517,6 +517,13 @@ button.apply.applied { color: var(--ok); border-color: var(--ok); }
 }
 .note-field textarea { min-height: 4.6em; max-height: 40vh; field-sizing: content; }
 .note-status { font-weight: 400; }
+.note-field { display: flex; flex-direction: column; gap: 6px; }
+.note-conflict { display: flex; flex-direction: column; gap: 6px; }
+.note-conflict p { margin: 0; }
+.note-theirs {
+  margin: 0; padding: 8px 10px; border-left: 3px solid var(--line); background: var(--bg);
+  white-space: pre-wrap; font-size: 13px; max-height: 30vh; overflow: auto;
+}
 .applied-row .note-line {
   margin-top: 3px; font-size: 13px; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

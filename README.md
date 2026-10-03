@@ -18,10 +18,8 @@ Telegram /mute /send /status ─→ /api/telegram
    password, and put it in `.env` as `SUPABASE_DB_URL`. Then `npm install` and **`npm run db:migrate`**: it creates
    the tables, the `offers_unique` view, the functions, the six scrapers with the default settings, and turns on
    `pg_cron` + `pg_net` for Supabase Cron (see [Database and migrations](#database-and-migrations)).
-3. **Project Settings → API Keys**: copy the project URL and a **secret** key (`sb_secret_…`).
-   A legacy `service_role` key also works.
-
-RLS is on with no policies, so the public/anon key can't read anything. Only the secret key can, and it's used only server-side.
+   The app talks to that database directly (Drizzle ORM over Postgres, server-side only); `SUPABASE_DB_URL` is the
+   only database setting. RLS is on with no policies, so Supabase's public/anon key can't read anything.
 
 ## 2. Scraping (Settings tab)
 
@@ -81,16 +79,18 @@ The cron sends `Authorization: Bearer <secret>`: `CRON_SECRET` if set, otherwise
 
 ```bash
 npm install
-cp .env.example .env         # fill in SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_DB_URL (the rest is optional)
+cp .env.example .env         # fill in SUPABASE_DB_URL (the rest is optional)
 npm run dev                  # http://localhost:3000
 npm test                     # unit tests (Vitest)
+npm run test:db              # + the database tests, on a throwaway Docker Postgres (never yours)
 npm run typecheck            # tsc --noEmit
 npm run lint                 # ESLint (Next, typescript-eslint strict type-checked)
 npm run format               # Prettier, writes; `npm run format:check` only checks
 ```
 
 GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint, format:check, test and build on every push
-and pull request, with the Node version from `.nvmrc`. The build needs no env vars.
+and pull request, with the Node version from `.nvmrc`, and the database tests in a second job, against a
+`supabase/postgres` service container. The build needs no env vars.
 
 To deploy, push this folder to a GitHub repo, then **Vercel → Add New → Project → import it**.
 Add the same env vars under **Settings → Environment Variables**, and deploy. On Vercel, `SUPABASE_DB_URL` is the
@@ -194,7 +194,7 @@ the seed rows) is in its custom migrations, `0000_extensions`, `0002_functions` 
 [docs/decisions/0001-drizzle-over-postgrest.md](docs/decisions/0001-drizzle-over-postgrest.md).
 
 ```bash
-npm run db:migrate    # apply the pending migrations to SUPABASE_DB_URL (from .env, or the shell)
+npm run db:migrate    # apply the pending migrations to SUPABASE_DB_URL (the shell's, else .env's; DOTENV=0: not .env)
 npm run db:generate   # after editing lib/db/schema.ts: write the migration for it, then read it and commit it
 npm run db:generate -- --custom --name=what   # an empty migration for SQL Drizzle can't express (a view, a function)
 npm run db:check      # the migration files are consistent with each other
@@ -227,6 +227,22 @@ scripts/db-reset-local.sh postgresql://postgres:pw@localhost:5432/postgres   # w
   `--from-dump file.sql`, (a) starts from a dump of production instead (next section). It refuses any database that
   isn't on localhost (`bash scripts/lib-local-db.sh` tests that guard). It reads the old SQL files from git, so it
   needs the full history (`git fetch --unshallow` in a shallow clone). Run it after changing a migration.
+- **Queries** live in [`lib/db/repos/`](lib/db/repos), one file per table (get, list, insert, patch…); the rules on
+  top of them (which copy an application keeps, when its date may move, profile versions…) stay in `lib/*.ts`.
+  Most are plain Drizzle. What is SQL by nature is called with the `sql` tag: the `offers_unique` view (queried
+  like a table), `ai_dup_candidates` (trigram similarity), `jw_ingest_offers`, `jw_merge_jobs`, `jw_dup_key` and
+  the Supabase Cron functions. `jw_set_application_status`, `jw_ghost_stale_applications`, `jw_scrape_lock`,
+  `jw_source_counts`, `ai_results`, `ai_pending` and `ai_range_stats` are no longer called (those queries are in
+  TypeScript now) but are still in the database; a later migration drops them.
+- **Timeouts:** each connection asks for `statement_timeout` 30 s and `lock_timeout` 10 s. Supabase's
+  transaction pooler may not pass those on (see the ADR); check with `show statement_timeout` through the
+  6543 URI, and if it says `0`, set them on the database role instead (the ADR has the two statements).
+- **Timestamps** come back as ISO 8601 strings with microseconds (`2026-10-03T12:34:56.123456+00:00`), as
+  PostgREST gave them, so they go to the browser as they are.
+- **`npm run test:db`** ([`scripts/test-db.sh`](scripts/test-db.sh)) starts a `supabase/postgres` container on
+  localhost, migrates it with `npm run db:migrate` (with `DOTENV=0`, so `.env` isn't read), runs the database
+  tests (`test/db/`) against it and removes it. The tests run only when `TEST_DATABASE_URL` is set, and refuse
+  anything that isn't localhost: they empty the tables.
 - [`supabase/scripts/remove-duplicates.sql`](supabase/scripts/remove-duplicates.sql) is a one-off cleanup from
   before the app de-duplicated jobs; kept for reference, not to be run.
 
@@ -267,12 +283,16 @@ The commands below use `SUPABASE_DB_URL` from `.env` (the **Session pooler** URI
 4. **Quiet the app while it runs:** Settings → ⏸ Pause scraping, and don't start AI checks. The migration
    re-creates the `offers_unique` view and its functions, which takes locks those would wait on (or hold).
 5. **Vercel → Settings → Environment Variables:** add `SUPABASE_DB_URL` = the **Transaction pooler** URI
-   (Supabase → Connect → Transaction pooler, port **6543**, with the database password). Keep `SUPABASE_URL` and
-   `SUPABASE_SECRET_KEY` for now: parts of the app still use them.
+   (Supabase → Connect → Transaction pooler, port **6543**, with the database password). Don't deploy yet: this
+   version reads and writes the database only through that URL, and expects the migrations to have run.
 6. **`npm run db:migrate`**, once, locally. Everything runs in one transaction: if any statement fails, it prints
    why and rolls back, and the database is as it was. On success it records the four migrations, so later ones
-   run normally.
-7. Redeploy, open `/api/health` (it should say `"db": "ok"`), and resume scraping in Settings.
+   run normally. The version still deployed keeps working meanwhile: the migrations change nothing it uses.
+7. **Now deploy** (push, or redeploy in Vercel), open `/api/health` (it should say `"db": "ok"`), check that the
+   offers, Applied and Settings load, and resume scraping in Settings.
+8. **Remove `SUPABASE_URL` and `SUPABASE_SECRET_KEY`** from Vercel and from your `.env`: nothing reads them any
+   more. The secret key itself can then be deleted in Supabase (Project Settings → API Keys), since the app no
+   longer uses Supabase's REST API.
 
 ## Notes
 

@@ -37,6 +37,29 @@ PG_IMAGE=${PG_IMAGE:-postgres:17-alpine}
 pg_tool() { docker run --rm -i --network host "$PG_IMAGE" "$@"; }
 psql_file() { pg_tool psql "$1" -v ON_ERROR_STOP=1 -q -X; }
 
+# starts a throwaway Postgres container ($2: the image) named $1 on a free localhost port; prints its URL.
+# Run it in a subshell, $(…), and record the name for cleanup (docker rm -f).
+start_local_db() {
+  docker run --rm -d --name "$1" -e POSTGRES_PASSWORD=local -p 127.0.0.1::5432 "$2" >/dev/null
+  echo "postgresql://postgres:local@localhost:$(docker port "$1" 5432/tcp | head -1 | sed 's/.*://')/postgres"
+}
+
+# waits until the database at $1 answers; the supabase/postgres image restarts Postgres once after its
+# init scripts, so it must answer twice in a row
+wait_for_db() {
+  local url=$1 ok=0
+  for _ in $(seq 1 90); do
+    if pg_tool psql "$url" -X -qtAc 'select 1' >/dev/null 2>&1; then
+      ((++ok >= 2)) && return 0
+    else
+      ok=0
+    fi
+    sleep 1
+  done
+  echo "Database at $url did not come up." >&2
+  exit 1
+}
+
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   set -u
   failed=0

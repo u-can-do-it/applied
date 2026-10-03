@@ -6,7 +6,11 @@ import { cronSchedule } from '@/lib/scraping/cron';
 import type { ScrapeSettings } from '@/lib/scraping/kinds';
 import { notify, runAll, scrape, type PageResult } from '@/lib/scraping/run';
 import { cronSecret, requestOrigin, syncCron } from '@/lib/scraping/schedule';
-import * as store from '@/lib/scraping/store';
+import * as cronRepo from '@/lib/db/repos/cron';
+import * as offersRepo from '@/lib/db/repos/offers';
+import * as settingsRepo from '@/lib/db/repos/scrape-settings';
+import * as stateRepo from '@/lib/db/repos/scrape-state';
+import * as scrapersRepo from '@/lib/db/repos/scrapers';
 import { message } from '@/lib/shared/errors';
 import { noInput } from '@/lib/shared/schemas/common';
 import { scraperIdSchema, scraperSchema, toggleScraperSchema } from '@/lib/shared/schemas/scrapers';
@@ -36,7 +40,7 @@ export const scrapeNowAction = action(noInput, async () => {
 
 /** Saves settings that make Supabase Cron's schedule, and gives it the new one (if it's connected). */
 async function saveSchedule(next: ScrapeSettings) {
-  await store.saveSettings(next);
+  await settingsRepo.save(next);
   const cronError = await syncCron(next);
   refresh();
   return cronError ? `Saved, but Supabase Cron kept its old schedule: ${cronError}` : 'Saved.';
@@ -44,38 +48,38 @@ async function saveSchedule(next: ScrapeSettings) {
 
 /** The app's time zone: '' = the browser's (`browser`: the one it's in now), or a fixed one. */
 export const setTimeZoneAction = action(timeZoneSchema, async ({ tz, browser }) => {
-  const settings = await store.getSettings();
+  const settings = await settingsRepo.get();
   return saveSchedule({ ...settings, timeZone: tz, browserTimeZone: browser ?? settings.browserTimeZone });
 });
 
 /** Pause / resume the scheduled runs ("Scrape now" works either way); paused, Supabase Cron is off too. */
 export const setScrapingPausedAction = action(pausedSchema, async ({ paused }) =>
-  saveSchedule({ ...(await store.getSettings()), enabled: !paused }),
+  saveSchedule({ ...(await settingsRepo.get()), enabled: !paused }),
 );
 
 export const saveScheduleAction = action(scheduleSchema, async (schedule) =>
-  saveSchedule({ ...(await store.getSettings()), ...schedule }),
+  saveSchedule({ ...(await settingsRepo.get()), ...schedule }),
 );
 
 export const saveFiltersAction = action(filtersSchema, async (filters) => {
   if (!filters.keywords.length) {
-    const uses = (await store.listScrapers()).find(
+    const uses = (await scrapersRepo.list()).find(
       (scraper) => scraper.enabled && /\{keyword(_slug)?\}/.test(scraper.config.url),
     );
     if (uses) throw new Error(`Add at least one keyword: ${uses.name}'s link has {keyword} in it.`);
   }
-  await store.saveSettings({ ...(await store.getSettings()), ...filters });
+  await settingsRepo.save({ ...(await settingsRepo.get()), ...filters });
   refresh();
   return 'Saved. The next run uses them.';
 });
 
 export const setNotifyAction = action(switchSchema, async ({ on }) => {
-  await store.saveSettings({ ...(await store.getSettings()), notify: on });
+  await settingsRepo.save({ ...(await settingsRepo.get()), notify: on });
   refresh();
 });
 
 export const setAiFilterAction = action(switchSchema, async ({ on }) => {
-  await store.saveSettings({ ...(await store.getSettings()), aiFilter: on });
+  await settingsRepo.save({ ...(await settingsRepo.get()), aiFilter: on });
   refresh();
 });
 
@@ -84,16 +88,16 @@ export const setAiFilterAction = action(switchSchema, async ({ on }) => {
 /** Answers with the scraper's id (a new one's, when added). */
 export const saveScraperAction = action(scraperSchema, async ({ id, scraper }) => {
   if (id) {
-    const old = await store.getScraper(id);
+    const old = await scrapersRepo.get(id);
     if (!old) throw new Error('This scraper no longer exists.');
     // a different search: its first run only saves, so Telegram isn't flooded with "new" old offers
     const changed = old.kind !== scraper.kind || old.src !== scraper.src || old.config.url !== scraper.config.url;
-    await store.updateScraper(id, scraper, changed);
+    await scrapersRepo.update(id, scraper, changed);
     refresh();
     return id;
   }
-  const all = await store.listScrapers();
-  const added = await store.insertScraper({
+  const all = await scrapersRepo.list();
+  const added = await scrapersRepo.insert({
     ...scraper,
     position: Math.max(0, ...all.map((existing) => existing.position)) + 1,
   });
@@ -102,12 +106,12 @@ export const saveScraperAction = action(scraperSchema, async ({ id, scraper }) =
 });
 
 export const toggleScraperAction = action(toggleScraperSchema, async ({ id, enabled }) => {
-  await store.updateScraper(id, { enabled });
+  await scrapersRepo.update(id, { enabled });
   refresh();
 });
 
 export const deleteScraperAction = action(scraperIdSchema, async ({ id }) => {
-  await store.deleteScraper(id);
+  await scrapersRepo.remove(id);
   refresh();
 });
 
@@ -136,8 +140,8 @@ export type TestResult = {
 
 /** Fetches with the form's current values; nothing is saved. */
 export const testScraperAction = action(scraperSchema, async ({ scraper }): Promise<TestResult> => {
-  const result = await scrape(scraper, await store.getSettings());
-  const known = await store
+  const result = await scrape(scraper, await settingsRepo.get());
+  const known = await offersRepo
     .knownIds(
       scraper.src,
       result.kept.slice(0, 200).map((offer) => offer.id),
@@ -170,7 +174,7 @@ export const testScraperAction = action(scraperSchema, async ({ scraper }): Prom
 
 /** Unmuting sends what waited right away (not after the answer), so the page shows an empty queue. */
 export const setMutedAction = action(mutedSchema, async ({ muted }) => {
-  await store.setMuted(muted);
+  await stateRepo.setMuted(muted);
   const sent: { sent: number; error?: string } =
     !muted && telegramReady()
       ? await notify({ manual: true }).catch((e: unknown) => ({ sent: 0, error: message(e) }))
@@ -213,8 +217,8 @@ export const telegramDisconnectAction = action(noInput, async () => {
 export const cronConnectAction = action(noInput, async () => {
   const secret = await cronSecret();
   if (!secret) throw new Error('Set APP_PASSWORD (or CRON_SECRET) first: the endpoint needs a secret.');
-  const settings = await store.getSettings();
-  const connected = await store.cronConnect(
+  const settings = await settingsRepo.get();
+  const connected = await cronRepo.connect(
     `${await requestOrigin()}/api/cron/scrape`,
     secret,
     cronSchedule(settings),
@@ -227,7 +231,7 @@ export const cronConnectAction = action(noInput, async () => {
 });
 
 export const cronDisconnectAction = action(noInput, async () => {
-  const stopped = await store.cronDisconnect();
+  const stopped = await cronRepo.disconnect();
   refresh();
   if (stopped !== 'ok') throw new Error(stopped);
   return 'Stopped.';

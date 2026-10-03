@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Queued } from '@/lib/scraping/store';
+import type { Queued } from '@/lib/db/repos/notify-queue';
 import { formatNotification, type Outgoing } from '@/lib/telegram';
 
 let seq = 0;
@@ -14,7 +14,7 @@ const offer = (o: Partial<Outgoing> = {}): Outgoing => {
     remote: false,
     location: 'Warszawa',
     url: `https://x.test/${seq}`,
-    dup_key: null,
+    dupKey: null,
     ...o,
   };
 };

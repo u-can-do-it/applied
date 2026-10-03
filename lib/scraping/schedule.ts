@@ -1,12 +1,14 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import { hmac, sameString } from '../auth';
+import * as cronRepo from '../db/repos/cron';
+import * as settingsRepo from '../db/repos/scrape-settings';
+import * as stateRepo from '../db/repos/scrape-state';
 import { zone } from '../dates';
 import { env } from '../env';
 import { message } from '../shared/errors';
 import { cronSchedule } from './cron';
 import { effectiveTimeZone, type ScrapeSettings } from './kinds';
-import { cronReschedule, getSettings, getState, markCall } from './store';
 
 // Who may call /api/cron/scrape, and whether a run is due when it's called. Supabase Cron just
 // knocks every few minutes; interval, hours and the pause live in Settings.
@@ -30,14 +32,14 @@ export const inHours = (h: number, from: number, to: number) =>
   from === to || (from < to ? h >= from && h < to : h >= from || h < to);
 
 export async function checkDue(now = new Date()): Promise<{ due: boolean; reason?: string }> {
-  const [settings, state] = await Promise.all([getSettings(), getState(), markCall()]);
+  const [settings, state] = await Promise.all([settingsRepo.get(), stateRepo.get(), stateRepo.markCall()]);
   if (!settings.enabled) return { due: false, reason: 'scraping is paused in Settings' };
   const z = zone(effectiveTimeZone(settings)); // the hours are the app's time zone's
   if (!inHours(z.hour(now), settings.fromHour, settings.toHour)) {
     return { due: false, reason: `outside ${settings.fromHour}:00–${settings.toHour}:00 ${z.tz} time` };
   }
   // a minute of slack: calls every N min aren't exactly N min apart
-  const since = now.getTime() - (state.last_run_at ? Date.parse(state.last_run_at) : 0);
+  const since = now.getTime() - (state.lastRunAt ? Date.parse(state.lastRunAt) : 0);
   if (since < settings.everyMinutes * 60_000 - 60_000)
     return { due: false, reason: `the last run was less than ${settings.everyMinutes} min ago` };
   return { due: true };
@@ -49,7 +51,7 @@ export async function checkDue(now = new Date()): Promise<{ due: boolean; reason
  */
 export async function syncCron(s: ScrapeSettings): Promise<string | null> {
   try {
-    const r = await cronReschedule(cronSchedule(s), s.enabled);
+    const r = await cronRepo.reschedule(cronSchedule(s), s.enabled);
     return r === 'ok' || r === 'not connected' ? null : r;
   } catch (e) {
     return message(e);

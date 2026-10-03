@@ -46,6 +46,13 @@ real connection only for the length of a transaction. Hence:
   prepared on one isn't there for the next. postgres.js prepares by default; this turns it off.
 - `npm run db:migrate` is run from a developer machine against the **session pooler** (port 5432) instead: it
   prepares statements, and it's one long session anyway.
+- `statement_timeout: 30s`, `lock_timeout: 10s` are sent as startup parameters (`connection` in
+  `lib/db/client.ts`), so a slow query or a lock wait fails instead of running out a function's time
+  (PostgREST had a 30 s limit of its own). A pooler in transaction mode may not pass startup parameters on to
+  the backend it lends: whether Supavisor does wasn't verified here (`show statement_timeout` through the 6543
+  URI tells). If it doesn't, set them on the role the app connects as, which every backend applies:
+  `alter role <app role> set statement_timeout = '30s'; alter role <app role> set lock_timeout = '10s';`
+  (better on a role of the app's own than on `postgres`, which migrations and the SQL Editor use too).
 
 ## Alternative considered: `@supabase/supabase-js`
 
@@ -60,8 +67,9 @@ while Drizzle lets the same SQL live next to ordinary typed queries and transact
 
 ## Consequences
 
-- `SUPABASE_DB_URL` becomes a runtime variable (Vercel: transaction pooler URI). `SUPABASE_URL` and
-  `SUPABASE_SECRET_KEY` go away once every module is ported off PostgREST.
+- `SUPABASE_DB_URL` is the app's only database setting (Vercel: transaction pooler URI). `SUPABASE_URL` and
+  `SUPABASE_SECRET_KEY` are no longer read: every module queries through Drizzle (README → "Upgrading a
+  database set up before Drizzle" says when to remove them).
 - Database access needs the Node runtime (not Edge). That's the case today.
 - Schema changes go through `lib/db/schema.ts` and `npm run db:generate`; a deploy with a new migration needs
   `npm run db:migrate`, and `/api/health` says "behind" until it's run.

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import journal from '@/drizzle/meta/_journal.json';
-import { isLocalDatabase, withSsl } from '@/lib/db/connection';
+import { isLocalDatabase, isoTimestamp, withSsl } from '@/lib/db/connection';
 import { pendingMigrations } from '@/lib/db/health';
 
 describe('withSsl', () => {
@@ -71,5 +71,19 @@ describe('drizzle/ migrations', () => {
     const baseline = readFileSync('drizzle/0001_baseline.sql', 'utf8');
     expect(baseline).not.toMatch(/CREATE (TABLE|INDEX) (?!IF NOT EXISTS)/);
     expect(baseline).not.toMatch(/^ALTER TABLE "\w+" ADD CONSTRAINT "\w+_fkey"/m);
+  });
+});
+
+describe('isoTimestamp', () => {
+  it('turns Postgres timestamptz text into ISO 8601, keeping the microseconds', () => {
+    expect(isoTimestamp('2026-10-03 12:34:56.123456+00')).toBe('2026-10-03T12:34:56.123456+00:00');
+    expect(isoTimestamp('2026-10-03 12:34:56+05:30')).toBe('2026-10-03T12:34:56+05:30');
+    expect(isoTimestamp('2026-03-29 01:00:00-07')).toBe('2026-03-29T01:00:00-07:00');
+    expect(Date.parse(isoTimestamp('2026-10-03 12:34:56.5+02'))).toBe(Date.parse('2026-10-03T10:34:56.500Z'));
+  });
+
+  it('leaves anything else as it is', () => {
+    expect(isoTimestamp('infinity')).toBe('infinity');
+    expect(isoTimestamp('2026-10-03T12:34:56Z')).toBe('2026-10-03T12:34:56Z');
   });
 });

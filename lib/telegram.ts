@@ -1,7 +1,7 @@
 import 'server-only';
 import { hmac } from './auth';
 import { env } from './env';
-import type { Queued } from './scraping/store';
+import type { Queued } from './db/repos/notify-queue';
 
 // Telegram bot: the messages about new offers, and the /mute /resume /send /status
 // commands (they arrive at /api/telegram once the webhook is connected in Settings).

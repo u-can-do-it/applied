@@ -37,7 +37,8 @@ async function Applications() {
   } catch (e) {
     return (
       <div className="notice">
-        <strong>Can’t load applications.</strong> Did you run <code>npm run db:migrate</code>?<code>{message(e)}</code>
+        <strong>Can’t load applications.</strong>
+        <code>{message(e)}</code>
       </div>
     );
   }

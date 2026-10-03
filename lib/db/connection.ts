@@ -23,3 +23,19 @@ export function withSsl(url: string) {
 /** Where drizzle-kit records the migrations it ran (drizzle.config.ts), read by lib/db/health.ts */
 export const MIGRATIONS_SCHEMA = 'drizzle';
 export const MIGRATIONS_TABLE = '__drizzle_migrations';
+
+/**
+ * A timestamptz as Postgres prints it ("2026-10-03 12:34:56.123456+00", "… +05:30") in ISO 8601, as
+ * PostgREST answered: "2026-10-03T12:34:56.123456+00:00". Every browser's Date parses this; the
+ * space and the hour-only offset aren't ISO, and Safari has refused them. The microseconds stay, so
+ * the value read back in a `where` is the same instant. Anything else ('infinity') is left alone.
+ */
+export function isoTimestamp(value: string): string {
+  const match = /^(\d{4,}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?)([+-]\d{2})(?::(\d{2}))?(?::(\d{2}))?$/.exec(value);
+  if (!match) return value;
+  const [, day, time, hours, minutes = '00', seconds] = match;
+  return `${day}T${time}${hours}:${minutes}${seconds ? `:${seconds}` : ''}`;
+}
+
+/** Postgres' type id of timestamptz, for the driver's parser (lib/db/client.ts) */
+export const TIMESTAMPTZ_OID = 1184;

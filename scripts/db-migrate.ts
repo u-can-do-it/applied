@@ -1,5 +1,6 @@
 // npm run db:migrate: applies the pending migrations in drizzle/ to SUPABASE_DB_URL (from the shell,
-// or .env: `node --env-file-if-exists=.env`, where the shell's value wins).
+// or else from .env). DOTENV=0 skips .env altogether: what scripts/test-db.sh and the like use, so a
+// throwaway database's run can't pick up the production URL from it.
 //
 // The same migrator `drizzle-kit migrate` uses (drizzle-orm's), run directly because drizzle-kit
 // exits with status 1 and no message when a statement fails: its progress spinner swallows the
@@ -13,6 +14,15 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE, withSsl } from '../lib/db/connection.ts';
+
+// like `node --env-file-if-exists=.env`: what the shell has set wins
+if (process.env.DOTENV !== '0') {
+  try {
+    process.loadEnvFile('.env');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}
 
 const url = process.env.SUPABASE_DB_URL ?? '';
 if (!/^postgres(ql)?:\/\//.test(url)) {

@@ -22,12 +22,12 @@ import {
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
 import { boardIdOf, boardOf, cleanLink } from '@/lib/boards';
 import { describeRange, isTimeZone } from '@/lib/dates';
+import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import { env } from '@/lib/env';
 import { extractJob, type ExtractedJob } from '@/lib/openai';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
 import { readJobPage } from '@/lib/scrape';
 import { syncCron } from '@/lib/scraping/schedule';
-import * as store from '@/lib/scraping/store';
 import { message } from '@/lib/shared/errors';
 import { profileIdSchema, profileSchema, startRunSchema } from '@/lib/shared/schemas/ai';
 import {
@@ -100,7 +100,7 @@ export const saveProfileAction = formAction(
     }
 
     const keepsFile =
-      file === 'keep' && profileId ? Boolean((await getProfile(profileId))?.file_name) : typeof file === 'object';
+      file === 'keep' && profileId ? Boolean((await getProfile(profileId))?.fileName) : typeof file === 'object';
     if (!prompt.trim() && !keepsFile) throw new Error('Describe what to look for, or add a file.');
 
     const id = await saveProfile({ id: profileId, name, prompt, file });
@@ -172,10 +172,14 @@ export const removeStatusStepAction = action(removeStepSchema, async ({ key, ste
   refresh();
 });
 
-/** Saves your note on an application. No page refresh: the window and the list keep their own copy. */
-export const setApplicationNoteAction = action(setNoteSchema, async ({ key, note }) => {
-  await setNote(key, note);
-});
+/**
+ * Saves your note on an application, unless it changed elsewhere since `seenAt` (its
+ * note_updated_at as the window had it): then it fails, and the window keeps your text. Answers
+ * with the new note_updated_at. No page refresh: the window and the list keep their own copy.
+ */
+export const setApplicationNoteAction = action(setNoteSchema, async ({ key, note, seenAt }) =>
+  setNote(key, note, seenAt),
+);
 
 // ---- applications added by hand ----------------------------------------------------------
 
@@ -220,7 +224,7 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
     }
   }
   const details = read?.details ?? {};
-  const knownKey = offer ? await jobKeyFor(offer.company, offer.title, offer.dup_key).catch(() => offer.dup_key) : null;
+  const knownKey = offer ? await jobKeyFor(offer.company, offer.title, offer.dupKey).catch(() => offer.dupKey) : null;
   return {
     url: offer?.url ?? cleanLink(link),
     board: offer?.src ?? board,
@@ -282,7 +286,7 @@ export const updateApplicationAction = action(updateApplicationSchema, async ({ 
     zone,
   );
   if (updated.error || !updated.app) throw new Error(updated.error ?? 'This application no longer exists.');
-  const saved = updated.app.dup_key;
+  const saved = updated.app.dupKey;
   // what you typed stays over what the board says (details.typed)
   if (updated.fetch) after(() => saveContent(saved));
   refresh();
@@ -299,10 +303,10 @@ export const reportBrowserTimeZoneAction = action(browserTimeZoneSchema, async (
   if (!isTimeZone(tz)) return;
   // not appSettings(): the page refreshed below is rendered in this same request, and it must
   // read the settings as saved here, not as cached from before
-  const settings = await store.getSettings().catch(() => null);
+  const settings = await settingsRepo.get().catch(() => null);
   if (!settings || settings.browserTimeZone === tz) return;
   const next = { ...settings, browserTimeZone: tz };
-  await store.saveSettings(next);
+  await settingsRepo.save(next);
   if (settings.timeZone) return; // a zone of its own is picked: nothing that shows or runs changes
   await syncCron(next); // the hours are this zone's now (if that fails, Settings shows it)
   refresh();

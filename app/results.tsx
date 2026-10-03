@@ -1,5 +1,5 @@
 import { rangeStats } from '@/lib/ai-runs';
-import { addDays, describeRange, type Zone } from '@/lib/dates';
+import { addDays, DEFAULT_TZ, describeRange, zone, type Zone } from '@/lib/dates';
 import { getOffers, getTotalCount, PAGE_SIZE, type Offer } from '@/lib/offers';
 import { isUsable, listProfiles } from '@/lib/profiles';
 import { labelsOf, type SourceOption } from '@/lib/source-list';
@@ -22,10 +22,10 @@ function groupByDay(offers: Offer[], z: Zone) {
   const yesterday = addDays(today, -1);
   const groups: { key: string; label: string; offers: Offer[] }[] = [];
   for (const o of offers) {
-    const key = z.day(o.first_seen);
+    const key = z.day(o.firstSeen);
     let g = groups.at(-1);
     if (!g || g.key !== key) {
-      const label = key === today ? 'Today' : key === yesterday ? 'Yesterday' : dayLabel(z, o.first_seen);
+      const label = key === today ? 'Today' : key === yesterday ? 'Yesterday' : dayLabel(z, o.firstSeen);
       g = { key, label, offers: [] };
       groups.push(g);
     }
@@ -71,7 +71,8 @@ export async function Results({
   const rejected = mode === 'ai' && query.rejected;
   const filtered = Boolean(q || src || days || from || to);
   const range = describeRange({ days, from, to });
-  const z = await appZone();
+  // the app's time zone is a setting, so it's read with the rest: a database that's down shows the notice below
+  let z = zone(DEFAULT_TZ);
 
   // the URL as the list understands it, for the pager links
   const current = new URLSearchParams();
@@ -82,6 +83,7 @@ export async function Results({
   let all: number | null = null; // whole table, only needed when something is filtered
   let stats: { total: number; checked: number; matched: number } | null = null; // AI: this date range
   try {
+    z = await appZone();
     if (mode === 'ai') {
       const profile = (await listProfiles())[0];
       if (isUsable(profile)) {
@@ -168,8 +170,8 @@ export async function Results({
           <ol>
             {g.offers.map((o) => (
               <li key={o.src + ':' + o.id} className="offer">
-                <time dateTime={o.first_seen} title={fullLabel(z, o.first_seen)}>
-                  {z.formatTime(o.first_seen)}
+                <time dateTime={o.firstSeen} title={fullLabel(z, o.firstSeen)}>
+                  {z.formatTime(o.firstSeen)}
                 </time>
                 <div className="body">
                   <a href={o.url} target="_blank" rel="noopener noreferrer" className="title">
@@ -189,11 +191,11 @@ export async function Results({
                       score={o.ai.score}
                       summary={o.ai.summary}
                       checks={o.ai.checks}
-                      hadDescription={o.ai.had_description}
+                      hadDescription={o.ai.hadDescription}
                     />
                   )}
                   <Sources offer={o} labels={labels} />
-                  {o.key && <ApplyButton jobKey={o.key} src={o.src} id={o.id} appliedAt={o.applied_at} tz={z.tz} />}
+                  <ApplyButton jobKey={o.dupKey} src={o.src} id={o.id} appliedAt={o.appliedAt} tz={z.tz} />
                 </div>
               </li>
             ))}

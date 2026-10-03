@@ -40,7 +40,8 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
   } catch (e) {
     return (
       <div className="notice">
-        <strong>Can’t load the AI filter.</strong> Did you run <code>npm run db:migrate</code>?<code>{message(e)}</code>
+        <strong>Can’t load the AI filter.</strong>
+        <code>{message(e)}</code>
       </div>
     );
   }
@@ -51,7 +52,7 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
         id: p.id,
         name: p.name,
         prompt: p.prompt,
-        fileName: p.file_name,
+        fileName: p.fileName,
         version: p.version,
       }))}
       activeId={active?.id ?? null}
@@ -61,12 +62,12 @@ export async function AiFilterBar({ searchParams }: { searchParams: SearchParams
           label: run.label,
           status: run.status,
           phase: run.phase,
-          pairsChecked: run.pairs_checked,
+          pairsChecked: run.pairsChecked,
           merged: run.merged,
           total: run.total,
           done: run.done,
           error: run.error,
-          finishedAt: run.finished_at,
+          finishedAt: run.finishedAt,
           stale: active?.version !== run.version,
         }
       }

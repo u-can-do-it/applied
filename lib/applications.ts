@@ -1,103 +1,52 @@
 import 'server-only';
 import { boardIdOf, boardOf, cleanLink } from './boards';
 import type { Zone } from './dates';
-import type { Copy } from './offers';
+import * as applicationsRepo from './db/repos/applications';
+import * as linksRepo from './db/repos/job-links';
+import * as offersRepo from './db/repos/offers';
+import type { NewApplicationRow } from './db/schema';
 import { scrapeOfferFull, type JobDetails } from './scrape';
 import { message } from './shared/errors';
-import { NOTE_MAX } from './shared/schemas/applications';
+import { NOTE_CONFLICT, NOTE_MAX } from './shared/schemas/applications';
 import { GHOST_AFTER_DAYS, type HistoryEntry, type StageId, type StateId } from './stages';
-import { rest, restUrl } from './supabase';
 
-// Jobs you applied to. Marking one keeps a snapshot (title, company, link) and, in the
-// background, the complete ad text, so it stays readable after the board takes the ad down.
+// Jobs you applied to: the rules (which copy is kept, when the applied date may move, how the key
+// changes on an edit, what a scrape may overwrite). The queries are in lib/db/repos/applications.ts.
+// Marking one keeps a snapshot (title, company, link) and, in the background, the complete ad
+// text, so it stays readable after the board takes the ad down.
 
-export type Application = {
-  dup_key: string;
-  src: string;
-  id: string;
-  title: string;
-  company: string | null;
-  url: string;
-  applied_at: string;
-  details: SavedDetails | null;
-  content_status: 'pending' | 'ok' | 'empty' | 'failed';
-  content_error: string | null;
-  scraped_at: string | null;
-  stage: StageId;
-  stage_state: StateId;
-  stage_updated_at: string | null;
-  history: HistoryEntry[];
-  note: string | null;
-  note_updated_at: string | null;
-};
-export type ApplicationWithContent = Application & { content: string | null };
+export type Application = applicationsRepo.Application;
+export type ApplicationWithContent = applicationsRepo.ApplicationWithContent;
 
-const LIST_COLS =
-  'dup_key,src,id,title,company,url,applied_at,details,content_status,content_error,scraped_at,stage,stage_state,stage_updated_at,history,note,note_updated_at';
-const keyFilter = (url: URL, key: string) => url.searchParams.set('dup_key', `eq.${key}`);
-
-export async function listApplications(): Promise<Application[]> {
-  const url = restUrl('applications');
-  url.searchParams.set('select', LIST_COLS);
-  url.searchParams.set('order', 'applied_at.desc');
-  return (await rest(url)).json() as Promise<Application[]>;
-}
-
-export async function getApplication(key: string): Promise<ApplicationWithContent | null> {
-  const url = restUrl('applications');
-  url.searchParams.set('select', `${LIST_COLS},content`);
-  keyFilter(url, key);
-  return ((await (await rest(url)).json()) as ApplicationWithContent[])[0] ?? null;
-}
+export const listApplications = () => applicationsRepo.list();
+export const getApplication = (key: string) => applicationsRepo.get(key);
 
 /** The job as the list shows it: its key, title, company and every board's copy. */
-async function findJob(key: string): Promise<{ title: string; company: string | null; copies: Copy[] } | null> {
-  const url = restUrl('offers_unique');
-  url.searchParams.set('select', 'title,company,copies');
-  keyFilter(url, key);
-  return ((await (await rest(url)).json()) as { title: string; company: string | null; copies: Copy[] }[])[0] ?? null;
-}
+const findJob = (key: string) => offersRepo.jobByKey(key);
 
 /** Marks the job applied (keeping the first date if it already was), with the clicked copy's link. */
 export async function markApplied(key: string, clicked: { src: string; id: string }) {
   const job = await findJob(key);
   if (!job) throw new Error('That offer is no longer in the database.');
   const copy = job.copies.find((c) => c.src === clicked.src && c.id === clicked.id) ?? job.copies[0];
-  const url = restUrl('applications');
-  url.searchParams.set('on_conflict', 'dup_key');
-  await rest(url, {
-    method: 'POST',
-    prefer: 'resolution=ignore-duplicates,return=minimal',
-    body: JSON.stringify({
-      dup_key: key,
-      src: copy.src,
-      id: copy.id,
-      title: job.title,
-      company: job.company,
-      url: copy.url,
-      stage: 'submitted',
-      stage_state: 'pending',
-      history: [{ stage: 'submitted', state: 'pending', at: new Date().toISOString() }],
-    }),
+  await applicationsRepo.insertUnlessThere({
+    dupKey: key,
+    src: copy.src,
+    id: copy.id,
+    title: job.title,
+    company: job.company,
+    url: copy.url,
+    stage: 'submitted',
+    stageState: 'pending',
+    history: [{ stage: 'submitted', state: 'pending', at: new Date().toISOString() }],
   });
 }
 
 /** Open applications without news for a month become ghosted. Returns how many just did. */
-export async function ghostStale(): Promise<number> {
-  const res = await rest(restUrl('rpc/jw_ghost_stale_applications'), {
-    method: 'POST',
-    body: JSON.stringify({ p_days: GHOST_AFTER_DAYS }),
-  });
-  return Number(await res.json()) || 0;
-}
+export const ghostStale = (): Promise<number> => applicationsRepo.ghostStale(GHOST_AFTER_DAYS);
 
 /** Moves the application to a stage / outcome; the change is added to its history. */
-export async function setStatus(key: string, stage: StageId, state: StateId) {
-  await rest(restUrl('rpc/jw_set_application_status'), {
-    method: 'POST',
-    body: JSON.stringify({ p_key: key, p_stage: stage, p_state: state }),
-  });
-}
+export const setStatus = (key: string, stage: StageId, state: StateId) => applicationsRepo.setStatus(key, stage, state);
 
 /**
  * Takes a step out of the status history together with every step after it (a mistaken click
@@ -116,38 +65,30 @@ export async function removeStatusStep(key: string, step: HistoryEntry): Promise
   const history = all.slice(0, i);
   const last = history.at(-1);
   // counts as a change now: taking back an automatic "ghosted" doesn't bring it right back
-  await patch(key, {
+  await applicationsRepo.patch(key, {
     history,
     stage: last?.stage ?? 'submitted',
-    stage_state: last?.state ?? 'pending',
-    stage_updated_at: new Date().toISOString(),
+    stageState: last?.state ?? 'pending',
+    stageUpdatedAt: new Date().toISOString(),
   });
   return {};
 }
 
-/** Saves your note for the application ('' clears it). */
-export async function setNote(key: string, note: string) {
-  const url = restUrl('applications');
-  keyFilter(url, key);
+/**
+ * Saves your note for the application ('' clears it), if nobody else changed it since you read it:
+ * `seenAt` is the note_updated_at you saw. Answers with the new one, for the next save.
+ */
+export async function setNote(key: string, note: string, seenAt: string | null): Promise<{ noteUpdatedAt: string }> {
   const text = note.trim() ? note.slice(0, NOTE_MAX) : null;
-  await rest(url, {
-    method: 'PATCH',
-    prefer: 'return=minimal',
-    body: JSON.stringify({ note: text, note_updated_at: new Date().toISOString() }),
-  });
+  const savedAt = await applicationsRepo.setNoteIfUnchanged(key, text, seenAt);
+  if (savedAt) return { noteUpdatedAt: savedAt };
+  if (!(await applicationsRepo.get(key))) throw new Error('This application no longer exists.');
+  throw new Error(NOTE_CONFLICT);
 }
 
-export async function unmarkApplied(key: string) {
-  const url = restUrl('applications');
-  keyFilter(url, key);
-  await rest(url, { method: 'DELETE', prefer: 'return=minimal' });
-}
+export const unmarkApplied = (key: string) => applicationsRepo.remove(key);
 
-async function patch(key: string, fields: Partial<ApplicationWithContent>) {
-  const url = restUrl('applications');
-  keyFilter(url, key);
-  await rest(url, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify(fields) });
-}
+const patch = (key: string, fields: Partial<NewApplicationRow>) => applicationsRepo.patch(key, fields);
 
 /** Added by hand or imported (not marked on a scraped offer): its id is ours, not a board's. */
 const ownId = (id: string) => /^(manual|import)-/.test(id);
@@ -246,9 +187,9 @@ export async function saveContent(key: string) {
         await patch(key, {
           content: s.text,
           details: merge(s.details),
-          content_status: 'ok',
-          content_error: null,
-          scraped_at: new Date().toISOString(),
+          contentStatus: 'ok',
+          contentError: null,
+          scrapedAt: new Date().toISOString(),
         });
         return;
       }
@@ -260,42 +201,28 @@ export async function saveContent(key: string) {
   await patch(key, {
     content: null,
     details: merge(firstEmpty?.details),
-    content_status: firstEmpty ? 'empty' : 'failed',
-    content_error: firstEmpty ? 'The board page has no ad text (removed or blocked?).' : lastError,
-    scraped_at: new Date().toISOString(),
+    contentStatus: firstEmpty ? 'empty' : 'failed',
+    contentError: firstEmpty ? 'The board page has no ad text (removed or blocked?).' : lastError,
+    scrapedAt: new Date().toISOString(),
   });
 }
 
 // ---- added by hand ("Add application") --------------------------------------------------
 
-type OfferRow = { src: string; id: string; title: string; company: string | null; url: string; dup_key: string };
-
 /** The scraped offer behind a link, if there is one: by the board's id, or by the same link. */
-export async function findOfferByLink(link: string): Promise<OfferRow | null> {
+export async function findOfferByLink(link: string) {
   const board = boardOf(link);
   const id = boardIdOf(board, link);
-  const url = restUrl('offers');
-  url.searchParams.set('select', 'src,id,title,company,url,dup_key');
-  const clean = cleanLink(link);
-  const q = (v: string) => `"${v.replace(/["\\]/g, '\\$&')}"`;
-  // NoFluff stores its posting id, not the link's slug: by link only
-  const byId = id && board !== 'nofluff' ? `and(src.eq.${q(board)},id.eq.${q(id)}),` : '';
-  url.searchParams.set('or', `(${byId}url.eq.${q(clean)},url.eq.${q(link.trim())})`);
-  url.searchParams.set('limit', '1');
-  return ((await (await rest(url)).json()) as OfferRow[])[0] ?? null;
+  return offersRepo.findCopy({
+    // NoFluff stores its posting id, not the link's slug: by link only
+    ...(id && board !== 'nofluff' ? { src: board, id } : {}),
+    urls: [cleanLink(link), link.trim()],
+  });
 }
 
 /** The job's key: the same company + title as the scrapers see it, or the job it was merged into. */
-export async function jobKeyFor(company: string | null, title: string, known?: string): Promise<string> {
-  const key =
-    known ??
-    ((await (
-      await rest(restUrl('rpc/jw_dup_key'), { method: 'POST', body: JSON.stringify({ company, title }) })
-    ).json()) as string);
-  const url = restUrl('job_links');
-  url.searchParams.set('select', 'job_key');
-  url.searchParams.set('dup_key', `eq.${key}`);
-  return ((await (await rest(url)).json()) as { job_key: string }[])[0]?.job_key ?? key;
+export async function jobKeyFor(company: string | null, title: string, known?: string | null): Promise<string> {
+  return linksRepo.groupOf(known ?? (await offersRepo.dupKeyOf(company, title)));
 }
 
 export type NewApplication = {
@@ -318,12 +245,12 @@ export const appliedAtOf = (day: string, z: Zone) =>
 const newId = () => `manual-${crypto.randomUUID().slice(0, 12)}`;
 const NO_TEXT = 'Added by hand, without the ad text.';
 const alreadyThere = (a: Application, z: Zone) =>
-  `Already in your applications: “${a.title}”, applied ${z.formatDayOf(a.applied_at)}.`;
+  `Already in your applications: “${a.title}”, applied ${z.formatDayOf(a.appliedAt)}.`;
 
 /** Saves an application typed in by hand; an error if the job already has one. */
 export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?: string; error?: string }> {
   const offer = a.url ? await findOfferByLink(a.url).catch(() => null) : null;
-  const key = await jobKeyFor(offer?.company ?? a.company, offer?.title ?? a.title, offer?.dup_key);
+  const key = await jobKeyFor(offer?.company ?? a.company, offer?.title ?? a.title, offer?.dupKey);
   const existing = await getApplication(key);
   if (existing) return { error: alreadyThere(existing, z) };
   const id = offer?.id ?? (boardIdOf(a.src, a.url) || newId());
@@ -331,30 +258,26 @@ export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?
   if (a.stage !== 'submitted' || a.state !== 'pending')
     history.push({ stage: a.stage, state: a.state, at: new Date().toISOString() });
   const text = a.content?.trim() ?? '';
-  await rest(restUrl('applications'), {
-    method: 'POST',
-    prefer: 'return=minimal',
-    body: JSON.stringify({
-      dup_key: key,
-      src: offer?.src ?? a.src,
-      id,
-      title: a.title,
-      company: a.company,
-      url: offer?.url ?? a.url,
-      applied_at: a.appliedAt,
-      content: text || null,
-      details: hasAny(a.details) ? typedDetails(a.details) : null,
-      // with a link but no text, the ad is fetched right after saving (like "Mark applied")
-      content_status: text.length >= 80 ? 'ok' : a.url ? 'pending' : 'empty',
-      content_error: text.length >= 80 || a.url ? null : NO_TEXT,
-      scraped_at: text ? new Date().toISOString() : null,
-      stage: a.stage,
-      stage_state: a.state,
-      stage_updated_at: history[history.length - 1].at,
-      history,
-      note: a.note?.trim() ? a.note.slice(0, NOTE_MAX) : null,
-      note_updated_at: a.note?.trim() ? new Date().toISOString() : null,
-    }),
+  await applicationsRepo.insert({
+    dupKey: key,
+    src: offer?.src ?? a.src,
+    id,
+    title: a.title,
+    company: a.company,
+    url: offer?.url ?? a.url,
+    appliedAt: a.appliedAt,
+    content: text || null,
+    details: hasAny(a.details) ? typedDetails(a.details) : null,
+    // with a link but no text, the ad is fetched right after saving (like "Mark applied")
+    contentStatus: text.length >= 80 ? 'ok' : a.url ? 'pending' : 'empty',
+    contentError: text.length >= 80 || a.url ? null : NO_TEXT,
+    scrapedAt: text ? new Date().toISOString() : null,
+    stage: a.stage,
+    stageState: a.state,
+    stageUpdatedAt: history[history.length - 1].at,
+    history,
+    note: a.note?.trim() ? a.note.slice(0, NOTE_MAX) : null,
+    noteUpdatedAt: a.note?.trim() ? new Date().toISOString() : null,
   });
   return { key };
 }
@@ -387,7 +310,7 @@ export async function updateApplication(
   const typedUrl = e.url === app.url ? app.url : e.url ? cleanLink(e.url) : '';
   const offer = typedUrl ? await findOfferByLink(typedUrl).catch(() => null) : null;
   let target = key;
-  if (offer) target = await jobKeyFor(offer.company, offer.title, offer.dup_key);
+  if (offer) target = await jobKeyFor(offer.company, offer.title, offer.dupKey);
   else if ((e.title !== app.title || e.company !== app.company) && !(await findJob(key).catch(() => null)))
     target = await jobKeyFor(e.company, e.title);
   if (target !== key) {
@@ -395,8 +318,8 @@ export async function updateApplication(
     if (other) return { error: alreadyThere(other, z) };
   }
 
-  const fields: Partial<ApplicationWithContent> = { title: e.title, company: e.company };
-  if (target !== key) fields.dup_key = target;
+  const fields: Partial<NewApplicationRow> = { title: e.title, company: e.company };
+  if (target !== key) fields.dupKey = target;
   // which copy: the scraped offer behind the link, else the board and the link as typed
   const url = offer?.url ?? typedUrl;
   if (offer) Object.assign(fields, { src: offer.src, id: offer.id, url });
@@ -407,18 +330,17 @@ export async function updateApplication(
 
   // another day: the first step (applying) moves with it, and so does "no news since" if nothing changed since
   const history = [...app.history];
-  if (e.day !== z.day(app.applied_at)) {
+  if (e.day !== z.day(app.appliedAt)) {
     const next = history.at(1);
     if (next && e.day > z.day(next.at))
       return { error: `The status changed on ${z.formatDayOf(next.at)}: you applied that day or earlier.` };
     const at = appliedAtOf(e.day, z);
-    fields.applied_at = at;
+    fields.appliedAt = at;
     if (history[0]?.stage === 'submitted' && history[0].state === 'pending') {
       history[0] = { ...history[0], at };
       fields.history = history;
     }
-    if (app.stage_updated_at && Date.parse(app.stage_updated_at) === Date.parse(app.applied_at))
-      fields.stage_updated_at = at;
+    if (app.stageUpdatedAt && Date.parse(app.stageUpdatedAt) === Date.parse(app.appliedAt)) fields.stageUpdatedAt = at;
   }
 
   fields.details = editedDetails(app.details, e.details, app.id, url === app.url);
@@ -429,21 +351,21 @@ export async function updateApplication(
   let fetch = false;
   if (!text) {
     if (url) {
-      Object.assign(fields, { content: null, content_status: 'pending', content_error: null });
+      Object.assign(fields, { content: null, contentStatus: 'pending', contentError: null });
       fetch = true;
-    } else if (had) Object.assign(fields, { content: null, content_status: 'empty', content_error: NO_TEXT });
+    } else if (had) Object.assign(fields, { content: null, contentStatus: 'empty', contentError: NO_TEXT });
   } else if (text !== had) {
     if (text.length >= 80)
       Object.assign(fields, {
         content: text,
-        content_status: 'ok',
-        content_error: null,
-        scraped_at: new Date().toISOString(),
+        contentStatus: 'ok',
+        contentError: null,
+        scrapedAt: new Date().toISOString(),
       });
     else if (url) {
-      Object.assign(fields, { content: text, content_status: 'pending', content_error: null });
+      Object.assign(fields, { content: text, contentStatus: 'pending', contentError: null });
       fetch = true;
-    } else Object.assign(fields, { content: text, content_status: 'empty', content_error: NO_TEXT });
+    } else Object.assign(fields, { content: text, contentStatus: 'empty', contentError: NO_TEXT });
   }
 
   await patch(key, fields);

@@ -10,8 +10,8 @@ import {
   type FieldId,
   type JsonSource,
   type KindId,
-  type Scraper,
 } from '@/lib/scraping/kinds';
+import type { Scraper } from '@/lib/db/repos/scrapers';
 import { message } from '@/lib/shared/errors';
 import { seconds } from '@/lib/shared/format';
 import { fail, type Result } from '@/lib/shared/result';
@@ -199,25 +199,25 @@ export function ScrapersPanel({
 
 function ScraperStatus({ s }: { s: Scraper }) {
   const { formatTime } = useZone();
-  if (!s.last_run_at)
+  if (!s.lastRunAt)
     return (
       <p className="muted small">Not run yet{s.mark === null ? ' · its first run only saves (no Telegram)' : ''}</p>
     );
-  const when = formatTime(s.last_run_at);
-  if (s.last_status === 'error' && !s.last_found) {
+  const when = formatTime(s.lastRunAt);
+  if (s.lastStatus === 'error' && !s.lastFound) {
     return (
       <p className="small">
         <span className="warn">
-          ✗ {when} · {s.last_error}
+          ✗ {when} · {s.lastError}
         </span>
       </p>
     );
   }
   return (
     <p className="small">
-      <span className="ok-text">✓</span> {when} · {s.last_found} on the page · {s.last_kept} kept · {s.last_new} new
-      {s.last_ms !== null && <span className="muted"> · {seconds(s.last_ms, 1)}</span>}
-      {s.last_error && <span className="warn"> · ⚠ {s.last_error}</span>}
+      <span className="ok-text">✓</span> {when} · {s.lastFound} on the page · {s.lastKept} kept · {s.lastNew} new
+      {s.lastMs !== null && <span className="muted"> · {seconds(s.lastMs, 1)}</span>}
+      {s.lastError && <span className="warn"> · ⚠ {s.lastError}</span>}
       {s.mark === null && <span className="muted"> · next run only saves</span>}
     </p>
   );

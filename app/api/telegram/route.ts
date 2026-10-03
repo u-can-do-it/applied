@@ -1,12 +1,16 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
 import { sameString } from '@/lib/auth';
 import { zone } from '@/lib/dates';
+import * as queueRepo from '@/lib/db/repos/notify-queue';
+import * as offersRepo from '@/lib/db/repos/offers';
+import * as runsRepo from '@/lib/db/repos/scrape-runs';
+import * as settingsRepo from '@/lib/db/repos/scrape-settings';
+import * as stateRepo from '@/lib/db/repos/scrape-state';
 import { env } from '@/lib/env';
 import { listProfiles } from '@/lib/profiles';
 import { message } from '@/lib/shared/errors';
 import { notify, runAll } from '@/lib/scraping/run';
 import { effectiveTimeZone } from '@/lib/scraping/kinds';
-import { getSettings, getState, listRuns, queueSize, setMuted, sourceCounts } from '@/lib/scraping/store';
 import { ownerChat, sendMessage, telegramReady, webhookSecret } from '@/lib/telegram';
 
 // Telegram webhook: the bot's commands. Connected from Settings; Telegram sends the secret
@@ -32,7 +36,7 @@ export async function POST(request: NextRequest) {
 
   const reply = (t: string) => sendMessage(t, chatId);
   const cmd = text.split(/\s+/)[0].replace(/@\w+$/, ''); // "/status@my_bot" in groups
-  const queued = () => queueSize();
+  const queued = () => queueRepo.size();
   // what waited goes out after the AI check (that can take a while, so after the answer)
   const deliver = () =>
     after(async () => {
@@ -41,8 +45,8 @@ export async function POST(request: NextRequest) {
     });
 
   if (['/mute', '/pause', '/stop'].includes(cmd)) {
-    const was = (await getState()).muted;
-    await setMuted(true);
+    const was = (await stateRepo.get()).muted;
+    await stateRepo.setMuted(true);
     const n = await queued();
     await reply(
       was
@@ -50,8 +54,8 @@ export async function POST(request: NextRequest) {
         : `🔕 Muted.\nScraping continues - new offers are queued.\n${n} waiting.`,
     );
   } else if (['/resume', '/unmute', '/start'].includes(cmd)) {
-    const was = (await getState()).muted;
-    await setMuted(false);
+    const was = (await stateRepo.get()).muted;
+    await stateRepo.setMuted(false);
     const n = await queued();
     const t = was ? '🔔 Unmuted.' : '🔔 Already active.';
     await reply(n ? `${t}\nDelivering ${n} queued offer(s)...` : `${t}\nNothing queued.`);
@@ -74,11 +78,11 @@ export async function POST(request: NextRequest) {
     });
   } else if (cmd === '/status') {
     const [state, n, counts, runs, settings, profiles] = await Promise.all([
-      getState(),
+      stateRepo.get(),
       queued(),
-      sourceCounts(),
-      listRuns(1),
-      getSettings(),
+      offersRepo.countPerBoard(),
+      runsRepo.list(1),
+      settingsRepo.get(),
       listProfiles(),
     ]);
     const total = Object.values(counts).reduce((s, c) => s + c.offers, 0);
@@ -87,7 +91,7 @@ export async function POST(request: NextRequest) {
       .map((s) => `  ${s}: ${counts[s].offers}`);
     const z = zone(effectiveTimeZone(settings));
     const last = runs[0]
-      ? `${z.formatDateTime(runs[0].started_at)} (${runs[0].trigger}, ${runs[0].added} new)`
+      ? `${z.formatDateTime(runs[0].startedAt)} (${runs[0].trigger}, ${runs[0].added} new)`
       : 'unknown';
     const ai = !settings.aiFilter
       ? 'off'

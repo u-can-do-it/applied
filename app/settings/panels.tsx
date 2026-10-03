@@ -12,7 +12,9 @@ import {
 import { deviceTimeZone, timeZones } from '@/lib/dates';
 import { cronSchedule, describeSchedule } from '@/lib/scraping/cron';
 import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/scraping/kinds';
-import type { CronStatus, RunRow, ScrapeState } from '@/lib/scraping/store';
+import type { CronStatus } from '@/lib/db/repos/cron';
+import type { ScrapeRun } from '@/lib/db/repos/scrape-runs';
+import type { ScrapeState } from '@/lib/db/repos/scrape-state';
 import { message } from '@/lib/shared/errors';
 import { seconds } from '@/lib/shared/format';
 import { fail, type Result } from '@/lib/shared/result';
@@ -106,7 +108,7 @@ export function SchedulePanel({
   settings: ScrapeSettings;
   state: ScrapeState;
   running: boolean;
-  runs: RunRow[];
+  runs: ScrapeRun[];
   cron: CronStatus & { error?: string };
   endpoint: string;
 }) {
@@ -207,12 +209,12 @@ export function SchedulePanel({
         <ol className="runs">
           {runs.map((r) => (
             <li key={r.id}>
-              <span className="run-time">{z.formatDateTime(r.started_at)}</span>
+              <span className="run-time">{z.formatDateTime(r.startedAt)}</span>
               <span className="muted">{r.trigger}</span>
-              {r.finished_at ? (
+              {r.finishedAt ? (
                 <span>
-                  {seconds(Date.parse(r.finished_at) - Date.parse(r.started_at))} · {r.found} on the pages · {r.kept}{' '}
-                  kept · <strong>{r.added} new</strong>
+                  {seconds(Date.parse(r.finishedAt) - Date.parse(r.startedAt))} · {r.found} on the pages · {r.kept} kept
+                  · <strong>{r.added} new</strong>
                   {r.matched !== null && ` · ✦ ${r.matched} matched`}
                   {r.notified ? ` · ${r.notified} sent` : ''}
                 </span>
@@ -230,8 +232,8 @@ export function SchedulePanel({
       ) : (
         <p className="muted small">No runs yet. Use “↻ Scrape now” at the top.</p>
       )}
-      {state.last_call_at && (
-        <p className="muted small">Last call from a scheduler: {z.formatDateTime(state.last_call_at)}</p>
+      {state.lastCallAt && (
+        <p className="muted small">Last call from a scheduler: {z.formatDateTime(state.lastCallAt)}</p>
       )}
 
       <h3>What calls it</h3>

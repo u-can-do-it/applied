@@ -12,9 +12,10 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node --env-file-if-exists=.env scripts/db-migrate.ts",
+    "db:migrate": "node scripts/db-migrate.ts",
     "db:check": "drizzle-kit check",
-    "db:verify": "scripts/db-verify-migrations.sh"
+    "db:verify": "scripts/db-verify-migrations.sh",
+    "test:db": "scripts/test-db.sh"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.3",

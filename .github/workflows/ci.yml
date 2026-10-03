@@ -30,3 +30,27 @@ jobs:
       - run: npm test
       # needs no secrets: nothing reads the database or the env while building
       - run: npm run build
+
+  # the database tests (test/db/): the repositories and services against a real, migrated Postgres
+  db:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    services:
+      postgres:
+        # Supabase's own image, not plain postgres: the migrations grant to its roles (service_role…)
+        # and enable pg_cron and pg_net, as on the real database. A bigger pull, but no stand-ins.
+        image: supabase/postgres:17.4.1.054
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # waits for it (the image restarts once after its init scripts), migrates it, runs the tests
+      - run: scripts/test-db.sh postgresql://postgres:postgres@localhost:5432/postgres

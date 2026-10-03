@@ -1,31 +1,23 @@
 import 'server-only';
 import { after } from 'next/server';
 import { assessJobs, type Verdict } from '../ai-runs';
+import * as offersRepo from '../db/repos/offers';
+import * as queueRepo from '../db/repos/notify-queue';
+import * as runsRepo from '../db/repos/scrape-runs';
+import * as scrapersRepo from '../db/repos/scrapers';
+import * as settingsRepo from '../db/repos/scrape-settings';
+import * as stateRepo from '../db/repos/scrape-state';
 import { env } from '../env';
 import { getProfile, isUsable, listProfiles, type ProfileWithFile } from '../profiles';
 import { message } from '../shared/errors';
 import { formatNotification, sendMessage, telegramReady, type Outgoing } from '../telegram';
-import type { ScrapeSettings, Scraper } from './kinds';
+import type { ScrapeSettings } from './kinds';
 import { areaTest, expandUrl, keywordTest, placeOf, titleTest, type Found } from './match';
 import { parseBody } from './parsers';
-import {
-  claimQueue,
-  enqueue,
-  finishRun,
-  getSettings,
-  getState,
-  ingest,
-  listQueue,
-  listScrapers,
-  lock,
-  saveOutcome,
-  startRun,
-  unlock,
-  updateRun,
-  type IngestRow,
-  type Queued,
-  type QueuedAt,
-} from './store';
+
+type Scraper = scrapersRepo.Scraper;
+type Queued = queueRepo.Queued;
+type QueuedAt = queueRepo.QueuedAt;
 
 // One run = every enabled scraper: fetch, parse, filter, save new offers, queue the new jobs
 // for Telegram, check them against the active AI profile and send the matches (unless muted).
@@ -206,7 +198,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
 
 const clean = (v: string | null | undefined) => (v == null ? null : v.replace(/\u0000/g, '').trim() || null);
 /* eslint-disable @typescript-eslint/no-non-null-assertion -- parseBody keeps only offers with an id and a link */
-const row = (o: Found): IngestRow => ({
+const row = (o: Found): offersRepo.NewOffer => ({
   src: o.src,
   id: clean(o.id)!,
   title: clean(o.title) ?? '(no title)',
@@ -243,13 +235,14 @@ export async function runAll(
   trigger: 'cron' | 'manual' | 'telegram',
   opts: { locked?: boolean; background?: boolean } = {},
 ): Promise<RunSummary> {
-  if (!opts.locked && !(await lock(LOCK_SECONDS))) return { ...EMPTY, skipped: 'Another run is still going.' };
+  if (!opts.locked && !(await stateRepo.lock(LOCK_SECONDS)))
+    return { ...EMPTY, skipped: 'Another run is still going.' };
   const t0 = Date.now();
   let runId: number | null = null;
   let unlockLater = false;
   try {
-    const [settings, scrapers] = await Promise.all([getSettings(), listScrapers()]);
-    runId = await startRun(trigger);
+    const [settings, scrapers] = await Promise.all([settingsRepo.get(), scrapersRepo.list()]);
+    runId = await runsRepo.start(trigger);
     const active = scrapers.filter((s) => s.enabled);
     const results = await mapLimit(active, PARALLEL, (s) => scrape(s, settings));
 
@@ -264,7 +257,7 @@ export async function runAll(
         else if (o.remote && !had.o.remote) had.o = { ...had.o, remote: true };
       }
     });
-    const added = await ingest([...owner.values()].map(({ o }) => row(o)));
+    const added = await offersRepo.ingest([...owner.values()].map(({ o }) => row(o)));
 
     // what's worth a message
     const muted = titleTest(settings.mute);
@@ -277,10 +270,10 @@ export async function runAll(
       addedBy.set(own.s.id, (addedBy.get(own.s.id) ?? 0) + 1);
       if (own.s.mark === null) continue; // the scraper's first run only saves
       if (own.o.sort !== undefined && own.o.sort <= own.s.mark) continue; // an old offer bumped up again
-      if (a.seen_before || jobs.has(a.dup_key)) continue; // the same job, already seen on another board
+      if (a.seenBefore || jobs.has(a.dupKey)) continue; // the same job, already seen on another board
       if (muted(own.o.title)) continue; // a stack you don't want to hear about
-      jobs.add(a.dup_key);
-      fresh.push({ ...row(own.o), location: placeOf(own.o, settings.cities), dup_key: a.dup_key });
+      jobs.add(a.dupKey);
+      fresh.push({ ...row(own.o), location: placeOf(own.o, settings.cities), dupKey: a.dupKey });
     }
 
     await Promise.all(
@@ -288,7 +281,7 @@ export async function runAll(
         const s = active[i];
         // the watermark moves only on a successful run; null -> "has run" even with nothing dated
         const mark = r.ok ? Math.max(s.mark ?? -Infinity, r.maxSort ?? -Infinity, 0) : s.mark;
-        return saveOutcome(s.id, {
+        return scrapersRepo.saveOutcome(s.id, {
           ok: r.ok,
           found: r.found,
           kept: r.kept.length,
@@ -310,7 +303,7 @@ export async function runAll(
       errors,
       ms: Date.now() - t0,
     };
-    await finishRun(runId, {
+    await runsRepo.finish(runId, {
       found: summary.found,
       kept: summary.kept,
       added: summary.added,
@@ -321,10 +314,10 @@ export async function runAll(
 
     // every new job (not another board's copy of a known one) gets the AI's verdict, also the ones
     // that aren't announced (a scraper's first run, a muted title): the AI tab has them checked
-    const newJobs = [...new Set(added.filter((a) => !a.seen_before).map((a) => a.dup_key))];
+    const newJobs = [...new Set(added.filter((a) => !a.seenBefore).map((a) => a.dupKey))];
     // the announced ones wait in the queue; Telegram gets the matches
     const send = settings.notify && telegramReady();
-    if (send) await enqueue(fresh);
+    if (send) await queueRepo.enqueue(fresh);
     const id = runId;
     const deadline = t0 + AI_BUDGET_MS;
     const tail = async () => {
@@ -347,7 +340,7 @@ export async function runAll(
       const n = send ? await notify({ deadline }) : { sent: 0 };
       note('AI / Telegram', 'error' in n ? n.error : null);
       if (profile || send || more.length)
-        await updateRun(id, { notified: n.sent, matched, errors: [...errors, ...more] });
+        await runsRepo.update(id, { notified: n.sent, matched, errors: [...errors, ...more] });
       return { sent: n.sent, more };
     };
     if (opts.background && (newJobs.length || fresh.length)) {
@@ -355,7 +348,7 @@ export async function runAll(
       after(() =>
         tail()
           .catch((e: unknown) => console.error('[scrape] AI / Telegram failed:', e))
-          .finally(() => unlock().catch(() => {})),
+          .finally(() => stateRepo.unlock().catch(() => {})),
       );
       return { ...summary, notifyLater: true };
     }
@@ -364,10 +357,10 @@ export async function runAll(
   } catch (e) {
     // the database or something unexpected: keep it in the run log, so Settings shows it
     const errors = [{ scraper: 'Run', error: message(e) }];
-    if (runId !== null) await finishRun(runId, { ...EMPTY, errors }).catch(() => {});
+    if (runId !== null) await runsRepo.finish(runId, { ...EMPTY, errors }).catch(() => {});
     return { ...EMPTY, errors, ms: Date.now() - t0 };
   } finally {
-    if (!unlockLater) await unlock().catch(() => {});
+    if (!unlockLater) await stateRepo.unlock().catch(() => {});
   }
 }
 
@@ -395,9 +388,9 @@ const appLink = () =>
  * (and not sent by hand) nothing is sent, but the verdicts are made, so /send is quick.
  */
 export async function notify(opts: { manual?: boolean; deadline?: number } = {}): Promise<Notified> {
-  const queued = await listQueue();
+  const queued = await queueRepo.list();
   if (!queued.length) return { sent: 0, matched: null };
-  const settings = await getSettings();
+  const settings = await settingsRepo.get();
   let error: string | undefined;
   const profile = await aiProfile(settings).catch((e: unknown) => ((error = message(e)), null));
   let verdicts = new Map<string, Verdict>();
@@ -405,7 +398,7 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
     try {
       const r = await assessJobs(
         profile,
-        [...new Set(queued.flatMap((q) => q.dup_key ?? []))],
+        [...new Set(queued.flatMap((q) => q.dupKey ?? []))],
         opts.deadline ?? Date.now() + AI_BUDGET_MS,
       );
       verdicts = r.verdicts;
@@ -414,20 +407,20 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
       error = message(e);
     }
   }
-  const muted = (await getState()).muted;
+  const muted = (await stateRepo.get()).muted;
   if (muted && !opts.manual) return { sent: 0, matched: null, ...(error ? { error } : {}) };
 
-  const waited = (q: QueuedAt) => Date.now() - Date.parse(q.queued_at) > UNCHECKED_AFTER_MS;
-  const ready = queued.filter((q) => !profile || !q.dup_key || verdicts.has(q.dup_key) || waited(q));
+  const waited = (q: QueuedAt) => Date.now() - Date.parse(q.queuedAt) > UNCHECKED_AFTER_MS;
+  const ready = queued.filter((q) => !profile || !q.dupKey || verdicts.has(q.dupKey) || waited(q));
   // nothing decided yet (e.g. OpenAI is down): no "0 matched" in the log, just the error
   if (!ready.length) return { sent: 0, matched: null, ...(error ? { error } : {}) };
-  const claimed = await claimQueue(ready); // only the ones no other sender took meanwhile
+  const claimed = await queueRepo.claim(ready); // only the ones no other sender took meanwhile
 
   const matched: Outgoing[] = [];
   const unmatched: QueuedAt[] = [];
   const unchecked: QueuedAt[] = [];
   for (const q of claimed) {
-    const v = profile && q.dup_key ? verdicts.get(q.dup_key) : undefined;
+    const v = profile && q.dupKey ? verdicts.get(q.dupKey) : undefined;
     if (!profile) matched.push(q);
     else if (!v) unchecked.push(q);
     else if (v.match) matched.push({ ...q, verdict: { score: v.score, summary: v.summary } });
@@ -448,7 +441,7 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
     } catch (e) {
       // back into the queue with their own time, so they're tried again (and still count as waiting)
       const left = new Set(messages.slice(i).flatMap((m) => m.offers.map((o) => `${o.src}\n${o.id}`)));
-      await enqueue(claimed.filter((q) => left.has(`${q.src}\n${q.id}`))).catch(() => {});
+      await queueRepo.enqueue(claimed.filter((q) => left.has(`${q.src}\n${q.id}`))).catch(() => {});
       return { sent, matched: profile ? matched.length : null, error: message(e) };
     }
     sent += messages[i].offers.length;

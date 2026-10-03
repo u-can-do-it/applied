@@ -41,9 +41,9 @@ export type StageId = (typeof STAGES)[number]['id'];
 export type StateId = (typeof STATES)[number]['id'];
 export type HistoryEntry = { stage: StageId; state: StateId; at: string; auto?: boolean }; // auto: set by the app (ghosted after a month)
 
-/** No news this long since the last status change: ghosted (jw_ghost_stale_applications). */
+/** No news this long since the last status change: ghosted (lib/db/repos/applications.ts, ghostStale). */
 export const GHOST_AFTER_DAYS = 30;
-export type WithStatus = { stage: StageId; stage_state: StateId; history: HistoryEntry[] };
+export type WithStatus = { stage: StageId; stageState: StateId; history: HistoryEntry[] };
 
 // The Offer stage has outcomes of its own: received (still deciding), accepted, rejected. It's
 // never "ghosted": the decision is yours. Same ids underneath (pending / passed / failed).
@@ -67,11 +67,11 @@ export const stateLabel = (stage: StageId, state: StateId) =>
   (stage === 'offer' ? OFFER_LABELS[state] : undefined) ?? stateOf(state).label;
 
 /** Still going somewhere: in progress, or passed and waiting for the next step; an offer not decided yet. */
-export const isActive = (a: { stage: StageId; stage_state: StateId }) =>
-  a.stage === 'offer' ? a.stage_state === 'pending' : a.stage_state === 'pending' || a.stage_state === 'passed';
+export const isActive = (a: { stage: StageId; stageState: StateId }) =>
+  a.stage === 'offer' ? a.stageState === 'pending' : a.stageState === 'pending' || a.stageState === 'passed';
 /** They said no (an offer you turned down isn't that). */
-export const isRejected = (a: { stage: StageId; stage_state: StateId }) =>
-  a.stage_state === 'failed' && a.stage !== 'offer';
+export const isRejected = (a: { stage: StageId; stageState: StateId }) =>
+  a.stageState === 'failed' && a.stage !== 'offer';
 
 export const isStage = (v: unknown): v is StageId => STAGES.some((s) => s.id === v);
 export const isState = (v: unknown): v is StateId => STATES.some((s) => s.id === v);
@@ -112,12 +112,12 @@ export function stats(apps: WithStatus[]): Stats {
     ghosted = 0,
     pool = 0;
   for (const a of apps) {
-    byStage[a.stage][a.stage_state]++;
+    byStage[a.stage][a.stageState]++;
     now[a.stage]++;
     if (isActive(a)) active++;
     else if (isRejected(a)) rejected++;
-    else if (a.stage_state === 'ghosted') ghosted++;
-    else if (a.stage_state === 'pool') pool++;
+    else if (a.stageState === 'ghosted') ghosted++;
+    else if (a.stageState === 'pool') pool++;
   }
   return {
     sent: apps.length,

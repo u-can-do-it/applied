@@ -17,9 +17,9 @@ import {
   type WithStatus,
 } from '@/lib/stages';
 
-const app = (stage: StageId, stage_state: StateId, history: HistoryEntry[] = []): WithStatus => ({
+const app = (stage: StageId, stageState: StateId, history: HistoryEntry[] = []): WithStatus => ({
   stage,
-  stage_state,
+  stageState,
   history,
 });
 const step = (stage: StageId, state: StateId = 'passed'): HistoryEntry => ({

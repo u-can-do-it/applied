@@ -28,7 +28,17 @@ export const removeStepSchema = z.object({
   step: z.object({ stage: stage(), state: state(), at: z.string() }),
 });
 
-export const setNoteSchema = z.object({ key: jobKey, note: z.string() });
+/** seenAt: the note's note_updated_at as the window read it (null: never written), so a change made elsewhere since isn't overwritten */
+export const setNoteSchema = z.object({
+  key: jobKey,
+  note: z.string(),
+  // as the database gives it: "2026-10-03T12:34:56.123456+00:00"
+  seenAt: z.iso.datetime({ offset: true }).nullable(),
+});
+
+/** Why a note wasn't saved: it was changed elsewhere since the window read it. */
+export const NOTE_CONFLICT =
+  'This note was changed in another tab or window since you opened it, so your text wasn’t saved. It’s kept here and in this browser.';
 
 const LINK_NEEDED = 'Paste a link that starts with https://';
 export const fillFromLinkSchema = z.object({ link: z.string({ error: LINK_NEEDED }).refine(isLink, LINK_NEEDED) });

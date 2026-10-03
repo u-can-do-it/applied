@@ -5,7 +5,13 @@ import { env } from '@/lib/env';
 import { isUsable, listProfiles } from '@/lib/profiles';
 import { effectiveTimeZone } from '@/lib/scraping/kinds';
 import { requestOrigin } from '@/lib/scraping/schedule';
-import * as store from '@/lib/scraping/store';
+import * as cronRepo from '@/lib/db/repos/cron';
+import * as queueRepo from '@/lib/db/repos/notify-queue';
+import * as offersRepo from '@/lib/db/repos/offers';
+import * as runsRepo from '@/lib/db/repos/scrape-runs';
+import * as settingsRepo from '@/lib/db/repos/scrape-settings';
+import * as stateRepo from '@/lib/db/repos/scrape-state';
+import * as scrapersRepo from '@/lib/db/repos/scrapers';
 import { message } from '@/lib/shared/errors';
 import { botInfo, telegramReady } from '@/lib/telegram';
 import { Header } from '../header';
@@ -37,26 +43,26 @@ async function Settings() {
   let data;
   try {
     const [settings, scrapers, state, runs, queued, counts] = await Promise.all([
-      store.getSettings(),
-      store.listScrapers(),
-      store.getState(),
-      store.listRuns(12),
-      store.queueSize(),
-      store.sourceCounts(),
+      settingsRepo.get(),
+      scrapersRepo.list(),
+      stateRepo.get(),
+      runsRepo.list(12),
+      queueRepo.size(),
+      offersRepo.countPerBoard(),
     ]);
     data = { settings, scrapers, state, runs, queued, counts };
   } catch (e) {
     return (
       <div className="notice">
-        <strong>Can’t load the scraping settings.</strong> Did you run <code>npm run db:migrate</code>?
+        <strong>Can’t load the scraping settings.</strong>
         <code>{message(e)}</code>
       </div>
     );
   }
   const [cron, bot, origin, profiles] = await Promise.all([
-    store
-      .cronStatus()
-      .catch((e: unknown): store.CronStatus & { error: string } => ({ available: false, error: message(e) })),
+    cronRepo
+      .status()
+      .catch((e: unknown): cronRepo.CronStatus & { error: string } => ({ available: false, error: message(e) })),
     telegramReady() ? botInfo().catch((e: unknown) => ({ error: message(e) })) : Promise.resolve(null),
     requestOrigin(),
     listProfiles().catch(() => []),
@@ -77,7 +83,7 @@ async function Settings() {
         settings={settings}
         state={state}
         // eslint-disable-next-line react-hooks/purity -- a server component renders once per request: "now" is that request's time
-        running={Boolean(state.locked_until && Date.parse(state.locked_until) > Date.now())}
+        running={Boolean(state.lockedUntil && Date.parse(state.lockedUntil) > Date.now())}
         runs={runs}
         cron={cron}
         endpoint={`${origin}/api/cron/scrape`}

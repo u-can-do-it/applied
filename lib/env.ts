@@ -4,7 +4,7 @@ import { z } from 'zod';
 // Every environment variable the app reads, with its default; .env.example says what each is for.
 // Checked on first use, not at import: `next build` loads this module without any of them set.
 // A missing or malformed variable fails where it's read, with its name, so the parts that don't
-// need it keep working (no Supabase key: the login page still answers; no OpenAI key: no AI tab).
+// need it keep working (no database URL: the login page still answers; no OpenAI key: no AI tab).
 
 /** `VAR=` with nothing after it, as .env.example has them, counts as not set */
 const unset = (value: unknown) => (value === '' ? undefined : value);
@@ -19,11 +19,9 @@ const trimSlashes = (value: string) => value.replace(/\/+$/, '');
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).catch('development'),
 
-  // the database (Supabase → Project Settings → API); nothing loads without them
-  SUPABASE_URL: z.preprocess(unset, url),
-  SUPABASE_SECRET_KEY: z.preprocess(unset, z.string({ error: 'is not set' })),
-  // the direct Postgres connection (lib/db, npm run db:migrate): Supabase → Connect → Transaction
-  // pooler (port 6543) on Vercel; the Session pooler (5432) works too and is what migrations want
+  // the database (lib/db, npm run db:migrate); nothing loads without it. Supabase → Connect →
+  // Transaction pooler (port 6543) on Vercel; the Session pooler (5432) works too and is what
+  // migrations want
   SUPABASE_DB_URL: z.preprocess(
     unset,
     z
@@ -61,7 +59,7 @@ const schema = z.object({
 export type Env = z.output<typeof schema>;
 type Key = keyof Env;
 
-/** The variables checked; reading one that's missing or malformed throws "SUPABASE_URL is not set". */
+/** The variables checked; reading one that's missing or malformed throws "SUPABASE_DB_URL is not set". */
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const parsed = schema.safeParse(source);
   if (parsed.success) return parsed.data;

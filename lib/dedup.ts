@@ -1,31 +1,14 @@
 import 'server-only';
+import * as pairsRepo from './db/repos/ai-dup-pairs';
+import * as linksRepo from './db/repos/job-links';
 import { aiConfig, decideDuplicates, type JobForAi } from './openai';
 import { message } from './shared/errors';
-import { rest, restUrl, rpcUrl } from './supabase';
+
+type Candidate = pairsRepo.Candidate;
 
 // AI duplicate check for one run's date range. The database proposes pairs whose keys differ
 // but look alike (same / prefix company, similar title, <= 45 days apart, never asked before);
 // the model says same or not; same pairs are merged into one job (job_links), verdicts follow.
-
-type Candidate = {
-  key_a: string;
-  key_b: string;
-  sim: number;
-  a_title: string;
-  a_company: string | null;
-  a_seniority: string | null;
-  a_remote: boolean | null;
-  a_src: string;
-  a_first_seen: string;
-  a_excerpt: string | null;
-  b_title: string;
-  b_company: string | null;
-  b_seniority: string | null;
-  b_remote: boolean | null;
-  b_src: string;
-  b_first_seen: string;
-  b_excerpt: string | null;
-};
 
 const PAIRS_PER_CALL = 15;
 const PARALLEL = 2;
@@ -40,17 +23,12 @@ const job = (c: Candidate, side: 'a' | 'b'): JobForAi => ({
   excerpt: c[`${side}_excerpt`],
 });
 
-async function candidates(range: { gte: string | null; lt: string | null }, limit: number): Promise<Candidate[]> {
-  const url = rpcUrl('ai_dup_candidates', { p_gte: range.gte, p_lt: range.lt, p_limit: limit });
-  return (await rest(url)).json() as Promise<Candidate[]>;
-}
-
 /**
  * One round: up to PAIRS_PER_CALL x PARALLEL pairs. checked = 0 (and no error) means nothing is left.
  * `asked` holds pairs already sent in this slice, so a stale read can't loop.
  */
 export async function dedupRound(range: { gte: string | null; lt: string | null }, asked: Set<string>) {
-  const pending = (await candidates(range, 80)).filter((c) => !asked.has(`${c.key_a}\u0001${c.key_b}`));
+  const pending = (await pairsRepo.candidates(range, 80)).filter((c) => !asked.has(`${c.key_a}\u0001${c.key_b}`));
   if (!pending.length) return { checked: 0, merged: 0, error: null as string | null };
 
   const take = pending.slice(0, PAIRS_PER_CALL * PARALLEL);
@@ -71,17 +49,7 @@ export async function dedupRound(range: { gte: string | null; lt: string | null 
     else error = message(s.reason);
   });
 
-  if (decided.length) {
-    const url = restUrl('ai_dup_pairs');
-    url.searchParams.set('on_conflict', 'key_a,key_b');
-    await rest(url, {
-      method: 'POST',
-      prefer: 'resolution=merge-duplicates,return=minimal',
-      body: JSON.stringify(
-        decided.map(({ c, same, reason }) => ({ key_a: c.key_a, key_b: c.key_b, same, reason, model })),
-      ),
-    });
-  }
+  await pairsRepo.record(decided.map(({ c, same, reason }) => ({ keyA: c.key_a, keyB: c.key_b, same, reason, model })));
 
   // merge the "same" pairs; within this round, follow earlier merges so A=B, B=C ends up as one group
   const mergedInto = new Map<string, string>();
@@ -104,10 +72,7 @@ export async function dedupRound(range: { gte: string | null; lt: string | null 
     const fa = firstSeen.get(a) ?? Infinity,
       fb = firstSeen.get(b) ?? Infinity;
     const [keep, alias] = fa < fb || (fa === fb && a < b) ? [a, b] : [b, a]; // the earliest job stays the group
-    await rest(restUrl('rpc/jw_merge_jobs'), {
-      method: 'POST',
-      body: JSON.stringify({ p_keep: keep, p_alias: alias }),
-    });
+    await linksRepo.mergeJobs(keep, alias);
     mergedInto.set(alias, keep);
     firstSeen.set(keep, Math.min(fa, fb));
     merged++;

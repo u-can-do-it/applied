@@ -1,6 +1,7 @@
+import { connection } from 'next/server';
 import { Suspense } from 'react';
 import type { SearchParams } from '@/lib/shared/search-params';
-import { sourceOptions } from '@/lib/source-list';
+import { builtInSources, sourceOptions } from '@/lib/source-list';
 import { AiFilterBar } from './ai-filter-bar';
 import { Controls, ControlsFallback } from './controls';
 import { Header } from './header';
@@ -46,9 +47,12 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
 }
 
 // The source chips include your own scrapers: their list is fetched alongside the offers (not
-// before them), and the chips render once it's in.
-function OffersBody({ searchParams, mode }: { searchParams: SearchParams; mode: 'all' | 'ai' }) {
-  const sources = sourceOptions();
+// before them), and the chips render once it's in. Not while prerendering the shell at build time
+// (connection()): the build has no database to ask, or must not ask the one in .env.
+async function OffersBody({ searchParams, mode }: { searchParams: SearchParams; mode: 'all' | 'ai' }) {
+  await connection();
+  // without the database (it's down) the chips are the built-in boards; the list says what's wrong
+  const sources = sourceOptions().catch(() => builtInSources());
   return (
     <NavProvider>
       <Controls sources={sources} />
