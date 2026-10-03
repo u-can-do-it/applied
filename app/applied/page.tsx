@@ -3,7 +3,7 @@ import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { ghostStale, listApplications } from '@/lib/applications';
 import { message } from '@/lib/shared/errors';
-import { labelsOf, sourceOptions } from '@/lib/source-list';
+import { labelsOf, sourceOptions } from '@/lib/listings/sources';
 import { appTimeZone } from '@/lib/time-zone';
 import { Header } from '../header';
 import { ResultsSkeleton } from '../results';

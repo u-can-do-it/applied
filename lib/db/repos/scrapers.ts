@@ -1,6 +1,6 @@
 import 'server-only';
 import { asc, eq } from 'drizzle-orm';
-import { isKind } from '../../scraping/kinds';
+import { isKind } from '../../listings/kinds';
 import { db } from '../client';
 import { first } from '../rows';
 import { scrapers, type ScraperRow } from '../schema';

@@ -1,11 +1,12 @@
 import 'server-only';
-import { boardIdOf, boardOf, cleanLink } from './boards';
+import { boardIdOf, boardOf, cleanLink, offerIdOf } from './boards';
 import type { Zone } from './dates';
 import * as applicationsRepo from './db/repos/applications';
 import * as linksRepo from './db/repos/job-links';
 import * as offersRepo from './db/repos/offers';
 import type { NewApplicationRow } from './db/schema';
-import { scrapeOfferFull, type JobDetails } from './scrape';
+import { scrapeOfferFull } from './ads';
+import type { JobDetails } from './ads/details';
 import { message } from './shared/errors';
 import { NOTE_CONFLICT, NOTE_MAX } from './shared/schemas/applications';
 import { GHOST_AFTER_DAYS, type HistoryEntry, type StageId, type StateId } from './stages';
@@ -212,10 +213,9 @@ export async function saveContent(key: string) {
 /** The scraped offer behind a link, if there is one: by the board's id, or by the same link. */
 export async function findOfferByLink(link: string) {
   const board = boardOf(link);
-  const id = boardIdOf(board, link);
+  const id = offerIdOf(board, link);
   return offersRepo.findCopy({
-    // NoFluff stores its posting id, not the link's slug: by link only
-    ...(id && board !== 'nofluff' ? { src: board, id } : {}),
+    ...(id ? { src: board, id } : {}),
     urls: [cleanLink(link), link.trim()],
   });
 }

@@ -2,10 +2,10 @@
 
 import { refresh } from 'next/cache';
 import { action } from '@/lib/action';
-import { cronSchedule } from '@/lib/scraping/cron';
-import type { ScrapeSettings } from '@/lib/scraping/kinds';
-import { notify, runAll, scrape, type PageResult } from '@/lib/scraping/run';
-import { cronSecret, requestOrigin, syncCron } from '@/lib/scraping/schedule';
+import { cronSchedule } from '@/lib/listings/cron';
+import type { ScrapeSettings } from '@/lib/listings/settings';
+import { notify, runAll, scrape, type PageResult } from '@/lib/listings/run';
+import { cronSecret, requestOrigin, syncCron } from '@/lib/listings/schedule';
 import * as cronRepo from '@/lib/db/repos/cron';
 import * as offersRepo from '@/lib/db/repos/offers';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';

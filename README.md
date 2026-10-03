@@ -1,7 +1,8 @@
 # Jobwatch
 
 Job offers from several boards, newest first, with search, filters, an AI filter and application tracking.
-The app scrapes the boards itself and sends new offers to Telegram.
+The app scrapes the boards itself and sends new offers to Telegram. Changing it, or adding a board:
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```
 Supabase Cron ─as in Settings→ /api/cron/scrape (Vercel) ─→ scrapers → filters → Supabase (offers)

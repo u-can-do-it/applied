@@ -1,11 +1,11 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
-import { LOCK_SECONDS, runAll } from '@/lib/scraping/run';
-import { checkDue, isCronRequest } from '@/lib/scraping/schedule';
+import { LOCK_SECONDS, runAll } from '@/lib/listings/run';
+import { checkDue, isCronRequest } from '@/lib/listings/schedule';
 import { lock } from '@/lib/db/repos/scrape-state';
 
-// GET or POST /api/cron/scrape with "Authorization: Bearer <secret>" (see lib/scraping/schedule.ts).
+// GET or POST /api/cron/scrape with "Authorization: Bearer <secret>" (see lib/listings/schedule.ts).
 // Supabase Cron calls it on the schedule Settings makes (the interval within the hours; paused =
-// no calls), and the app checks again whether a run is due (lib/scraping/schedule.ts).
+// no calls), and the app checks again whether a run is due (lib/listings/schedule.ts).
 //   ?force=1  run even if not due     ?wait=1  answer with the result instead of right away
 // Every answer has "jobwatch" in it: Settings finds Supabase Cron's last call by that.
 export const maxDuration = 300;

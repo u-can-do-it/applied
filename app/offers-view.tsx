@@ -1,7 +1,7 @@
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import type { SearchParams } from '@/lib/shared/search-params';
-import { builtInSources, sourceOptions } from '@/lib/source-list';
+import { filterSources, sourceOptions } from '@/lib/listings/sources';
 import { AiFilterBar } from './ai-filter-bar';
 import { Controls, ControlsFallback } from './controls';
 import { Header } from './header';
@@ -33,7 +33,7 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
       <Suspense
         fallback={
           <>
-            <ControlsFallback />
+            <ControlsFallback labels={filterSources().map((source) => source.label)} />
             <div className="results">
               <ResultsSkeleton />
             </div>
@@ -52,7 +52,7 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
 async function OffersBody({ searchParams, mode }: { searchParams: SearchParams; mode: 'all' | 'ai' }) {
   await connection();
   // without the database (it's down) the chips are the built-in boards; the list says what's wrong
-  const sources = sourceOptions().catch(() => builtInSources());
+  const sources = sourceOptions().catch(() => filterSources());
   return (
     <NavProvider>
       <Controls sources={sources} />

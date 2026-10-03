@@ -1,6 +1,6 @@
 import 'server-only';
 import { sql } from 'drizzle-orm';
-import type { ScrapeSettings } from '../../scraping/kinds';
+import type { ScrapeSettings } from '../../listings/settings';
 import { storedSettingsSchema } from '../../shared/schemas/settings';
 import { db } from '../client';
 import { first } from '../rows';

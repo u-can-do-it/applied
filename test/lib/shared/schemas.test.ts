@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { DEFAULT_SETTINGS } from '@/lib/scraping/kinds';
+import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { PROFILE_FILE_MAX, profileSchema, startRunSchema } from '@/lib/shared/schemas/ai';
 import {
   addApplicationSchema,

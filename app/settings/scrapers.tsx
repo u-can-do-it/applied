@@ -1,16 +1,9 @@
 'use client';
 
 import { startTransition, useEffect, useEffectEvent, useOptimistic, useRef, useState, useTransition } from 'react';
-import {
-  FIELDS,
-  JSON_SOURCES,
-  KIND_IDS,
-  KINDS,
-  isGeneric,
-  type FieldId,
-  type JsonSource,
-  type KindId,
-} from '@/lib/scraping/kinds';
+import { byId } from '@/lib/boards';
+import { FIELDS, JSON_SOURCES, type FieldId, type JsonSource } from '@/lib/listings/config';
+import { KIND_IDS, isGeneric, kindOf, type KindId } from '@/lib/listings/kinds';
 import type { Scraper } from '@/lib/db/repos/scrapers';
 import { message } from '@/lib/shared/errors';
 import { seconds } from '@/lib/shared/format';
@@ -79,10 +72,10 @@ function toDraft(s: Scraper): Draft {
 
 /** A new scraper of a kind: the built-in boards start with their usual search. */
 function blank(kind: KindId, keep?: Partial<Draft>): Draft {
-  const d = KINDS[kind].defaults;
+  const { src, defaults: d } = kindOf(kind);
   return {
-    name: keep?.name || (KINDS[kind].src ? KINDS[kind].label.split(' ')[0] : ''),
-    src: KINDS[kind].src ?? keep?.src ?? '',
+    name: keep?.name || (src ? (byId(src)?.label ?? '') : ''),
+    src: src ?? keep?.src ?? '',
     kind,
     enabled: true,
     url: d?.url ?? keep?.url ?? '',
@@ -156,7 +149,7 @@ export function ScrapersPanel({
             />
             <div className="scraper-main">
               <div>
-                <strong>{s.name}</strong> <span className="badge">{KINDS[s.kind].label}</span>{' '}
+                <strong>{s.name}</strong> <span className="badge">{kindOf(s.kind).label}</span>{' '}
                 <span className="muted small">
                   {s.src}
                   {counts[s.src] ? ` · ${counts[s.src]?.offers} saved` : ''}
@@ -320,7 +313,7 @@ function ScraperEditor({
       <div className="modal-body">
         <div className="sheet-head">
           <h2 id="scraper-title">{d.id ? initial.name : 'New scraper'}</h2>
-          <p className="muted">{KINDS[d.kind].hint}</p>
+          <p className="muted">{kindOf(d.kind).hint}</p>
         </div>
 
         <div className="sheet-scroll">
@@ -330,7 +323,7 @@ function ScraperEditor({
               <select value={d.kind} onChange={(e) => changeKind(e.target.value as KindId)}>
                 {KIND_IDS.map((k) => (
                   <option key={k} value={k}>
-                    {KINDS[k].label}
+                    {kindOf(k).label}
                   </option>
                 ))}
               </select>

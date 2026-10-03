@@ -5,7 +5,8 @@
 // The same migrator `drizzle-kit migrate` uses (drizzle-orm's), run directly because drizzle-kit
 // exits with status 1 and no message when a statement fails: its progress spinner swallows the
 // error. On production you want to know why. Like drizzle-kit, it runs every pending migration in
-// one transaction, so a failure changes nothing.
+// one transaction, so a failure changes nothing. Then it adds the scrapers of any board not seeded yet
+// (lib/db/seed.ts), in a second transaction: if that fails, running this again finishes it.
 //
 // Plain Node runs this file (it strips the types itself); no build step. Hence the `.ts` in the import
 // below, which Node needs (tsconfig.json: allowImportingTsExtensions).
@@ -14,6 +15,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE, withSsl } from '../lib/db/connection.ts';
+import { seedBoards } from '../lib/db/seed.ts';
 
 // like `node --env-file-if-exists=.env`: what the shell has set wins
 if (process.env.DOTENV !== '0') {
@@ -43,6 +45,7 @@ const applied = async () => {
   return count;
 };
 
+let seeding = false;
 try {
   const before = await applied();
   await migrate(drizzle({ client }), {
@@ -52,6 +55,9 @@ try {
   });
   const after = await applied();
   console.log(after > before ? `Applied ${after - before} migration(s); ${after} in all.` : `Up to date (${after}).`);
+  seeding = true;
+  const seeded = await seedBoards(client);
+  if (seeded.length) console.log(`Added the scrapers of: ${seeded.join(', ')}.`);
 } catch (error) {
   const cause = (error instanceof Error && error.cause instanceof Error ? error.cause : error) as Error & {
     detail?: string;
@@ -59,7 +65,11 @@ try {
     where?: string;
     code?: string;
   };
-  console.error('Migration failed; rolled back, nothing changed.\n');
+  console.error(
+    seeding
+      ? "Adding the boards' scrapers failed; rolled back (the migrations did run). Run it again.\n"
+      : 'Migration failed; rolled back, nothing changed.\n',
+  );
   console.error(cause.message);
   // Postgres' hint for this one is "use DROP ... CASCADE", which would drop your object with it
   const hint =

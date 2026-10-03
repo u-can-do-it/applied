@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { withParams } from '@/lib/sources';
+import { withParams } from '@/lib/shared/search-params';
 import { useNav } from './nav';
 
 const KEPT = ['src', 'days', 'from', 'to'] as const; // other filters survive a no-JS submit

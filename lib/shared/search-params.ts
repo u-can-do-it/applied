@@ -1,7 +1,34 @@
 // Shared by the server and client components.
+import { BOARD_RE } from '../boards/links';
 import { validDay } from '../dates';
-import { SRC_RE } from '../scraping/kinds';
-import { DAY_PRESETS } from '../sources';
+
+// relative presets live in the URL as ?days=N, so a bookmarked "7 days" stays relative
+export const DAY_PRESETS = [
+  { days: '', label: 'Any time' },
+  { days: '1', label: 'Today' },
+  { days: 'yesterday', label: 'Yesterday' }, // a single closed day, not "up to now"
+  { days: '3', label: '3 days' },
+  { days: '7', label: '7 days' },
+  { days: '30', label: '30 days' },
+] as const;
+
+export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'rejected';
+type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
+
+// Builds a link from the current query, changing only the given keys
+// (empty value = remove). Any filter change goes back to the first page.
+// `path` keeps you on the tab you're on ("/" or "/ai").
+export function withParams(current: URLSearchParams | string, changes: Changes, path = '/') {
+  const sp = new URLSearchParams(current);
+  if (!('page' in changes)) sp.delete('page');
+  for (const [key, value] of Object.entries(changes)) {
+    const v = value == null ? '' : String(value);
+    if (!v || (key === 'page' && v === '0')) sp.delete(key);
+    else sp.set(key, v);
+  }
+  const s = sp.toString();
+  return s ? `${path}?${s}` : path;
+}
 
 /** A page's `searchParams` prop. */
 export type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -17,7 +44,7 @@ export function parseOfferQuery(params: Params) {
   const src = one(params.src);
   return {
     q: one(params.q).slice(0, 200),
-    src: SRC_RE.test(src) ? src : '', // an unknown board just finds nothing
+    src: BOARD_RE.test(src) ? src : '', // an unknown board just finds nothing
     page: Math.max(0, Math.floor(Number(one(params.page)) || 0)),
     days: preset,
     // a preset wins over a date range

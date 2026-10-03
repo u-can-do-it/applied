@@ -2,8 +2,8 @@
 
 import { use, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { formatDay, parseDay, validDay } from '@/lib/dates';
-import { DAY_PRESETS, SOURCES, withParams } from '@/lib/sources';
-import type { SourceOption } from '@/lib/source-list';
+import type { SourceOption } from '@/lib/listings/sources';
+import { DAY_PRESETS, withParams } from '@/lib/shared/search-params';
 import { NavLink, useNav } from './nav';
 import { SearchBox, SearchIcon } from './search-box';
 
@@ -179,7 +179,8 @@ export function Controls({ sources }: { sources: Promise<SourceOption[]> }) {
 }
 
 // Static-shell version for the very first HTML, before the URL is known
-export function ControlsFallback() {
+/** `labels`: the boards the filters show from the start */
+export function ControlsFallback({ labels }: { labels: string[] }) {
   return (
     <>
       <div className="search" aria-hidden="true">
@@ -187,7 +188,7 @@ export function ControlsFallback() {
         <input disabled placeholder="Search title or company…" />
       </div>
       <nav className="chips" aria-hidden="true">
-        {['All', ...Object.values(SOURCES)].map((name) => (
+        {['All', ...labels].map((name) => (
           <span key={name} className="chip">
             {name}
           </span>

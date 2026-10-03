@@ -1,7 +1,7 @@
 // Shared by the server and client components.
 import { z } from 'zod';
 import { isTimeZone } from '../../dates';
-import { DEFAULT_SETTINGS, INTERVALS, normalizeList, type ScrapeSettings } from '../../scraping/kinds';
+import { DEFAULT_SETTINGS, INTERVALS, normalizeList, type ScrapeSettings } from '../../listings/settings';
 
 const isInterval = (minutes: number) => (INTERVALS as readonly number[]).includes(minutes);
 

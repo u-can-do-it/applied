@@ -5,8 +5,8 @@ import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
 import * as scrapersRepo from '@/lib/db/repos/scrapers';
-import { DEFAULT_SETTINGS } from '@/lib/scraping/kinds';
-import { sourceOptions } from '@/lib/source-list';
+import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
+import { sourceOptions } from '@/lib/listings/sources';
 import { describeDb, exec, ISO } from './database';
 
 const search = (name: string, src: string) => ({

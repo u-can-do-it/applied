@@ -6,7 +6,7 @@ import * as verdictsRepo from './db/repos/ai-verdicts';
 import { dedupRound } from './dedup';
 import { assessOffers, type OfferForAi } from './openai';
 import { getProfile, type Profile, type ProfileWithFile } from './profiles';
-import { scrapeOffer } from './scrape';
+import { scrapeOffer } from './ads';
 import { message } from './shared/errors';
 
 // Manual AI runs: "check every offer in this date range that this profile hasn't judged yet".

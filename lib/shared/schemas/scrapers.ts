@@ -1,20 +1,12 @@
 // Shared by the server and client components.
 import { z } from 'zod';
-import {
-  FIELDS,
-  JSON_SOURCES,
-  KIND_IDS,
-  KINDS,
-  SRC_RE,
-  isGeneric,
-  type FieldId,
-  type JsonSource,
-  type ScraperConfig,
-} from '../../scraping/kinds';
-import { MAX_PAGES } from '../../scraping/match';
+import { BOARD_RE, SCRAPED_BOARDS } from '../../boards';
+import { FIELDS, JSON_SOURCES, type FieldId, type JsonSource, type ScraperConfig } from '../../listings/config';
+import { KIND_IDS, isGeneric, kindOf } from '../../listings/kinds';
+import { MAX_PAGES } from '../../listings/match';
 import { text } from './common';
 
-const BUILTIN_SRCS = new Set(Object.values(KINDS).flatMap((kind) => (kind.src ? [kind.src] : [])));
+const SCRAPED_SRCS = new Set<string>(SCRAPED_BOARDS.map((board) => board.id));
 const JSON_SOURCE_IDS = JSON_SOURCES.map((source) => source.id) as [JsonSource, ...JsonSource[]];
 const HEADER_NAME = /^[A-Za-z0-9-]{1,60}$/;
 const LINK = 'The link must start with https://';
@@ -73,9 +65,9 @@ export const scraperSchema = z
       return z.NEVER;
     };
     // a built-in board's source id is fixed, so its offers keep matching the ones already saved
-    const src = KINDS[kind].src ?? input.src.trim().toLowerCase();
-    if (!SRC_RE.test(src)) return problem('Source id: lowercase letters, digits, - or _, e.g. "linkedin".');
-    if (isGeneric(kind) && BUILTIN_SRCS.has(src))
+    const src = kindOf(kind).src ?? input.src.trim().toLowerCase();
+    if (!BOARD_RE.test(src)) return problem('Source id: lowercase letters, digits, - or _, e.g. "linkedin".');
+    if (isGeneric(kind) && SCRAPED_SRCS.has(src))
       return problem(`"${src}" belongs to a built-in board; pick another source id.`);
 
     const given = input.config;

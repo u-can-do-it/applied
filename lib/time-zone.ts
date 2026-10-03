@@ -1,7 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { zone } from './dates';
-import { effectiveTimeZone } from './scraping/kinds';
+import { effectiveTimeZone } from './listings/settings';
 import * as settingsRepo from './db/repos/scrape-settings';
 
 // The app's time zone on the server, read once per request (React.cache).

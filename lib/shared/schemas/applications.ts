@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { BOARD_RE, boardOf, isLink } from '../../boards';
 import { validDay } from '../../dates';
-import type { JobDetails } from '../../scrape';
+import type { JobDetails } from '../../ads/details';
 import { isStage, isState, type StageId, type StateId } from '../../stages';
 import { jobKey, text } from './common';
 

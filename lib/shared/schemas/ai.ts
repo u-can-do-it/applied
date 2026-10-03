@@ -1,6 +1,6 @@
 // Shared by the server and client components.
 import { z } from 'zod';
-import { DAY_PRESETS } from '../../sources';
+import { DAY_PRESETS } from '../search-params';
 import { text } from './common';
 
 export const PROFILE_FILE_MAX = 5 * 1024 * 1024;

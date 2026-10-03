@@ -9,6 +9,8 @@
 //
 // No `server-only` here: drizzle-kit loads this file in plain Node. The `import type`s below are only
 // for `.$type<…>()` (what a jsonb or a constrained text column holds); they leave nothing at runtime.
+// The one runtime import is the scraper kinds (lib/listings/kinds.ts, which reads the board registry):
+// the kinds the database allows follow it, so a new board's migration is `npm run db:generate`.
 
 import { sql } from 'drizzle-orm';
 import {
@@ -30,7 +32,8 @@ import {
 import type { SavedDetails } from '../applications';
 import type { Copy } from '../offers';
 import type { Check } from '../openai';
-import type { KindId, ScraperConfig } from '../scraping/kinds';
+import type { ScraperConfig } from '../listings/config';
+import { KIND_IDS, type KindId } from '../listings/kinds';
 import type { HistoryEntry, StageId, StateId } from '../stages';
 
 // Timestamps are strings, as they were from PostgREST: ISO 8601 with the microseconds, e.g.
@@ -254,10 +257,7 @@ export const scrapers = pgTable(
   },
   () => [
     check('scrapers_src_check', sql`src ~ '^[a-z0-9][a-z0-9_-]{0,29}$'`),
-    check(
-      'scrapers_kind_check',
-      sql`kind in ('justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'json', 'html', 'rss')`,
-    ),
+    check('scrapers_kind_check', sql`kind in (${sql.raw(KIND_IDS.map((kind) => `'${kind}'`).join(', '))})`),
     check('scrapers_status_check', sql`last_status in ('ok', 'error')`),
   ],
 ).enableRLS();

@@ -26,8 +26,8 @@ import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import { env } from '@/lib/env';
 import { extractJob, type ExtractedJob } from '@/lib/openai';
 import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/profiles';
-import { readJobPage } from '@/lib/scrape';
-import { syncCron } from '@/lib/scraping/schedule';
+import { readJobPage } from '@/lib/ads';
+import { syncCron } from '@/lib/listings/schedule';
 import { message } from '@/lib/shared/errors';
 import { profileIdSchema, profileSchema, startRunSchema } from '@/lib/shared/schemas/ai';
 import {

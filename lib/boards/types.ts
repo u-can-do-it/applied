@@ -1,0 +1,43 @@
+import type { SearchDefaults } from '../listings/config.ts';
+
+/**
+ * A job board: what it is and how its links read. Its listing parser is in lib/listings/parsers/ and
+ * its ad reader, if it has its own, in lib/ads/ (both server-only; this is in the browser too).
+ */
+export type Board<Id extends string = string> = {
+  /** offers.src, and the scraper kind of its own listing */
+  id: Id;
+  /** its name in the filters */
+  label: string;
+  /** its hosts, lowercase and without "www." */
+  hosts: RegExp[];
+  /** a page elsewhere counts as this board's when its query has this (the board tags the links it sends you on with it) */
+  tagsLinks?: RegExp;
+  /** in the board filter from the start; the others once one of your scrapers uses them */
+  alwaysInFilters?: boolean;
+  /** the offer's id on the board, when its link shows it: what the board's ad reader and pages take */
+  idFromLink?(url: URL): string | null;
+  /** false: the scraper saves the offer under another id than the link's (offers.id), so its link alone finds it */
+  linkIdIsOfferId?: false;
+  /** the link without tracking; without this, a board's link loses its whole query and hash */
+  cleanLink?(url: URL): string;
+  /** how to search it, for a board Jobwatch scrapes */
+  listing?: Listing;
+};
+
+/** A board's own listing: a scraper kind with a fixed parser (lib/listings/registry.ts) and a fixed src. */
+export type Listing = {
+  /** the scraper kind's name in Settings */
+  label: string;
+  hint: string;
+  /** a new scraper of this kind starts with this search */
+  defaults: SearchDefaults;
+  /**
+   * The scrapers the board comes with: the defaults, under this name, with another link if given.
+   * `npm run db:migrate` adds them once per database (lib/db/seed.ts), so deleting them is for good.
+   */
+  seeds: { name: string; url?: string }[];
+};
+
+/** A board Jobwatch scrapes. */
+export type ScrapedBoard<Id extends string = string> = Board<Id> & { listing: Listing };

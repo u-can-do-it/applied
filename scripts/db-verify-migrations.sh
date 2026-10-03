@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Checks the migrations in drizzle/ against two throwaway LOCAL databases (never production):
 #   (a) a database set up the old way is left exactly as it was by `npm run db:migrate`: same
-#       schema, same rows (public and cron). "The old way" is either
+#       schema, same rows (public and cron) but the board seed markers of 0004. "The old way" is either
 #         - the old SQL files (supabase/reset.sql, ai-filter.sql, scraping.sql, as scripts/db-reset.sh +
 #           db-migrate.sh ran them), then some use: offers, a merged job, an application with its
 #           history, a profile and a verdict, scrapers edited and deleted, Supabase Cron connected; or
@@ -99,8 +99,11 @@ seed_rows() {
   # config is left out: the seeds' URLs were updated after LEGACY_REF
   pg_tool psql "$1" -X -qtA -c 'select position, name, src, kind, enabled from public.scrapers order by position' \
     -c 'select settings from public.scrape_settings' -c 'select * from public.scrape_state' \
-    -c 'select name from public.scrape_seeds order by name' >"$2"
+    -c "select name from public.scrape_seeds where name not like 'board:%' order by name" >"$2"
 }
+# 0004_board_seeds marks the boards seeded so far (lib/db/seed.ts seeds any other one after the
+# migrations): the one change db:migrate makes to an existing database's rows
+board_markers() { pg_tool psql "$1" -X -qtA -c "select name from public.scrape_seeds where name like 'board:%' order by name" >"$2"; }
 same() {
   if diff -u "$2" "$3" >"$work/diff"; then
     echo "   ok: $1"
@@ -180,8 +183,9 @@ must_migrate "$url_a"
 schema_dump "$url_a" "$work/a-after.sql"
 data_dump "$url_a" "$work/a-after-data.sql"
 same "schema unchanged ($(wc -l <"$work/a-before.sql") lines of pg_dump)" "$work/a-before.sql" "$work/a-after.sql"
-same "rows unchanged ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
-  "$work/a-before-data.sql" "$work/a-after-data.sql"
+grep -v '^board:' "$work/a-after-data.sql" >"$work/a-after-rows.sql" || true
+same "rows unchanged but for the board seed markers ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
+  "$work/a-before-data.sql" "$work/a-after-rows.sql"
 applied=$(pg_tool psql "$url_a" -X -qtAc 'select count(*) from drizzle.__drizzle_migrations')
 echo "   ok: $applied migrations recorded in drizzle.__drizzle_migrations"
 
@@ -202,6 +206,10 @@ else
   seed_rows "$url_b" "$work/b-seeds.txt"
   same "seed rows equal to the old files'" "$work/a-seeds.txt" "$work/b-seeds.txt"
 fi
+board_markers "$url_a" "$work/a-markers.txt"
+board_markers "$url_b" "$work/b-markers.txt"
+[[ -s $work/b-markers.txt ]] || { echo "   FAILED: no board seed markers after db:migrate" >&2 && exit 1; }
+same "board seed markers equal ($(wc -l <"$work/b-markers.txt") boards)" "$work/a-markers.txt" "$work/b-markers.txt"
 for file in drizzle/[0-9]*.sql; do run_sql "$url_b" "$file (second run)" <"$file"; done
 schema_dump "$url_b" "$work/b-again.sql"
 same "every migration file runs a second time without changing the schema" "$work/b.sql" "$work/b-again.sql"

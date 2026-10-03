@@ -1,11 +1,11 @@
 # Board fixtures
 
-One recorded listing response per built-in board parser (`lib/scraping/parsers.ts`), trimmed to a few
-offers. `test/lib/scraping/parsers.test.ts` parses each one and snapshots the result, so a parser change
+One recorded listing response per board parser (`lib/listings/parsers/<board>.ts`), trimmed to a few
+offers. `test/lib/listings/parse.test.ts` parses each one and snapshots the result, so a parser change
 (or a re-recorded fixture) shows up in the snapshot diff.
 
 All were recorded on **2026-10-03** with the keyword `React`: one request each, made with `curl` and
-the same URLs and headers as the seeds in `drizzle/0003_seed.sql` / `KINDS` in `lib/scraping/kinds.ts`.
+the same URLs and headers as the seeds in `drizzle/0003_seed.sql` / `listing.defaults` in `lib/boards/<board>.ts`.
 
 | Fixture | Request | Kept |
 | --- | --- | --- |
@@ -26,6 +26,6 @@ The other requests used a desktop Chrome `User-Agent`. LinkedIn was asked for th
    (`justjoin.json`, `nofluff.html`, …), e.g.
    `curl -sSL -A "$UA" -o "$DIR/nofluff.html" 'https://nofluffjobs.com/pl/react?sort=newest'`.
 2. `node test/fixtures/trim.cjs "$DIR"` writes the trimmed fixtures here.
-3. `npx vitest run -u test/lib/scraping/parsers.test.ts`, then review the snapshot diff: it is the
+3. `npx vitest run -u test/lib/listings/parse.test.ts`, then review the snapshot diff: it is the
    change in what the parsers read. Some assertions name the recorded offers (e.g. the Eldorado skills, the Built In "Staff …" title)
    and need updating with them.
