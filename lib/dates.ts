@@ -44,7 +44,8 @@ export function describeRange({ days, from, to }: DateFilter): string {
   if (days === '1') return 'today';
   if (days === 'yesterday') return 'yesterday';
   if (days) return `last ${days} days`;
-  const f = validDay(from), t = validDay(to);
+  const f = validDay(from),
+    t = validDay(to);
   if (f && t) {
     const [a, b] = f <= t ? [f, t] : [t, f];
     return a === b ? fmt(a) : `${fmt(a)} – ${fmt(b)}`;
@@ -110,7 +111,12 @@ export type Zone = {
 function makeZone(tz: string): Zone {
   const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz }); // -> YYYY-MM-DD
   const offsetFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' });
-  const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const timeFmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
   const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' });
   const weekdayFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'short' });
 
@@ -150,7 +156,8 @@ function makeZone(tz: string): Zone {
         return { gte: startOfDay(addDays(today, -1)).toISOString(), lt: startOfDay(today).toISOString() };
       }
       const n = Number(days);
-      if (Number.isInteger(n) && n >= 1 && n <= 366) return { gte: startOfDay(addDays(day(now), -(n - 1))).toISOString() };
+      if (Number.isInteger(n) && n >= 1 && n <= 366)
+        return { gte: startOfDay(addDays(day(now), -(n - 1))).toISOString() };
       let f = validDay(from);
       let t = validDay(to);
       if (f && t && f > t) [f, t] = [t, f];

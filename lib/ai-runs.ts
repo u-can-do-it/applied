@@ -34,8 +34,16 @@ export type Run = {
 export type Range = { gte?: string; lt?: string; label: string };
 type Copy = { src: string; id: string; url: string };
 type Pending = {
-  src: string; id: string; title: string; company: string | null; seniority: string | null;
-  remote: boolean | null; url: string; first_seen: string; dup_key: string; copies: Copy[];
+  src: string;
+  id: string;
+  title: string;
+  company: string | null;
+  seniority: string | null;
+  remote: boolean | null;
+  url: string;
+  first_seen: string;
+  dup_key: string;
+  copies: Copy[];
 };
 
 const BATCH = 4; // offers per OpenAI call (each carries a full ad)
@@ -55,7 +63,10 @@ export async function latestRun(profileId: string): Promise<Run | null> {
 }
 
 const rangeArgs = (p: Pick<Profile, 'id' | 'version'>, r: { gte?: string | null; lt?: string | null }) => ({
-  p_profile: p.id, p_version: p.version, p_gte: r.gte ?? null, p_lt: r.lt ?? null,
+  p_profile: p.id,
+  p_version: p.version,
+  p_gte: r.gte ?? null,
+  p_lt: r.lt ?? null,
 });
 
 /** How many jobs in the range this profile version hasn't judged yet. */
@@ -66,7 +77,11 @@ export async function countPending(p: Pick<Profile, 'id' | 'version'>, r: { gte?
 }
 
 export async function rangeStats(p: Pick<Profile, 'id' | 'version'>, r: { gte?: string; lt?: string }) {
-  const rows = (await (await rest(rpcUrl('ai_range_stats', rangeArgs(p, r)))).json()) as { total: number; checked: number; matched: number }[];
+  const rows = (await (await rest(rpcUrl('ai_range_stats', rangeArgs(p, r)))).json()) as {
+    total: number;
+    checked: number;
+    matched: number;
+  }[];
   return rows[0] ?? { total: 0, checked: 0, matched: 0 };
 }
 
@@ -86,9 +101,15 @@ export async function startRun(p: Profile, range: Range): Promise<Run> {
     method: 'POST',
     prefer: 'return=representation',
     body: JSON.stringify({
-      profile_id: p.id, version: p.version, label: range.label,
-      range_gte: range.gte ?? null, range_lt: range.lt ?? null,
-      total, status: total ? 'running' : 'done', finished_at: total ? null : now, phase: total ? 'dedup' : 'assess',
+      profile_id: p.id,
+      version: p.version,
+      label: range.label,
+      range_gte: range.gte ?? null,
+      range_lt: range.lt ?? null,
+      total,
+      status: total ? 'running' : 'done',
+      finished_at: total ? null : now,
+      phase: total ? 'dedup' : 'assess',
     }),
   });
   return ((await res.json()) as Run[])[0];
@@ -112,15 +133,18 @@ async function takeLock(runId: string) {
     u.searchParams.set('status', 'eq.running');
     u.searchParams.set('or', `(lock_until.is.null,lock_until.lt."${new Date().toISOString()}")`);
   });
-  return rows[0] ?? null;
+  return rows.at(0) ?? null;
 }
 
 async function pendingRows(run: Run, limit: number): Promise<Pending[]> {
-  const url = rpcUrl('ai_pending', rangeArgs({ id: run.profile_id, version: run.version }, { gte: run.range_gte, lt: run.range_lt }));
+  const url = rpcUrl(
+    'ai_pending',
+    rangeArgs({ id: run.profile_id, version: run.version }, { gte: run.range_gte, lt: run.range_lt }),
+  );
   url.searchParams.set('select', 'src,id,title,company,seniority,remote,url,first_seen,dup_key,copies');
   url.searchParams.set('order', 'first_seen.desc');
   url.searchParams.set('limit', String(limit));
-  return (await rest(url)).json();
+  return (await rest(url)).json() as Promise<Pending[]>;
 }
 
 const pgQuote = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
@@ -132,8 +156,16 @@ async function descriptions(offers: Pending[]): Promise<Map<string, string | nul
   if (copies.length) {
     const url = restUrl('offer_details');
     url.searchParams.set('select', 'src,id,status,description');
-    url.searchParams.set('or', `(${copies.map((c) => `and(src.eq.${pgQuote(c.src)},id.eq.${pgQuote(c.id)})`).join(',')})`);
-    for (const r of (await (await rest(url)).json()) as { src: string; id: string; status: string; description: string | null }[]) {
+    url.searchParams.set(
+      'or',
+      `(${copies.map((c) => `and(src.eq.${pgQuote(c.src)},id.eq.${pgQuote(c.id)})`).join(',')})`,
+    );
+    for (const r of (await (await rest(url)).json()) as {
+      src: string;
+      id: string;
+      status: string;
+      description: string | null;
+    }[]) {
       cached.set(`${r.src}\u0001${r.id}`, r);
     }
   }
@@ -145,13 +177,19 @@ async function descriptions(offers: Pending[]): Promise<Map<string, string | nul
     for (const c of o.copies) {
       const hit = cached.get(`${c.src}\u0001${c.id}`);
       if (hit) {
-        if (hit.status === 'ok' && hit.description) { text = hit.description; break; }
+        if (hit.status === 'ok' && hit.description) {
+          text = hit.description;
+          break;
+        }
         continue; // known to have no ad text
       }
       try {
         const s = await scrapeOffer(c);
         toStore.push({ src: c.src, id: c.id, description: s.status === 'ok' ? s.text : null, status: s.status });
-        if (s.status === 'ok') { text = s.text; break; }
+        if (s.status === 'ok') {
+          text = s.text;
+          break;
+        }
       } catch {
         // network / HTTP error: not stored, so a later run tries again
       }
@@ -161,7 +199,11 @@ async function descriptions(offers: Pending[]): Promise<Map<string, string | nul
   if (toStore.length) {
     const url = restUrl('offer_details');
     url.searchParams.set('on_conflict', 'src,id');
-    await rest(url, { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: JSON.stringify(toStore) }).catch(() => {});
+    await rest(url, {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=minimal',
+      body: JSON.stringify(toStore),
+    }).catch(() => {});
   }
   return out;
 }
@@ -170,18 +212,32 @@ async function assessBatch(profile: NonNullable<Awaited<ReturnType<typeof getPro
   const desc = await descriptions(batch);
   const file = profile.file_name && profile.file_text ? { name: profile.file_name, text: profile.file_text } : null;
   const input: OfferForAi[] = batch.map((o, i) => ({
-    n: i + 1, title: o.title, company: o.company, seniority: o.seniority, remote: o.remote, description: desc.get(o.dup_key) ?? null,
+    n: i + 1,
+    title: o.title,
+    company: o.company,
+    seniority: o.seniority,
+    remote: o.remote,
+    description: desc.get(o.dup_key) ?? null,
   }));
   const results = await assessOffers(profile.prompt, file, input);
   const rows = results.map((r) => ({
-    profile_id: profile.id, version: profile.version, dup_key: batch[r.n - 1].dup_key,
-    match: r.match, score: r.score, summary: r.summary, checks: r.checks,
+    profile_id: profile.id,
+    version: profile.version,
+    dup_key: batch[r.n - 1].dup_key,
+    match: r.match,
+    score: r.score,
+    summary: r.summary,
+    checks: r.checks,
     had_description: Boolean(input[r.n - 1].description),
   }));
   if (rows.length) {
     const url = restUrl('ai_verdicts');
     url.searchParams.set('on_conflict', 'profile_id,version,dup_key');
-    await rest(url, { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: JSON.stringify(rows) });
+    await rest(url, {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=minimal',
+      body: JSON.stringify(rows),
+    });
   }
   return { saved: rows.length, answered: new Set(rows.map((r) => r.dup_key)) };
 }
@@ -198,7 +254,13 @@ async function verdictsFor(p: Pick<Profile, 'id' | 'version'>, keys: string[]) {
     url.searchParams.set('select', 'dup_key,match,score,summary');
     url.searchParams.set('profile_id', `eq.${p.id}`);
     url.searchParams.set('version', `eq.${p.version}`);
-    url.searchParams.set('dup_key', `in.(${keys.slice(i, i + 40).map(pgQuote).join(',')})`);
+    url.searchParams.set(
+      'dup_key',
+      `in.(${keys
+        .slice(i, i + 40)
+        .map(pgQuote)
+        .join(',')})`,
+    );
     for (const r of (await (await rest(url)).json()) as (Verdict & { dup_key: string })[]) {
       out.set(r.dup_key, { match: r.match, score: r.score, summary: r.summary });
     }
@@ -222,7 +284,9 @@ export async function assessJobs(profile: ProfileWithFile, keys: string[], deadl
     const jobs = (await (await rest(url)).json()) as Pending[];
     for (let i = 0; i < jobs.length && Date.now() < deadline; i += BATCH * PARALLEL) {
       const round = jobs.slice(i, i + BATCH * PARALLEL);
-      const batches = Array.from({ length: Math.ceil(round.length / BATCH) }, (_, b) => round.slice(b * BATCH, b * BATCH + BATCH));
+      const batches = Array.from({ length: Math.ceil(round.length / BATCH) }, (_, b) =>
+        round.slice(b * BATCH, b * BATCH + BATCH),
+      );
       for (const s of await Promise.allSettled(batches.map((b) => assessBatch(profile, b)))) {
         if (s.status === 'rejected') error = s.reason instanceof Error ? s.reason.message : String(s.reason);
       }
@@ -249,7 +313,9 @@ export async function continueRun(runId: string): Promise<void> {
   // ---- phase 1: duplicates ----
   if (run.phase === 'dedup') {
     const asked = new Set<string>();
-    let pairs = run.pairs_checked, merged = run.merged, failed = 0;
+    let pairs = run.pairs_checked,
+      merged = run.merged,
+      failed = 0;
     try {
       while (Date.now() < deadline) {
         const r = await dedupRound(range, asked);
@@ -263,12 +329,24 @@ export async function continueRun(runId: string): Promise<void> {
           }
         } else if (r.checked === 0) {
           // no candidates left: merges may have removed jobs from the to-do list, so recount
-          const total = run.done + (await countPending({ id: run.profile_id, version: run.version }, { gte: run.range_gte ?? undefined, lt: run.range_lt ?? undefined }));
+          const total =
+            run.done +
+            (await countPending(
+              { id: run.profile_id, version: run.version },
+              { gte: run.range_gte ?? undefined, lt: run.range_lt ?? undefined },
+            ));
           await patchRun(run.id, { phase: 'assess', total, pairs_checked: pairs, merged });
-          Object.assign(run, { phase: 'assess', total, pairs_checked: pairs, merged });
+          run.phase = 'assess';
+          run.total = total;
+          run.pairs_checked = pairs;
+          run.merged = merged;
           break;
         }
-        await patchRun(run.id, { pairs_checked: pairs, merged, lock_until: new Date(Date.now() + LOCK_MS).toISOString() });
+        await patchRun(run.id, {
+          pairs_checked: pairs,
+          merged,
+          lock_until: new Date(Date.now() + LOCK_MS).toISOString(),
+        });
       }
     } catch (e) {
       console.error('[ai-run] duplicate slice crashed:', e);
@@ -297,21 +375,23 @@ export async function continueRun(runId: string): Promise<void> {
         return;
       }
       const batches: Pending[][] = [];
-      for (let i = 0; i < Math.min(pending.length, BATCH * PARALLEL); i += BATCH) batches.push(pending.slice(i, i + BATCH));
+      for (let i = 0; i < Math.min(pending.length, BATCH * PARALLEL); i += BATCH)
+        batches.push(pending.slice(i, i + BATCH));
 
       const settled = await Promise.allSettled(batches.map((b) => assessBatch(profile, b)));
       let saved = 0;
       let lastError: string | null = null;
-      settled.forEach((s, i) => {
+      for (const [i, s] of settled.entries()) {
         if (s.status === 'fulfilled') {
           saved += s.value.saved;
           for (const k of s.value.answered) savedHere.add(k);
-          for (const o of batches[i]) if (!s.value.answered.has(o.dup_key)) tries.set(o.dup_key, (tries.get(o.dup_key) ?? 0) + 1);
+          for (const o of batches[i])
+            if (!s.value.answered.has(o.dup_key)) tries.set(o.dup_key, (tries.get(o.dup_key) ?? 0) + 1);
         } else {
           lastError = s.reason instanceof Error ? s.reason.message : String(s.reason);
           console.error('[ai-run] batch failed:', lastError);
         }
-      });
+      }
       done += saved;
       failedRounds = saved ? 0 : failedRounds + 1;
       if (failedRounds >= 3) {

@@ -39,15 +39,29 @@ export async function getScraper(id: string): Promise<Scraper | null> {
   return ((await (await rest(url)).json()) as Scraper[])[0] ?? null;
 }
 
-export type ScraperInput = { name: string; src: string; kind: Scraper['kind']; enabled: boolean; config: ScraperConfig };
+export type ScraperInput = {
+  name: string;
+  src: string;
+  kind: Scraper['kind'];
+  enabled: boolean;
+  config: ScraperConfig;
+};
 
 export async function insertScraper(s: ScraperInput & { position: number }) {
-  const res = await rest(restUrl('scrapers'), { method: 'POST', prefer: 'return=representation', body: JSON.stringify(s) });
+  const res = await rest(restUrl('scrapers'), {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: JSON.stringify(s),
+  });
   return ((await res.json()) as { id: string }[])[0].id;
 }
 
 /** resetMark: the search changed, so its next run only saves (no Telegram flood) */
-export async function updateScraper(id: string, fields: Partial<ScraperInput & { position: number }>, resetMark = false) {
+export async function updateScraper(
+  id: string,
+  fields: Partial<ScraperInput & { position: number }>,
+  resetMark = false,
+) {
   const url = restUrl('scrapers');
   url.searchParams.set('id', `eq.${id}`);
   await rest(url, {
@@ -94,12 +108,24 @@ export async function saveOutcome(id: string, o: ScraperOutcome) {
 
 // ---- machine state: lock, last call, mute ----------------------------------------------
 
-export type ScrapeState = { locked_until: string | null; last_call_at: string | null; last_run_at: string | null; muted: boolean };
+export type ScrapeState = {
+  locked_until: string | null;
+  last_call_at: string | null;
+  last_run_at: string | null;
+  muted: boolean;
+};
 
 export async function getState(): Promise<ScrapeState> {
   const url = restUrl('scrape_state');
   url.searchParams.set('select', 'locked_until,last_call_at,last_run_at,muted');
-  return ((await (await rest(url)).json()) as ScrapeState[])[0] ?? { locked_until: null, last_call_at: null, last_run_at: null, muted: false };
+  return (
+    ((await (await rest(url)).json()) as ScrapeState[])[0] ?? {
+      locked_until: null,
+      last_call_at: null,
+      last_run_at: null,
+      muted: false,
+    }
+  );
 }
 
 async function patchState(fields: Partial<ScrapeState>) {
@@ -114,7 +140,10 @@ export const unlock = () => patchState({ locked_until: null });
 
 /** Takes the run lock (also stamps last_run_at). false = another run holds it. */
 export async function lock(seconds: number): Promise<boolean> {
-  const res = await rest(restUrl('rpc/jw_scrape_lock'), { method: 'POST', body: JSON.stringify({ p_seconds: seconds }) });
+  const res = await rest(restUrl('rpc/jw_scrape_lock'), {
+    method: 'POST',
+    body: JSON.stringify({ p_seconds: seconds }),
+  });
   return (await res.json()) === true;
 }
 
@@ -136,14 +165,25 @@ export type RunRow = {
 };
 
 export async function startRun(trigger: string): Promise<number> {
-  const res = await rest(restUrl('scrape_runs'), { method: 'POST', prefer: 'return=representation', body: JSON.stringify({ trigger }) });
+  const res = await rest(restUrl('scrape_runs'), {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: JSON.stringify({ trigger }),
+  });
   return ((await res.json()) as { id: number }[])[0].id;
 }
 
-export async function finishRun(id: number, fields: Omit<RunRow, 'id' | 'started_at' | 'finished_at' | 'trigger' | 'matched'>) {
+export async function finishRun(
+  id: number,
+  fields: Omit<RunRow, 'id' | 'started_at' | 'finished_at' | 'trigger' | 'matched'>,
+) {
   const url = restUrl('scrape_runs');
   url.searchParams.set('id', `eq.${id}`);
-  await rest(url, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify({ ...fields, finished_at: new Date().toISOString() }) });
+  await rest(url, {
+    method: 'PATCH',
+    prefer: 'return=minimal',
+    body: JSON.stringify({ ...fields, finished_at: new Date().toISOString() }),
+  });
   // keep two weeks of history
   const old = restUrl('scrape_runs');
   old.searchParams.set('started_at', `lt.${new Date(Date.now() - 14 * 86400_000).toISOString()}`);
@@ -162,18 +202,28 @@ export async function listRuns(limit = 12): Promise<RunRow[]> {
   url.searchParams.set('select', 'id,started_at,finished_at,trigger,found,kept,added,fresh,notified,matched,errors');
   url.searchParams.set('order', 'started_at.desc');
   url.searchParams.set('limit', String(limit));
-  return (await rest(url)).json();
+  return (await rest(url)).json() as Promise<RunRow[]>;
 }
 
 // ---- offers ------------------------------------------------------------------------------
 
-export type IngestRow = { src: string; id: string; title: string; company: string | null; seniority: string | null; remote: boolean; url: string };
+export type IngestRow = {
+  src: string;
+  id: string;
+  title: string;
+  company: string | null;
+  seniority: string | null;
+  remote: boolean;
+  url: string;
+};
 
 /** Saves offers; returns the ones that were new, and whether the same job was known before. */
-export async function ingest(rows: IngestRow[]): Promise<{ src: string; id: string; dup_key: string; seen_before: boolean }[]> {
+export async function ingest(
+  rows: IngestRow[],
+): Promise<{ src: string; id: string; dup_key: string; seen_before: boolean }[]> {
   if (!rows.length) return [];
   const res = await rest(restUrl('rpc/jw_ingest_offers'), { method: 'POST', body: JSON.stringify({ p_rows: rows }) });
-  return res.json();
+  return res.json() as Promise<{ src: string; id: string; dup_key: string; seen_before: boolean }[]>;
 }
 
 /** Which of these offers are already in the database (for the Settings test). */
@@ -187,7 +237,11 @@ export async function knownIds(src: string, ids: string[]): Promise<Set<string>>
 }
 
 export async function sourceCounts(): Promise<Record<string, { offers: number; newest: string | null }>> {
-  const rows = (await (await rest(rpcUrl('jw_source_counts', {}))).json()) as { src: string; offers: number; newest: string | null }[];
+  const rows = (await (await rest(rpcUrl('jw_source_counts', {}))).json()) as {
+    src: string;
+    offers: number | string; // a bigint count
+    newest: string | null;
+  }[];
   return Object.fromEntries(rows.map((r) => [r.src, { offers: Number(r.offers), newest: r.newest }]));
 }
 
@@ -214,14 +268,18 @@ export async function enqueue(rows: Queued[]) {
   if (!rows.length) return;
   const url = restUrl('notify_queue');
   url.searchParams.set('on_conflict', 'src,id');
-  await rest(url, { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: JSON.stringify(rows) });
+  await rest(url, {
+    method: 'POST',
+    prefer: 'resolution=ignore-duplicates,return=minimal',
+    body: JSON.stringify(rows),
+  });
 }
 
 export async function listQueue(): Promise<QueuedAt[]> {
   const url = restUrl('notify_queue');
   url.searchParams.set('select', QUEUE_COLS);
   url.searchParams.set('order', 'queued_at.asc');
-  return (await rest(url)).json();
+  return (await rest(url)).json() as Promise<QueuedAt[]>;
 }
 
 /**
@@ -233,8 +291,16 @@ export async function claimQueue(rows: { src: string; id: string }[]): Promise<Q
   for (let i = 0; i < rows.length; i += 40) {
     const url = restUrl('notify_queue');
     url.searchParams.set('select', QUEUE_COLS);
-    url.searchParams.set('or', `(${rows.slice(i, i + 40).map((r) => `and(src.eq.${quote(r.src)},id.eq.${quote(r.id)})`).join(',')})`);
-    out.push(...((await (await rest(url, { method: 'DELETE', prefer: 'return=representation' })).json()) as QueuedAt[]));
+    url.searchParams.set(
+      'or',
+      `(${rows
+        .slice(i, i + 40)
+        .map((r) => `and(src.eq.${quote(r.src)},id.eq.${quote(r.id)})`)
+        .join(',')})`,
+    );
+    out.push(
+      ...((await (await rest(url, { method: 'DELETE', prefer: 'return=representation' })).json()) as QueuedAt[]),
+    );
   }
   return out.sort((a, b) => a.queued_at.localeCompare(b.queued_at));
 }
@@ -245,7 +311,6 @@ export async function queueSize(): Promise<number> {
   const res = await rest(url, { method: 'HEAD', prefer: 'count=exact' });
   return Number(res.headers.get('content-range')?.split('/')[1]) || 0;
 }
-
 
 // ---- Supabase Cron -------------------------------------------------------------------------
 
@@ -264,19 +329,31 @@ export type CronStatus = {
 };
 
 export async function cronStatus(): Promise<CronStatus> {
-  return (await rest(restUrl('rpc/jw_cron_status'), { method: 'POST', body: '{}' })).json();
+  return (await rest(restUrl('rpc/jw_cron_status'), { method: 'POST', body: '{}' })).json() as Promise<CronStatus>;
 }
 
-export async function cronConnect(endpoint: string, secret: string, schedule: string, active: boolean): Promise<string> {
+export async function cronConnect(
+  endpoint: string,
+  secret: string,
+  schedule: string,
+  active: boolean,
+): Promise<string> {
   const body = { p_url: endpoint, p_secret: secret, p_schedule: schedule, p_active: active };
-  return (await rest(restUrl('rpc/jw_cron_connect'), { method: 'POST', body: JSON.stringify(body) })).json();
+  return (
+    await rest(restUrl('rpc/jw_cron_connect'), { method: 'POST', body: JSON.stringify(body) })
+  ).json() as Promise<string>;
 }
 
 /** The connected job's schedule and on/off: 'ok', or 'not connected'. */
 export async function cronReschedule(schedule: string, active: boolean): Promise<string> {
-  return (await rest(restUrl('rpc/jw_cron_reschedule'), { method: 'POST', body: JSON.stringify({ p_schedule: schedule, p_active: active }) })).json();
+  return (
+    await rest(restUrl('rpc/jw_cron_reschedule'), {
+      method: 'POST',
+      body: JSON.stringify({ p_schedule: schedule, p_active: active }),
+    })
+  ).json() as Promise<string>;
 }
 
 export async function cronDisconnect(): Promise<string> {
-  return (await rest(restUrl('rpc/jw_cron_disconnect'), { method: 'POST', body: '{}' })).json();
+  return (await rest(restUrl('rpc/jw_cron_disconnect'), { method: 'POST', body: '{}' })).json() as Promise<string>;
 }

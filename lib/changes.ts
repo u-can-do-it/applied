@@ -18,11 +18,13 @@ const latest = async (table: string, select: string, order?: string) => {
 
 /** A fingerprint of that: equal = nothing new to show. */
 export async function dataVersion(): Promise<string> {
-  const parts = await Promise.all([
-    latest('scrape_state', 'last_run_at,locked_until,muted'),
-    latest('scrape_runs', 'id,finished_at,added,matched,notified', 'started_at.desc'),
-    latest('offers', 'first_seen', 'first_seen.desc'),
-    queueSize(),
-  ].map((p) => p.catch(() => null))); // a table that isn't there yet just doesn't count
+  const parts = await Promise.all(
+    [
+      latest('scrape_state', 'last_run_at,locked_until,muted'),
+      latest('scrape_runs', 'id,finished_at,added,matched,notified', 'started_at.desc'),
+      latest('offers', 'first_seen', 'first_seen.desc'),
+      queueSize(),
+    ].map((p) => p.catch(() => null)),
+  ); // a table that isn't there yet just doesn't count
   return JSON.stringify(parts);
 }

@@ -29,14 +29,15 @@ export type Application = {
 };
 export type ApplicationWithContent = Application & { content: string | null };
 
-const LIST_COLS = 'dup_key,src,id,title,company,url,applied_at,details,content_status,content_error,scraped_at,stage,stage_state,stage_updated_at,history,note,note_updated_at';
+const LIST_COLS =
+  'dup_key,src,id,title,company,url,applied_at,details,content_status,content_error,scraped_at,stage,stage_state,stage_updated_at,history,note,note_updated_at';
 const keyFilter = (url: URL, key: string) => url.searchParams.set('dup_key', `eq.${key}`);
 
 export async function listApplications(): Promise<Application[]> {
   const url = restUrl('applications');
   url.searchParams.set('select', LIST_COLS);
   url.searchParams.set('order', 'applied_at.desc');
-  return (await rest(url)).json();
+  return (await rest(url)).json() as Promise<Application[]>;
 }
 
 export async function getApplication(key: string): Promise<ApplicationWithContent | null> {
@@ -67,8 +68,14 @@ export async function markApplied(key: string, clicked: { src: string; id: strin
     method: 'POST',
     prefer: 'resolution=ignore-duplicates,return=minimal',
     body: JSON.stringify({
-      dup_key: key, src: copy.src, id: copy.id, title: job.title, company: job.company, url: copy.url,
-      stage: 'submitted', stage_state: 'pending',
+      dup_key: key,
+      src: copy.src,
+      id: copy.id,
+      title: job.title,
+      company: job.company,
+      url: copy.url,
+      stage: 'submitted',
+      stage_state: 'pending',
       history: [{ stage: 'submitted', state: 'pending', at: new Date().toISOString() }],
     }),
   });
@@ -76,7 +83,10 @@ export async function markApplied(key: string, clicked: { src: string; id: strin
 
 /** Open applications without news for a month become ghosted. Returns how many just did. */
 export async function ghostStale(): Promise<number> {
-  const res = await rest(restUrl('rpc/jw_ghost_stale_applications'), { method: 'POST', body: JSON.stringify({ p_days: GHOST_AFTER_DAYS }) });
+  const res = await rest(restUrl('rpc/jw_ghost_stale_applications'), {
+    method: 'POST',
+    body: JSON.stringify({ p_days: GHOST_AFTER_DAYS }),
+  });
   return Number(await res.json()) || 0;
 }
 
@@ -96,16 +106,21 @@ export async function setStatus(key: string, stage: StageId, state: StateId) {
 export async function removeStatusStep(key: string, step: HistoryEntry): Promise<{ error?: string }> {
   const app = await getApplication(key);
   if (!app) return { error: 'This application no longer exists.' };
-  const all = app.history ?? [];
+  const all = app.history;
   let i = all.findIndex((h) => h.at === step.at && h.stage === step.stage && h.state === step.state);
   // a step clicked a moment ago carries the browser's time, not the database's: the latest one like it
   if (i < 0) i = all.map((h) => `${h.stage}/${h.state}`).lastIndexOf(`${step.stage}/${step.state}`);
   if (i < 0) return { error: 'That step is no longer in the history.' };
   if (i === 0) return { error: 'The first step is the application itself (“Unmark applied” removes that).' };
   const history = all.slice(0, i);
-  const last = history[history.length - 1];
+  const last = history.at(-1);
   // counts as a change now: taking back an automatic "ghosted" doesn't bring it right back
-  await patch(key, { history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending', stage_updated_at: new Date().toISOString() });
+  await patch(key, {
+    history,
+    stage: last?.stage ?? 'submitted',
+    stage_state: last?.state ?? 'pending',
+    stage_updated_at: new Date().toISOString(),
+  });
   return {};
 }
 
@@ -116,7 +131,11 @@ export async function setNote(key: string, note: string) {
   const url = restUrl('applications');
   keyFilter(url, key);
   const text = note.trim() ? note.slice(0, NOTE_MAX) : null;
-  await rest(url, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify({ note: text, note_updated_at: new Date().toISOString() }) });
+  await rest(url, {
+    method: 'PATCH',
+    prefer: 'return=minimal',
+    body: JSON.stringify({ note: text, note_updated_at: new Date().toISOString() }),
+  });
 }
 
 export async function unmarkApplied(key: string) {
@@ -148,7 +167,10 @@ const withoutList = ({ typed: _, ...d }: SavedDetails) => d;
 /** The form's details as saved: the editable fields you filled in, and their names. */
 export function typedDetails(form: JobDetails | null | undefined): SavedDetails {
   const d: SavedDetails = {};
-  for (const k of TYPED_FIELDS) if (filled(form?.[k])) Object.assign(d, { [k]: form![k] });
+  for (const k of TYPED_FIELDS) {
+    const v = form?.[k];
+    if (filled(v)) Object.assign(d, { [k]: v });
+  }
   const typed = TYPED_FIELDS.filter((k) => k in d);
   return typed.length ? { ...d, typed } : d;
 }
@@ -158,7 +180,12 @@ export function typedDetails(form: JobDetails | null | undefined): SavedDetails 
  * shows the saved values, so a field is yours only if it already was or you changed it. A new link
  * is another ad: only what you filled in, without the old one's dates and company.
  */
-export function editedDetails(saved: SavedDetails | null, form: JobDetails | null | undefined, id: string, sameLink: boolean): SavedDetails | null {
+export function editedDetails(
+  saved: SavedDetails | null,
+  form: JobDetails | null | undefined,
+  id: string,
+  sameLink: boolean,
+): SavedDetails | null {
   if (!sameLink) {
     const d = typedDetails(form);
     return hasAny(d) ? d : null;
@@ -167,6 +194,7 @@ export function editedDetails(saved: SavedDetails | null, form: JobDetails | nul
   const d: SavedDetails = withoutList(saved ?? {});
   const typed: TypedField[] = [];
   for (const k of TYPED_FIELDS) {
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- k is one of the four TYPED_FIELDS, not a dynamic key
     delete d[k];
     const v = form?.[k];
     if (!filled(v)) continue;
@@ -186,7 +214,11 @@ export function typedFields(saved: SavedDetails | null, id: string): TypedField[
  * The details to save after a scrape: the fields you typed stay, the rest is what the board says.
  * A scrape that says nothing keeps the details saved before, so a failed fetch never wipes them.
  */
-export function mergeDetails(scraped: JobDetails | null | undefined, saved: SavedDetails | null, typed: TypedField[]): SavedDetails | null {
+export function mergeDetails(
+  scraped: JobDetails | null | undefined,
+  saved: SavedDetails | null,
+  typed: TypedField[],
+): SavedDetails | null {
   const old = withoutList(saved ?? {});
   const mine = Object.fromEntries(typed.filter((k) => filled(old[k])).map((k) => [k, old[k]]));
   const merged: SavedDetails = { ...(hasAny(scraped) ? scraped : old), ...mine };
@@ -212,7 +244,13 @@ export async function saveContent(key: string) {
     try {
       const s = await scrapeOfferFull(c);
       if (s.status === 'ok') {
-        await patch(key, { content: s.text, details: merge(s.details), content_status: 'ok', content_error: null, scraped_at: new Date().toISOString() });
+        await patch(key, {
+          content: s.text,
+          details: merge(s.details),
+          content_status: 'ok',
+          content_error: null,
+          scraped_at: new Date().toISOString(),
+        });
         return;
       }
       firstEmpty ??= { details: s.details };
@@ -250,7 +288,11 @@ export async function findOfferByLink(link: string): Promise<OfferRow | null> {
 
 /** The job's key: the same company + title as the scrapers see it, or the job it was merged into. */
 export async function jobKeyFor(company: string | null, title: string, known?: string): Promise<string> {
-  const key = known ?? ((await (await rest(restUrl('rpc/jw_dup_key'), { method: 'POST', body: JSON.stringify({ company, title }) })).json()) as string);
+  const key =
+    known ??
+    ((await (
+      await rest(restUrl('rpc/jw_dup_key'), { method: 'POST', body: JSON.stringify({ company, title }) })
+    ).json()) as string);
   const url = restUrl('job_links');
   url.searchParams.set('select', 'job_key');
   url.searchParams.set('dup_key', `eq.${key}`);
@@ -276,7 +318,8 @@ export const appliedAtOf = (day: string, z: Zone) =>
 
 const newId = () => `manual-${crypto.randomUUID().slice(0, 12)}`;
 const NO_TEXT = 'Added by hand, without the ad text.';
-const alreadyThere = (a: Application, z: Zone) => `Already in your applications: “${a.title}”, applied ${z.formatDayOf(a.applied_at)}.`;
+const alreadyThere = (a: Application, z: Zone) =>
+  `Already in your applications: “${a.title}”, applied ${z.formatDayOf(a.applied_at)}.`;
 
 /** Saves an application typed in by hand; an error if the job already has one. */
 export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?: string; error?: string }> {
@@ -286,7 +329,8 @@ export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?
   if (existing) return { error: alreadyThere(existing, z) };
   const id = offer?.id ?? (boardIdOf(a.src, a.url) || newId());
   const history: HistoryEntry[] = [{ stage: 'submitted', state: 'pending', at: a.appliedAt }];
-  if (a.stage !== 'submitted' || a.state !== 'pending') history.push({ stage: a.stage, state: a.state, at: new Date().toISOString() });
+  if (a.stage !== 'submitted' || a.state !== 'pending')
+    history.push({ stage: a.stage, state: a.state, at: new Date().toISOString() });
   const text = a.content?.trim() ?? '';
   await rest(restUrl('applications'), {
     method: 'POST',
@@ -328,7 +372,6 @@ export type ApplicationEdit = {
   content: string; // the ad text
 };
 
-
 /**
  * Saves what you changed in the form; the status and the note stay. The link decides which job
  * it is: one the scrapers have makes it that job's application (as adding it would); otherwise a
@@ -346,7 +389,8 @@ export async function updateApplication(
   const offer = typedUrl ? await findOfferByLink(typedUrl).catch(() => null) : null;
   let target = key;
   if (offer) target = await jobKeyFor(offer.company, offer.title, offer.dup_key);
-  else if ((e.title !== app.title || e.company !== app.company) && !(await findJob(key).catch(() => null))) target = await jobKeyFor(e.company, e.title);
+  else if ((e.title !== app.title || e.company !== app.company) && !(await findJob(key).catch(() => null)))
+    target = await jobKeyFor(e.company, e.title);
   if (target !== key) {
     const other = await getApplication(target);
     if (other) return { error: alreadyThere(other, z) };
@@ -363,17 +407,19 @@ export async function updateApplication(
   }
 
   // another day: the first step (applying) moves with it, and so does "no news since" if nothing changed since
-  const history = [...(app.history ?? [])];
+  const history = [...app.history];
   if (e.day !== z.day(app.applied_at)) {
-    const next = history[1];
-    if (next && e.day > z.day(next.at)) return { error: `The status changed on ${z.formatDayOf(next.at)}: you applied that day or earlier.` };
+    const next = history.at(1);
+    if (next && e.day > z.day(next.at))
+      return { error: `The status changed on ${z.formatDayOf(next.at)}: you applied that day or earlier.` };
     const at = appliedAtOf(e.day, z);
     fields.applied_at = at;
     if (history[0]?.stage === 'submitted' && history[0].state === 'pending') {
       history[0] = { ...history[0], at };
       fields.history = history;
     }
-    if (app.stage_updated_at && Date.parse(app.stage_updated_at) === Date.parse(app.applied_at)) fields.stage_updated_at = at;
+    if (app.stage_updated_at && Date.parse(app.stage_updated_at) === Date.parse(app.applied_at))
+      fields.stage_updated_at = at;
   }
 
   fields.details = editedDetails(app.details, e.details, app.id, url === app.url);
@@ -388,7 +434,13 @@ export async function updateApplication(
       fetch = true;
     } else if (had) Object.assign(fields, { content: null, content_status: 'empty', content_error: NO_TEXT });
   } else if (text !== had) {
-    if (text.length >= 80) Object.assign(fields, { content: text, content_status: 'ok', content_error: null, scraped_at: new Date().toISOString() });
+    if (text.length >= 80)
+      Object.assign(fields, {
+        content: text,
+        content_status: 'ok',
+        content_error: null,
+        scraped_at: new Date().toISOString(),
+      });
     else if (url) {
       Object.assign(fields, { content: text, content_status: 'pending', content_error: null });
       fetch = true;

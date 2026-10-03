@@ -39,14 +39,19 @@ describe('formatNotification', () => {
   });
 
   it('where: remote, the place, or office; missing parts are left out', () => {
-    const text = (o: Partial<Outgoing>) => notify({ matched: [offer({ title: 'T', url: 'u', ...o })] })[0].text.split('\n').slice(2, 3)[0];
+    const text = (o: Partial<Outgoing>) =>
+      notify({ matched: [offer({ title: 'T', url: 'u', ...o })] })[0]
+        .text.split('\n')
+        .slice(2, 3)[0];
     expect(text({ remote: true })).toBe('Acme · senior · zdalnie');
     expect(text({ location: null })).toBe('Acme · senior · stacjonarnie');
     expect(text({ company: null, seniority: null })).toBe('Warszawa');
   });
 
   it("the AI's score and summary (cut to 160 characters)", () => {
-    const [m] = notify({ matched: [offer({ title: 'T', url: 'u', verdict: { score: 87, summary: 'x'.repeat(200) } })] });
+    const [m] = notify({
+      matched: [offer({ title: 'T', url: 'u', verdict: { score: 87, summary: 'x'.repeat(200) } })],
+    });
     expect(m.text).toContain(`\n✦ 87% · ${'x'.repeat(160)}\nu`);
     const [bare] = notify({ matched: [offer({ title: 'T', url: 'u', verdict: { score: 40, summary: null } })] });
     expect(bare.text).toContain('\n✦ 40%\nu');
@@ -79,7 +84,9 @@ describe('formatNotification', () => {
     const out = notify({ matched, unchecked });
     expect(out).toHaveLength(2);
     expect(out[1].offers).toEqual(unchecked);
-    expect(out[1].text.startsWith('⚠ Not checked by the AI (it failed for a while):\n---------------------- nofluff')).toBe(true);
+    expect(
+      out[1].text.startsWith('⚠ Not checked by the AI (it failed for a while):\n---------------------- nofluff'),
+    ).toBe(true);
   });
 
   it("the ones that didn't match: a line under the last message", () => {
@@ -87,7 +94,7 @@ describe('formatNotification', () => {
     const unmatched: Queued[] = many(3);
     const out = notify({ matched, unmatched, profile: 'Frontend', link: 'https://app.test/ai' });
     expect(out).toHaveLength(1);
-    expect(out[0].text.endsWith('\n\n+ 3 new offer(s) didn\'t match “Frontend”.')).toBe(true);
+    expect(out[0].text.endsWith("\n\n+ 3 new offer(s) didn't match “Frontend”.")).toBe(true);
     // they count as sent with that message
     expect(out[0].offers).toEqual([...matched, ...unmatched]);
   });
@@ -101,7 +108,13 @@ describe('formatNotification', () => {
   });
 
   it('held while muted: a first message with the total', () => {
-    const out = notify({ matched: many(6), unmatched: many(1), unchecked: many(2, { src: 'zz' }), profile: 'P', held: true });
+    const out = notify({
+      matched: many(6),
+      unmatched: many(1),
+      unchecked: many(2, { src: 'zz' }),
+      profile: 'P',
+      held: true,
+    });
     expect(out[0]).toEqual({ text: '📬 9 offer(s) held while muted', offers: [] });
     expect(out).toHaveLength(4); // the heading, 6 matched in two, 2 unchecked (+ the unmatched line)
   });

@@ -19,7 +19,7 @@ export async function listProfiles(): Promise<Profile[]> {
   const url = restUrl('ai_profiles');
   url.searchParams.set('select', COLS);
   url.searchParams.set('order', 'last_used_at.desc');
-  return (await rest(url)).json();
+  return (await rest(url)).json() as Promise<Profile[]>;
 }
 
 export async function getProfile(id: string): Promise<ProfileWithFile | null> {
@@ -30,7 +30,7 @@ export async function getProfile(id: string): Promise<ProfileWithFile | null> {
   return rows[0] ?? null;
 }
 
-export const isUsable = (p: { prompt: string; file_name: string | null } | null | undefined) =>
+export const isUsable = <P extends { prompt: string; file_name: string | null }>(p: P | null | undefined): p is P =>
   Boolean(p && (p.prompt.trim() || p.file_name));
 
 type FileChange = { name: string; text: string } | 'keep' | 'remove';
@@ -40,7 +40,12 @@ type FileChange = { name: string; text: string } | 'keep' | 'remove';
  * criteria or the file change: earlier verdicts then no longer count, so offers get re-checked.
  * Renaming or just picking a profile keeps its verdicts.
  */
-export async function saveProfile(input: { id?: string; name: string; prompt: string; file: FileChange }): Promise<string> {
+export async function saveProfile(input: {
+  id?: string;
+  name: string;
+  prompt: string;
+  file: FileChange;
+}): Promise<string> {
   const now = new Date().toISOString();
   const name = input.name.trim() || 'Profile';
 
@@ -50,7 +55,13 @@ export async function saveProfile(input: { id?: string; name: string; prompt: st
     const res = await rest(url, {
       method: 'POST',
       prefer: 'return=representation',
-      body: JSON.stringify({ name, prompt: input.prompt, file_name: file?.name ?? null, file_text: file?.text ?? null, last_used_at: now }),
+      body: JSON.stringify({
+        name,
+        prompt: input.prompt,
+        file_name: file?.name ?? null,
+        file_text: file?.text ?? null,
+        last_used_at: now,
+      }),
     });
     return ((await res.json()) as Profile[])[0].id;
   }
@@ -67,7 +78,15 @@ export async function saveProfile(input: { id?: string; name: string; prompt: st
   await rest(url, {
     method: 'PATCH',
     prefer: 'return=minimal',
-    body: JSON.stringify({ name, prompt: input.prompt, file_name, file_text, version, updated_at: changed ? now : current.updated_at, last_used_at: now }),
+    body: JSON.stringify({
+      name,
+      prompt: input.prompt,
+      file_name,
+      file_text,
+      version,
+      updated_at: changed ? now : current.updated_at,
+      last_used_at: now,
+    }),
   });
 
   if (changed) {
@@ -83,7 +102,11 @@ export async function saveProfile(input: { id?: string; name: string; prompt: st
 export async function activateProfile(id: string) {
   const url = restUrl('ai_profiles');
   url.searchParams.set('id', `eq.${id}`);
-  await rest(url, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify({ last_used_at: new Date().toISOString() }) });
+  await rest(url, {
+    method: 'PATCH',
+    prefer: 'return=minimal',
+    body: JSON.stringify({ last_used_at: new Date().toISOString() }),
+  });
 }
 
 /** Removes the profile with its runs and verdicts (cascade). */

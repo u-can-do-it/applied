@@ -7,7 +7,9 @@ export async function proxy(request: NextRequest) {
   if (!authEnabled()) {
     // fail closed in production: the AI filter stores a CV, it must not end up public
     if (process.env.NODE_ENV === 'production') {
-      return new NextResponse('APP_PASSWORD is not set. Add it in Vercel -> Settings -> Environment Variables.', { status: 503 });
+      return new NextResponse('APP_PASSWORD is not set. Add it in Vercel -> Settings -> Environment Variables.', {
+        status: 503,
+      });
     }
     return NextResponse.next(); // local dev without a password
   }

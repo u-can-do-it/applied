@@ -30,8 +30,10 @@ const time = (v: unknown) => {
   const t = Date.parse(str(v));
   return Number.isFinite(t) ? t : undefined;
 };
-const keysOf = (v: unknown) => (isObj(v) ? Object.keys(v).slice(0, 12).join(', ') : Array.isArray(v) ? 'a list' : typeof v);
-const sampleOf = (v: unknown) => JSON.stringify(v, null, 2)?.slice(0, 3000);
+const keysOf = (v: unknown) =>
+  isObj(v) ? Object.keys(v).slice(0, 12).join(', ') : Array.isArray(v) ? 'a list' : typeof v;
+// JSON.stringify(undefined) is undefined, whatever its type says
+const sampleOf = (v: unknown) => (JSON.stringify(v, null, 2) as string | undefined)?.slice(0, 3000);
 
 function json(text: string, what: string) {
   try {
@@ -41,13 +43,16 @@ function json(text: string, what: string) {
   }
 }
 
-const ENT: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const ENT: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 const decode = (s: string) =>
   s
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
-    .replace(/&([a-z]+);/gi, (m, n) => ENT[n.toLowerCase()] ?? m);
-const strip = (s: string) => decode(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
+    .replace(/&([a-z]+);/gi, (m, n: string) => ENT[n.toLowerCase()] ?? m);
+const strip = (s: string) =>
+  decode(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
 
 // whole words, Polish letters included (\b only knows ASCII): "Staff" but not "Staffing", "Lead" but
 // not "Leadership" or "Lead Generation", "Interns" but not "Internal"
@@ -59,10 +64,14 @@ const JUNIOR = word('junior|interns?|internships?|trainees?|staÅ¼yst\\p{L}*|staÅ
 const seniorityOf = (title: string) => (SENIOR.test(title) ? 'senior' : JUNIOR.test(title) ? 'junior' : 'unknown');
 
 // Angular's TransferState escapes its JSON with &q; &a; &l; &g; &s;
-const angular = (s: string) => s.replace(/&q;/g, '"').replace(/&a;/g, '&').replace(/&l;/g, '<').replace(/&g;/g, '>').replace(/&s;/g, "'");
+const angular = (s: string) =>
+  s.replace(/&q;/g, '"').replace(/&a;/g, '&').replace(/&l;/g, '<').replace(/&g;/g, '>').replace(/&s;/g, "'");
 
 function scriptById(html: string, id: string) {
-  const re = new RegExp(`<script[^>]*\\bid=["']${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>([\\s\\S]*?)</script>`, 'i');
+  const re = new RegExp(
+    `<script[^>]*\\bid=["']${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>([\\s\\S]*?)</script>`,
+    'i',
+  );
   return html.match(re)?.[1] ?? null;
 }
 
@@ -85,7 +94,9 @@ function justjoin(body: string, { src }: Ctx): Parsed {
       url: `https://justjoin.it/job-offer/${str(o.slug)}`,
       skills: [...arr(o.requiredSkills), ...arr(o.niceToHaveSkills)].map(nameOf).filter(Boolean),
       // the offer's city is also among its locations[]
-      locations: [...new Set([str(o.city), ...arr(o.locations).map((l) => (isObj(l) ? str(l.city) : ''))])].filter(Boolean),
+      locations: [...new Set([str(o.city), ...arr(o.locations).map((l) => (isObj(l) ? str(l.city) : ''))])].filter(
+        Boolean,
+      ),
       sort: time(o.publishedAt), // exact chronological order
     })),
   };
@@ -109,7 +120,7 @@ function nofluff(body: string, { src }: Ctx): Parsed {
     sample: sampleOf(postings[0]),
     items: postings.map((p) => {
       const loc = isObj(p.location) ? p.location : {};
-      const level = Array.isArray(p.seniority) ? p.seniority[0] : p.seniority;
+      const level: unknown = Array.isArray(p.seniority) ? p.seniority[0] : p.seniority;
       return {
         src,
         id: str(p.id),
@@ -119,7 +130,9 @@ function nofluff(body: string, { src }: Ctx): Parsed {
         remote: Boolean(p.fullyRemote || loc.fullyRemote),
         url: `https://nofluffjobs.com/pl/job/${str(p.url)}`,
         skills: [str(p.technology)].filter(Boolean),
-        locations: arr(loc.places ?? p.places).map((pl) => (isObj(pl) ? str(pl.city) : '')).filter(Boolean),
+        locations: arr(loc.places ?? p.places)
+          .map((pl) => (isObj(pl) ? str(pl.city) : ''))
+          .filter(Boolean),
         sort: num(p.posted), // real publish time, not renewed
       };
     }),
@@ -151,7 +164,7 @@ function solidjobs(body: string, { src }: Ctx): Parsed {
 function bulldog(body: string, { src }: Ctx): Parsed {
   const raw = scriptById(body, '__NEXT_DATA__');
   if (raw === null) throw new Error('Bulldog: no __NEXT_DATA__ in the page (blocked or the page changed)');
-  const data = json(raw, 'Bulldog page data') as { props?: { pageProps?: { jobs?: unknown } } };
+  const data = json(raw, 'Bulldog page data') as { props?: { pageProps?: { jobs?: unknown } } } | null;
   const jobs = data?.props?.pageProps?.jobs;
   if (!Array.isArray(jobs)) throw new Error('Bulldog: props.pageProps.jobs is not a list (the page changed?)');
   return {
@@ -169,7 +182,10 @@ function bulldog(body: string, { src }: Ctx): Parsed {
         url: `https://bulldogjob.pl/companies/jobs/${str(j.id)}`,
         skills: [...arr(j.technologies), ...arr(j.technologyTags)].map(nameOf).filter(Boolean),
         // "", one city, or "Krakow, London, Barcelona"
-        locations: str(j.city).split(',').map((c) => c.trim()).filter(Boolean),
+        locations: str(j.city)
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean),
         sort: Number.isFinite(counter) ? counter : 0,
       };
     }),
@@ -181,7 +197,7 @@ function flight(html: string) {
   let out = '';
   for (const m of html.matchAll(/self\.__next_f\.push\(\[1,("(?:\\.|[^"\\])*")\]\)/g)) {
     try {
-      out += JSON.parse(m[1]);
+      out += JSON.parse(m[1]) as string; // the regex only matches a JSON string
     } catch {
       // a broken chunk: skip it
     }
@@ -228,7 +244,10 @@ function eldorado(body: string, { src }: Ctx): Parsed {
       remote: arr(j.workModes).includes('remote'),
       url: `https://czyjesteldorado.pl/praca/${str(j.id)}-${str(j.slug)}`,
       // keywords = the tech, categories = ids like "project_management"; older pages had tags
-      skills: (j.keywords || j.categories ? [...arr(j.keywords), ...arr(j.categories).map((c) => str(c).replace(/_/g, ' '))] : arr(j.tags))
+      skills: (j.keywords || j.categories
+        ? [...arr(j.keywords), ...arr(j.categories).map((c) => str(c).replace(/_/g, ' '))]
+        : arr(j.tags)
+      )
         .map(nameOf)
         .filter(Boolean),
       locations: arr(j.cities).map(nameOf).filter(Boolean), // none = no pin icon
@@ -238,7 +257,8 @@ function eldorado(body: string, { src }: Ctx): Parsed {
 }
 
 function builtin(body: string, { src }: Ctx): Parsed {
-  if (!body.includes('data-id="job-card"')) throw new Error('Built In: no job cards in the page (blocked or the markup changed)');
+  if (!body.includes('data-id="job-card"'))
+    throw new Error('Built In: no job cards in the page (blocked or the markup changed)');
   const chunks = body.split(/<div id="job-card-(?=\d)/).slice(1); // one chunk per card
   const items: Found[] = [];
   for (const c of chunks) {
@@ -261,13 +281,19 @@ function builtin(body: string, { src }: Ctx): Parsed {
       sort: Number(id), // ascending job id = insert order
     });
   }
-  return { total: chunks.length, items, sample: chunks[0] ? `<div id="job-card-${chunks[0].slice(0, 3000)}` : undefined };
+  return {
+    total: chunks.length,
+    items,
+    sample: chunks[0] ? `<div id="job-card-${chunks[0].slice(0, 3000)}` : undefined,
+  };
 }
 
 // LinkedIn's public (logged-out) search: an HTML fragment of up to 10 job cards
 function linkedin(body: string, { src, url }: Ctx): Parsed {
   const root = parseHtml(body);
-  const cards = root.querySelectorAll('[data-entity-urn]').filter((c) => c.getAttribute('data-entity-urn')?.includes('jobPosting:'));
+  const cards = root
+    .querySelectorAll('[data-entity-urn]')
+    .filter((c) => c.getAttribute('data-entity-urn')?.includes('jobPosting:'));
   if (!cards.length) {
     // past the last page LinkedIn answers a bare "<!DOCTYPE html><!---->": no results, not a block
     const bare = body.replace(/<!DOCTYPE[^>]*>|<!--[\s\S]*?-->/gi, '').trim();
@@ -280,7 +306,7 @@ function linkedin(body: string, { src, url }: Ctx): Parsed {
     total: cards.length,
     sample: cards[0].outerHTML.slice(0, 3000),
     items: cards.map((card) => {
-      const id = card.getAttribute('data-entity-urn')!.split(':').pop()!;
+      const id = (card.getAttribute('data-entity-urn') ?? '').split(':').pop() ?? ''; // the filter above: always there
       const title = text(card, '.base-search-card__title');
       const location = text(card, '.job-search-card__location');
       return {
@@ -346,7 +372,7 @@ function jsonRoot(body: string, c: ScraperConfig): unknown {
       if (!blocks.length) throw new Error('No <script type="application/ld+json"> in the page');
       return blocks.map((m) => {
         try {
-          return JSON.parse(m[1]);
+          return JSON.parse(m[1]) as unknown;
         } catch {
           return null;
         }
@@ -381,13 +407,20 @@ function fromJson(body: string, { src, url, config }: Ctx): Parsed {
   const link = (item: unknown) => {
     const t = f.url ?? '';
     // "https://site/job/{slug}" fills in values from the offer; otherwise it's a path
-    const raw = t.includes('{') ? t.replace(/\{([^}]+)\}/g, (_, p: string) => first(valuesAt(item, p))) : first(get(item, 'url'));
+    const raw = t.includes('{')
+      ? t.replace(/\{([^}]+)\}/g, (_, p: string) => first(valuesAt(item, p)))
+      : first(get(item, 'url'));
     return absolute(raw, url);
   };
   return { total: list.length, sample: sampleOf(list[0]), items: list.map((item) => toFound(src, item, get, link)) };
 }
 
-function toFound(src: string, item: unknown, get: (item: unknown, f: FieldId) => unknown[], link: (item: unknown) => string): Found {
+function toFound(
+  src: string,
+  item: unknown,
+  get: (item: unknown, f: FieldId) => unknown[],
+  link: (item: unknown) => string,
+): Found {
   const url = link(item);
   const date = get(item, 'date')[0];
   return {
@@ -418,9 +451,10 @@ function fromHtml(body: string, { src, url, config }: Ctx): Parsed {
   try {
     cards = parseHtml(body).querySelectorAll(config.items);
   } catch (e) {
-    throw new Error(`Bad selector "${config.items}": ${e instanceof Error ? e.message : e}`);
+    throw new Error(`Bad selector "${config.items}": ${e instanceof Error ? e.message : String(e)}`);
   }
-  if (!cards.length) throw new Error(`No "${config.items}" in the page (${body.length} bytes; blocked, or rendered by JavaScript?)`);
+  if (!cards.length)
+    throw new Error(`No "${config.items}" in the page (${body.length} bytes; blocked, or rendered by JavaScript?)`);
   const f = config.fields ?? {};
   const get = (card: unknown, field: FieldId): unknown[] => {
     const sel = f[field];
@@ -433,10 +467,17 @@ function fromHtml(body: string, { src, url, config }: Ctx): Parsed {
     } catch {
       return [];
     }
-    return found.map((e) => (attr ? e.getAttribute(attr) ?? '' : e.text)).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    return found
+      .map((e) => (attr ? (e.getAttribute(attr) ?? '') : e.text))
+      .map((t) => t.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
   };
   const link = (card: unknown) => absolute(first(get(card, 'url')), url);
-  return { total: cards.length, sample: cards[0].outerHTML.slice(0, 3000), items: cards.map((card) => toFound(src, card, get, link)) };
+  return {
+    total: cards.length,
+    sample: cards[0].outerHTML.slice(0, 3000),
+    items: cards.map((card) => toFound(src, card, get, link)),
+  };
 }
 
 // ---- generic: RSS / Atom ---------------------------------------------------------------------
@@ -469,7 +510,16 @@ function fromRss(body: string, { src, url }: Ctx): Parsed {
 }
 
 const PARSERS: Record<KindId, (body: string, ctx: Ctx) => Parsed> = {
-  justjoin, nofluff, solidjobs, bulldog, eldorado, builtin, linkedin, json: fromJson, html: fromHtml, rss: fromRss,
+  justjoin,
+  nofluff,
+  solidjobs,
+  bulldog,
+  eldorado,
+  builtin,
+  linkedin,
+  json: fromJson,
+  html: fromHtml,
+  rss: fromRss,
 };
 
 /** Offers without an id, title or link are dropped (the database needs all three). */

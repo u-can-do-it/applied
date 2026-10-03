@@ -49,19 +49,26 @@ async function Settings() {
   } catch (e) {
     return (
       <div className="notice">
-        <strong>Can’t load the scraping settings.</strong> Did you run <code>scripts/db-migrate.sh</code>?<code>{message(e)}</code>
+        <strong>Can’t load the scraping settings.</strong> Did you run <code>scripts/db-migrate.sh</code>?
+        <code>{message(e)}</code>
       </div>
     );
   }
   const [cron, bot, h, profiles] = await Promise.all([
-    store.cronStatus().catch((e): store.CronStatus & { error: string } => ({ available: false, error: message(e) })),
-    telegramReady() ? botInfo().catch((e) => ({ error: message(e) })) : Promise.resolve(null),
+    store
+      .cronStatus()
+      .catch((e: unknown): store.CronStatus & { error: string } => ({ available: false, error: message(e) })),
+    telegramReady() ? botInfo().catch((e: unknown) => ({ error: message(e) })) : Promise.resolve(null),
     headers(),
     listProfiles().catch(() => []),
   ]);
   // what the AI filter would check new offers against: the active profile, if it can work
   const active = profiles[0];
-  const ai = { on: data.settings.aiFilter, profile: isUsable(active) ? active.name : null, keySet: Boolean(process.env.OPENAI_API_KEY) };
+  const ai = {
+    on: data.settings.aiFilter,
+    profile: isUsable(active) ? active.name : null,
+    keySet: Boolean(process.env.OPENAI_API_KEY),
+  };
   const origin = appOrigin(h.get('x-forwarded-host') ?? h.get('host'), h.get('x-forwarded-proto'));
   const { settings, scrapers, state, runs, queued, counts } = data;
 
@@ -71,6 +78,7 @@ async function Settings() {
       <SchedulePanel
         settings={settings}
         state={state}
+        // eslint-disable-next-line react-hooks/purity -- a server component renders once per request: "now" is that request's time
         running={Boolean(state.locked_until && Date.parse(state.locked_until) > Date.now())}
         runs={runs}
         cron={cron}

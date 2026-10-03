@@ -5,7 +5,13 @@ import { zone } from '@/lib/dates';
 import { applyAction, unapplyAction } from './actions';
 
 /** "Mark applied" / "✓ Applied 02.10.2026" - flips on the click frame, the server catches up. */
-export function ApplyButton({ jobKey, src, id, appliedAt, tz }: {
+export function ApplyButton({
+  jobKey,
+  src,
+  id,
+  appliedAt,
+  tz,
+}: {
   jobKey: string;
   src: string;
   id: string;
@@ -22,7 +28,8 @@ export function ApplyButton({ jobKey, src, id, appliedAt, tz }: {
     start(async () => {
       setApplied(applied ? null : new Date().toISOString());
       const res = applied ? await unapplyAction(jobKey) : await applyAction({ key: jobKey, src, id });
-      if (res.error) startTransition(() => setError(res.error!));
+      const failed = res.error;
+      if (failed) startTransition(() => setError(failed));
     });
   };
 

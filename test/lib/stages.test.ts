@@ -17,8 +17,16 @@ import {
   type WithStatus,
 } from '@/lib/stages';
 
-const app = (stage: StageId, stage_state: StateId, history: HistoryEntry[] | null = null): WithStatus => ({ stage, stage_state, history });
-const step = (stage: StageId, state: StateId = 'passed'): HistoryEntry => ({ stage, state, at: '2026-10-01T10:00:00Z' });
+const app = (stage: StageId, stage_state: StateId, history: HistoryEntry[] = []): WithStatus => ({
+  stage,
+  stage_state,
+  history,
+});
+const step = (stage: StageId, state: StateId = 'passed'): HistoryEntry => ({
+  stage,
+  state,
+  at: '2026-10-01T10:00:00Z',
+});
 
 describe('stage and state names', () => {
   it('an offer has its own outcomes, and no ghosted or talent pool', () => {

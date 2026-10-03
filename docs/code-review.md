@@ -1,18 +1,18 @@
 # Jobwatch Code Review
 
-*3 October 2026*
+_3 October 2026_
 
 What to change so that someone who did not write Jobwatch can read it, extend it and trust it. Ordered by what unblocks the most further work.
 
-| | |
-|---|---|
-| Source files | 60 |
+|                        |         |
+| ---------------------- | ------- |
+| Source files           | 60      |
 | Lines (TS/TSX/SQL/CSS) | ≈10,300 |
-| Tests | 0 |
-| Lint rules | 0 |
-| CI jobs | 0 |
-| Runtime dependencies | 6 |
-| Typecheck | passes |
+| Tests                  | 0       |
+| Lint rules             | 0       |
+| CI jobs                | 0       |
+| Runtime dependencies   | 6       |
+| Typecheck              | passes  |
 
 ---
 
@@ -20,20 +20,20 @@ What to change so that someone who did not write Jobwatch can read it, extend it
 
 The app is carefully written and clearly works. The individual functions are competent, security is taken seriously, and the comments explain intent. The problem is not quality of lines but **absence of structure above the line**: knowledge about one concept (a job board, an application's status, a scrape run) is spread across five or six files, every module re-invents the same small things (error messages, PostgREST quoting, dialogs, input validation), and nothing but the author's memory checks that a refactor is safe. The README is effectively the architecture document, and it is 200 lines of prose that the UI then repeats inside Settings.
 
-For a solo developer this is fine. For a second developer, or for you in a year, it is the kind of codebase where every change requires re-reading half the project. The recommendations below aim at one outcome: *a new concept has one obvious home, a new board is one file, and a change is verified by running one command.*
+For a solo developer this is fine. For a second developer, or for you in a year, it is the kind of codebase where every change requires re-reading half the project. The recommendations below aim at one outcome: _a new concept has one obvious home, a new board is one file, and a change is verified by running one command._
 
-| Area | State today | Priority |
-|---|---|---|
-| Tests, lint, CI | None. Typecheck is the only automated check. | **High** |
-| Data access | Hand-built PostgREST URLs, quoting written four times, row types maintained by hand. Recommended: Drizzle ORM. | **High** |
-| Module layout | Flat `app/` with 25 files; "board" knowledge in 6 files; two different "scrape" modules. | **High** |
-| UI components | Everything hand-made: four dialogs, date picker, tooltip, 692-line list component, polling via refs. Recommended: shadcn/ui. | **High** |
-| Input validation | Bespoke per action; four different result shapes. | Medium |
-| Naming | 182 single-letter variables; `s` means settings, scraper, string or source depending on the file. | Medium |
-| Understandability of the product | Settings explains itself in paragraphs; inconsistent terms; AI run lifecycle is opaque. | Medium |
-| Background work | AI runs continue only while a browser tab is open. | Medium |
-| Security, auth, SSRF guard | Good. Keep as is. | Keep |
-| Type safety | Strict TS, no `any`. Keep. | Keep |
+| Area                             | State today                                                                                                                  | Priority |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Tests, lint, CI                  | None. Typecheck is the only automated check.                                                                                 | **High** |
+| Data access                      | Hand-built PostgREST URLs, quoting written four times, row types maintained by hand. Recommended: Drizzle ORM.               | **High** |
+| Module layout                    | Flat `app/` with 25 files; "board" knowledge in 6 files; two different "scrape" modules.                                     | **High** |
+| UI components                    | Everything hand-made: four dialogs, date picker, tooltip, 692-line list component, polling via refs. Recommended: shadcn/ui. | **High** |
+| Input validation                 | Bespoke per action; four different result shapes.                                                                            | Medium   |
+| Naming                           | 182 single-letter variables; `s` means settings, scraper, string or source depending on the file.                            | Medium   |
+| Understandability of the product | Settings explains itself in paragraphs; inconsistent terms; AI run lifecycle is opaque.                                      | Medium   |
+| Background work                  | AI runs continue only while a browser tab is open.                                                                           | Medium   |
+| Security, auth, SSRF guard       | Good. Keep as is.                                                                                                            | Keep     |
+| Type safety                      | Strict TS, no `any`. Keep.                                                                                                   | Keep     |
 
 ---
 
@@ -78,11 +78,11 @@ Formatting is manual (lines reach 220 characters), unused imports are not caught
 
 ### A hand-rolled PostgREST client with string-built filters — High
 
-`lib/supabase.ts` is 50 lines and every other module composes URLs like `url.searchParams.set('dup_key', \`eq.${key}\`)`. Escaping of values inside `in.(…)` and `or=(…)` is written four separate times (`pgQuote` in `ai-runs.ts`, `q` in `applications.ts`, `quote` in `store.ts`, inline in `knownIds`). Row types (`Row`, `Pending`, `OfferRow`, `Application`, `Scraper`, `RunRow`, `Queued`) are hand-maintained mirrors of the SQL and drift silently. Response parsing (`Content-Range`, `Prefer` headers) is repeated.
+`lib/supabase.ts` is 50 lines and every other module composes URLs like `url.searchParams.set('dup_key', \`eq.${key}\`)`. Escaping of values inside `in.(…)`and`or=(…)` is written four separate times (`pgQuote`in`ai-runs.ts`, `q`in`applications.ts`, `quote`in`store.ts`, inline in `knownIds`). Row types (`Row`, `Pending`, `OfferRow`, `Application`, `Scraper`, `RunRow`, `Queued`) are hand-maintained mirrors of the SQL and drift silently. Response parsing (`Content-Range`, `Prefer` headers) is repeated.
 
 **Do:** adopt **Drizzle ORM** (`drizzle-orm` + `drizzle-kit`, `postgres` driver) over a direct Postgres connection to Supabase. It fits this app better than `@supabase/supabase-js` for three reasons:
 
-- **The schema already needs real SQL.** A window-function view (`offers_unique`), a generated column (`dup_key`), `pg_trgm` similarity, upserts, and nine `jw_*` functions. PostgREST can only call these as opaque RPCs; Drizzle lets you keep them as SQL (the `sql` tag, custom migration files) *and* write ordinary queries with typed tables, joins and transactions. Several RPCs (`jw_set_application_status`, `jw_ghost_stale_applications`, `jw_scrape_lock`) become plain Drizzle transactions in TypeScript, where they are testable.
+- **The schema already needs real SQL.** A window-function view (`offers_unique`), a generated column (`dup_key`), `pg_trgm` similarity, upserts, and nine `jw_*` functions. PostgREST can only call these as opaque RPCs; Drizzle lets you keep them as SQL (the `sql` tag, custom migration files) _and_ write ordinary queries with typed tables, joins and transactions. Several RPCs (`jw_set_application_status`, `jw_ghost_stale_applications`, `jw_scrape_lock`) become plain Drizzle transactions in TypeScript, where they are testable.
 - **One source of truth.** Tables are declared in `lib/db/schema.ts`; row types are inferred (`typeof offers.$inferSelect`), not generated and committed. `drizzle-kit generate` turns schema changes into versioned migration files, replacing the loose SQL files and the Docker `psql` script.
 - **Everything that touches the database is server-side Node.** Route handlers, server actions and `after()` callbacks. `proxy.ts` never queries the database. So a pooled Postgres connection is fine: use Supabase's transaction pooler (port 6543) with `postgres(url, { prepare: false, max: 1 })` per serverless instance. `SUPABASE_DB_URL` already exists for the scripts; it becomes the app's connection too, and `SUPABASE_SECRET_KEY` goes away.
 
@@ -115,12 +115,12 @@ To understand what "JustJoin" means you read `lib/sources.ts` (label), `lib/sour
 ```ts
 // lib/boards/types.ts
 export type Board = {
-  id: string;                         // offers.src
+  id: string; // offers.src
   label: string;
   hosts: RegExp[];
   idFromLink(url: URL): string | null;
   cleanLink?(url: URL): URL;
-  defaults?: ListingDefaults;          // seed search for Settings
+  defaults?: ListingDefaults; // seed search for Settings
   parseListing(body: string, ctx: Ctx): Parsed;
   fetchAd(copy: Copy): Promise<Scraped>;
 };
@@ -159,13 +159,17 @@ Mark shared (isomorphic) modules by location, e.g. `lib/shared/`, so nobody has 
 **Do:** one discriminated `Result<T> = { ok: true; data: T } | { ok: false; error: string }`, and a higher-order wrapper that combines auth and validation:
 
 ```ts
-export const action = <I, O>(schema: z.ZodType<I>, fn: (input: I, ctx: Ctx) => Promise<O>) =>
+export const action =
+  <I, O>(schema: z.ZodType<I>, fn: (input: I, ctx: Ctx) => Promise<O>) =>
   async (raw: unknown): Promise<Result<O>> => {
     await requireLogin();
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return fail(firstIssue(parsed.error));
-    try { return ok(await fn(parsed.data, await context())); }
-    catch (e) { return fail(message(e)); }
+    try {
+      return ok(await fn(parsed.data, await context()));
+    } catch (e) {
+      return fail(message(e));
+    }
   };
 ```
 
@@ -200,11 +204,27 @@ There are 182 `const`/`let` declarations with a one-letter name, plus the same h
 ```ts
 // lib/scraping/run.ts today
 const mark = r.ok ? Math.max(s.mark ?? -Infinity, r.maxSort ?? -Infinity, 0) : s.mark;
-return saveOutcome(s.id, { ok: r.ok, found: r.found, kept: r.kept.length, added: addedBy.get(s.id) ?? 0, error: r.error, ms: r.ms, mark });
+return saveOutcome(s.id, {
+  ok: r.ok,
+  found: r.found,
+  kept: r.kept.length,
+  added: addedBy.get(s.id) ?? 0,
+  error: r.error,
+  ms: r.ms,
+  mark,
+});
 
 // the same line with names
 const mark = result.ok ? Math.max(scraper.mark ?? -Infinity, result.maxSort ?? -Infinity, 0) : scraper.mark;
-return saveOutcome(scraper.id, { ok: result.ok, found: result.found, kept: result.kept.length, added: addedBy.get(scraper.id) ?? 0, error: result.error, ms: result.ms, mark });
+return saveOutcome(scraper.id, {
+  ok: result.ok,
+  found: result.found,
+  kept: result.kept.length,
+  added: addedBy.get(scraper.id) ?? 0,
+  error: result.error,
+  ms: result.ms,
+  mark,
+});
 ```
 
 Short names are fine where the scope is one line and the meaning is conventional: `i` in a counting loop, `(a, b)` in a comparator, `e` in a one-line `catch`. Everywhere else the name should say what the value is.
@@ -233,29 +253,29 @@ Today every control is hand-made: four dialogs, a masked date field with a hidde
 
 **Do:** `npx shadcn@latest init` with Tailwind v4, map the existing palette onto shadcn's variables, then add components as each screen is migrated. The mapping of what exists today to what replaces it:
 
-| Today | Replaced by |
-|---|---|
-| `ProfileDialog`, `AdModal`, `AddDialog`, `ScraperEditor` (`<dialog>` + `.modal-sheet`) | `Dialog` for the profile, `Sheet` (side panel) for application and scraper editing |
-| five `confirm()` calls | `AlertDialog` behind a small `useConfirm()` hook |
-| `FitScore` tooltip with rAF placement | `Tooltip` (Radix handles collision and placement) |
-| `DateInput` masked text + hidden native picker | `Popover` + `Calendar`, with a text input in dd.mm.yyyy kept for typing |
-| `Feedback` paragraphs, `ScrapeButton` result span | `sonner` toasts for transient answers; inline `Alert` only for persistent errors |
-| `Tabs` hand-made nav, source and date chips | `Tabs` for the top navigation; `ToggleGroup` for the chips |
-| `StatusChip`, `.badge`, `.pill` | `Badge` with variants per outcome |
-| `ResultsSkeleton`, `SettingsSkeleton`, ad skeleton | `Skeleton` |
-| AI run progress text + `.bar-track` | `Progress` inside a `Card` |
+| Today                                                                                                          | Replaced by                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProfileDialog`, `AdModal`, `AddDialog`, `ScraperEditor` (`<dialog>` + `.modal-sheet`)                         | `Dialog` for the profile, `Sheet` (side panel) for application and scraper editing                                                                                                                                                                                           |
+| five `confirm()` calls                                                                                         | `AlertDialog` behind a small `useConfirm()` hook                                                                                                                                                                                                                             |
+| `FitScore` tooltip with rAF placement                                                                          | `Tooltip` (Radix handles collision and placement)                                                                                                                                                                                                                            |
+| `DateInput` masked text + hidden native picker                                                                 | `Popover` + `Calendar`, with a text input in dd.mm.yyyy kept for typing                                                                                                                                                                                                      |
+| `Feedback` paragraphs, `ScrapeButton` result span                                                              | `sonner` toasts for transient answers; inline `Alert` only for persistent errors                                                                                                                                                                                             |
+| `Tabs` hand-made nav, source and date chips                                                                    | `Tabs` for the top navigation; `ToggleGroup` for the chips                                                                                                                                                                                                                   |
+| `StatusChip`, `.badge`, `.pill`                                                                                | `Badge` with variants per outcome                                                                                                                                                                                                                                            |
+| `ResultsSkeleton`, `SettingsSkeleton`, ad skeleton                                                             | `Skeleton`                                                                                                                                                                                                                                                                   |
+| AI run progress text + `.bar-track`                                                                            | `Progress` inside a `Card`                                                                                                                                                                                                                                                   |
 | Settings `useServerForm` + controlled inputs; `ApplicationForm`'s `touched` set; `ScraperEditor`'s draft state | TanStack Form (`useForm` + `form.Field`) with the Zod schema; its per-field `isTouched`/`isDirty` replaces the hand-kept `touched` set that "Fill in from the link" relies on; `Switch` for toggles, `Select` for interval and time zone (`Command` for searching 400 zones) |
-| Stage × outcome `<table>`, stat tiles, funnel | `Table`, `Card`; keep the funnel bars as a small custom component |
+| Stage × outcome `<table>`, stat tiles, funnel                                                                  | `Table`, `Card`; keep the funnel bars as a small custom component                                                                                                                                                                                                            |
 
 ### God components — High
 
-| File | Lines | Contains |
-|---|---:|---|
-| `app/applied/applied-list.tsx` | 692 | List, statistics, 300-line sheet with manual polling, note editor with localStorage drafts |
-| `app/settings/panels.tsx` | 520 | Three panels, four hooks, cron diagnostics |
-| `app/settings/scrapers.tsx` | 486 | List, editor dialog, test result view |
-| `lib/scraping/run.ts` | 372 | Fetch, filter, ingest, AI, Telegram |
-| `app/actions.ts` | 360 | Five unrelated feature areas |
+| File                           | Lines | Contains                                                                                   |
+| ------------------------------ | ----: | ------------------------------------------------------------------------------------------ |
+| `app/applied/applied-list.tsx` |   692 | List, statistics, 300-line sheet with manual polling, note editor with localStorage drafts |
+| `app/settings/panels.tsx`      |   520 | Three panels, four hooks, cron diagnostics                                                 |
+| `app/settings/scrapers.tsx`    |   486 | List, editor dialog, test result view                                                      |
+| `lib/scraping/run.ts`          |   372 | Fetch, filter, ingest, AI, Telegram                                                        |
+| `app/actions.ts`               |   360 | Five unrelated feature areas                                                               |
 
 **Do:** one component per file under its feature folder; `AdModal` alone splits into `ApplicationSheet`, `StatusEditor`, `StatusTimeline`, `AdText`, `NoteEditor`. A soft rule of 200 lines per file keeps this honest once a linter can enforce it.
 
@@ -313,7 +333,7 @@ Whether the database is migrated, Supabase Cron is connected and matches the set
 
 The Scraping panel holds the schedule form, the last-runs log, the cron diagnostics and the time zone. Scrapers hold both configuration and per-scraper run results.
 
-**Do:** split into *Settings* (schedule, filters, time zone, Telegram, scrapers) and *Activity* (runs log, per-scraper results, queue, cron calls, AI runs). The run log then has room to become useful: filter by trigger, expand a run to see which scraper added what.
+**Do:** split into _Settings_ (schedule, filters, time zone, Telegram, scrapers) and _Activity_ (runs log, per-scraper results, queue, cron calls, AI runs). The run log then has room to become useful: filter by trigger, expand a run to see which scraper added what.
 
 ### The AI run model is opaque — Medium
 
@@ -365,7 +385,7 @@ A run executes in `after()` slices under a lock; the next slice starts when the 
 **Do:** split it:
 
 - `README.md`: what it is, a diagram, quick start. One screen.
-- `docs/ARCHITECTURE.md`: data flow, the tables and which code writes each, the three lifecycles as state diagrams, and a **glossary**: *board* (a site), *scraper* (one search on a board), *offer* (one posting on one board), *job* (the same position across boards), *application* (yours, per job), *stage*/*outcome*, *profile*/*version*, *run* (scrape or AI).
+- `docs/ARCHITECTURE.md`: data flow, the tables and which code writes each, the three lifecycles as state diagrams, and a **glossary**: _board_ (a site), _scraper_ (one search on a board), _offer_ (one posting on one board), _job_ (the same position across boards), _application_ (yours, per job), _stage_/_outcome_, _profile_/_version_, _run_ (scrape or AI).
 - `docs/OPERATIONS.md`: deploy, env vars, cron, Telegram, recovery.
 - `docs/decisions/`: short ADRs for the non-obvious choices already explained in comments (why `first_seen`, why PostgREST directly, why slices in `after()`, why the cookie is an HMAC).
 - `CONTRIBUTING.md`: where things live, how to add a board, how to run tests.
@@ -376,21 +396,21 @@ A run executes in `after()` slices under a lock; the next slice starts when the 
 
 The app has six runtime dependencies and that restraint is a virtue. Each entry below replaces hand-written code that is currently a maintenance cost, not a differentiator.
 
-| Library | Replaces | Why | Risk |
-|---|---|---|---|
-| `vitest` | Nothing (no tests) | Fast, TS-native, works with Next's module resolution. | None |
-| `eslint` + `typescript-eslint` + `prettier` | Manual formatting | Catches unused code, enforces consistency. | Initial noise; fix in one commit |
-| `zod` | `normalizeSettings`, `checkScraper`, `readForm`, env reads | One schema per input; same validation on client and server; typed `env`. | None |
-| `drizzle-orm` + `drizzle-kit` + `postgres` | `lib/supabase.ts`, four quoting helpers, hand-written row types, loose SQL files, several `jw_*` RPCs | Schema in TypeScript, inferred row types, typed joins and transactions, `sql` tag for the view and trigram queries, generated migrations. | Connection pooling in serverless: use the transaction pooler, `max: 1`. A larger refactor; do it per module |
-| `@supabase/supabase-js` + Supabase CLI (alternative) | Same as above, minus the RPCs | No connection to manage; works on Edge; generated types. | Queries stay limited to what PostgREST expresses; views and functions stay SQL-only |
-| `date-fns` + `@date-fns/tz` | Offset parsing and DST heuristics in `dates.ts`, hour sampling in `cron.ts` | Correct zone arithmetic without reading `formatToParts` output. | Keep the `Zone` facade; swap internals |
-| `@tanstack/react-query` | Polling loops in `AdModal`, `List`, `AiControls`, `AutoRefresh` | Declarative refetching and cancellation. | Only for client reads; keep RSC for pages |
-| **shadcn/ui** (Radix UI, Tailwind v4, `sonner`, `react-day-picker`) | Four dialogs, `confirm()`, tooltip placement, `DateInput`, `Feedback`, skeletons, chips, most of `globals.css` | The standard Next.js component vocabulary; components live in the repo; accessible by default; tokens map onto the existing palette. | Introduces Tailwind; migrate screen by screen. Runner-up without Tailwind: Mantine |
-| `@tanstack/react-form` | `useServerForm`, `useAction`/`useSave`, the `touched` set and draft objects in `ApplicationForm` and `ScraperEditor` | Zod via Standard Schema, same schema validated client-side and in the server action (`createServerValidate`), typed fields, dirty/touched tracking; shares the TanStack ecosystem with Query. | Skip shadcn's react-hook-form `Form` wrapper and compose its field pieces directly, as its TanStack Form guide shows |
-| `lucide-react` | Unicode glyph icons | Consistent rendering, accessible labels; shadcn's icon set. | None |
-| `fast-xml-parser` | Regex RSS parsing | Handles CDATA, namespaces, Atom correctly. | None |
-| `ai` + `@ai-sdk/openai` (optional) | `chat()`, `strictObject` | `generateObject` with a Zod schema, retries, provider swap. | Another abstraction; skip if the current client is stable |
-| Inngest / Trigger.dev / QStash (optional) | Slices, locks, tab-driven continuation | Durable background steps with retries. | External service; free tier is enough |
+| Library                                                             | Replaces                                                                                                             | Why                                                                                                                                                                                           | Risk                                                                                                                 |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `vitest`                                                            | Nothing (no tests)                                                                                                   | Fast, TS-native, works with Next's module resolution.                                                                                                                                         | None                                                                                                                 |
+| `eslint` + `typescript-eslint` + `prettier`                         | Manual formatting                                                                                                    | Catches unused code, enforces consistency.                                                                                                                                                    | Initial noise; fix in one commit                                                                                     |
+| `zod`                                                               | `normalizeSettings`, `checkScraper`, `readForm`, env reads                                                           | One schema per input; same validation on client and server; typed `env`.                                                                                                                      | None                                                                                                                 |
+| `drizzle-orm` + `drizzle-kit` + `postgres`                          | `lib/supabase.ts`, four quoting helpers, hand-written row types, loose SQL files, several `jw_*` RPCs                | Schema in TypeScript, inferred row types, typed joins and transactions, `sql` tag for the view and trigram queries, generated migrations.                                                     | Connection pooling in serverless: use the transaction pooler, `max: 1`. A larger refactor; do it per module          |
+| `@supabase/supabase-js` + Supabase CLI (alternative)                | Same as above, minus the RPCs                                                                                        | No connection to manage; works on Edge; generated types.                                                                                                                                      | Queries stay limited to what PostgREST expresses; views and functions stay SQL-only                                  |
+| `date-fns` + `@date-fns/tz`                                         | Offset parsing and DST heuristics in `dates.ts`, hour sampling in `cron.ts`                                          | Correct zone arithmetic without reading `formatToParts` output.                                                                                                                               | Keep the `Zone` facade; swap internals                                                                               |
+| `@tanstack/react-query`                                             | Polling loops in `AdModal`, `List`, `AiControls`, `AutoRefresh`                                                      | Declarative refetching and cancellation.                                                                                                                                                      | Only for client reads; keep RSC for pages                                                                            |
+| **shadcn/ui** (Radix UI, Tailwind v4, `sonner`, `react-day-picker`) | Four dialogs, `confirm()`, tooltip placement, `DateInput`, `Feedback`, skeletons, chips, most of `globals.css`       | The standard Next.js component vocabulary; components live in the repo; accessible by default; tokens map onto the existing palette.                                                          | Introduces Tailwind; migrate screen by screen. Runner-up without Tailwind: Mantine                                   |
+| `@tanstack/react-form`                                              | `useServerForm`, `useAction`/`useSave`, the `touched` set and draft objects in `ApplicationForm` and `ScraperEditor` | Zod via Standard Schema, same schema validated client-side and in the server action (`createServerValidate`), typed fields, dirty/touched tracking; shares the TanStack ecosystem with Query. | Skip shadcn's react-hook-form `Form` wrapper and compose its field pieces directly, as its TanStack Form guide shows |
+| `lucide-react`                                                      | Unicode glyph icons                                                                                                  | Consistent rendering, accessible labels; shadcn's icon set.                                                                                                                                   | None                                                                                                                 |
+| `fast-xml-parser`                                                   | Regex RSS parsing                                                                                                    | Handles CDATA, namespaces, Atom correctly.                                                                                                                                                    | None                                                                                                                 |
+| `ai` + `@ai-sdk/openai` (optional)                                  | `chat()`, `strictObject`                                                                                             | `generateObject` with a Zod schema, retries, provider swap.                                                                                                                                   | Another abstraction; skip if the current client is stable                                                            |
+| Inngest / Trigger.dev / QStash (optional)                           | Slices, locks, tab-driven continuation                                                                               | Durable background steps with retries.                                                                                                                                                        | External service; free tier is enough                                                                                |
 
 ---
 
@@ -450,18 +470,18 @@ flowchart LR
 
 ### Largest files
 
-| File | Lines |
-|---|---:|
-| app/globals.css | 730 |
-| app/applied/applied-list.tsx | 692 |
-| supabase/remove-duplicates.sql | 576 |
-| app/settings/panels.tsx | 520 |
-| app/settings/scrapers.tsx | 486 |
-| lib/scraping/parsers.ts | 465 |
-| lib/scraping/run.ts | 372 |
-| supabase/ai-filter.sql | 367 |
-| app/actions.ts | 360 |
-| lib/applications.ts | 353 |
+| File                           | Lines |
+| ------------------------------ | ----: |
+| app/globals.css                |   730 |
+| app/applied/applied-list.tsx   |   692 |
+| supabase/remove-duplicates.sql |   576 |
+| app/settings/panels.tsx        |   520 |
+| app/settings/scrapers.tsx      |   486 |
+| lib/scraping/parsers.ts        |   465 |
+| lib/scraping/run.ts            |   372 |
+| supabase/ai-filter.sql         |   367 |
+| app/actions.ts                 |   360 |
+| lib/applications.ts            |   353 |
 
 ### Where "board" knowledge lives today
 

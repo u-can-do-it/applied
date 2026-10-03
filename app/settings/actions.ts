@@ -4,8 +4,18 @@ import { refresh } from 'next/cache';
 import { headers } from 'next/headers';
 import { isTimeZone } from '@/lib/dates';
 import {
-  FIELDS, INTERVALS, JSON_SOURCES, KINDS, SRC_RE, isGeneric, isKind, normalizeList,
-  type FieldId, type KindId, type ScrapeSettings, type ScraperConfig,
+  FIELDS,
+  INTERVALS,
+  JSON_SOURCES,
+  KINDS,
+  SRC_RE,
+  isGeneric,
+  isKind,
+  normalizeList,
+  type FieldId,
+  type KindId,
+  type ScrapeSettings,
+  type ScraperConfig,
 } from '@/lib/scraping/kinds';
 import { MAX_PAGES } from '@/lib/scraping/match';
 import { notify, runAll, scrape, type PageResult, type RunSummary } from '@/lib/scraping/run';
@@ -43,7 +53,9 @@ async function saveSchedule(next: ScrapeSettings): Promise<ActionState> {
   await store.saveSettings(next);
   const cronError = await syncCron(next);
   refresh();
-  return cronError ? { ok: true, message: `Saved, but Supabase Cron kept its old schedule: ${cronError}` } : { ok: true, message: 'Saved.' };
+  return cronError
+    ? { ok: true, message: `Saved, but Supabase Cron kept its old schedule: ${cronError}` }
+    : { ok: true, message: 'Saved.' };
 }
 
 /** The app's time zone: '' = the browser's (`browser`: the one it's in now), or a fixed one. */
@@ -111,18 +123,34 @@ export async function setAiFilterAction(on: boolean): Promise<ActionState> {
 
 // ---- scrapers -----------------------------------------------------------------------------
 
-export type ScraperForm = { id?: string; name: string; src: string; kind: string; enabled: boolean; config: ScraperConfig };
+export type ScraperForm = {
+  id?: string;
+  name: string;
+  src: string;
+  kind: string;
+  enabled: boolean;
+  config: ScraperConfig;
+};
 const BUILTIN_SRCS = new Set(Object.values(KINDS).flatMap((k) => (k.src ? [k.src] : [])));
 
 /** The browser sends anything; keep what makes sense, or say what's wrong. */
-function checkScraper(input: ScraperForm): { value?: store.ScraperInput; error?: string } {
+function checkScraper(
+  input: ScraperForm,
+): { value: store.ScraperInput; error?: never } | { value?: never; error: string } {
   if (!isKind(input?.kind)) return { error: 'Pick a type.' };
   const kind: KindId = input.kind;
-  const name = String(input.name ?? '').trim().slice(0, 60);
+  const name = String(input.name ?? '')
+    .trim()
+    .slice(0, 60);
   if (!name) return { error: 'Give it a name.' };
-  const src = KINDS[kind].src ?? String(input.src ?? '').trim().toLowerCase();
+  const src =
+    KINDS[kind].src ??
+    String(input.src ?? '')
+      .trim()
+      .toLowerCase();
   if (!SRC_RE.test(src)) return { error: 'Source id: lowercase letters, digits, - or _, e.g. "linkedin".' };
-  if (isGeneric(kind) && BUILTIN_SRCS.has(src)) return { error: `"${src}" belongs to a built-in board; pick another source id.` };
+  if (isGeneric(kind) && BUILTIN_SRCS.has(src))
+    return { error: `"${src}" belongs to a built-in board; pick another source id.` };
 
   const c = (input.config ?? {}) as Record<string, unknown>;
   const url = String(c.url ?? '').trim();
@@ -132,17 +160,26 @@ function checkScraper(input: ScraperForm): { value?: store.ScraperInput; error?:
     if (!/^[A-Za-z0-9-]{1,60}$/.test(k)) return { error: `Bad header name "${k.slice(0, 40)}".` };
     headers[k] = String(v).slice(0, 500);
   }
-  const config: ScraperConfig = { url, headers, checkKeyword: Boolean(c.checkKeyword), checkLocation: Boolean(c.checkLocation) };
+  const config: ScraperConfig = {
+    url,
+    headers,
+    checkKeyword: Boolean(c.checkKeyword),
+    checkLocation: Boolean(c.checkLocation),
+  };
   if (/\{(start|page)\}/.test(url)) config.pages = Math.max(1, Math.min(MAX_PAGES, Math.floor(Number(c.pages)) || 1));
 
   if (kind === 'json' || kind === 'html') {
     const fields: Partial<Record<FieldId, string>> = {};
     const given = (c.fields ?? {}) as Record<string, unknown>;
     for (const f of FIELDS) {
-      const v = String(given[f.id] ?? '').trim().slice(0, 300);
+      const v = String(given[f.id] ?? '')
+        .trim()
+        .slice(0, 300);
       if (v) fields[f.id] = v;
     }
-    config.items = String(c.items ?? '').trim().slice(0, 300);
+    config.items = String(c.items ?? '')
+      .trim()
+      .slice(0, 300);
     config.fields = fields;
     if (kind === 'html' && !config.items) return { error: 'Give the CSS selector of one offer.' };
     if (!fields.title || !fields.url) return { error: 'Title and Link are needed.' };
@@ -150,7 +187,9 @@ function checkScraper(input: ScraperForm): { value?: store.ScraperInput; error?:
       const from = JSON_SOURCES.find((s) => s.id === c.from)?.id ?? 'body';
       config.from = from;
       if (from === 'script') {
-        config.scriptId = String(c.scriptId ?? '').trim().slice(0, 100);
+        config.scriptId = String(c.scriptId ?? '')
+          .trim()
+          .slice(0, 100);
         if (!config.scriptId) return { error: 'Give the id of the <script> with the JSON.' };
       }
     }
@@ -222,9 +261,14 @@ export type TestResult = {
 export async function testScraperAction(input: ScraperForm): Promise<TestResult | { error: string }> {
   await requireLogin();
   const { value, error } = checkScraper(input);
-  if (!value) return { error: error! };
+  if (!value) return { error };
   const r = await scrape(value, await store.getSettings());
-  const known = await store.knownIds(value.src, r.kept.slice(0, 200).map((o) => o.id)).catch(() => new Set<string>());
+  const known = await store
+    .knownIds(
+      value.src,
+      r.kept.slice(0, 200).map((o) => o.id),
+    )
+    .catch(() => new Set<string>());
   return {
     ok: r.ok,
     error: r.error,
@@ -234,7 +278,14 @@ export async function testScraperAction(input: ScraperForm): Promise<TestResult 
     skipped: r.skipped,
     pages: r.pages,
     offers: r.kept.slice(0, 25).map((o) => ({
-      id: o.id, title: o.title, company: o.company, url: o.url, remote: o.remote, locations: o.locations.slice(0, 3), seniority: o.seniority, known: known.has(o.id),
+      id: o.id,
+      title: o.title,
+      company: o.company,
+      url: o.url,
+      remote: o.remote,
+      locations: o.locations.slice(0, 3),
+      seniority: o.seniority,
+      known: known.has(o.id),
     })),
     sample: r.sample,
     ms: r.ms,
@@ -248,10 +299,15 @@ export async function setMutedAction(muted: boolean): Promise<ActionState> {
   await requireLogin();
   await store.setMuted(Boolean(muted));
   const r: { sent: number; error?: string } =
-    !muted && telegramReady() ? await notify({ manual: true }).catch((e) => ({ sent: 0, error: message(e) })) : { sent: 0 };
+    !muted && telegramReady()
+      ? await notify({ manual: true }).catch((e: unknown) => ({ sent: 0, error: message(e) }))
+      : { sent: 0 };
   refresh();
   if (r.error) return { error: `Unmuted, but: ${r.error}` };
-  return { ok: true, message: muted ? 'Muted: new offers wait in the queue.' : r.sent ? `Unmuted, sent ${r.sent}.` : 'Unmuted.' };
+  return {
+    ok: true,
+    message: muted ? 'Muted: new offers wait in the queue.' : r.sent ? `Unmuted, sent ${r.sent}.` : 'Unmuted.',
+  };
 }
 
 export async function sendQueueAction(): Promise<ActionState> {
@@ -260,7 +316,14 @@ export async function sendQueueAction(): Promise<ActionState> {
     const r = await notify({ manual: true });
     refresh();
     if (r.error) return { error: r.error };
-    return { ok: true, message: r.sent ? `Sent ${r.sent}.` : r.matched === 0 ? 'Sent: none of them matched the AI profile.' : 'Nothing to send yet.' };
+    return {
+      ok: true,
+      message: r.sent
+        ? `Sent ${r.sent}.`
+        : r.matched === 0
+          ? 'Sent: none of them matched the AI profile.'
+          : 'Nothing to send yet.',
+    };
   } catch (e) {
     return { error: message(e) };
   }

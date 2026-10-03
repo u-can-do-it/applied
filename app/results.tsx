@@ -43,7 +43,14 @@ function Sources({ offer, labels }: { offer: Offer; labels: Record<string, strin
   return (
     <span className="sources">
       {links.map((c) => (
-        <a key={c.src} className="src" href={c.url} target="_blank" rel="noopener noreferrer" title={`Open on ${labels[c.src] ?? c.src}`}>
+        <a
+          key={c.src}
+          className="src"
+          href={c.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Open on ${labels[c.src] ?? c.src}`}
+        >
           {labels[c.src] ?? c.src}
         </a>
       ))}
@@ -51,7 +58,11 @@ function Sources({ offer, labels }: { offer: Offer; labels: Record<string, strin
   );
 }
 
-export async function Results({ searchParams, mode = 'all', sources }: {
+export async function Results({
+  searchParams,
+  mode = 'all',
+  sources,
+}: {
   searchParams: SearchParams;
   mode?: 'all' | 'ai';
   sources: Promise<SourceOption[]>;
@@ -72,25 +83,29 @@ export async function Results({ searchParams, mode = 'all', sources }: {
 
   // the URL as the list understands it, for the pager links
   const current = new URLSearchParams();
-  for (const [k, v] of Object.entries({ q, src, days, from, to, rejected: rejected ? '1' : '' })) if (v) current.set(k, v);
+  for (const [k, v] of Object.entries({ q, src, days, from, to, rejected: rejected ? '1' : '' }))
+    if (v) current.set(k, v);
 
-  let data: Awaited<ReturnType<typeof getOffers>>;
+  let data: Awaited<ReturnType<typeof getOffers>> | null = null; // stays null only on the AI tab without a profile
   let all: number | null = null; // whole table, only needed when something is filtered
   let stats: { total: number; checked: number; matched: number } | null = null; // AI: this date range
   try {
     if (mode === 'ai') {
       const profile = (await listProfiles())[0];
-      if (!isUsable(profile)) {
-        return (
-          <p className="empty">
-            No profile yet. Click <strong>✦ Profile</strong> above, describe what you&apos;re looking for and add your CV.
-          </p>
-        );
+      if (isUsable(profile)) {
+        [data, stats] = await Promise.all([
+          getOffers({
+            q,
+            src,
+            page,
+            days,
+            from,
+            to,
+            ai: { profileId: profile.id, version: profile.version, rejected },
+          }),
+          rangeStats(profile, z.resolveRange({ days, from, to })),
+        ]);
       }
-      [data, stats] = await Promise.all([
-        getOffers({ q, src, page, days, from, to, ai: { profileId: profile.id, version: profile.version, rejected } }),
-        rangeStats(profile, z.resolveRange({ days, from, to })),
-      ]);
     } else {
       // in parallel: the filtered page and (if filtered) the unfiltered count
       [data, all] = await Promise.all([
@@ -104,6 +119,13 @@ export async function Results({ searchParams, mode = 'all', sources }: {
         <strong>Can’t load offers.</strong>
         <code>{e instanceof Error ? e.message : String(e)}</code>
       </div>
+    );
+  }
+  if (!data) {
+    return (
+      <p className="empty">
+        No profile yet. Click <strong>✦ Profile</strong> above, describe what you&apos;re looking for and add your CV.
+      </p>
     );
   }
 

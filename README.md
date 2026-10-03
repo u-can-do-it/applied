@@ -27,7 +27,7 @@ All of it is set up in **Settings**:
 - **Scraping:** ⏸ Pause / ▶ Resume at the top (paused, nothing runs on its own; "Scrape now" still does), every
   5–120 min, between which hours. The last runs with what they found, and the errors per board.
 - **Time zone** (under the hours): the app's, for those hours and every day and time it shows (lists, date filters,
-  "applied on", Telegram). By default *this browser's*: it follows the browser you open the app in (the cron and
+  "applied on", Telegram). By default _this browser's_: it follows the browser you open the app in (the cron and
   Telegram use the one last seen; Europe/Warsaw until then). Or pick a fixed one.
 - **Filters:** keywords (searched on every board through `{keyword}` in the links, and required in the offer's
   title or skills), cities ("warszaw" matches Warszawa and Warszawie), remote OK, titles to skip, and titles to save
@@ -82,7 +82,12 @@ cp .env.example .env.local   # fill in SUPABASE_URL + SUPABASE_SECRET_KEY (the r
 npm run dev                  # http://localhost:3000
 npm test                     # unit tests (Vitest)
 npm run typecheck            # tsc --noEmit
+npm run lint                 # ESLint (Next, typescript-eslint strict type-checked)
+npm run format               # Prettier, writes; `npm run format:check` only checks
 ```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint, format:check, test and build on every push
+and pull request, with the Node version from `.nvmrc`. The build needs no env vars.
 
 To deploy, push this folder to a GitHub repo, then **Vercel → Add New → Project → import it**.
 Add the same two env vars under **Settings → Environment Variables**, and deploy.
@@ -107,6 +112,7 @@ Alternatively, run `npx vercel` from this folder.
 3. Locally, without `APP_PASSWORD`, `npm run dev` stays open with no login.
 
 How the **AI filter** tab works:
+
 - **Profiles:** each one has a name, criteria text and an optional CV (PDF / TXT / MD). Pick or create one in the
   dropdown in the modal. The most recently used profile is the active one.
 - **Runs are manual:** "Check today", or "Check <range>" for the dates picked in the filter row. A run only sends jobs
@@ -154,16 +160,16 @@ How the **AI filter** tab works:
 - **Note:** free text per application (recruiter, salary you asked for, interview questions, next steps…), up to
   10 000 characters. It saves itself as you type and when you close the window. Until it's saved it's also kept in
   the browser, so a dropped connection doesn't lose it. The list shows its first line.
-- **Status:** every application starts as *Submitted · In progress*.
+- **Status:** every application starts as _Submitted · In progress_.
   - Stages: Submitted → Initial contact (they got back to you) → Screening / online test → Technical interview →
     HR interview → Offer. Reaching a later stage counts the earlier contact as made.
-  - Each stage's outcome: In progress, Passed, Rejected, Ghosted, and *CV do bazy, ty do dupy* (the talent pool:
+  - Each stage's outcome: In progress, Passed, Rejected, Ghosted, and _CV do bazy, ty do dupy_ (the talent pool:
     "we'll keep your CV"). An offer has its own: Received, Accepted, Rejected (an accepted offer isn't "in
     progress", one you turned down isn't a rejection).
   - Set both in the window; every change goes into the history with its date. A step clicked by mistake goes with
     its × (shown on hover), together with every step after it; the status goes back to the step before. The first
     step, applying, stays.
-  - No news for 30 days since the last change (or since applying): it becomes *Ghosted* by itself, at the same
+  - No news for 30 days since the last change (or since applying): it becomes _Ghosted_ by itself, at the same
     stage (in progress, or passed and waiting for the next step; not a rejection, the talent pool or an offer).
     The step says "(auto)".
 - **Statistics** at the top of the tab:

@@ -17,8 +17,13 @@ export type Check = { item: string; met: boolean };
 export type Assessment = { n: number; match: boolean; score: number; summary: string; checks: Check[] };
 
 export type JobForAi = {
-  title: string; company: string | null; seniority: string | null; remote: boolean | null;
-  board: string; first_seen: string; excerpt: string | null;
+  title: string;
+  company: string | null;
+  seniority: string | null;
+  remote: boolean | null;
+  board: string;
+  first_seen: string;
+  excerpt: string | null;
 };
 export type PairForAi = { p: number; a: JobForAi; b: JobForAi };
 export type DupDecision = { p: number; same: boolean; reason: string };
@@ -89,7 +94,9 @@ async function chat<T>(opts: {
   }
   if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
 
-  const json = await res.json();
+  const json = (await res.json()) as {
+    choices?: { message?: { content?: string | null; refusal?: string | null } }[];
+  } | null;
   const msg = json?.choices?.[0]?.message;
   if (msg?.refusal) throw new Error(`OpenAI refused: ${msg.refusal}`);
   return JSON.parse(msg?.content ?? '{}') as T;
@@ -123,14 +130,19 @@ function describeOffer(o: OfferForAi) {
   return `### OFFER ${o.n}\n${head}\n${o.description ? `AD TEXT:\n${o.description}` : 'AD TEXT: (not available - judge from the title)'}`;
 }
 
-export async function assessOffers(criteria: string, file: { name: string; text: string } | null, offers: OfferForAi[]) {
+export async function assessOffers(
+  criteria: string,
+  file: { name: string; text: string } | null,
+  offers: OfferForAi[],
+) {
   const { model, effort } = aiConfig().assess;
   // criteria + file first: identical across batches, so OpenAI's prompt cache can reuse them
   const context =
     `CRITERIA:\n${criteria.trim() || '(none - use the file)'}\n` +
     (file ? `\nCANDIDATE FILE "${file.name}":\n${file.text.slice(0, FILE_CHARS)}\n` : '');
   const parsed = await chat<{ results?: Assessment[] }>({
-    model, effort,
+    model,
+    effort,
     system: ASSESS_SYSTEM,
     user: `${context}\nOFFERS:\n\n${offers.map(describeOffer).join('\n\n')}`,
     schemaName: 'assessments',
@@ -142,8 +154,11 @@ export async function assessOffers(criteria: string, file: { name: string; text:
     .map((r) => ({
       ...r,
       score: Math.max(0, Math.min(100, Math.round(r.score))),
+      /* eslint-disable @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition --
+         the model's JSON is only typed, not checked: these guard against a field it left out */
       summary: String(r.summary ?? '').slice(0, 240),
       checks: (r.checks ?? []).slice(0, 12).map((c) => ({ item: String(c.item).slice(0, 80), met: Boolean(c.met) })),
+      /* eslint-enable @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition */
     }));
 }
 
@@ -164,23 +179,32 @@ For every pair, by its "p": same, and a reason of at most 12 words.`;
 
 const describeJob = (j: JobForAi) =>
   JSON.stringify({
-    title: j.title, company: j.company, seniority: j.seniority, remote: j.remote, board: j.board,
-    first_seen: j.first_seen.slice(0, 10), ...(j.excerpt ? { ad_start: j.excerpt } : {}),
+    title: j.title,
+    company: j.company,
+    seniority: j.seniority,
+    remote: j.remote,
+    board: j.board,
+    first_seen: j.first_seen.slice(0, 10),
+    ...(j.excerpt ? { ad_start: j.excerpt } : {}),
   });
 
 export async function decideDuplicates(pairs: PairForAi[]) {
   const { model, effort } = aiConfig().dedup;
   const parsed = await chat<{ results?: DupDecision[] }>({
-    model, effort,
+    model,
+    effort,
     system: DEDUP_SYSTEM,
     user: pairs.map((x) => `### PAIR ${x.p}\nA: ${describeJob(x.a)}\nB: ${describeJob(x.b)}`).join('\n\n'),
     schemaName: 'duplicates',
     schema: DEDUP_SCHEMA,
   });
   const asked = new Set(pairs.map((x) => x.p));
-  return (parsed.results ?? [])
-    .filter((r) => asked.has(r.p))
-    .map((r) => ({ p: r.p, same: Boolean(r.same), reason: String(r.reason ?? '').slice(0, 160) }));
+  return (
+    (parsed.results ?? [])
+      .filter((r) => asked.has(r.p))
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition -- the model's JSON is only typed, not checked
+      .map((r) => ({ p: r.p, same: Boolean(r.same), reason: String(r.reason ?? '').slice(0, 160) }))
+  );
 }
 
 // ---- one offer's page -> the "Add application" form ---------------------------------------
@@ -217,7 +241,8 @@ seniority: junior, mid, senior or lead, or "".`;
 export async function extractJob(page: { url: string; pageTitle: string; text: string }): Promise<ExtractedJob> {
   const { model, effort } = aiConfig().extract;
   return chat<ExtractedJob>({
-    model, effort,
+    model,
+    effort,
     system: EXTRACT_SYSTEM,
     user: `URL: ${page.url}\nPAGE TITLE: ${page.pageTitle || '(none)'}\n\nPAGE TEXT:\n${page.text.slice(0, 14_000) || '(empty)'}`,
     schemaName: 'job',

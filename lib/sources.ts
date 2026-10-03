@@ -30,7 +30,7 @@ export function withParams(current: URLSearchParams | string, changes: Changes, 
   const sp = new URLSearchParams(current);
   if (!('page' in changes)) sp.delete('page');
   for (const [key, value] of Object.entries(changes)) {
-    const v = value === null || value === undefined ? '' : String(value);
+    const v = value == null ? '' : String(value);
     if (!v || (key === 'page' && v === '0')) sp.delete(key);
     else sp.set(key, v);
   }

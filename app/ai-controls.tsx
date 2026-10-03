@@ -24,7 +24,15 @@ const ago = (iso: string) => {
   return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.round(min / 60)} h ago`;
 };
 
-export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigured, models }: {
+export function AiControls({
+  profiles,
+  activeId,
+  run,
+  todayNew,
+  range,
+  aiConfigured,
+  models,
+}: {
   profiles: ProfileOption[];
   activeId: string | null;
   run: RunInfo | null;
@@ -49,9 +57,10 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
   }, [running, run?.done, run?.pairsChecked, run?.phase, router]);
 
   const runFor = (input: { days?: string; from?: string; to?: string }) => {
+    if (!activeId) return; // the buttons show only with a usable profile
     setMessage(null);
     start(async () => {
-      const res = await startRunAction({ profileId: activeId!, ...input });
+      const res = await startRunAction({ profileId: activeId, ...input });
       // with the refreshed progress bar, not a frame before it
       startTransition(() => setMessage(res.error ?? (res.message?.startsWith('Nothing') ? res.message : null)));
     });
@@ -69,15 +78,15 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
         </button>
 
         {usable && (
-        <button
-          type="button"
-          className="secondary"
-          disabled={disabled || todayNew === 0}
-          aria-busy={running || starting || undefined}
-          onClick={() => runFor({ days: '1' })}
-        >
-          {todayNew === 0 ? '✓ Today checked' : `Check today · ${todayNew} new`}
-        </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={disabled || todayNew === 0}
+            aria-busy={running || starting || undefined}
+            onClick={() => runFor({ days: '1' })}
+          >
+            {todayNew === 0 ? '✓ Today checked' : `Check today · ${todayNew} new`}
+          </button>
         )}
 
         {usable && range && (
@@ -86,7 +95,9 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
             className="secondary"
             disabled={disabled || range.newCount === 0}
             aria-busy={running || starting || undefined}
-            onClick={() => runFor({ days: range.days || undefined, from: range.from || undefined, to: range.to || undefined })}
+            onClick={() =>
+              runFor({ days: range.days || undefined, from: range.from || undefined, to: range.to || undefined })
+            }
             title="Uses the dates picked in the filter below"
           >
             {range.newCount === 0 ? `✓ ${range.label} checked` : `Check ${range.label} · ${range.newCount} new`}
@@ -97,7 +108,7 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
       {!aiConfigured && <p className="form-error">OPENAI_API_KEY is not set on the server.</p>}
       {!active && <p className="muted small">Create a profile: what you&apos;re looking for, plus your CV.</p>}
 
-      {running && run ? (
+      {running ? (
         run.phase === 'dedup' ? (
           <div className="ai-progress" role="status">
             <span className="dot busy" aria-hidden="true" />
@@ -123,8 +134,13 @@ export function AiControls({ profiles, activeId, run, todayNew, range, aiConfigu
       ) : run && !run.stale && run.finishedAt ? (
         <p className={`muted small${run.status === 'failed' ? ' form-error' : ''}`}>
           Last run: {run.label} · {doneShown} checked
-          {run.merged > 0 && <> · {run.merged} duplicate{run.merged === 1 ? '' : 's'} merged</>} ·{' '}
-          {/* "3 min ago" depends on the clock: server and browser may differ by a minute, the browser wins */}
+          {run.merged > 0 && (
+            <>
+              {' '}
+              · {run.merged} duplicate{run.merged === 1 ? '' : 's'} merged
+            </>
+          )}{' '}
+          · {/* "3 min ago" depends on the clock: server and browser may differ by a minute, the browser wins */}
           <time dateTime={run.finishedAt} suppressHydrationWarning>
             {ago(run.finishedAt)}
           </time>

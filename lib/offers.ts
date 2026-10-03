@@ -46,14 +46,15 @@ function searchFilter(q: string): string | null {
 }
 
 type Query = { q: string; src: string; page: number } & DateFilter & {
-  /** AI tab: results of this profile version */
-  ai?: { profileId: string; version: number; rejected: boolean };
-};
+    /** AI tab: results of this profile version */
+    ai?: { profileId: string; version: number; rejected: boolean };
+  };
 
 // offers_unique comes with supabase/ai-filter.sql; until it's run, fall back to the table
 let viewMissing = false;
 // (HEAD responses have no body, so a missing view only shows as 404)
-const isMissingRelation = (e: unknown) => e instanceof Error && /Supabase 404|PGRST205|42P01|Could not find/.test(e.message);
+const isMissingRelation = (e: unknown) =>
+  e instanceof Error && /Supabase 404|PGRST205|42P01|Could not find/.test(e.message);
 
 function applyFilters(url: URL, opts: Query, unique: boolean, z: Zone) {
   if (opts.src) url.searchParams.set(unique ? 'sources' : 'src', unique ? `cs.{${opts.src}}` : `eq.${opts.src}`);
@@ -72,18 +73,35 @@ type Row = Omit<Offer, 'copies' | 'ai' | 'key' | 'applied_at'> & {
   copies?: Copy[];
   dup_key?: string;
   applied_at?: string | null;
-  match?: boolean; score?: number; summary?: string | null; checks?: Check[]; had_description?: boolean;
+  match?: boolean;
+  score?: number;
+  summary?: string | null;
+  checks?: Check[];
+  had_description?: boolean;
 };
 
 const toOffer = (r: Row): Offer => ({
-  src: r.src, id: r.id, title: r.title, company: r.company, seniority: r.seniority, remote: r.remote,
-  url: r.url, first_seen: r.first_seen,
+  src: r.src,
+  id: r.id,
+  title: r.title,
+  company: r.company,
+  seniority: r.seniority,
+  remote: r.remote,
+  url: r.url,
+  first_seen: r.first_seen,
   copies: r.copies?.length ? r.copies : [{ src: r.src, id: r.id, url: r.url }],
   key: r.dup_key ?? null,
   applied_at: r.applied_at ?? null,
-  ai: r.score === undefined ? undefined : {
-    match: Boolean(r.match), score: r.score ?? 0, summary: r.summary ?? null, checks: r.checks ?? [], had_description: Boolean(r.had_description),
-  },
+  ai:
+    r.score === undefined
+      ? undefined
+      : {
+          match: Boolean(r.match),
+          score: r.score ?? 0,
+          summary: r.summary ?? null,
+          checks: r.checks ?? [],
+          had_description: Boolean(r.had_description),
+        },
 });
 
 export async function getOffers(opts: Query): Promise<{ offers: Offer[]; total: number }> {

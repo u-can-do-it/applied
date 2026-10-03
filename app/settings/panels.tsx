@@ -1,6 +1,14 @@
 'use client';
 
-import { startTransition, useMemo, useOptimistic, useState, useSyncExternalStore, useTransition, type FormEvent } from 'react';
+import {
+  startTransition,
+  useMemo,
+  useOptimistic,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+  type SubmitEvent,
+} from 'react';
 import { deviceTimeZone, timeZones } from '@/lib/dates';
 import { cronSchedule, describeSchedule } from '@/lib/scraping/cron';
 import { INTERVALS, normalizeList, type ScrapeSettings } from '@/lib/scraping/kinds';
@@ -8,9 +16,20 @@ import type { CronStatus, RunRow, ScrapeState } from '@/lib/scraping/store';
 import type { BotInfo } from '@/lib/telegram';
 import { useZone } from '../time-zone';
 import {
-  cronConnectAction, cronDisconnectAction, saveFiltersAction, saveScheduleAction, sendQueueAction, setAiFilterAction,
-  setMutedAction, setNotifyAction, setScrapingPausedAction, setTimeZoneAction, telegramConnectAction, telegramDisconnectAction,
-  telegramTestAction, type ActionState,
+  cronConnectAction,
+  cronDisconnectAction,
+  saveFiltersAction,
+  saveScheduleAction,
+  sendQueueAction,
+  setAiFilterAction,
+  setMutedAction,
+  setNotifyAction,
+  setScrapingPausedAction,
+  setTimeZoneAction,
+  telegramConnectAction,
+  telegramDisconnectAction,
+  telegramTestAction,
+  type ActionState,
 } from './actions';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -76,8 +95,18 @@ function useSave() {
 }
 
 export function Feedback({ state }: { state: ActionState | null | undefined }) {
-  if (state?.error) return <p className="form-error" role="alert">{state.error}</p>;
-  if (state?.message) return <p className="form-ok" role="status">{state.message}</p>;
+  if (state?.error)
+    return (
+      <p className="form-error" role="alert">
+        {state.error}
+      </p>
+    );
+  if (state?.message)
+    return (
+      <p className="form-ok" role="status">
+        {state.message}
+      </p>
+    );
   return null;
 }
 
@@ -86,7 +115,14 @@ const zoneName = (tz: string) => tz.replaceAll('_', ' '); // "America/New York"
 
 // ---- schedule + what calls the endpoint --------------------------------------------------
 
-export function SchedulePanel({ settings, state, running, runs, cron, endpoint }: {
+export function SchedulePanel({
+  settings,
+  state,
+  running,
+  runs,
+  cron,
+  endpoint,
+}: {
   settings: ScrapeSettings;
   state: ScrapeState;
   running: boolean;
@@ -104,7 +140,7 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint }
     clear();
     setForm((f) => ({ ...f, ...patch }));
   };
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     save(() => saveScheduleAction({ ...form, fromHour: Number(form.fromHour), toHour: Number(form.toHour) }));
   };
@@ -124,7 +160,8 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint }
             </>
           ) : (
             <>
-              <strong className="ok-text">● Running</strong>: every {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
+              <strong className="ok-text">● Running</strong>: every{' '}
+              {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
               {settings.fromHour}:00–{settings.toHour}:00 ({zoneName(z.tz)}).
             </>
           )}
@@ -135,7 +172,10 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint }
           aria-busy={pause.busy || undefined}
           onClick={() => {
             const next = !paused;
-            pause.run(() => setScrapingPausedAction(next), () => showPaused(next));
+            pause.run(
+              () => setScrapingPausedAction(next),
+              () => showPaused(next),
+            );
           }}
         >
           {paused ? '▶ Resume scraping' : '⏸ Pause scraping'}
@@ -155,9 +195,23 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint }
         </label>
         <label className="inline">
           from
-          <input className="hour" type="number" min={0} max={24} value={form.fromHour} onChange={(e) => edit({ fromHour: e.target.value })} />
+          <input
+            className="hour"
+            type="number"
+            min={0}
+            max={24}
+            value={form.fromHour}
+            onChange={(e) => edit({ fromHour: e.target.value })}
+          />
           to
-          <input className="hour" type="number" min={0} max={24} value={form.toHour} onChange={(e) => edit({ toHour: e.target.value })} />
+          <input
+            className="hour"
+            type="number"
+            min={0}
+            max={24}
+            value={form.toHour}
+            onChange={(e) => edit({ toHour: e.target.value })}
+          />
           <span className="muted">o’clock</span>
         </label>
         <button type="submit" disabled={saving || !dirty} aria-busy={saving || undefined}>
@@ -177,8 +231,8 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint }
               <span className="muted">{r.trigger}</span>
               {r.finished_at ? (
                 <span>
-                  {seconds(Date.parse(r.finished_at) - Date.parse(r.started_at))} · {r.found} on the pages · {r.kept} kept ·{' '}
-                  <strong>{r.added} new</strong>
+                  {seconds(Date.parse(r.finished_at) - Date.parse(r.started_at))} · {r.found} on the pages · {r.kept}{' '}
+                  kept · <strong>{r.added} new</strong>
                   {r.matched !== null && ` · ✦ ${r.matched} matched`}
                   {r.notified ? ` · ${r.notified} sent` : ''}
                 </span>
@@ -196,7 +250,9 @@ export function SchedulePanel({ settings, state, running, runs, cron, endpoint }
       ) : (
         <p className="muted small">No runs yet. Use “↻ Scrape now” at the top.</p>
       )}
-      {state.last_call_at && <p className="muted small">Last call from a scheduler: {z.formatDateTime(state.last_call_at)}</p>}
+      {state.last_call_at && (
+        <p className="muted small">Last call from a scheduler: {z.formatDateTime(state.last_call_at)}</p>
+      )}
 
       <h3>What calls it</h3>
       <CronBox cron={cron} settings={settings} endpoint={endpoint} act={act} />
@@ -212,7 +268,7 @@ function TimeZoneField({ value }: { value: string }) {
   const [shown, show] = useOptimistic(value);
   // only the browser knows its zone: none in the server's HTML, then this one's
   const device = useSyncExternalStore(noSubscribe, deviceTimeZone, () => null);
-  const zones = useMemo(timeZones, []);
+  const zones = useMemo(() => timeZones(), []);
   return (
     <div className="tz-row">
       <label className="inline">
@@ -222,7 +278,10 @@ function TimeZoneField({ value }: { value: string }) {
           aria-busy={save.busy || undefined}
           onChange={(e) => {
             const next = e.target.value;
-            save.run(() => setTimeZoneAction(next, device ?? ''), () => show(next));
+            save.run(
+              () => setTimeZoneAction(next, device ?? ''),
+              () => show(next),
+            );
           }}
         >
           <option value="">This browser’s{device ? ` (${zoneName(device)})` : ''}</option>
@@ -234,7 +293,9 @@ function TimeZoneField({ value }: { value: string }) {
         </select>
       </label>
       <Feedback state={save.state} />
-      <p className="muted small">For the hours above, and every day and time the app shows (lists, date filters, Telegram).</p>
+      <p className="muted small">
+        For the hours above, and every day and time the app shows (lists, date filters, Telegram).
+      </p>
     </div>
   );
 }
@@ -247,7 +308,12 @@ function lastAnswer(cron: CronStatus) {
   return `answered ${cron.lastStatus}`;
 }
 
-function CronBox({ cron, settings, endpoint, act }: {
+function CronBox({
+  cron,
+  settings,
+  endpoint,
+  act,
+}: {
   cron: CronStatus & { error?: string };
   settings: ScrapeSettings;
   endpoint: string;
@@ -255,7 +321,12 @@ function CronBox({ cron, settings, endpoint, act }: {
 }) {
   const { formatTime } = useZone();
   const connect = (label: string) => (
-    <button type="button" onClick={() => act.run(cronConnectAction)} disabled={act.busy} aria-busy={act.busy || undefined}>
+    <button
+      type="button"
+      onClick={() => act.run(cronConnectAction)}
+      disabled={act.busy}
+      aria-busy={act.busy || undefined}
+    >
       {act.busy ? 'Working…' : label}
     </button>
   );
@@ -263,8 +334,9 @@ function CronBox({ cron, settings, endpoint, act }: {
     return (
       <div className="cron-box">
         <p className="small">
-          Supabase Cron isn’t enabled in the database{cron.error ? ` (${cron.error})` : ''}. Run <code className="inline">scripts/db-migrate.sh</code>{' '}
-          (it turns on pg_cron and pg_net), or enable Cron under Integrations in Supabase.
+          Supabase Cron isn’t enabled in the database{cron.error ? ` (${cron.error})` : ''}. Run{' '}
+          <code className="inline">scripts/db-migrate.sh</code> (it turns on pg_cron and pg_net), or enable Cron under
+          Integrations in Supabase.
         </p>
       </div>
     );
@@ -273,8 +345,8 @@ function CronBox({ cron, settings, endpoint, act }: {
     return (
       <div className="cron-box">
         <p className="small">
-          <span className="status-off">○ Not connected</span>: nothing scrapes on its own, only “↻ Scrape now”. Connecting makes Supabase call the app{' '}
-          {describeSchedule(settings)}; the app decides whether a run is due.
+          <span className="status-off">○ Not connected</span>: nothing scrapes on its own, only “↻ Scrape now”.
+          Connecting makes Supabase call the app {describeSchedule(settings)}; the app decides whether a run is due.
         </p>
         <div className="button-row">{connect('Connect Supabase Cron')}</div>
         <Feedback state={act.state} />
@@ -307,11 +379,15 @@ function CronBox({ cron, settings, endpoint, act }: {
         ) : (
           <span className="ok-text">● Connected</span>
         )}
-        : {paused ? 'Supabase doesn’t call the app until you resume scraping.' : `Supabase calls the app ${describeSchedule(settings)}, and it scrapes when a run is due.`}
+        :{' '}
+        {paused
+          ? 'Supabase doesn’t call the app until you resume scraping.'
+          : `Supabase calls the app ${describeSchedule(settings)}, and it scrapes when a run is due.`}
         {cron.lastAt && !cron.lastError && ` Last call ${formatTime(cron.lastAt)}: ${lastAnswer(cron)}.`}
       </p>
       <p className="muted small">
-        The job (UTC, so an hour wider where clocks change): <code className="inline">{cron.schedule}</code> → <code className="inline">{cron.url}</code>
+        The job (UTC, so an hour wider where clocks change): <code className="inline">{cron.schedule}</code> →{' '}
+        <code className="inline">{cron.url}</code>
       </p>
       {problem && <p className="small warn">{problem}</p>}
       <div className="button-row">
@@ -320,7 +396,10 @@ function CronBox({ cron, settings, endpoint, act }: {
           type="button"
           className="secondary"
           disabled={act.busy}
-          onClick={() => confirm('Stop Supabase Cron? Nothing will scrape on its own until you connect it again.') && act.run(cronDisconnectAction)}
+          onClick={() =>
+            confirm('Stop Supabase Cron? Nothing will scrape on its own until you connect it again.') &&
+            act.run(cronDisconnectAction)
+          }
         >
           Disconnect
         </button>
@@ -348,7 +427,7 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
     clear();
     setForm((f) => ({ ...f, ...patch }));
   };
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     // shown the way it's saved ("React,Vue " -> "React, Vue"), so it matches the refreshed page
     const normalized = { ...form };
@@ -359,7 +438,10 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
       return r;
     });
   };
-  const text = (k: (typeof LISTS)[number]) => ({ value: form[k], onChange: (e: { target: { value: string } }) => edit({ [k]: e.target.value }) });
+  const text = (k: (typeof LISTS)[number]) => ({
+    value: form[k],
+    onChange: (e: { target: { value: string } }) => edit({ [k]: e.target.value }),
+  });
   return (
     <section className="panel" aria-labelledby="filters-h">
       <h2 id="filters-h">Filters</h2>
@@ -368,18 +450,22 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
           <span>Keywords</span>
           <input {...text('keywords')} placeholder="React, Next.js" />
           <small>
-            Searched on every board (<code className="inline">{'{keyword}'}</code> in a scraper’s link) and, where a scraper checks it, required in the
-            offer’s title or skills. A keyword starts a word: “react” matches ReactJS, not Preact.
+            Searched on every board (<code className="inline">{'{keyword}'}</code> in a scraper’s link) and, where a
+            scraper checks it, required in the offer’s title or skills. A keyword starts a word: “react” matches
+            ReactJS, not Preact.
           </small>
         </label>
         <label className="field">
           <span>Cities</span>
           <input {...text('cities')} placeholder="warszaw, warsaw" />
-          <small>Part of a name is enough: “warszaw” matches Warszawa and Warszawie. Empty = anywhere. Offers that don’t say where pass.</small>
+          <small>
+            Part of a name is enough: “warszaw” matches Warszawa and Warszawie. Empty = anywhere. Offers that don’t say
+            where pass.
+          </small>
         </label>
         <label className="check">
-          <input type="checkbox" checked={form.remoteOk} onChange={(e) => edit({ remoteOk: e.target.checked })} /> Remote offers are fine wherever
-          they are
+          <input type="checkbox" checked={form.remoteOk} onChange={(e) => edit({ remoteOk: e.target.checked })} />{' '}
+          Remote offers are fine wherever they are
         </label>
         <label className="field">
           <span>Skip titles with</span>
@@ -404,7 +490,15 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
 
 // ---- Telegram -----------------------------------------------------------------------------
 
-export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUrl }: {
+export function TelegramPanel({
+  ready,
+  bot,
+  notify,
+  muted,
+  queued,
+  ai,
+  webhookUrl,
+}: {
   ready: boolean;
   bot: (BotInfo & { error?: undefined }) | { error: string } | null;
   notify: boolean;
@@ -417,16 +511,20 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUr
   const act = useAction();
   // what the buttons show right away; the refreshed page brings the real values
   type View = { notify: boolean; muted: boolean; queued: number; aiOn: boolean };
-  const [view, show] = useOptimistic<View, Partial<View>>({ notify, muted, queued, aiOn: ai.on }, (cur, patch) => ({ ...cur, ...patch }));
+  const [view, show] = useOptimistic<View, Partial<View>>({ notify, muted, queued, aiOn: ai.on }, (cur, patch) => ({
+    ...cur,
+    ...patch,
+  }));
   if (!ready) {
     return (
       <section className="panel" aria-labelledby="tg-h">
         <h2 id="tg-h">Telegram</h2>
         <p className="small">
-          Set <code className="inline">TELEGRAM_BOT_TOKEN</code> and <code className="inline">TELEGRAM_CHAT_ID</code> in Vercel → Settings → Environment
-          Variables and redeploy. The token: @BotFather → /mybots → your bot → API Token. The chat id: write to the bot, open{' '}
-          <code className="inline">api.telegram.org/bot&lt;token&gt;/getUpdates</code> and copy <code className="inline">message.chat.id</code> (a
-          group’s starts with -).
+          Set <code className="inline">TELEGRAM_BOT_TOKEN</code> and <code className="inline">TELEGRAM_CHAT_ID</code> in
+          Vercel → Settings → Environment Variables and redeploy. The token: @BotFather → /mybots → your bot → API
+          Token. The chat id: write to the bot, open{' '}
+          <code className="inline">api.telegram.org/bot&lt;token&gt;/getUpdates</code> and copy{' '}
+          <code className="inline">message.chat.id</code> (a group’s starts with -).
         </p>
       </section>
     );
@@ -437,7 +535,13 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUr
     <section className="panel" aria-labelledby="tg-h">
       <h2 id="tg-h">Telegram</h2>
       <p className="small">
-        {info ? <>Bot <strong>@{info.username}</strong></> : <span className="warn">Can’t reach the bot: {bot?.error}</span>}
+        {info ? (
+          <>
+            Bot <strong>@{info.username}</strong>
+          </>
+        ) : (
+          <span className="warn">Can’t reach the bot: {bot?.error}</span>
+        )}
       </p>
       <div className="form-line">
         <label className="check">
@@ -446,25 +550,38 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUr
             checked={view.notify}
             onChange={(e) => {
               const on = e.target.checked;
-              act.run(() => setNotifyAction(on), () => show({ notify: on }));
+              act.run(
+                () => setNotifyAction(on),
+                () => show({ notify: on }),
+              );
             }}
           />{' '}
           Send new offers
         </label>
-        <span className="small">{view.muted ? `🔕 Muted, ${view.queued} waiting` : view.queued ? `🔔 On, ${view.queued} waiting` : '🔔 On'}</span>
+        <span className="small">
+          {view.muted ? `🔕 Muted, ${view.queued} waiting` : view.queued ? `🔔 On, ${view.queued} waiting` : '🔔 On'}
+        </span>
         <button
           type="button"
           className="secondary"
           aria-busy={act.busy || undefined}
           onClick={() => {
             const mute = !view.muted;
-            act.run(() => setMutedAction(mute), () => show(mute ? { muted: true } : { muted: false, queued: 0 }));
+            act.run(
+              () => setMutedAction(mute),
+              () => show(mute ? { muted: true } : { muted: false, queued: 0 }),
+            );
           }}
         >
           {view.muted ? 'Unmute and send' : 'Mute'}
         </button>
         {view.queued > 0 && (
-          <button type="button" className="secondary" aria-busy={act.busy || undefined} onClick={() => act.run(sendQueueAction, () => show({ queued: 0 }))}>
+          <button
+            type="button"
+            className="secondary"
+            aria-busy={act.busy || undefined}
+            onClick={() => act.run(sendQueueAction, () => show({ queued: 0 }))}
+          >
             Send the {view.queued} now
           </button>
         )}
@@ -478,7 +595,10 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUr
           checked={view.aiOn}
           onChange={(e) => {
             const on = e.target.checked;
-            act.run(() => setAiFilterAction(on), () => show({ aiOn: on }));
+            act.run(
+              () => setAiFilterAction(on),
+              () => show({ aiOn: on }),
+            );
           }}
         />{' '}
         ✦ Only offers the AI profile matches{ai.profile ? ` (“${ai.profile}”)` : ''}
@@ -504,16 +624,30 @@ export function TelegramPanel({ ready, bot, notify, muted, queued, ai, webhookUr
         {info?.webhookError && <span className="warn"> · last error: {info.webhookError}</span>}
       </p>
       <div className="button-row">
-        <button type="button" className={hooked ? 'secondary' : undefined} disabled={act.busy} onClick={() => act.run(telegramConnectAction)}>
+        <button
+          type="button"
+          className={hooked ? 'secondary' : undefined}
+          disabled={act.busy}
+          onClick={() => act.run(telegramConnectAction)}
+        >
           {act.busy ? 'Working…' : hooked ? 'Reconnect commands' : 'Connect commands'}
         </button>
         {info?.webhook && (
-          <button type="button" className="secondary" disabled={act.busy} onClick={() => act.run(telegramDisconnectAction)}>
+          <button
+            type="button"
+            className="secondary"
+            disabled={act.busy}
+            onClick={() => act.run(telegramDisconnectAction)}
+          >
             Disconnect
           </button>
         )}
       </div>
-      {!hooked && <p className="muted small">A bot gets commands either by webhook or by polling, not both: nothing else may be reading this bot’s updates.</p>}
+      {!hooked && (
+        <p className="muted small">
+          A bot gets commands either by webhook or by polling, not both: nothing else may be reading this bot’s updates.
+        </p>
+      )}
       <Feedback state={act.state} />
     </section>
   );

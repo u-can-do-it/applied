@@ -3,7 +3,18 @@
 
 import { DEFAULT_TZ, isTimeZone } from '../dates';
 
-export const KIND_IDS = ['justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'json', 'html', 'rss'] as const;
+export const KIND_IDS = [
+  'justjoin',
+  'nofluff',
+  'solidjobs',
+  'bulldog',
+  'eldorado',
+  'builtin',
+  'linkedin',
+  'json',
+  'html',
+  'rss',
+] as const;
 export type KindId = (typeof KIND_IDS)[number];
 
 type Kind = {
@@ -47,13 +58,21 @@ export const KINDS: Record<KindId, Kind> = {
     label: 'Bulldog listing',
     src: 'bulldog',
     hint: 'A bulldogjob.pl listing page (its __NEXT_DATA__).',
-    defaults: { url: 'https://bulldogjob.pl/companies/jobs/s/skills,{keyword}/order,published,desc', checkKeyword: false, checkLocation: true },
+    defaults: {
+      url: 'https://bulldogjob.pl/companies/jobs/s/skills,{keyword}/order,published,desc',
+      checkKeyword: false,
+      checkLocation: true,
+    },
   },
   eldorado: {
     label: 'Eldorado search',
     src: 'eldorado',
     hint: 'A czyjesteldorado.pl search page (its Next.js data). The tag is case-sensitive: React.',
-    defaults: { url: 'https://czyjesteldorado.pl/search?tag%5B%5D={keyword}&sort=newest', checkKeyword: false, checkLocation: true },
+    defaults: {
+      url: 'https://czyjesteldorado.pl/search?tag%5B%5D={keyword}&sort=newest',
+      checkKeyword: false,
+      checkLocation: true,
+    },
   },
   builtin: {
     label: 'Built In search',
@@ -61,7 +80,10 @@ export const KINDS: Record<KindId, Kind> = {
     hint: 'A builtin.com search page (its job cards). The link already asks for remote + Poland.',
     defaults: {
       url: 'https://builtin.com/jobs/remote?search={keyword}&daysSinceUpdated=1&city=&state=&country=POL&allLocations=true',
-      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.12.45 Mobile Safari/537.36' },
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.12.45 Mobile Safari/537.36',
+      },
       checkKeyword: true,
       checkLocation: false,
     },
@@ -198,8 +220,15 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
 export const INTERVALS = [5, 10, 15, 30, 60, 120] as const;
 
 const words = (v: unknown, fallback: string[]) =>
-  Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean).slice(0, 50).map((x) => x.slice(0, 60)) : fallback;
-const hour = (v: unknown, fallback: number) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 24 ? (v as number) : fallback);
+  Array.isArray(v)
+    ? v
+        .map((x) => String(x).trim())
+        .filter(Boolean)
+        .slice(0, 50)
+        .map((x) => x.slice(0, 60))
+    : fallback;
+const hour = (v: unknown, fallback: number) =>
+  Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 24 ? (v as number) : fallback;
 
 /** Settings as stored (any shape, maybe older) -> complete settings. */
 export function normalizeSettings(raw: unknown): ScrapeSettings {
@@ -207,7 +236,9 @@ export function normalizeSettings(raw: unknown): ScrapeSettings {
   const d = DEFAULT_SETTINGS;
   return {
     enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
-    everyMinutes: INTERVALS.includes(r.everyMinutes as (typeof INTERVALS)[number]) ? (r.everyMinutes as number) : d.everyMinutes,
+    everyMinutes: INTERVALS.includes(r.everyMinutes as (typeof INTERVALS)[number])
+      ? (r.everyMinutes as number)
+      : d.everyMinutes,
     fromHour: hour(r.fromHour, d.fromHour),
     toHour: hour(r.toHour, d.toHour),
     keywords: words(r.keywords, d.keywords),
@@ -227,8 +258,15 @@ export const effectiveTimeZone = (s: Pick<ScrapeSettings, 'timeZone' | 'browserT
   s?.timeZone || s?.browserTimeZone || DEFAULT_TZ;
 
 /** "a, b ,c" -> ['a', 'b', 'c'] */
-export const splitList = (s: string) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+export const splitList = (s: string) =>
+  s
+    .split(/[,;\n]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
 /** what a typed list is saved as: at most 50 words of 60 characters */
-export const normalizeList = (s: string) => splitList(s).slice(0, 50).map((w) => w.slice(0, 60));
+export const normalizeList = (s: string) =>
+  splitList(s)
+    .slice(0, 50)
+    .map((w) => w.slice(0, 60));
 
 export const SRC_RE = /^[a-z0-9][a-z0-9_-]{0,29}$/;

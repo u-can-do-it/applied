@@ -45,7 +45,12 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const nav: Nav = { path, query: new URLSearchParams(optimistic), pending: pending || optimistic !== actual, navigate };
+  const nav: Nav = {
+    path,
+    query: new URLSearchParams(optimistic),
+    pending: pending || optimistic !== actual,
+    navigate,
+  };
 
   return <NavContext value={nav}>{children}</NavContext>;
 }

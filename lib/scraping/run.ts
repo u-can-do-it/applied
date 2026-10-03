@@ -7,14 +7,29 @@ import type { ScrapeSettings, Scraper } from './kinds';
 import { areaTest, expandUrl, keywordTest, placeOf, titleTest, type Found } from './match';
 import { parseBody } from './parsers';
 import {
-  claimQueue, enqueue, finishRun, getSettings, getState, ingest, listQueue, listScrapers, lock, saveOutcome, startRun,
-  unlock, updateRun, type IngestRow, type Queued, type QueuedAt,
+  claimQueue,
+  enqueue,
+  finishRun,
+  getSettings,
+  getState,
+  ingest,
+  listQueue,
+  listScrapers,
+  lock,
+  saveOutcome,
+  startRun,
+  unlock,
+  updateRun,
+  type IngestRow,
+  type Queued,
+  type QueuedAt,
 } from './store';
 
 // One run = every enabled scraper: fetch, parse, filter, save new offers, queue the new jobs
 // for Telegram, check them against the active AI profile and send the matches (unless muted).
 
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const TIMEOUT_MS = 20_000;
 const MAX_BYTES = 8 * 1024 * 1024;
 const PARALLEL = 4;
@@ -29,16 +44,30 @@ function checkUrl(raw: string) {
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('Only http and https links');
   // a scraper must not read the server's own network
-  const privateHost = /^(localhost|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[(::1|f[cd])|metadata)/i;
-  if (process.env.NODE_ENV === 'production' && privateHost.test(u.hostname)) throw new Error('Private addresses are not allowed');
+  const privateHost =
+    /^(localhost|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[(::1|f[cd])|metadata)/i;
+  if (process.env.NODE_ENV === 'production' && privateHost.test(u.hostname))
+    throw new Error('Private addresses are not allowed');
 }
 
 export async function fetchPage(url: string, headers: Record<string, string> = {}): Promise<string> {
   checkUrl(url);
-  const h = new Headers({ 'User-Agent': UA, 'Accept-Language': 'pl,en;q=0.8', Accept: 'text/html,application/json;q=0.9,*/*;q=0.8' });
+  const h = new Headers({
+    'User-Agent': UA,
+    'Accept-Language': 'pl,en;q=0.8',
+    Accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
+  });
   for (const [k, v] of Object.entries(headers)) h.set(k, v); // the scraper's own headers win
-  const res = await fetch(url, { headers: h, signal: AbortSignal.timeout(TIMEOUT_MS), cache: 'no-store', redirect: 'follow' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}${res.status === 403 || res.status === 429 ? ' (the site blocks this server?)' : ''}`);
+  const res = await fetch(url, {
+    headers: h,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    cache: 'no-store',
+    redirect: 'follow',
+  });
+  if (!res.ok)
+    throw new Error(
+      `HTTP ${res.status}${res.status === 403 || res.status === 429 ? ' (the site blocks this server?)' : ''}`,
+    );
   if (!res.body) return '';
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -69,7 +98,15 @@ export async function fetchPage(url: string, headers: Record<string, string> = {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export type PageResult = { keyword: string | null; page: number; url: string; ok: boolean; error?: string; total: number; kept: number };
+export type PageResult = {
+  keyword: string | null;
+  page: number;
+  url: string;
+  ok: boolean;
+  error?: string;
+  total: number;
+  kept: number;
+};
 export type ScrapeResult = {
   ok: boolean;
   error: string | null;
@@ -87,7 +124,10 @@ export type ScrapeResult = {
 };
 
 /** Fetches and filters one scraper's pages; never throws (errors are part of the result). */
-export async function scrape(s: Pick<Scraper, 'kind' | 'src' | 'config'>, settings: ScrapeSettings): Promise<ScrapeResult> {
+export async function scrape(
+  s: Pick<Scraper, 'kind' | 'src' | 'config'>,
+  settings: ScrapeSettings,
+): Promise<ScrapeResult> {
   const t0 = Date.now();
   const wantKeyword = s.config.checkKeyword ? keywordTest(settings.keywords) : null;
   const inArea = s.config.checkLocation ? areaTest(settings) : null;
@@ -107,7 +147,11 @@ export async function scrape(s: Pick<Scraper, 'kind' | 'src' | 'config'>, settin
   }
   for (const u of urls) {
     try {
-      const parsed = parseBody(s.kind, await fetchPage(u.url, s.config.headers), { src: s.src, url: u.url, config: s.config });
+      const parsed = parseBody(s.kind, await fetchPage(u.url, s.config.headers), {
+        src: s.src,
+        url: u.url,
+        config: s.config,
+      });
       sample ??= parsed.sample;
       found += parsed.total;
       let pageKept = 0;
@@ -130,7 +174,12 @@ export async function scrape(s: Pick<Scraper, 'kind' | 'src' | 'config'>, settin
   return {
     ok: failed.length < pages.length,
     error: failed.length
-      ? failed.map((p) => `${[p.keyword, urls.length > 1 && p.page > 1 && `page ${p.page}`].filter(Boolean).join(' ')}${p.keyword || p.page > 1 ? ': ' : ''}${p.error}`).join('; ')
+      ? failed
+          .map(
+            (p) =>
+              `${[p.keyword, urls.length > 1 && p.page > 1 && `page ${p.page}`].filter(Boolean).join(' ')}${p.keyword || p.page > 1 ? ': ' : ''}${p.error}`,
+          )
+          .join('; ')
       : null,
     found,
     kept: [...kept.values()],
@@ -143,7 +192,7 @@ export async function scrape(s: Pick<Scraper, 'kind' | 'src' | 'config'>, settin
 }
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array(items.length);
+  const out = new Array<R>(items.length);
   let next = 0;
   const worker = async () => {
     while (next < items.length) {
@@ -156,6 +205,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
 }
 
 const clean = (v: string | null | undefined) => (v == null ? null : v.replace(/\u0000/g, '').trim() || null);
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- parseBody keeps only offers with an id and a link */
 const row = (o: Found): IngestRow => ({
   src: o.src,
   id: clean(o.id)!,
@@ -165,6 +215,7 @@ const row = (o: Found): IngestRow => ({
   remote: o.remote,
   url: clean(o.url)!,
 });
+/* eslint-enable @typescript-eslint/no-non-null-assertion */
 
 export type RunSummary = {
   skipped?: string;
@@ -237,7 +288,15 @@ export async function runAll(
         const s = active[i];
         // the watermark moves only on a successful run; null -> "has run" even with nothing dated
         const mark = r.ok ? Math.max(s.mark ?? -Infinity, r.maxSort ?? -Infinity, 0) : s.mark;
-        return saveOutcome(s.id, { ok: r.ok, found: r.found, kept: r.kept.length, added: addedBy.get(s.id) ?? 0, error: r.error, ms: r.ms, mark });
+        return saveOutcome(s.id, {
+          ok: r.ok,
+          found: r.found,
+          kept: r.kept.length,
+          added: addedBy.get(s.id) ?? 0,
+          error: r.error,
+          ms: r.ms,
+          mark,
+        });
       }),
     );
 
@@ -251,7 +310,14 @@ export async function runAll(
       errors,
       ms: Date.now() - t0,
     };
-    await finishRun(runId, { found: summary.found, kept: summary.kept, added: summary.added, fresh: summary.fresh, notified: 0, errors });
+    await finishRun(runId, {
+      found: summary.found,
+      kept: summary.kept,
+      added: summary.added,
+      fresh: summary.fresh,
+      notified: 0,
+      errors,
+    });
 
     // every new job (not another board's copy of a known one) gets the AI's verdict, also the ones
     // that aren't announced (a scraper's first run, a muted title): the AI tab has them checked
@@ -267,20 +333,30 @@ export async function runAll(
         if (error && !more.some((m) => m.error === error)) more.push({ scraper, error });
       };
       let matched: number | null = null;
-      const profile = newJobs.length ? await aiProfile(settings).catch((e) => (note('AI', message(e)), null)) : null;
+      const profile = newJobs.length
+        ? await aiProfile(settings).catch((e: unknown) => (note('AI', message(e)), null))
+        : null;
       if (profile) {
-        const r = await assessJobs(profile, newJobs, deadline).catch((e) => ({ verdicts: new Map<string, Verdict>(), error: message(e) }));
+        const r = await assessJobs(profile, newJobs, deadline).catch((e: unknown) => ({
+          verdicts: new Map<string, Verdict>(),
+          error: message(e),
+        }));
         matched = newJobs.filter((k) => r.verdicts.get(k)?.match).length;
         note('AI', r.error);
       }
       const n = send ? await notify({ deadline }) : { sent: 0 };
       note('AI / Telegram', 'error' in n ? n.error : null);
-      if (profile || send || more.length) await updateRun(id, { notified: n.sent, matched, errors: [...errors, ...more] });
+      if (profile || send || more.length)
+        await updateRun(id, { notified: n.sent, matched, errors: [...errors, ...more] });
       return { sent: n.sent, more };
     };
     if (opts.background && (newJobs.length || fresh.length)) {
       unlockLater = true;
-      after(() => tail().catch((e) => console.error('[scrape] AI / Telegram failed:', e)).finally(() => unlock().catch(() => {})));
+      after(() =>
+        tail()
+          .catch((e: unknown) => console.error('[scrape] AI / Telegram failed:', e))
+          .finally(() => unlock().catch(() => {})),
+      );
       return { ...summary, notifyLater: true };
     }
     const { sent, more } = await tail();
@@ -311,7 +387,9 @@ async function aiProfile(settings: ScrapeSettings): Promise<ProfileWithFile | nu
 }
 
 const appLink = () =>
-  process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/ai?days=1&rejected=1` : null;
+  process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/ai?days=1&rejected=1`
+    : null;
 
 /**
  * Checks what's queued against the AI profile and sends what's ready: the matches listed, the
@@ -323,11 +401,15 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
   if (!queued.length) return { sent: 0, matched: null };
   const settings = await getSettings();
   let error: string | undefined;
-  const profile = await aiProfile(settings).catch((e) => ((error = message(e)), null));
+  const profile = await aiProfile(settings).catch((e: unknown) => ((error = message(e)), null));
   let verdicts = new Map<string, Verdict>();
   if (profile) {
     try {
-      const r = await assessJobs(profile, [...new Set(queued.flatMap((q) => q.dup_key ?? []))], opts.deadline ?? Date.now() + AI_BUDGET_MS);
+      const r = await assessJobs(
+        profile,
+        [...new Set(queued.flatMap((q) => q.dup_key ?? []))],
+        opts.deadline ?? Date.now() + AI_BUDGET_MS,
+      );
       verdicts = r.verdicts;
       if (r.error) error = r.error;
     } catch (e) {
@@ -353,7 +435,14 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
     else if (v.match) matched.push({ ...q, verdict: { score: v.score, summary: v.summary } });
     else unmatched.push(q);
   }
-  const messages = formatNotification({ matched, unmatched, unchecked, profile: profile?.name ?? null, held: Boolean(opts.manual && muted), link: appLink() });
+  const messages = formatNotification({
+    matched,
+    unmatched,
+    unchecked,
+    profile: profile?.name ?? null,
+    held: Boolean(opts.manual && muted),
+    link: appLink(),
+  });
   let sent = 0;
   for (let i = 0; i < messages.length; i++) {
     try {
@@ -367,6 +456,9 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
     sent += messages[i].offers.length;
     if (i < messages.length - 1) await new Promise((r) => setTimeout(r, 400)); // Telegram: about 1 message/s per chat
   }
-  return { sent: matched.length + unchecked.length, matched: profile ? matched.length : null, ...(error ? { error } : {}) };
+  return {
+    sent: matched.length + unchecked.length,
+    matched: profile ? matched.length : null,
+    ...(error ? { error } : {}),
+  };
 }
-

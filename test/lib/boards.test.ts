@@ -62,7 +62,9 @@ describe('boardOf', () => {
 
   it('a known board under a two-part ending is still that board', () => {
     expect(boardOf('https://www.indeed.co.uk/viewjob?jk=abc')).toBe('indeed');
-    expect(cleanLink('https://www.indeed.co.uk/viewjob?jk=abc&from=serp&utm_source=x')).toBe('https://www.indeed.co.uk/viewjob?jk=abc');
+    expect(cleanLink('https://www.indeed.co.uk/viewjob?jk=abc&from=serp&utm_source=x')).toBe(
+      'https://www.indeed.co.uk/viewjob?jk=abc',
+    );
   });
 
   it('unknown for what is not a link or not a valid board id', () => {
@@ -79,12 +81,18 @@ describe('boardOf', () => {
 
 describe('cleanLink', () => {
   it("a board's own link loses its whole query and hash", () => {
-    expect(cleanLink('https://justjoin.it/job-offer/acme-react?utm_source=x&from=list#apply')).toBe('https://justjoin.it/job-offer/acme-react');
-    expect(cleanLink('https://bulldogjob.pl/companies/jobs/123-react?x=1')).toBe('https://bulldogjob.pl/companies/jobs/123-react');
+    expect(cleanLink('https://justjoin.it/job-offer/acme-react?utm_source=x&from=list#apply')).toBe(
+      'https://justjoin.it/job-offer/acme-react',
+    );
+    expect(cleanLink('https://bulldogjob.pl/companies/jobs/123-react?x=1')).toBe(
+      'https://bulldogjob.pl/companies/jobs/123-react',
+    );
   });
 
   it('NoFluff links are kept as /pl/job/', () => {
-    expect(cleanLink('https://nofluffjobs.com/job/react-acme?utm_source=x')).toBe('https://nofluffjobs.com/pl/job/react-acme');
+    expect(cleanLink('https://nofluffjobs.com/job/react-acme?utm_source=x')).toBe(
+      'https://nofluffjobs.com/pl/job/react-acme',
+    );
     expect(cleanLink('https://nofluffjobs.com/en/job/react-acme')).toBe('https://nofluffjobs.com/pl/job/react-acme');
     expect(cleanLink('https://nofluffjobs.com/pl/job/react-acme')).toBe('https://nofluffjobs.com/pl/job/react-acme');
     expect(cleanLink('https://nofluffjobs.com/pl/praca-it/react')).toBe('https://nofluffjobs.com/pl/praca-it/react');
@@ -92,19 +100,25 @@ describe('cleanLink', () => {
 
   it('LinkedIn: the canonical job link when the id is there', () => {
     const canonical = 'https://www.linkedin.com/jobs/view/4123456789';
-    expect(cleanLink('https://pl.linkedin.com/jobs/view/senior-react-dev-at-acme-4123456789?trk=public_jobs&refId=abc')).toBe(canonical);
+    expect(
+      cleanLink('https://pl.linkedin.com/jobs/view/senior-react-dev-at-acme-4123456789?trk=public_jobs&refId=abc'),
+    ).toBe(canonical);
     expect(cleanLink('https://www.linkedin.com/jobs/view/4123456789/?trackingId=x')).toBe(canonical);
     expect(cleanLink('https://www.linkedin.com/jobs/search/?currentJobId=4123456789&keywords=react')).toBe(canonical);
     // no id: only the tracking goes
-    expect(cleanLink('https://www.linkedin.com/company/acme/?trk=abc&position=1&pageNum=0&lang=pl')).toBe('https://www.linkedin.com/company/acme/?lang=pl');
+    expect(cleanLink('https://www.linkedin.com/company/acme/?trk=abc&position=1&pageNum=0&lang=pl')).toBe(
+      'https://www.linkedin.com/company/acme/?lang=pl',
+    );
   });
 
   it('other sites keep their query but lose tracking parameters', () => {
-    expect(cleanLink('https://boards.greenhouse.io/acme/jobs/1?gh_jid=1&utm_source=li&UTM_Medium=x&ref=abc&source=x#apply')).toBe(
-      'https://boards.greenhouse.io/acme/jobs/1?gh_jid=1',
-    );
+    expect(
+      cleanLink('https://boards.greenhouse.io/acme/jobs/1?gh_jid=1&utm_source=li&UTM_Medium=x&ref=abc&source=x#apply'),
+    ).toBe('https://boards.greenhouse.io/acme/jobs/1?gh_jid=1');
     // only exact names (or the utm_ / trk prefixes) are tracking: "reference" and "sources" stay
-    expect(cleanLink('https://acme.test/job?reference=7&sources=a&trkCampaign=x')).toBe('https://acme.test/job?reference=7&sources=a');
+    expect(cleanLink('https://acme.test/job?reference=7&sources=a&trkCampaign=x')).toBe(
+      'https://acme.test/job?reference=7&sources=a',
+    );
   });
 
   it('Indeed: the job link with only its id (?jk=…)', () => {
@@ -125,13 +139,21 @@ describe('cleanLink', () => {
 
 describe('boardIdOf', () => {
   it("the id the scrapers store, from each board's link", () => {
-    expect(boardIdOf('justjoin', 'https://justjoin.it/job-offer/acme-react-dev-warszawa?x=1')).toBe('acme-react-dev-warszawa');
-    expect(boardIdOf('nofluff', 'https://nofluffjobs.com/pl/job/react-dev-acme-warszawa')).toBe('react-dev-acme-warszawa');
-    expect(boardIdOf('bulldog', 'https://bulldogjob.pl/companies/jobs/257103-web-architect')).toBe('257103-web-architect');
+    expect(boardIdOf('justjoin', 'https://justjoin.it/job-offer/acme-react-dev-warszawa?x=1')).toBe(
+      'acme-react-dev-warszawa',
+    );
+    expect(boardIdOf('nofluff', 'https://nofluffjobs.com/pl/job/react-dev-acme-warszawa')).toBe(
+      'react-dev-acme-warszawa',
+    );
+    expect(boardIdOf('bulldog', 'https://bulldogjob.pl/companies/jobs/257103-web-architect')).toBe(
+      '257103-web-architect',
+    );
     expect(boardIdOf('eldorado', 'https://czyjesteldorado.pl/praca/449389-scrum-master')).toBe('449389');
     expect(boardIdOf('linkedin', 'https://www.linkedin.com/jobs/view/4123456789/')).toBe('4123456789');
     expect(boardIdOf('linkedin', 'https://pl.linkedin.com/jobs/view/senior-dev-at-acme-4123456789')).toBe('4123456789');
-    expect(boardIdOf('linkedin', 'https://www.linkedin.com/jobs/collections/recommended/?currentJobId=4123456789')).toBe('4123456789');
+    expect(
+      boardIdOf('linkedin', 'https://www.linkedin.com/jobs/collections/recommended/?currentJobId=4123456789'),
+    ).toBe('4123456789');
     expect(boardIdOf('indeed', 'https://pl.indeed.com/viewjob?jk=0123456789abcdef&from=serp')).toBe('0123456789abcdef');
     expect(boardIdOf('indeed', 'https://pl.indeed.com/jobs?q=react&vjk=0123456789abcdef')).toBe('0123456789abcdef');
   });

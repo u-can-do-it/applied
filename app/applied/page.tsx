@@ -28,11 +28,11 @@ export default function AppliedPage() {
 
 async function Applications() {
   await connection(); // always fresh: this list changes whenever you mark an offer
+  let loaded: [Awaited<ReturnType<typeof listApplications>>, Awaited<ReturnType<typeof sourceOptions>>, string];
   try {
     // a month without news turns "in progress" into "ghosted"; done on the way in, so the list is current
-    await ghostStale().catch((e) => console.error('[applied] ghosting failed:', e));
-    const [apps, sources, tz] = await Promise.all([listApplications(), sourceOptions(), appTimeZone()]);
-    return <AppliedList apps={apps} labels={labelsOf(sources)} tz={tz} />;
+    await ghostStale().catch((e: unknown) => console.error('[applied] ghosting failed:', e));
+    loaded = await Promise.all([listApplications(), sourceOptions(), appTimeZone()]);
   } catch (e) {
     return (
       <div className="notice">
@@ -41,4 +41,6 @@ async function Applications() {
       </div>
     );
   }
+  const [apps, sources, tz] = loaded;
+  return <AppliedList apps={apps} labels={labelsOf(sources)} tz={tz} />;
 }

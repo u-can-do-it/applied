@@ -17,7 +17,8 @@ export function restUrl(table: string) {
 /** GET /rest/v1/rpc/<fn>?arg=... - filters, order and limit can be added like on a table */
 export function rpcUrl(fn: string, args: Record<string, string | number | null | undefined>) {
   const url = restUrl(`rpc/${fn}`);
-  for (const [k, v] of Object.entries(args)) if (v !== null && v !== undefined && v !== '') url.searchParams.set(k, String(v));
+  for (const [k, v] of Object.entries(args))
+    if (v !== null && v !== undefined && v !== '') url.searchParams.set(k, String(v));
   return url;
 }
 
@@ -27,7 +28,10 @@ export function authHeaders(): Record<string, string> {
   return key.startsWith('eyJ') ? { apikey: key, Authorization: `Bearer ${key}` } : { apikey: key };
 }
 
-export async function rest(url: URL, init: RequestInit & { prefer?: string } = {}) {
+export async function rest(
+  url: URL,
+  init: Omit<RequestInit, 'headers'> & { prefer?: string; headers?: Record<string, string> } = {},
+) {
   const { prefer, headers, ...rest } = init;
   const res = await fetch(url, {
     cache: 'no-store',

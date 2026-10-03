@@ -2,10 +2,24 @@
 
 import { startTransition, useEffect, useEffectEvent, useOptimistic, useRef, useState, useTransition } from 'react';
 import {
-  FIELDS, JSON_SOURCES, KIND_IDS, KINDS, isGeneric,
-  type FieldId, type JsonSource, type KindId, type Scraper,
+  FIELDS,
+  JSON_SOURCES,
+  KIND_IDS,
+  KINDS,
+  isGeneric,
+  type FieldId,
+  type JsonSource,
+  type KindId,
+  type Scraper,
 } from '@/lib/scraping/kinds';
-import { deleteScraperAction, saveScraperAction, testScraperAction, toggleScraperAction, type ScraperForm, type TestResult } from './actions';
+import {
+  deleteScraperAction,
+  saveScraperAction,
+  testScraperAction,
+  toggleScraperAction,
+  type ScraperForm,
+  type TestResult,
+} from './actions';
 import { useZone } from '../time-zone';
 import { Feedback, useAction } from './panels';
 
@@ -28,7 +42,10 @@ type Draft = {
   fields: Partial<Record<FieldId, string>>;
 };
 
-const headerText = (h: Record<string, string> | undefined) => Object.entries(h ?? {}).map(([k, v]) => `${k}: ${v}`).join('\n');
+const headerText = (h: Record<string, string> | undefined) =>
+  Object.entries(h ?? {})
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n');
 const parseHeaders = (text: string) =>
   Object.fromEntries(
     text
@@ -96,9 +113,13 @@ const toForm = (d: Draft): ScraperForm => ({
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
-export function ScrapersPanel({ scrapers, counts, keywords }: {
+export function ScrapersPanel({
+  scrapers,
+  counts,
+  keywords,
+}: {
   scrapers: Scraper[];
-  counts: Record<string, { offers: number }>;
+  counts: Partial<Record<string, { offers: number }>>;
   keywords: string[];
 }) {
   const [open, setOpen] = useState<{ draft: Draft; test: boolean; n: number } | null>(null);
@@ -126,7 +147,10 @@ export function ScrapersPanel({ scrapers, counts, keywords }: {
               aria-label={`${s.name} on`}
               onChange={(e) => {
                 const enabled = e.target.checked;
-                act.run(() => toggleScraperAction(s.id, enabled), () => toggle({ id: s.id, enabled }));
+                act.run(
+                  () => toggleScraperAction(s.id, enabled),
+                  () => toggle({ id: s.id, enabled }),
+                );
               }}
             />
             <div className="scraper-main">
@@ -134,7 +158,7 @@ export function ScrapersPanel({ scrapers, counts, keywords }: {
                 <strong>{s.name}</strong> <span className="badge">{KINDS[s.kind].label}</span>{' '}
                 <span className="muted small">
                   {s.src}
-                  {counts[s.src] ? ` · ${counts[s.src].offers} saved` : ''}
+                  {counts[s.src] ? ` · ${counts[s.src]?.offers} saved` : ''}
                 </span>
               </div>
               <ScraperStatus s={s} />
@@ -159,19 +183,32 @@ export function ScrapersPanel({ scrapers, counts, keywords }: {
         ))}
       </ul>
       <Feedback state={act.state} />
-      {open && <ScraperEditor key={open.n} initial={open.draft} autoTest={open.test} keywords={keywords} onClose={() => setOpen(null)} />}
+      {open && (
+        <ScraperEditor
+          key={open.n}
+          initial={open.draft}
+          autoTest={open.test}
+          keywords={keywords}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </section>
   );
 }
 
 function ScraperStatus({ s }: { s: Scraper }) {
   const { formatTime } = useZone();
-  if (!s.last_run_at) return <p className="muted small">Not run yet{s.mark === null ? ' · its first run only saves (no Telegram)' : ''}</p>;
+  if (!s.last_run_at)
+    return (
+      <p className="muted small">Not run yet{s.mark === null ? ' · its first run only saves (no Telegram)' : ''}</p>
+    );
   const when = formatTime(s.last_run_at);
   if (s.last_status === 'error' && !s.last_found) {
     return (
       <p className="small">
-        <span className="warn">✗ {when} · {s.last_error}</span>
+        <span className="warn">
+          ✗ {when} · {s.last_error}
+        </span>
       </p>
     );
   }
@@ -187,16 +224,40 @@ function ScraperStatus({ s }: { s: Scraper }) {
 
 const PLACEHOLDERS: Record<'json' | 'html', Partial<Record<FieldId, string>>> = {
   json: {
-    title: 'title', url: 'url, or https://site.com/job/{slug}', id: 'id', company: 'company.name', date: 'publishedAt',
-    location: 'locations[].city', remote: 'remote', skills: 'skills[].name', seniority: 'level',
+    title: 'title',
+    url: 'url, or https://site.com/job/{slug}',
+    id: 'id',
+    company: 'company.name',
+    date: 'publishedAt',
+    location: 'locations[].city',
+    remote: 'remote',
+    skills: 'skills[].name',
+    seniority: 'level',
   },
   html: {
-    title: 'h3 a', url: 'h3 a@href', id: '@data-id', company: '.company', date: 'time@datetime',
-    location: '.location', remote: '.tags', skills: '.skills li', seniority: '.level',
+    title: 'h3 a',
+    url: 'h3 a@href',
+    id: '@data-id',
+    company: '.company',
+    date: 'time@datetime',
+    location: '.location',
+    remote: '.tags',
+    skills: '.skills li',
+    seniority: '.level',
   },
 };
 
-function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draft; autoTest: boolean; keywords: string[]; onClose: () => void }) {
+function ScraperEditor({
+  initial,
+  autoTest,
+  keywords,
+  onClose,
+}: {
+  initial: Draft;
+  autoTest: boolean;
+  keywords: string[];
+  onClose: () => void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [d, setD] = useState(initial);
   const [test, setTest] = useState<TestResult | { error: string } | null>(null);
@@ -238,13 +299,16 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
   };
   const save = () => commit(() => saveScraperAction(toForm(d)));
   const remove = () => {
-    if (!d.id || !confirm(`Delete “${d.name}”? Offers it already saved stay.`)) return;
-    commit(() => deleteScraperAction(d.id!));
+    const id = d.id;
+    if (!id || !confirm(`Delete “${d.name}”? Offers it already saved stay.`)) return;
+    commit(() => deleteScraperAction(id));
   };
   const changeKind = (kind: KindId) => {
     // a built-in board brings its own link and source id; between generic kinds keep what's typed
     if (d.id && !confirm('Change the type? The link and fields may not fit the new type.')) return;
-    setD((x) => (isGeneric(kind) && isGeneric(x.kind) ? { ...x, kind } : { ...blank(kind, x), id: x.id, enabled: x.enabled }));
+    setD((x) =>
+      isGeneric(kind) && isGeneric(x.kind) ? { ...x, kind } : { ...blank(kind, x), id: x.id, enabled: x.enabled },
+    );
     setTest(null);
   };
 
@@ -286,7 +350,11 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
             <label className="field">
               <span>Source id</span>
               {generic ? (
-                <input value={d.src} onChange={(e) => set({ src: e.target.value.toLowerCase() })} placeholder="linkedin" />
+                <input
+                  value={d.src}
+                  onChange={(e) => set({ src: e.target.value.toLowerCase() })}
+                  placeholder="linkedin"
+                />
               ) : (
                 <input value={d.src} readOnly aria-readonly="true" />
               )}
@@ -300,32 +368,56 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
 
           <label className="field">
             <span>Link</span>
-            <textarea rows={2} value={d.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://…" spellCheck={false} />
+            <textarea
+              rows={2}
+              value={d.url}
+              onChange={(e) => set({ url: e.target.value })}
+              placeholder="https://…"
+              spellCheck={false}
+            />
             <small>
-              <code className="inline">{'{keyword}'}</code> and <code className="inline">{'{keyword_slug}'}</code> become each keyword from Filters (
-              {keywords.join(', ') || 'none set'}): one search per keyword.{!usesKeyword && ' Without them the link is fetched as it is.'}{' '}
-              <code className="inline">{'{start}'}</code> (0, 10, 20…) or <code className="inline">{'{page}'}</code> (1, 2, 3…) fetch several pages.
+              <code className="inline">{'{keyword}'}</code> and <code className="inline">{'{keyword_slug}'}</code>{' '}
+              become each keyword from Filters ({keywords.join(', ') || 'none set'}): one search per keyword.
+              {!usesKeyword && ' Without them the link is fetched as it is.'}{' '}
+              <code className="inline">{'{start}'}</code> (0, 10, 20…) or <code className="inline">{'{page}'}</code> (1,
+              2, 3…) fetch several pages.
             </small>
           </label>
           {paged && (
             <label className="field pages-field">
               <span>Pages</span>
-              <input type="number" min={1} max={5} value={d.pages} onChange={(e) => set({ pages: Math.max(1, Math.min(5, Number(e.target.value) || 1)) })} />
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={d.pages}
+                onChange={(e) => set({ pages: Math.max(1, Math.min(5, Number(e.target.value) || 1)) })}
+              />
               <small>per keyword, per run</small>
             </label>
           )}
           <label className="field">
             <span>Headers</span>
-            <textarea rows={2} value={d.headers} onChange={(e) => set({ headers: e.target.value })} placeholder="X-Api-Version: 1.0" spellCheck={false} />
+            <textarea
+              rows={2}
+              value={d.headers}
+              onChange={(e) => set({ headers: e.target.value })}
+              placeholder="X-Api-Version: 1.0"
+              spellCheck={false}
+            />
             <small>One per line, “Name: value”. A browser User-Agent is sent unless you set one.</small>
           </label>
           <label className="check">
-            <input type="checkbox" checked={d.checkKeyword} onChange={(e) => set({ checkKeyword: e.target.checked })} /> The offer must mention a keyword
-            (title or skills)
+            <input type="checkbox" checked={d.checkKeyword} onChange={(e) => set({ checkKeyword: e.target.checked })} />{' '}
+            The offer must mention a keyword (title or skills)
           </label>
           <label className="check">
-            <input type="checkbox" checked={d.checkLocation} onChange={(e) => set({ checkLocation: e.target.checked })} /> Only remote or in the cities
-            from Filters
+            <input
+              type="checkbox"
+              checked={d.checkLocation}
+              onChange={(e) => set({ checkLocation: e.target.checked })}
+            />{' '}
+            Only remote or in the cities from Filters
           </label>
           <label className="check">
             <input type="checkbox" checked={d.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> On
@@ -346,7 +438,11 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
               {d.from === 'script' && (
                 <label className="field">
                   <span>Script id</span>
-                  <input value={d.scriptId} onChange={(e) => set({ scriptId: e.target.value })} placeholder="serverApp-state" />
+                  <input
+                    value={d.scriptId}
+                    onChange={(e) => set({ scriptId: e.target.value })}
+                    placeholder="serverApp-state"
+                  />
                 </label>
               )}
             </div>
@@ -369,7 +465,9 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
           )}
           {mapped && (
             <fieldset className="fields">
-              <legend>{d.kind === 'json' ? 'Fields: a path inside one offer' : 'Fields: a CSS selector inside one offer'}</legend>
+              <legend>
+                {d.kind === 'json' ? 'Fields: a path inside one offer' : 'Fields: a CSS selector inside one offer'}
+              </legend>
               {FIELDS.map((f) => (
                 <label key={f.id} className="field">
                   <span>
@@ -409,7 +507,13 @@ function ScraperEditor({ initial, autoTest, keywords, onClose }: { initial: Draf
               </button>
             )}
             <span className="spacer" />
-            <button type="button" className="secondary" onClick={runTest} disabled={testing} aria-busy={testing || undefined}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={runTest}
+              disabled={testing}
+              aria-busy={testing || undefined}
+            >
               {testing ? 'Testing…' : 'Test'}
             </button>
             <button type="button" className="secondary" onClick={() => dialog.current?.close()}>
@@ -442,8 +546,9 @@ function TestView({ test }: { test: TestResult | { error: string } }) {
   return (
     <section className="test-view" aria-label="Test result" aria-live="polite">
       <p>
-        {t.ok ? <span className="ok-text">✓</span> : <span className="warn">✗</span>} {t.found} on the page{t.pages.length > 1 ? 's' : ''} →{' '}
-        <strong>{t.kept} kept</strong>, {t.fresh} of them not saved yet · {seconds(t.ms)}
+        {t.ok ? <span className="ok-text">✓</span> : <span className="warn">✗</span>} {t.found} on the page
+        {t.pages.length > 1 ? 's' : ''} → <strong>{t.kept} kept</strong>, {t.fresh} of them not saved yet ·{' '}
+        {seconds(t.ms)}
         {skipped.length > 0 && <span className="muted"> · skipped: {skipped.join(', ')}</span>}
       </p>
       {t.pages.length > 1 || !t.ok ? (
@@ -469,7 +574,8 @@ function TestView({ test }: { test: TestResult | { error: string } }) {
               {!o.known && <span className="badge new">new</span>}
               <span className="muted small">
                 {' '}
-                {[o.company, o.remote ? 'remote' : o.locations.join(', '), o.seniority].filter(Boolean).join(' · ')} · id {o.id}
+                {[o.company, o.remote ? 'remote' : o.locations.join(', '), o.seniority].filter(Boolean).join(' · ')} ·
+                id {o.id}
               </span>
             </li>
           ))}

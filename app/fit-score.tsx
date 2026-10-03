@@ -8,7 +8,13 @@ type Check = { item: string; met: boolean };
  * "82% ⓘ" with the requirement checklist on hover / focus / tap. The tip opens below the
  * badge, or above it when there isn't room below (the last offers on the screen).
  */
-export function FitScore({ tipId, score, summary, checks, hadDescription }: {
+export function FitScore({
+  tipId,
+  score,
+  summary,
+  checks,
+  hadDescription,
+}: {
   tipId: string;
   score: number;
   summary: string | null;
@@ -41,7 +47,10 @@ export function FitScore({ tipId, score, summary, checks, hadDescription }: {
       onMouseEnter={place}
       onFocus={place}
     >
-      {score}%<span className="fit-info" aria-hidden="true">ⓘ</span>
+      {score}%
+      <span className="fit-info" aria-hidden="true">
+        ⓘ
+      </span>
       <span ref={tip} className="fit-tip" role="tooltip" id={tipId}>
         <strong>
           {score}% fit{checks.length > 0 && ` · ${met}/${checks.length} requirements met`}
@@ -57,7 +66,9 @@ export function FitScore({ tipId, score, summary, checks, hadDescription }: {
             ))}
           </span>
         )}
-        {!hadDescription && <span className="fit-note">Judged on the title only – the ad text couldn&apos;t be read.</span>}
+        {!hadDescription && (
+          <span className="fit-note">Judged on the title only – the ad text couldn&apos;t be read.</span>
+        )}
       </span>
     </span>
   );

@@ -18,8 +18,21 @@ const HOSTS: [RegExp, string][] = [
 
 /** suggestions for the board field; any lowercase id works */
 export const BOARD_SUGGESTIONS = [
-  'justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'theprotocol', 'pracuj', 'rocketjobs',
-  'indeed', 'facebook', 'email', 'referral', 'unknown',
+  'justjoin',
+  'nofluff',
+  'solidjobs',
+  'bulldog',
+  'eldorado',
+  'builtin',
+  'linkedin',
+  'theprotocol',
+  'pracuj',
+  'rocketjobs',
+  'indeed',
+  'facebook',
+  'email',
+  'referral',
+  'unknown',
 ];
 
 export const BOARD_RE = /^[a-z0-9][a-z0-9_-]{0,29}$/;
@@ -63,7 +76,10 @@ export function cleanLink(link: string): string {
     if (id) return `${u.origin}/viewjob?jk=${encodeURIComponent(id)}`;
   }
   if (HOSTS.some(([, b]) => b === board) && board !== 'linkedin' && board !== 'indeed') u.search = '';
-  else for (const k of [...u.searchParams.keys()]) if (/^(utm_|eclid$|source$|sourceId$|ref$|trk|refId$|trackingId$|position$|pageNum$)/i.test(k)) u.searchParams.delete(k);
+  else
+    for (const k of [...u.searchParams.keys()])
+      if (/^(utm_|eclid$|source$|sourceId$|ref$|trk|refId$|trackingId$|position$|pageNum$)/i.test(k))
+        u.searchParams.delete(k);
   u.hash = '';
   if (board === 'nofluff') u.pathname = u.pathname.replace(/^\/(?:[a-z]{2}\/)?job\//, '/pl/job/'); // the app keeps /pl/job/
   if (board === 'linkedin') {
@@ -92,7 +108,8 @@ export function boardIdOf(board: string, link: string): string | null {
   // NoFluff stores its posting id; the link's slug is what its API takes (match NoFluff by link)
   if (board === 'nofluff') return path.match(/\/job\/([^/?#]+)/)?.[1] ?? null;
   if (board === 'bulldog') return path.match(/\/companies\/jobs\/([^/?#]+)/)?.[1] ?? null;
-  if (board === 'linkedin') return path.match(/\/jobs\/view\/(?:[^/]*-)?(\d{6,})/)?.[1] ?? u.searchParams.get('currentJobId');
+  if (board === 'linkedin')
+    return path.match(/\/jobs\/view\/(?:[^/]*-)?(\d{6,})/)?.[1] ?? u.searchParams.get('currentJobId');
   if (board === 'eldorado') return path.match(/\/praca\/(\d+)/)?.[1] ?? null;
   // viewjob?jk=…; a search page shows one job as vjk=…
   if (board === 'indeed') return u.searchParams.get('jk') || u.searchParams.get('vjk') || null;

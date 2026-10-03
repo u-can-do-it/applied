@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { areaTest, expandUrl, fold, keywordTest, MAX_PAGES, placeOf, titleTest, type Found } from '@/lib/scraping/match';
+import {
+  areaTest,
+  expandUrl,
+  fold,
+  keywordTest,
+  MAX_PAGES,
+  placeOf,
+  titleTest,
+  type Found,
+} from '@/lib/scraping/match';
 
 const offer = (o: Partial<Found> = {}): Found => ({
   src: 'test',
@@ -146,7 +155,9 @@ describe('placeOf', () => {
 
 describe('expandUrl', () => {
   it('without placeholders: just the link', () => {
-    expect(expandUrl('https://x.test/jobs', ['React'], 3)).toEqual([{ url: 'https://x.test/jobs', keyword: null, page: 1 }]);
+    expect(expandUrl('https://x.test/jobs', ['React'], 3)).toEqual([
+      { url: 'https://x.test/jobs', keyword: null, page: 1 },
+    ]);
   });
 
   it('one link per keyword, encoded or as a slug', () => {
@@ -173,7 +184,11 @@ describe('expandUrl', () => {
       { url: 'https://x.test/?q=b&start=0', keyword: 'b', page: 1 },
       { url: 'https://x.test/?q=b&start=10', keyword: 'b', page: 2 },
     ]);
-    expect(expandUrl('https://x.test/?p={page}', [], 3).map((u) => u.url)).toEqual(['https://x.test/?p=1', 'https://x.test/?p=2', 'https://x.test/?p=3']);
+    expect(expandUrl('https://x.test/?p={page}', [], 3).map((u) => u.url)).toEqual([
+      'https://x.test/?p=1',
+      'https://x.test/?p=2',
+      'https://x.test/?p=3',
+    ]);
   });
 
   it('the page count is clamped to 1..MAX_PAGES and rounded down', () => {

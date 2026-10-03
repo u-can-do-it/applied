@@ -23,7 +23,8 @@ export async function isCronRequest(req: Request) {
 }
 
 /** from..to in whole hours; 22..6 runs over night; equal = all day */
-export const inHours = (h: number, from: number, to: number) => from === to || (from < to ? h >= from && h < to : h >= from || h < to);
+export const inHours = (h: number, from: number, to: number) =>
+  from === to || (from < to ? h >= from && h < to : h >= from || h < to);
 
 export async function checkDue(now = new Date()): Promise<{ due: boolean; reason?: string }> {
   const [settings, state] = await Promise.all([getSettings(), getState(), markCall()]);
@@ -34,7 +35,8 @@ export async function checkDue(now = new Date()): Promise<{ due: boolean; reason
   }
   // a minute of slack: calls every N min aren't exactly N min apart
   const since = now.getTime() - (state.last_run_at ? Date.parse(state.last_run_at) : 0);
-  if (since < settings.everyMinutes * 60_000 - 60_000) return { due: false, reason: `the last run was less than ${settings.everyMinutes} min ago` };
+  if (since < settings.everyMinutes * 60_000 - 60_000)
+    return { due: false, reason: `the last run was less than ${settings.everyMinutes} min ago` };
   return { due: true };
 }
 

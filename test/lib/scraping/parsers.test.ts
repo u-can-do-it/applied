@@ -63,8 +63,16 @@ describe('built-in board parsers', () => {
     }
     // the keywords, then the categories (ids, read as words)
     expect(r.items[0].skills).toEqual([
-      'Azure DevOps', 'ASP.NET Core MVC', 'JavaScript', 'React.js', 'Angular', 'Git', 'Microsoft SQL Server', 'PostgreSQL',
-      'project management', 'agile',
+      'Azure DevOps',
+      'ASP.NET Core MVC',
+      'JavaScript',
+      'React.js',
+      'Angular',
+      'Git',
+      'Microsoft SQL Server',
+      'PostgreSQL',
+      'project management',
+      'agile',
     ]);
     expect(r.items).toMatchSnapshot();
   });
@@ -85,7 +93,8 @@ describe('built-in board parsers', () => {
   });
 
   it('linkedin: the guest search fragment', () => {
-    const url = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=React&location=Warszawa';
+    const url =
+      'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=React&location=Warszawa';
     const r = parse('linkedin', fixture('linkedin.html'), url);
     expect(r.total).toBe(3);
     expect(r.items).toHaveLength(3);
@@ -113,7 +122,9 @@ describe('board parser edge cases', () => {
     expect(() => parse('justjoin', '{"items":[]}')).toThrow('JustJoin API: no data list (got items)');
     expect(() => parse('justjoin', '<html>')).toThrow(/is not JSON/);
     expect(() => parse('nofluff', '<html></html>')).toThrow(/no serverApp-state/);
-    expect(() => parse('nofluff', '<script id="serverApp-state">{"a":{"postings":[]}}</script>')).toThrow(/no postings/);
+    expect(() => parse('nofluff', '<script id="serverApp-state">{"a":{"postings":[]}}</script>')).toThrow(
+      /no postings/,
+    );
     expect(() => parse('solidjobs', '{}')).toThrow(/no jobs list/);
     expect(() => parse('bulldog', '<html></html>')).toThrow(/no __NEXT_DATA__/);
     expect(() => parse('bulldog', '<script id="__NEXT_DATA__">{"props":{}}</script>')).toThrow(/is not a list/);
@@ -122,22 +133,39 @@ describe('board parser edge cases', () => {
   });
 
   it('reads NoFluff state escaped the Angular way', () => {
-    const state = '{&q;k&q;:{&q;body&q;:{&q;postings&q;:[{&q;id&q;:&q;x-1&q;,&q;title&q;:&q;R&a;D&q;,&q;url&q;:&q;x-1&q;,&q;seniority&q;:[&q;Senior&q;]}]}}}';
+    const state =
+      '{&q;k&q;:{&q;body&q;:{&q;postings&q;:[{&q;id&q;:&q;x-1&q;,&q;title&q;:&q;R&a;D&q;,&q;url&q;:&q;x-1&q;,&q;seniority&q;:[&q;Senior&q;]}]}}}';
     const r = parse('nofluff', `<script id="serverApp-state" type="application/json">${state}</script>`);
     expect(r.items).toEqual([
-      expect.objectContaining({ id: 'x-1', title: 'R&D', seniority: 'senior', url: 'https://nofluffjobs.com/pl/job/x-1', remote: false }),
+      expect.objectContaining({
+        id: 'x-1',
+        title: 'R&D',
+        seniority: 'senior',
+        url: 'https://nofluffjobs.com/pl/job/x-1',
+        remote: false,
+      }),
     ]);
   });
 
   it('justjoin: each place once, in order', () => {
     const body = JSON.stringify({
-      data: [{ slug: 'a', title: 'A', city: 'Gdańsk', locations: [{ city: 'Warszawa' }, { city: 'Gdańsk' }, { city: 'Warszawa' }, {}] }],
+      data: [
+        {
+          slug: 'a',
+          title: 'A',
+          city: 'Gdańsk',
+          locations: [{ city: 'Warszawa' }, { city: 'Gdańsk' }, { city: 'Warszawa' }, {}],
+        },
+      ],
     });
     expect(parse('justjoin', body).items[0].locations).toEqual(['Gdańsk', 'Warszawa']);
   });
 
   it('eldorado: skills from an older page with tags only', () => {
-    const jobs = [{ id: 1, slug: 's', title: 'A', tags: ['React', { name: 'TS' }] }, { id: 2, slug: 's', title: 'B', keywords: [], categories: [] }];
+    const jobs = [
+      { id: 1, slug: 's', title: 'A', tags: ['React', { name: 'TS' }] },
+      { id: 2, slug: 's', title: 'B', keywords: [], categories: [] },
+    ];
     const body = `<script>self.__next_f.push([1,${JSON.stringify(JSON.stringify({ jobs }))}])</script>`;
     expect(parse('eldorado', body).items.map((o) => o.skills)).toEqual([['React', 'TS'], []]);
   });
@@ -171,10 +199,16 @@ describe('board parser edge cases', () => {
       ['React Developer', 'unknown'],
     ];
     const builtin = titles
-      .map(([t], i) => `<div id="job-card-${i + 1}" data-id="job-card"><a data-id="job-card-title" href="/job/x/${i + 1}">${t}</a></div>`)
+      .map(
+        ([t], i) =>
+          `<div id="job-card-${i + 1}" data-id="job-card"><a data-id="job-card-title" href="/job/x/${i + 1}">${t}</a></div>`,
+      )
       .join('');
     const linkedin = titles
-      .map(([t], i) => `<li><div data-entity-urn="urn:li:jobPosting:${i + 1}"><h3 class="base-search-card__title">${t}</h3></div></li>`)
+      .map(
+        ([t], i) =>
+          `<li><div data-entity-urn="urn:li:jobPosting:${i + 1}"><h3 class="base-search-card__title">${t}</h3></div></li>`,
+      )
       .join('');
     const expected = titles.map(([t, s]) => [t, s]);
     expect(parse('builtin', builtin).items.map((o) => [o.title, o.seniority])).toEqual(expected);
@@ -182,7 +216,13 @@ describe('board parser edge cases', () => {
   });
 
   it('drops offers without an id, a title or a link', () => {
-    const body = JSON.stringify({ data: [{ slug: 'a', title: 'A' }, { slug: '', title: 'B' }, { slug: 'c', title: '' }] });
+    const body = JSON.stringify({
+      data: [
+        { slug: 'a', title: 'A' },
+        { slug: '', title: 'B' },
+        { slug: 'c', title: '' },
+      ],
+    });
     const r = parse('justjoin', body);
     expect(r.total).toBe(3);
     expect(r.items.map((o) => o.id)).toEqual(['a']);
@@ -194,14 +234,31 @@ describe('generic parsers', () => {
     const body = JSON.stringify({
       data: {
         offers: [
-          { ref: 7, name: 'React Dev', firm: { name: 'Acme' }, places: [{ city: 'Warszawa' }, { city: 'Kraków' }], mode: 'Remote', tags: ['React', 'TS'], at: '2026-10-01T10:00:00Z' },
+          {
+            ref: 7,
+            name: 'React Dev',
+            firm: { name: 'Acme' },
+            places: [{ city: 'Warszawa' }, { city: 'Kraków' }],
+            mode: 'Remote',
+            tags: ['React', 'TS'],
+            at: '2026-10-01T10:00:00Z',
+          },
           { ref: 8, name: 'No link' },
         ],
       },
     });
     const r = parse('json', body, 'https://api.example.com/jobs', {
       items: 'data.offers',
-      fields: { id: 'ref', title: 'name', url: '/job/{ref}', company: 'firm', location: 'places[].city', remote: 'mode', skills: 'tags[]', date: 'at' },
+      fields: {
+        id: 'ref',
+        title: 'name',
+        url: '/job/{ref}',
+        company: 'firm',
+        location: 'places[].city',
+        remote: 'mode',
+        skills: 'tags[]',
+        date: 'at',
+      },
     });
     expect(r.total).toBe(2);
     expect(r.items[0]).toEqual({
@@ -221,31 +278,49 @@ describe('generic parsers', () => {
   });
 
   it('json: a list field works with or without [] at its end', () => {
-    const body = JSON.stringify([{ t: 'A', u: '/a', tags: ['React', 'TS'], places: [{ name: 'Warszawa' }, { name: 'Kraków' }], one: 'Go' }]);
+    const body = JSON.stringify([
+      { t: 'A', u: '/a', tags: ['React', 'TS'], places: [{ name: 'Warszawa' }, { name: 'Kraków' }], one: 'Go' },
+    ]);
     const config = (skills: string, location = '') => ({ fields: { title: 't', url: 'u', skills, location } });
     expect(parse('json', body, 'https://x.test', config('tags[]')).items[0].skills).toEqual(['React', 'TS']);
     expect(parse('json', body, 'https://x.test', config('tags')).items[0].skills).toEqual(['React', 'TS']);
     // a list of objects gives their names, a single value stays one
-    expect(parse('json', body, 'https://x.test', config('one', 'places')).items[0]).toMatchObject({ skills: ['Go'], locations: ['Warszawa', 'Kraków'] });
+    expect(parse('json', body, 'https://x.test', config('one', 'places')).items[0]).toMatchObject({
+      skills: ['Go'],
+      locations: ['Warszawa', 'Kraków'],
+    });
     // an empty list gives nothing
-    expect(parse('json', JSON.stringify([{ t: 'A', u: '/a', tags: [] }]), 'https://x.test', config('tags')).items[0].skills).toEqual([]);
+    expect(
+      parse('json', JSON.stringify([{ t: 'A', u: '/a', tags: [] }]), 'https://x.test', config('tags')).items[0].skills,
+    ).toEqual([]);
   });
 
   it('json: a root list needs no path; a missing path says what the JSON has', () => {
-    const r = parse('json', '[{"t":"A","u":"https://x.test/a"}]', 'https://x.test', { fields: { title: 't', url: 'u' } });
+    const r = parse('json', '[{"t":"A","u":"https://x.test/a"}]', 'https://x.test', {
+      fields: { title: 't', url: 'u' },
+    });
     expect(r.items.map((o) => [o.id, o.title])).toEqual([['https://x.test/a', 'A']]);
-    expect(() => parse('json', '{"data":[],"meta":{}}')).toThrow('Give the path to the list of offers (the JSON has: data, meta)');
+    expect(() => parse('json', '{"data":[],"meta":{}}')).toThrow(
+      'Give the path to the list of offers (the JSON has: data, meta)',
+    );
     expect(() => parse('json', '{"data":[]}', undefined, { items: 'data' })).toThrow(/Nothing at "data"/);
   });
 
   it('json: __NEXT_DATA__, ld+json and a script by id', () => {
     const next = '<script id="__NEXT_DATA__" type="application/json">{"props":{"jobs":[{"t":"A","u":"/a"}]}}</script>';
     const fields = { title: 't', url: 'u' };
-    expect(parse('json', next, 'https://x.test', { from: 'next-data', items: 'props.jobs', fields }).items[0].url).toBe('https://x.test/a');
-    const ld = '<script type="application/ld+json">{"t":"A","u":"/a"}</script><script type="application/ld+json">broken</script>';
-    expect(parse('json', ld, 'https://x.test', { from: 'ld-json', items: '[]', fields }).items.map((o) => o.title)).toEqual(['A']);
+    expect(parse('json', next, 'https://x.test', { from: 'next-data', items: 'props.jobs', fields }).items[0].url).toBe(
+      'https://x.test/a',
+    );
+    const ld =
+      '<script type="application/ld+json">{"t":"A","u":"/a"}</script><script type="application/ld+json">broken</script>';
+    expect(
+      parse('json', ld, 'https://x.test', { from: 'ld-json', items: '[]', fields }).items.map((o) => o.title),
+    ).toEqual(['A']);
     const script = '<script id="state">{&q;jobs&q;:[{&q;t&q;:&q;A&q;,&q;u&q;:&q;/a&q;}]}</script>';
-    expect(parse('json', script, 'https://x.test', { from: 'script', scriptId: 'state', items: 'jobs', fields }).items).toHaveLength(1);
+    expect(
+      parse('json', script, 'https://x.test', { from: 'script', scriptId: 'state', items: 'jobs', fields }).items,
+    ).toHaveLength(1);
     expect(() => parse('json', script, 'https://x.test', { from: 'script', items: 'jobs' })).toThrow(/Give the id/);
   });
 
@@ -288,7 +363,12 @@ describe('generic parsers', () => {
     ]);
     const atom = `<feed><entry><title>Dev &amp; Ops</title><link href="/e/1"/><id>e1</id><author><name>Beta</name></author>
       <updated>2026-10-01T10:00:00Z</updated></entry></feed>`;
-    expect(parse('rss', atom, 'https://feed.test/atom').items[0]).toMatchObject({ id: 'e1', title: 'Dev & Ops', url: 'https://feed.test/e/1', company: 'Beta' });
+    expect(parse('rss', atom, 'https://feed.test/atom').items[0]).toMatchObject({
+      id: 'e1',
+      title: 'Dev & Ops',
+      url: 'https://feed.test/e/1',
+      company: 'Beta',
+    });
     expect(() => parse('rss', '<rss></rss>')).toThrow(/No <item> or <entry>/);
   });
 });

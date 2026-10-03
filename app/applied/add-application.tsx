@@ -19,16 +19,36 @@ type Draft = Omit<ApplicationInput, 'stage' | 'state'> & { stage: StageId; state
 type Field = keyof Draft;
 
 const empty = (z: Zone): Draft => ({
-  url: '', title: '', company: '', board: 'unknown', day: z.day(), stage: 'submitted', state: 'pending',
-  salary: '', contract: '', location: '', remote: false, content: '', note: '',
+  url: '',
+  title: '',
+  company: '',
+  board: 'unknown',
+  day: z.day(),
+  stage: 'submitted',
+  state: 'pending',
+  salary: '',
+  contract: '',
+  location: '',
+  remote: false,
+  content: '',
+  note: '',
 });
 
 /** An applied offer as the form shows it. */
 const draftOf = (a: ApplicationWithContent, z: Zone): Draft => ({
-  url: a.url ?? '', title: a.title, company: a.company ?? '', board: a.src, day: z.day(a.applied_at),
-  stage: a.stage, state: a.stage_state,
-  salary: a.details?.salary ?? '', contract: a.details?.contract ?? '', location: a.details?.location ?? '', remote: Boolean(a.details?.remote),
-  content: a.content ?? '', note: '',
+  url: a.url,
+  title: a.title,
+  company: a.company ?? '',
+  board: a.src,
+  day: z.day(a.applied_at),
+  stage: a.stage,
+  state: a.stage_state,
+  salary: a.details?.salary ?? '',
+  contract: a.details?.contract ?? '',
+  location: a.details?.location ?? '',
+  remote: Boolean(a.details?.remote),
+  content: a.content ?? '',
+  note: '',
 });
 
 export function AddApplication() {
@@ -94,16 +114,23 @@ export function ApplicationForm(props: FormProps) {
     setError(null);
     setInfo(null);
     startFill(async () => {
-      const r = await fillFromLinkAction(d.url).catch((e) => ({ error: e instanceof Error ? e.message : String(e), draft: undefined }));
+      const r = await fillFromLinkAction(d.url).catch((e: unknown) => ({
+        error: e instanceof Error ? e.message : String(e),
+        draft: undefined,
+      }));
       startTransition(() => {
-        if (!r.draft) return setError(r.error ?? 'Couldn’t read the page.');
+        if (!r.draft) {
+          setError(r.error ?? 'Couldn’t read the page.');
+          return;
+        }
         const f = r.draft;
         setD((x) => {
           const next = { ...x };
           // what you typed stays; when editing, so does everything already filled in
-          const free = (k: Field) => !touched.current.has(k) && (!editing || next[k] === '' || (k === 'board' && next[k] === 'unknown'));
+          const free = (k: Field) =>
+            !touched.current.has(k) && (!editing || next[k] === '' || (k === 'board' && next[k] === 'unknown'));
           const put = <K extends Field>(k: K, v: Draft[K]) => {
-            if (free(k) && v !== '' && v !== undefined) next[k] = v;
+            if (free(k) && v !== '') next[k] = v;
           };
           put('url', f.url);
           put('board', f.board);
@@ -128,7 +155,18 @@ export function ApplicationForm(props: FormProps) {
       const fail = (e: unknown) => ({ error: e instanceof Error ? e.message : String(e), app: undefined });
       if (props.app) {
         const { url, title, company, board, day, salary, contract, location, remote, content } = d; // not the status, not the note
-        const r = await updateApplicationAction(props.app.dup_key, { url, title, company, board, day, salary, contract, location, remote, content }).catch(fail);
+        const r = await updateApplicationAction(props.app.dup_key, {
+          url,
+          title,
+          company,
+          board,
+          day,
+          salary,
+          contract,
+          location,
+          remote,
+          content,
+        }).catch(fail);
         const onSaved = props.onSaved;
         startTransition(() => (r.app ? onSaved(r.app) : setError(r.error ?? 'Not saved.')));
       } else {
@@ -141,7 +179,8 @@ export function ApplicationForm(props: FormProps) {
 
   const text = (k: Field, extra: Record<string, unknown> = {}) => ({
     value: d[k] as string,
-    onChange: (e: { target: { value: string } }) => edit({ [k]: e.target.value } as Partial<Draft>),
+    // eslint-disable-next-line react-hooks/refs -- an event handler; the compiler can't tell through the spread into props
+    onChange: (e: { target: { value: string } }) => edit({ [k]: e.target.value }),
     ...extra,
   });
 
@@ -178,7 +217,9 @@ export function ApplicationForm(props: FormProps) {
             {filling ? 'Reading the page…' : '✦ Fill in from the link'}
           </button>
         </div>
-        {editing && <p className="small muted">“Fill in” fills only the empty fields: clear one to have it filled in again.</p>}
+        {editing && (
+          <p className="small muted">“Fill in” fills only the empty fields: clear one to have it filled in again.</p>
+        )}
         {info?.known && (
           <p className="small ok-text">
             {editing
@@ -261,12 +302,21 @@ export function ApplicationForm(props: FormProps) {
         <label className="field">
           <span>Ad text</span>
           <textarea {...text('content', { rows: 8, placeholder: 'Filled in from the link, or paste it' })} />
-          <small>Kept with the application, so you can read it after the board takes the ad down.{!d.content.trim() && d.url && ' Left empty, it’s fetched from the link after saving.'}</small>
+          <small>
+            Kept with the application, so you can read it after the board takes the ad down.
+            {!d.content.trim() && d.url && ' Left empty, it’s fetched from the link after saving.'}
+          </small>
         </label>
         {!editing && (
           <label className="field">
             <span>Note</span>
-            <textarea {...text('note', { rows: 3, maxLength: 10_000, placeholder: 'Recruiter, the salary you asked for, next steps…' })} />
+            <textarea
+              {...text('note', {
+                rows: 3,
+                maxLength: 10_000,
+                placeholder: 'Recruiter, the salary you asked for, next steps…',
+              })}
+            />
           </label>
         )}
       </div>

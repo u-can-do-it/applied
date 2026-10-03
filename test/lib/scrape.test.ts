@@ -30,7 +30,9 @@ describe('htmlToText', () => {
 
   it('decodes entities, also when the HTML itself is escaped (as in JSON-LD)', () => {
     expect(htmlToText('Tom &amp; Jerry &ndash; &#8220;quoted&#8221; &#x41;&hellip;')).toBe('Tom & Jerry – “quoted” A…');
-    expect(htmlToText('&lt;ul&gt;&lt;li&gt;React&lt;/li&gt;&lt;li&gt;Node&lt;/li&gt;&lt;/ul&gt;')).toBe('• React\n• Node');
+    expect(htmlToText('&lt;ul&gt;&lt;li&gt;React&lt;/li&gt;&lt;li&gt;Node&lt;/li&gt;&lt;/ul&gt;')).toBe(
+      '• React\n• Node',
+    );
     expect(htmlToText('&unknown; stays')).toBe('&unknown; stays');
   });
 
@@ -39,7 +41,9 @@ describe('htmlToText', () => {
     expect(htmlToText('&lt;p&gt;Use &amp;lt;b&amp;gt; tags&lt;/p&gt;')).toBe('Use <b> tags');
     // in plain HTML the same "&lt;b&gt;" is the text "<b>"
     expect(htmlToText('<p>Use &lt;b&gt; tags</p>')).toBe('Use <b> tags');
-    expect(htmlToText('<p>Experience &lt; 2 years, team &gt; 5 people</p>')).toBe('Experience < 2 years, team > 5 people');
+    expect(htmlToText('<p>Experience &lt; 2 years, team &gt; 5 people</p>')).toBe(
+      'Experience < 2 years, team > 5 people',
+    );
     // without any tag, "&lt;" and "&gt;" around plain words are not escaped HTML either
     expect(htmlToText('Experience &lt; 2 years, team &gt; 5 people')).toBe('Experience < 2 years, team > 5 people');
     expect(htmlToText('a &lt;&gt; b')).toBe('a <> b');
@@ -48,7 +52,9 @@ describe('htmlToText', () => {
   });
 
   it('in escaped HTML, the signs in its text stay too', () => {
-    expect(htmlToText('&lt;p&gt;Experience &lt; 2 years, team &gt; 5 people&lt;/p&gt;')).toBe('Experience < 2 years, team > 5 people');
+    expect(htmlToText('&lt;p&gt;Experience &lt; 2 years, team &gt; 5 people&lt;/p&gt;')).toBe(
+      'Experience < 2 years, team > 5 people',
+    );
   });
 
   it('a bare "<" or ">" is text, not a tag', () => {

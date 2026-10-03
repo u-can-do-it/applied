@@ -38,7 +38,13 @@ const mask = (text: string) => {
   return d.slice(0, 2) + (d.length > 2 ? '.' + d.slice(2, 4) : '') + (d.length > 4 ? '.' + d.slice(4) : '');
 };
 
-export function DateInput({ label, value, min, max, onCommit }: {
+export function DateInput({
+  label,
+  value,
+  min,
+  max,
+  onCommit,
+}: {
   label: string;
   value: string; // ISO day or ''
   min?: string;
@@ -49,7 +55,12 @@ export function DateInput({ label, value, min, max, onCommit }: {
   const picker = useRef<HTMLInputElement>(null);
   const commit = useEffectEvent(onCommit);
 
-  useEffect(() => setText(formatDay(value)), [value]); // follow the URL (presets, back/forward)
+  // follow the URL (presets, back/forward); adjusted while rendering, not in an effect
+  const [shownValue, setShownValue] = useState(value);
+  if (value !== shownValue) {
+    setShownValue(value);
+    setText(formatDay(value));
+  }
 
   // navigate once the typed text is a real date (or emptied) and typing pauses
   useEffect(() => {
@@ -130,10 +141,24 @@ function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
       </nav>
       <div className={`range${custom ? ' active' : ''}`}>
         {/* a custom date replaces the preset */}
-        <DateInput label="From" value={from} max={to || undefined} onCommit={(d) => navigate(withParams(query, { from: d, days: null }, path))} />
-        <DateInput label="to" value={to} min={from || undefined} onCommit={(d) => navigate(withParams(query, { to: d, days: null }, path))} />
+        <DateInput
+          label="From"
+          value={from}
+          max={to || undefined}
+          onCommit={(d) => navigate(withParams(query, { from: d, days: null }, path))}
+        />
+        <DateInput
+          label="to"
+          value={to}
+          min={from || undefined}
+          onCommit={(d) => navigate(withParams(query, { to: d, days: null }, path))}
+        />
         {custom && (
-          <NavLink className="clear" href={withParams(query, { from: null, to: null }, path)} aria-label="Clear date range">
+          <NavLink
+            className="clear"
+            href={withParams(query, { from: null, to: null }, path)}
+            aria-label="Clear date range"
+          >
             ×
           </NavLink>
         )}
@@ -182,7 +207,9 @@ export function ControlsFallback() {
               <span>{l}</span>
               <span className="date-box">
                 <input type="text" disabled placeholder="dd.mm.rrrr" />
-                <span className="cal" aria-hidden="true">📅</span>
+                <span className="cal" aria-hidden="true">
+                  📅
+                </span>
               </span>
             </label>
           ))}

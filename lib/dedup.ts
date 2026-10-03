@@ -7,22 +7,41 @@ import { rest, restUrl, rpcUrl } from './supabase';
 // the model says same or not; same pairs are merged into one job (job_links), verdicts follow.
 
 type Candidate = {
-  key_a: string; key_b: string; sim: number;
-  a_title: string; a_company: string | null; a_seniority: string | null; a_remote: boolean | null; a_src: string; a_first_seen: string; a_excerpt: string | null;
-  b_title: string; b_company: string | null; b_seniority: string | null; b_remote: boolean | null; b_src: string; b_first_seen: string; b_excerpt: string | null;
+  key_a: string;
+  key_b: string;
+  sim: number;
+  a_title: string;
+  a_company: string | null;
+  a_seniority: string | null;
+  a_remote: boolean | null;
+  a_src: string;
+  a_first_seen: string;
+  a_excerpt: string | null;
+  b_title: string;
+  b_company: string | null;
+  b_seniority: string | null;
+  b_remote: boolean | null;
+  b_src: string;
+  b_first_seen: string;
+  b_excerpt: string | null;
 };
 
 const PAIRS_PER_CALL = 15;
 const PARALLEL = 2;
 
 const job = (c: Candidate, side: 'a' | 'b'): JobForAi => ({
-  title: c[`${side}_title`], company: c[`${side}_company`], seniority: c[`${side}_seniority`], remote: c[`${side}_remote`],
-  board: c[`${side}_src`], first_seen: c[`${side}_first_seen`], excerpt: c[`${side}_excerpt`],
+  title: c[`${side}_title`],
+  company: c[`${side}_company`],
+  seniority: c[`${side}_seniority`],
+  remote: c[`${side}_remote`],
+  board: c[`${side}_src`],
+  first_seen: c[`${side}_first_seen`],
+  excerpt: c[`${side}_excerpt`],
 });
 
 async function candidates(range: { gte: string | null; lt: string | null }, limit: number): Promise<Candidate[]> {
   const url = rpcUrl('ai_dup_candidates', { p_gte: range.gte, p_lt: range.lt, p_limit: limit });
-  return (await rest(url)).json();
+  return (await rest(url)).json() as Promise<Candidate[]>;
 }
 
 /**
@@ -46,7 +65,8 @@ export async function dedupRound(range: { gte: string | null; lt: string | null 
   const decided: { c: Candidate; same: boolean; reason: string }[] = [];
   let error: string | null = null;
   settled.forEach((s, i) => {
-    if (s.status === 'fulfilled') for (const d of s.value) decided.push({ c: batches[i][d.p - 1], same: d.same, reason: d.reason });
+    if (s.status === 'fulfilled')
+      for (const d of s.value) decided.push({ c: batches[i][d.p - 1], same: d.same, reason: d.reason });
     else error = s.reason instanceof Error ? s.reason.message : String(s.reason);
   });
 
@@ -56,7 +76,9 @@ export async function dedupRound(range: { gte: string | null; lt: string | null 
     await rest(url, {
       method: 'POST',
       prefer: 'resolution=merge-duplicates,return=minimal',
-      body: JSON.stringify(decided.map(({ c, same, reason }) => ({ key_a: c.key_a, key_b: c.key_b, same, reason, model }))),
+      body: JSON.stringify(
+        decided.map(({ c, same, reason }) => ({ key_a: c.key_a, key_b: c.key_b, same, reason, model })),
+      ),
     });
   }
 
@@ -68,17 +90,23 @@ export async function dedupRound(range: { gte: string | null; lt: string | null 
     firstSeen.set(c.key_b, Math.min(firstSeen.get(c.key_b) ?? Infinity, Date.parse(c.b_first_seen)));
   }
   const root = (k: string) => {
-    while (mergedInto.has(k)) k = mergedInto.get(k)!;
+    for (let next = mergedInto.get(k); next !== undefined; next = mergedInto.get(k)) k = next;
     return k;
   };
   let merged = 0;
   for (const { c, same } of decided) {
     if (!same) continue;
-    const a = root(c.key_a), b = root(c.key_b);
+    const a = root(c.key_a),
+      b = root(c.key_b);
     if (a === b) continue;
-    const fa = firstSeen.get(a)!, fb = firstSeen.get(b)!;
+    // every key of a decided pair is in firstSeen
+    const fa = firstSeen.get(a) ?? Infinity,
+      fb = firstSeen.get(b) ?? Infinity;
     const [keep, alias] = fa < fb || (fa === fb && a < b) ? [a, b] : [b, a]; // the earliest job stays the group
-    await rest(restUrl('rpc/jw_merge_jobs'), { method: 'POST', body: JSON.stringify({ p_keep: keep, p_alias: alias }) });
+    await rest(restUrl('rpc/jw_merge_jobs'), {
+      method: 'POST',
+      body: JSON.stringify({ p_keep: keep, p_alias: alias }),
+    });
     mergedInto.set(alias, keep);
     firstSeen.set(keep, Math.min(fa, fb));
     merged++;

@@ -6,8 +6,19 @@ import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { continueRun, startRun } from '@/lib/ai-runs';
 import {
-  addApplication, appliedAtOf, findOfferByLink, jobKeyFor, markApplied, NOTE_MAX, removeStatusStep, saveContent, setNote, setStatus,
-  unmarkApplied, updateApplication, type ApplicationWithContent,
+  addApplication,
+  appliedAtOf,
+  findOfferByLink,
+  jobKeyFor,
+  markApplied,
+  NOTE_MAX,
+  removeStatusStep,
+  saveContent,
+  setNote,
+  setStatus,
+  unmarkApplied,
+  updateApplication,
+  type ApplicationWithContent,
 } from '@/lib/applications';
 import { BOARD_RE, boardIdOf, boardOf, cleanLink, isLink } from '@/lib/boards';
 import { AUTH_COOKIE, AUTH_MAX_AGE, authToken, isValidPassword } from '@/lib/auth';
@@ -102,7 +113,12 @@ export async function deleteProfileAction(id: string) {
 // ---- runs ----------------------------------------------------------------------------
 
 /** Checks the offers in a date range that the profile hasn't judged yet (today if no range). */
-export async function startRunAction(input: { profileId: string; days?: string; from?: string; to?: string }): Promise<FormState> {
+export async function startRunAction(input: {
+  profileId: string;
+  days?: string;
+  from?: string;
+  to?: string;
+}): Promise<FormState> {
   await requireLogin();
   const profile = await getProfile(input.profileId);
   if (!isUsable(profile)) return { error: 'Set up the profile first.' };
@@ -112,7 +128,7 @@ export async function startRunAction(input: { profileId: string; days?: string; 
   const { gte, lt } = (await appZone()).resolveRange(filter);
   const label = describeRange(filter) || 'all offers';
 
-  const run = await startRun(profile!, { gte, lt, label });
+  const run = await startRun(profile, { gte, lt, label });
   if (run.status === 'running') after(() => continueRun(run.id));
   refresh();
   return run.status === 'running'
@@ -161,9 +177,13 @@ export async function setApplicationStatusAction(key: string, stage: string, sta
 }
 
 /** Removes one step of an application's status history, e.g. a stage clicked by mistake. */
-export async function removeStatusStepAction(key: string, step: { stage: string; state: string; at: string }): Promise<FormState> {
+export async function removeStatusStepAction(
+  key: string,
+  step: { stage: string; state: string; at: string },
+): Promise<FormState> {
   await requireLogin();
-  if (typeof key !== 'string' || !isStage(step?.stage) || !isState(step?.state) || typeof step.at !== 'string') return { error: 'Bad request.' };
+  if (typeof key !== 'string' || !isStage(step?.stage) || !isState(step?.state) || typeof step.at !== 'string')
+    return { error: 'Bad request.' };
   const r = await removeStatusStep(key, { stage: step.stage, state: step.state, at: step.at });
   if (r.error) return { error: r.error };
   refresh();
@@ -206,10 +226,13 @@ export async function fillFromLinkAction(link: string): Promise<{ draft?: JobDra
   const board = boardOf(link);
   const [offer, page] = await Promise.all([
     findOfferByLink(link).catch(() => null),
-    readJobPage({ src: board, id: boardIdOf(board, link) ?? '', url: link.trim() }).catch((e) => ({ error: message(e) })),
+    readJobPage({ src: board, id: boardIdOf(board, link) ?? '', url: link.trim() }).catch((e: unknown) => ({
+      error: message(e),
+    })),
   ]);
   const read = 'text' in page ? page : null;
-  if (!read?.text && !read?.pageTitle && !offer) return { error: `Couldn’t read the page: ${'error' in page ? page.error : 'it has no text (a login wall?)'}` };
+  if (!read?.text && !read?.pageTitle && !offer)
+    return { error: `Couldn’t read the page: ${'error' in page ? page.error : 'it has no text (a login wall?)'}` };
 
   let ai: ExtractedJob | null = null;
   let warning: string | undefined;
@@ -260,7 +283,15 @@ export type ApplicationInput = {
 /** What "✎ Edit" sends: the form of "Add application" without the status and the note. */
 export type ApplicationEditInput = Omit<ApplicationInput, 'stage' | 'state' | 'note'>;
 
-type FormFields = { title: string; url: string; board: string; day: string; company: string | null; details: JobDetails | null; content: string };
+type FormFields = {
+  title: string;
+  url: string;
+  board: string;
+  day: string;
+  company: string | null;
+  details: JobDetails | null;
+  content: string;
+};
 
 /** The form's fields checked, the same for adding and editing. */
 function readForm(input: Partial<ApplicationEditInput> | undefined, z: Zone): FormFields | { error: string } {
@@ -274,7 +305,11 @@ function readForm(input: Partial<ApplicationEditInput> | undefined, z: Zone): Fo
   const day = validDay(str(input?.day, 10));
   if (!day || day > z.day()) return { error: 'Pick the day you applied (not in the future).' };
   const details: JobDetails = {};
-  for (const [k, max] of [['salary', 200], ['contract', 100], ['location', 200]] as const) {
+  for (const [k, max] of [
+    ['salary', 200],
+    ['contract', 100],
+    ['location', 200],
+  ] as const) {
     const v = str(input?.[k], max);
     if (v) details[k] = v;
   }
@@ -297,21 +332,25 @@ export async function addApplicationAction(input: ApplicationInput): Promise<For
   if ('error' in f) return f;
   if (!isStage(input.stage) || !isState(input.state)) return { error: 'Unknown status.' };
   try {
-    const r = await addApplication({
-      url: f.url ? cleanLink(f.url) : '',
-      title: f.title,
-      company: f.company,
-      src: f.board,
-      appliedAt: appliedAtOf(f.day, z),
-      stage: input.stage,
-      state: input.state,
-      details: f.details,
-      content: f.content.trim() || null,
-      note: (typeof input.note === 'string' ? input.note.trim().slice(0, NOTE_MAX) : '') || null,
-    }, z);
+    const r = await addApplication(
+      {
+        url: f.url ? cleanLink(f.url) : '',
+        title: f.title,
+        company: f.company,
+        src: f.board,
+        appliedAt: appliedAtOf(f.day, z),
+        stage: input.stage,
+        state: input.state,
+        details: f.details,
+        content: f.content.trim() || null,
+        note: (typeof input.note === 'string' ? input.note.trim().slice(0, NOTE_MAX) : '') || null,
+      },
+      z,
+    );
     if (r.error) return { error: r.error };
     // no ad text but a link: fetch it after the answer, like "Mark applied" does (what you typed stays)
-    if (!f.content.trim() && f.url) after(() => saveContent(r.key!));
+    const key = r.key;
+    if (!f.content.trim() && f.url && key) after(() => saveContent(key));
     refresh();
     return { ok: true, id: r.key };
   } catch (e) {
@@ -320,14 +359,29 @@ export async function addApplicationAction(input: ApplicationInput): Promise<For
 }
 
 /** Saves an application's edited details; answers with it as saved (its key may be new: see updateApplication). */
-export async function updateApplicationAction(key: string, input: ApplicationEditInput): Promise<{ error?: string; app?: ApplicationWithContent }> {
+export async function updateApplicationAction(
+  key: string,
+  input: ApplicationEditInput,
+): Promise<{ error?: string; app?: ApplicationWithContent }> {
   await requireLogin();
   if (typeof key !== 'string' || !key) return { error: 'Bad request.' };
   const z = await appZone();
   const f = readForm(input, z);
   if ('error' in f) return f;
   try {
-    const r = await updateApplication(key, { url: f.url, title: f.title, company: f.company, src: f.board, day: f.day, details: f.details, content: f.content }, z);
+    const r = await updateApplication(
+      key,
+      {
+        url: f.url,
+        title: f.title,
+        company: f.company,
+        src: f.board,
+        day: f.day,
+        details: f.details,
+        content: f.content,
+      },
+      z,
+    );
     if (r.error || !r.app) return { error: r.error ?? 'This application no longer exists.' };
     const saved = r.app.dup_key;
     // what you typed stays over what the board says (details.typed)

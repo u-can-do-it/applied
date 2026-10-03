@@ -23,7 +23,7 @@ export function utcHours(from: number, to: number, tz: string, year = new Date()
   if (hours.size === 24) return '*';
   const list = [...hours].sort((a, b) => a - b);
   const ranges: string[] = [];
-  for (let i = 0; i < list.length; ) {
+  for (let i = 0; i < list.length;) {
     let j = i;
     while (j + 1 < list.length && list[j + 1] === list[j] + 1) j++;
     ranges.push(i === j ? `${list[i]}` : `${list[i]}-${list[j]}`);

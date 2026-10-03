@@ -19,9 +19,12 @@ export async function POST(request: NextRequest) {
   if (!sameString(request.headers.get('x-telegram-bot-api-secret-token') ?? '', await webhookSecret())) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  const update = (await request.json().catch(() => null)) as { message?: { chat?: { id?: number }; text?: string } } | null;
+  const update = (await request.json().catch(() => null)) as {
+    message?: { chat?: { id?: number }; text?: unknown };
+  } | null;
   const chatId = String(update?.message?.chat?.id ?? '');
-  const text = String(update?.message?.text ?? '').trim().toLowerCase();
+  const sent = update?.message?.text;
+  const text = (typeof sent === 'string' ? sent : '').trim().toLowerCase();
   // ignore everyone else: the bot's username is guessable. Always 200, or Telegram retries.
   if (!text || chatId !== ownerChat()) return NextResponse.json({ ok: true });
 
@@ -31,7 +34,9 @@ export async function POST(request: NextRequest) {
   // what waited goes out after the AI check (that can take a while, so after the answer)
   const deliver = () =>
     after(async () => {
-      const r = await notify({ manual: true }).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+      const r = await notify({ manual: true }).catch((e: unknown) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
       if (r.error) await reply(`⚠️ ${r.error}`);
     });
 
@@ -39,7 +44,11 @@ export async function POST(request: NextRequest) {
     const was = (await getState()).muted;
     await setMuted(true);
     const n = await queued();
-    await reply(was ? `🔕 Already muted. ${n} offer(s) waiting.` : `🔕 Muted.\nScraping continues - new offers are queued.\n${n} waiting.`);
+    await reply(
+      was
+        ? `🔕 Already muted. ${n} offer(s) waiting.`
+        : `🔕 Muted.\nScraping continues - new offers are queued.\n${n} waiting.`,
+    );
   } else if (['/resume', '/unmute', '/start'].includes(cmd)) {
     const was = (await getState()).muted;
     await setMuted(false);
@@ -59,16 +68,37 @@ export async function POST(request: NextRequest) {
     after(async () => {
       const r = await runAll('telegram');
       const errors = r.errors.map((e) => `\n⚠️ ${e.scraper}: ${e.error}`).join('');
-      await reply(r.skipped ? `⏳ ${r.skipped}` : `✅ ${r.found} on the pages, ${r.added} new saved, ${r.notified} sent${errors}`);
+      await reply(
+        r.skipped ? `⏳ ${r.skipped}` : `✅ ${r.found} on the pages, ${r.added} new saved, ${r.notified} sent${errors}`,
+      );
     });
   } else if (cmd === '/status') {
-    const [state, n, counts, runs, settings, profiles] = await Promise.all([getState(), queued(), sourceCounts(), listRuns(1), getSettings(), listProfiles()]);
+    const [state, n, counts, runs, settings, profiles] = await Promise.all([
+      getState(),
+      queued(),
+      sourceCounts(),
+      listRuns(1),
+      getSettings(),
+      listProfiles(),
+    ]);
     const total = Object.values(counts).reduce((s, c) => s + c.offers, 0);
-    const per = Object.keys(counts).sort().map((s) => `  ${s}: ${counts[s].offers}`);
+    const per = Object.keys(counts)
+      .sort()
+      .map((s) => `  ${s}: ${counts[s].offers}`);
     const z = zone(effectiveTimeZone(settings));
-    const last = runs[0] ? `${z.formatDateTime(runs[0].started_at)} (${runs[0].trigger}, ${runs[0].added} new)` : 'unknown';
-    const ai = !settings.aiFilter ? 'off' : !process.env.OPENAI_API_KEY ? 'on, but no OPENAI_API_KEY (all sent)' : profiles[0] ? `“${profiles[0].name}”` : 'on, but no profile (all sent)';
-    const scraping = settings.enabled ? `every ${settings.everyMinutes} min, ${settings.fromHour}–${settings.toHour} (${z.tz})` : '⏸ paused';
+    const last = runs[0]
+      ? `${z.formatDateTime(runs[0].started_at)} (${runs[0].trigger}, ${runs[0].added} new)`
+      : 'unknown';
+    const ai = !settings.aiFilter
+      ? 'off'
+      : !process.env.OPENAI_API_KEY
+        ? 'on, but no OPENAI_API_KEY (all sent)'
+        : profiles[0]
+          ? `“${profiles[0].name}”`
+          : 'on, but no profile (all sent)';
+    const scraping = settings.enabled
+      ? `every ${settings.everyMinutes} min, ${settings.fromHour}–${settings.toHour} (${z.tz})`
+      : '⏸ paused';
     await reply(
       `${state.muted ? '🔕 muted' : '🔔 active'}\n${n} queued\n🔎 scraping: ${scraping}\n✦ AI filter: ${ai}\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`,
     );

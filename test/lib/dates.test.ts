@@ -23,7 +23,18 @@ describe('calendar days', () => {
   });
 
   it('validDay rejects impossible, old or malformed dates', () => {
-    for (const bad of ['2026-02-29', '2026-13-01', '2026-04-31', '1999-12-31', '2026-1-01', ' 2026-10-01', '01.10.2026', '', null, undefined]) {
+    for (const bad of [
+      '2026-02-29',
+      '2026-13-01',
+      '2026-04-31',
+      '1999-12-31',
+      '2026-1-01',
+      ' 2026-10-01',
+      '01.10.2026',
+      '',
+      null,
+      undefined,
+    ]) {
       expect(validDay(bad)).toBe('');
     }
   });
@@ -88,7 +99,9 @@ describe('time zone names', () => {
 
   it('deviceTimeZone falls back to DEFAULT_TZ when the device reports nonsense', () => {
     expect(isTimeZone(deviceTimeZone())).toBe(true);
-    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({ timeZone: 'Nowhere/Land' } as Intl.ResolvedDateTimeFormatOptions);
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
+      timeZone: 'Nowhere/Land',
+    } as Intl.ResolvedDateTimeFormatOptions);
     expect(deviceTimeZone()).toBe(DEFAULT_TZ);
   });
 });
@@ -159,7 +172,15 @@ describe('zone()', () => {
   });
 
   it('startOfDay is on the day and one millisecond earlier is the day before, every day of the year', () => {
-    for (const tz of ['Europe/Warsaw', 'America/New_York', 'America/Santiago', 'America/Havana', 'Asia/Beirut', 'Australia/Lord_Howe', 'Asia/Kathmandu']) {
+    for (const tz of [
+      'Europe/Warsaw',
+      'America/New_York',
+      'America/Santiago',
+      'America/Havana',
+      'Asia/Beirut',
+      'Australia/Lord_Howe',
+      'Asia/Kathmandu',
+    ]) {
       const z = zone(tz);
       for (let d = '2026-01-01'; d < '2027-01-01'; d = addDays(d, 1)) {
         const start = z.startOfDay(d).getTime();
@@ -175,7 +196,10 @@ describe('zone()', () => {
     it('today, the last n days and yesterday', () => {
       expect(warsaw.resolveRange({ days: '1' }, now)).toEqual({ gte: '2026-10-01T22:00:00.000Z' });
       expect(warsaw.resolveRange({ days: '7' }, now)).toEqual({ gte: '2026-09-25T22:00:00.000Z' });
-      expect(warsaw.resolveRange({ days: 'yesterday' }, now)).toEqual({ gte: '2026-09-30T22:00:00.000Z', lt: '2026-10-01T22:00:00.000Z' });
+      expect(warsaw.resolveRange({ days: 'yesterday' }, now)).toEqual({
+        gte: '2026-09-30T22:00:00.000Z',
+        lt: '2026-10-01T22:00:00.000Z',
+      });
     });
 
     it('"today" depends on the zone: at 23:30 UTC it is already tomorrow in Warsaw', () => {
@@ -186,7 +210,9 @@ describe('zone()', () => {
 
     it('the last n days over a DST change start at local midnight', () => {
       // 31 Mar (summer time) back to 25 Mar (winter time)
-      expect(warsaw.resolveRange({ days: '7' }, at('2026-03-31T10:00:00Z'))).toEqual({ gte: '2026-03-24T23:00:00.000Z' });
+      expect(warsaw.resolveRange({ days: '7' }, at('2026-03-31T10:00:00Z'))).toEqual({
+        gte: '2026-03-24T23:00:00.000Z',
+      });
       // yesterday = 29 Mar, a 23-hour day
       expect(warsaw.resolveRange({ days: 'yesterday' }, at('2026-03-30T10:00:00Z'))).toEqual({
         gte: '2026-03-28T23:00:00.000Z',
@@ -198,8 +224,14 @@ describe('zone()', () => {
       const range = { gte: '2026-09-19T22:00:00.000Z', lt: '2026-09-28T22:00:00.000Z' };
       expect(warsaw.resolveRange({ from: '2026-09-20', to: '2026-09-28' }, now)).toEqual(range);
       expect(warsaw.resolveRange({ from: '2026-09-28', to: '2026-09-20' }, now)).toEqual(range);
-      expect(warsaw.resolveRange({ from: '2026-09-20' }, now)).toEqual({ gte: '2026-09-19T22:00:00.000Z', lt: undefined });
-      expect(warsaw.resolveRange({ to: '2026-09-28' }, now)).toEqual({ gte: undefined, lt: '2026-09-28T22:00:00.000Z' });
+      expect(warsaw.resolveRange({ from: '2026-09-20' }, now)).toEqual({
+        gte: '2026-09-19T22:00:00.000Z',
+        lt: undefined,
+      });
+      expect(warsaw.resolveRange({ to: '2026-09-28' }, now)).toEqual({
+        gte: undefined,
+        lt: '2026-09-28T22:00:00.000Z',
+      });
     });
 
     it('ignores bad input', () => {
@@ -208,7 +240,9 @@ describe('zone()', () => {
       expect(warsaw.resolveRange({ days: '2.5' }, now)).toEqual({});
       expect(warsaw.resolveRange({ from: '2026-02-30', to: 'x' }, now)).toEqual({});
       // a bad preset falls back to the dates
-      expect(warsaw.resolveRange({ days: 'abc', from: '2026-09-20' }, now)).toEqual({ gte: '2026-09-19T22:00:00.000Z' });
+      expect(warsaw.resolveRange({ days: 'abc', from: '2026-09-20' }, now)).toEqual({
+        gte: '2026-09-19T22:00:00.000Z',
+      });
     });
   });
 });

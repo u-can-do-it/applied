@@ -1,13 +1,26 @@
 'use client';
 
-import { startTransition, useEffect, useImperativeHandle, useRef, useState, useTransition, type FormEvent, type Ref } from 'react';
+import {
+  startTransition,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  useTransition,
+  type SubmitEvent,
+  type Ref,
+} from 'react';
 import { deleteProfileAction, saveProfileAction, selectProfileAction, type FormState } from './actions';
 
 export type ProfileOption = { id: string; name: string; prompt: string; fileName: string | null; version: number };
 
 const NEW = '__new__';
 
-export function ProfileDialog({ profiles, activeId, ref }: {
+export function ProfileDialog({
+  profiles,
+  activeId,
+  ref,
+}: {
   profiles: ProfileOption[];
   activeId: string | null;
   ref: Ref<{ open: () => void }>;
@@ -18,7 +31,7 @@ export function ProfileDialog({ profiles, activeId, ref }: {
   // what you typed whenever the save fails (e.g. a file that's too big)
   const [state, setState] = useState<FormState>({});
   const [saving, startSave] = useTransition();
-  const save = (e: FormEvent<HTMLFormElement>) => {
+  const save = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
     setState({});
@@ -86,7 +99,13 @@ export function ProfileDialog({ profiles, activeId, ref }: {
 
         <label className="field">
           <span>Name</span>
-          <input name="name" defaultValue={profile?.name ?? ''} placeholder="e.g. Frontend React" required maxLength={80} />
+          <input
+            name="name"
+            defaultValue={profile?.name ?? ''}
+            placeholder="e.g. Frontend React"
+            required
+            maxLength={80}
+          />
         </label>
 
         <label className="field">
@@ -120,8 +139,8 @@ export function ProfileDialog({ profiles, activeId, ref }: {
         </div>
 
         <p className="muted small">
-          Changing the text or the file re-checks this profile&apos;s offers on the next run. Renaming or switching profiles keeps what&apos;s
-          already been checked.
+          Changing the text or the file re-checks this profile&apos;s offers on the next run. Renaming or switching
+          profiles keeps what&apos;s already been checked.
         </p>
 
         {state.error && <p className="form-error">{state.error}</p>}
@@ -151,10 +170,12 @@ export function ProfileDialog({ profiles, activeId, ref }: {
               className="secondary"
               disabled={busy || saving}
               aria-busy={busy || undefined}
-              onClick={() => startBusy(async () => {
-                await selectProfileAction(profile.id);
-                close();
-              })}
+              onClick={() =>
+                startBusy(async () => {
+                  await selectProfileAction(profile.id);
+                  close();
+                })
+              }
             >
               Use without changes
             </button>

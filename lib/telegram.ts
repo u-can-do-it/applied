@@ -11,7 +11,7 @@ const api = (method: string) =>
   `${process.env.TELEGRAM_API_URL ?? 'https://api.telegram.org'}/bot${process.env.TELEGRAM_BOT_TOKEN}/${method}`;
 
 export const telegramReady = () => Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
-export const ownerChat = () => String(process.env.TELEGRAM_CHAT_ID ?? '');
+export const ownerChat = () => process.env.TELEGRAM_CHAT_ID ?? '';
 
 async function call<T>(method: string, body: Record<string, unknown> = {}): Promise<T> {
   for (let attempt = 0; ; attempt++) {
@@ -22,7 +22,12 @@ async function call<T>(method: string, body: Record<string, unknown> = {}): Prom
       signal: AbortSignal.timeout(15_000),
       cache: 'no-store',
     });
-    const data = (await res.json().catch(() => null)) as { ok: boolean; result?: T; description?: string; parameters?: { retry_after?: number } } | null;
+    const data = (await res.json().catch(() => null)) as {
+      ok: boolean;
+      result?: T;
+      description?: string;
+      parameters?: { retry_after?: number };
+    } | null;
     if (data?.ok) return data.result as T;
     // too many messages at once: Telegram says how long to wait
     const wait = data?.parameters?.retry_after;
@@ -42,7 +47,9 @@ export type Message = { text: string; offers: Queued[] };
 
 const offerText = (o: Outgoing) => {
   const where = o.remote ? 'zdalnie' : o.location || 'stacjonarnie';
-  const ai = o.verdict ? `\n✦ ${o.verdict.score}%${o.verdict.summary ? ` · ${o.verdict.summary.slice(0, 160)}` : ''}` : '';
+  const ai = o.verdict
+    ? `\n✦ ${o.verdict.score}%${o.verdict.summary ? ` · ${o.verdict.summary.slice(0, 160)}` : ''}`
+    : '';
   return `🆕 ${o.title}\n${[o.company, o.seniority, where].filter(Boolean).join(' · ')}${ai}\n${o.url}`;
 };
 
@@ -52,7 +59,7 @@ function blocks(offers: Outgoing[], heading?: string): Message[] {
   for (const o of offers) bySrc.set(o.src, [...(bySrc.get(o.src) ?? []), o]);
   const out: Message[] = [];
   for (const src of [...bySrc.keys()].sort()) {
-    const list = bySrc.get(src)!;
+    const list = bySrc.get(src) ?? [];
     for (let i = 0; i < list.length; i += BATCH) {
       const part = list.slice(i, i + BATCH);
       let text = part.map(offerText).join('\n\n');
@@ -84,7 +91,10 @@ export function formatNotification(n: {
     if (out.length) {
       // a line under the last message, so it doesn't cost a message of its own
       const last = out[out.length - 1];
-      out[out.length - 1] = { text: `${last.text}\n\n+ ${what} didn't match “${n.profile}”.`, offers: [...last.offers, ...n.unmatched] };
+      out[out.length - 1] = {
+        text: `${last.text}\n\n+ ${what} didn't match “${n.profile}”.`,
+        offers: [...last.offers, ...n.unmatched],
+      };
     } else {
       out.push({ text: `🆕 ${what}, none matched “${n.profile}”.${n.link ? `\n${n.link}` : ''}`, offers: n.unmatched });
     }
@@ -99,7 +109,12 @@ export function formatNotification(n: {
 export const webhookSecret = () => hmac(process.env.TELEGRAM_BOT_TOKEN ?? '', 'jobwatch-telegram-v1');
 
 export async function connectWebhook(url: string) {
-  await call('setWebhook', { url, secret_token: await webhookSecret(), allowed_updates: ['message'], drop_pending_updates: true });
+  await call('setWebhook', {
+    url,
+    secret_token: await webhookSecret(),
+    allowed_updates: ['message'],
+    drop_pending_updates: true,
+  });
 }
 export const disconnectWebhook = () => call('deleteWebhook', { drop_pending_updates: false });
 
@@ -110,5 +125,10 @@ export async function botInfo(): Promise<BotInfo> {
     call<{ username?: string }>('getMe'),
     call<{ url?: string; last_error_message?: string; pending_update_count?: number }>('getWebhookInfo'),
   ]);
-  return { username: me.username ?? null, webhook: hook.url || null, webhookError: hook.last_error_message ?? null, pending: hook.pending_update_count ?? 0 };
+  return {
+    username: me.username ?? null,
+    webhook: hook.url || null,
+    webhookError: hook.last_error_message ?? null,
+    pending: hook.pending_update_count ?? 0,
+  };
 }

@@ -45,19 +45,25 @@ export function AutoRefresh() {
     const due = (ms: number) => document.visibilityState === 'visible' && Date.now() - lastCheck > ms;
 
     // the visit's first page: learn the version it shows; another one: ask only if it's been a minute
-    if (due(known === null ? 0 : EVERY_MS)) check();
+    if (due(known === null ? 0 : EVERY_MS)) void check();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- module state shared by the visit's pages; not known while rendering on the server
     else setCheckedAt(lastCheck || null);
 
     // a ticker rather than a 60 s interval: each page restarts this, but the minute is the visit's
-    const id = setInterval(() => due(EVERY_MS) && check(), 5_000);
-    const onVisible = () => due(ON_RETURN_MS) && check();
+    const id = setInterval(() => {
+      if (due(EVERY_MS)) void check();
+    }, 5_000);
+    const onVisible = () => {
+      if (due(ON_RETURN_MS)) void check();
+    };
+    const onOnline = () => void check();
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', check);
+    window.addEventListener('online', onOnline);
     return () => {
       shown = false;
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', check);
+      window.removeEventListener('online', onOnline);
     };
   }, [router]);
 

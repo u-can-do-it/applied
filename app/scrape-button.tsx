@@ -27,7 +27,9 @@ export function ScrapeButton() {
           : {
               text: `${r.added ? `${r.added} new` : 'nothing new'}${r.errors.length ? ` · ⚠ ${r.errors.length}` : ''}`,
               title: `${r.found} on the pages, ${r.kept} after filters, ${r.added} new${
-                r.notifyLater ? ' · the AI check and Telegram run in the background' : `, ${r.notified} sent to Telegram`
+                r.notifyLater
+                  ? ' · the AI check and Telegram run in the background'
+                  : `, ${r.notified} sent to Telegram`
               }${errors ? `\n\n${errors}` : ''}`,
               bad: r.errors.length > 0,
             };
@@ -45,7 +47,13 @@ export function ScrapeButton() {
           {result.text}
         </span>
       )}
-      <button type="button" className="secondary small-button" onClick={run} disabled={busy} aria-busy={busy || undefined}>
+      <button
+        type="button"
+        className="secondary small-button"
+        onClick={run}
+        disabled={busy}
+        aria-busy={busy || undefined}
+      >
         {busy ? 'Scraping…' : '↻ Scrape now'}
       </button>
     </span>

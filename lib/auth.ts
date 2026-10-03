@@ -9,7 +9,9 @@ export const authEnabled = () => Boolean(process.env.APP_PASSWORD);
 
 export async function hmac(secret: string, message: string) {
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
+    'sign',
+  ]);
   const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
   return Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -25,7 +27,7 @@ export function sameString(a: string, b: string) {
 
 export async function isValidToken(token: string | undefined) {
   if (!authEnabled()) return true;
-  return Boolean(token) && sameString(token!, await authToken());
+  return token ? sameString(token, await authToken()) : false;
 }
 
 export async function isValidPassword(password: string) {

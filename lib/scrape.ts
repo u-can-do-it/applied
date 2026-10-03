@@ -7,7 +7,8 @@
 
 import { parse as parseHtml } from 'node-html-parser';
 
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const AI_CHARS = 8000; // per offer for the AI; requirements come first on every board
 const FULL_CHARS = 200_000; // "complete" text for applications, with a sanity cap
 const TIMEOUT_MS = 12_000;
@@ -24,24 +25,38 @@ export type JobDetails = {
 };
 export type Scraped = { status: 'ok' | 'empty'; text: string; details: JobDetails };
 
-const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–', mdash: '—', hellip: '…', bull: '•' };
+const ENTITIES: Partial<Record<string, string>> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  ndash: '–',
+  mdash: '—',
+  hellip: '…',
+  bull: '•',
+};
 function decodeEntities(s: string) {
   return s
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
-    .replace(/&([a-z]+);/gi, (m, n) => ENTITIES[n.toLowerCase()] ?? m);
+    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
+    .replace(/&([a-z]+);/gi, (m, n: string) => ENTITIES[n.toLowerCase()] ?? m);
 }
 
 // a real tag starts with a letter, "/" or "!": in "a < b and c > d" the signs are text
 const TAG = /<\/?[a-z!][^<>]*>/gi;
 const ESCAPED_TAG = /&lt;\/?[a-z!][^<>]*?&gt;/gi;
+// untyped JSON from a board (a string, a number, an array of them…) printed the way String() prints it
+// eslint-disable-next-line @typescript-eslint/no-base-to-string -- the value is untyped JSON; String() is the conversion we want
+const str = (v: unknown) => String(v ?? '');
 const count = (s: string, re: RegExp) => s.match(re)?.length ?? 0;
 // comments and <?xml …?> go first: a "<" or ">" inside them would cut the tag pass short
 const dropComments = (s: string) => s.replace(/<!--[\s\S]*?-->|<\?[\s\S]*?\?>/g, ' ');
 
 /** HTML (possibly entity-escaped, as inside JSON-LD) -> readable plain text with line breaks and bullets */
 export function htmlToText(html: unknown): string {
-  let s = dropComments(String(html ?? ''));
+  let s = dropComments(str(html));
   // at least as many escaped tags as real ones (JSON-LD): HTML escaped as text, decoded first
   // ("&lt;li&gt;" -> "<li>"); otherwise an escaped tag is text ("knowledge of &lt;canvas&gt;"),
   // decoded after the tags go
@@ -71,19 +86,33 @@ const asText = (v: unknown): string => {
 };
 
 const day = (v: unknown) => {
-  const s = typeof v === 'number' ? new Date(v).toISOString() : String(v ?? '');
+  const s = typeof v === 'number' ? new Date(v).toISOString() : str(v);
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : undefined;
 };
-const money = (n: unknown) => (typeof n === 'number' ? n.toLocaleString('pl-PL') : String(n ?? ''));
+const money = (n: unknown) => (typeof n === 'number' ? n.toLocaleString('pl-PL') : str(n));
 const unit = (u: unknown) => {
-  const x = String(u ?? '').toLowerCase();
-  return ({ hour: 'hour', day: 'day', week: 'week', month: 'month', year: 'year' } as Record<string, string>)[x] ?? x;
+  const x = str(u).toLowerCase();
+  return (
+    ({ hour: 'hour', day: 'day', week: 'week', month: 'month', year: 'year' } as Partial<Record<string, string>>)[x] ??
+    x
+  );
 };
-const CONTRACTS: Record<string, string> = {
-  FULL_TIME: 'Full-time', PART_TIME: 'Part-time', CONTRACTOR: 'B2B / contract', TEMPORARY: 'Temporary',
-  INTERN: 'Internship', PER_DIEM: 'Per diem', OTHER: 'Other',
-  b2b: 'B2B', permanent: 'Permanent (UoP)', zlecenie: 'Mandate (zlecenie)', uop: 'Permanent (UoP)',
-  mandate_contract: 'Mandate (zlecenie)', specific_task_contract: 'Specific-task (o dzieło)', internship: 'Internship', any: 'Any',
+const CONTRACTS: Partial<Record<string, string>> = {
+  FULL_TIME: 'Full-time',
+  PART_TIME: 'Part-time',
+  CONTRACTOR: 'B2B / contract',
+  TEMPORARY: 'Temporary',
+  INTERN: 'Internship',
+  PER_DIEM: 'Per diem',
+  OTHER: 'Other',
+  b2b: 'B2B',
+  permanent: 'Permanent (UoP)',
+  zlecenie: 'Mandate (zlecenie)',
+  uop: 'Permanent (UoP)',
+  mandate_contract: 'Mandate (zlecenie)',
+  specific_task_contract: 'Specific-task (o dzieło)',
+  internship: 'Internship',
+  any: 'Any',
 };
 const unique = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => Boolean(x)))];
 
@@ -95,16 +124,16 @@ function findJobPosting(html: string): Record<string, unknown> | null {
     } catch {
       continue;
     }
-    const stack = [data];
+    const stack: unknown[] = [data];
     while (stack.length) {
       const x = stack.pop();
       if (!x || typeof x !== 'object') continue;
       if (Array.isArray(x)) {
-        stack.push(...x);
+        stack.push(...(x as unknown[]));
         continue;
       }
       const o = x as Record<string, unknown>;
-      if ([].concat((o['@type'] as never) ?? []).includes('JobPosting' as never)) return o;
+      if (([] as unknown[]).concat(o['@type'] ?? []).includes('JobPosting')) return o;
       if (o['@graph']) stack.push(o['@graph']);
     }
   }
@@ -113,20 +142,32 @@ function findJobPosting(html: string): Record<string, unknown> | null {
 
 function detailsFromJobPosting(jp: Record<string, unknown>): JobDetails {
   const salaries = ([] as unknown[]).concat(jp.baseSalary ?? []).map((s) => {
-    const m = s as { currency?: string; value?: { minValue?: number; maxValue?: number; value?: number; unitText?: string } };
+    const m = s as {
+      currency?: string;
+      value?: { minValue?: number; maxValue?: number; value?: number; unitText?: string };
+    } | null;
     const v = m?.value ?? {};
-    const range = v.minValue != null && v.maxValue != null ? `${money(v.minValue)}–${money(v.maxValue)}` : money(v.value ?? v.minValue ?? v.maxValue);
-    return range ? `${range} ${m.currency ?? ''}${v.unitText ? ` / ${unit(v.unitText)}` : ''}`.replace(/\s+/g, ' ').trim() : undefined;
+    const range =
+      v.minValue != null && v.maxValue != null
+        ? `${money(v.minValue)}–${money(v.maxValue)}`
+        : money(v.value ?? v.minValue ?? v.maxValue);
+    return range
+      ? `${range} ${m?.currency ?? ''}${v.unitText ? ` / ${unit(v.unitText)}` : ''}`.replace(/\s+/g, ' ').trim()
+      : undefined;
   });
-  const places = ([] as unknown[]).concat(jp.jobLocation ?? []).map((p) => (p as { address?: { addressLocality?: string } })?.address?.addressLocality);
+  const places = ([] as unknown[])
+    .concat(jp.jobLocation ?? [])
+    .map((p) => (p as { address?: { addressLocality?: string } } | null)?.address?.addressLocality);
   return {
     salary: unique(salaries).join('; ') || undefined,
-    contract: unique(([] as unknown[]).concat(jp.employmentType ?? []).map((t) => CONTRACTS[String(t)] ?? String(t))).join(', ') || undefined,
+    contract:
+      unique(([] as unknown[]).concat(jp.employmentType ?? []).map((t) => CONTRACTS[str(t)] ?? str(t))).join(', ') ||
+      undefined,
     location: unique(places).join(', ') || undefined,
-    remote: String(jp.jobLocationType ?? '').toUpperCase() === 'TELECOMMUTE' || undefined,
+    remote: str(jp.jobLocationType).toUpperCase() === 'TELECOMMUTE' || undefined,
     posted: day(jp.datePosted),
     validUntil: day(jp.validThrough),
-    company: asText((jp.hiringOrganization as { name?: string })?.name) || undefined,
+    company: asText((jp.hiringOrganization as { name?: string } | undefined)?.name) || undefined,
   };
 }
 
@@ -152,16 +193,69 @@ async function get(url: string, accept = 'text/html,application/json') {
   return res;
 }
 
+// the parts of the boards' offer APIs that are read below; all of it may be missing
+type Language = { code?: string; level?: string };
+type NofluffPosting = {
+  specs?: { dailyTasks?: unknown[] };
+  requirements?: {
+    musts?: { value?: string }[];
+    nices?: { value?: string }[];
+    languages?: Language[];
+    description?: string;
+  };
+  basics?: { seniority?: string[] };
+  details?: { description?: string };
+  essentials?: {
+    originalSalary?: { currency?: string; types?: Record<string, { period?: string; range?: number[] }> };
+  };
+  location?: { places?: { city?: string }[] };
+  posted?: number;
+  expiresAt?: number;
+  company?: { name?: string };
+};
+type Skill = { name?: string; level?: number };
+// employmentTypes also lists conversions to other currencies: keep the offer's own
+// from / to are monthly amounts; fromPerUnit / toPerUnit are per `unit` (100 PLN / hour, not 16 800)
+type Pay = {
+  from?: number;
+  to?: number;
+  fromPerUnit?: number;
+  toPerUnit?: number;
+  currency?: string;
+  currencySource?: string;
+  type?: string;
+  unit?: string;
+};
+type JustjoinOffer = {
+  requiredSkills?: Skill[];
+  niceToHaveSkills?: Skill[];
+  experienceLevel?: string;
+  languages?: Language[];
+  body?: string;
+  employmentTypes?: Pay[];
+  workplaceType?: string;
+  city?: string;
+  publishedAt?: string;
+  expiredAt?: string;
+  companyName?: string;
+};
+const languages = (xs: Language[]) => xs.map((l) => [l.code, l.level].filter(Boolean).join(' ')).join(', ');
+
 async function nofluff(id: string) {
-  const p = await (await get(`https://nofluffjobs.com/api/posting/${encodeURIComponent(id)}`)).json();
-  const list = (xs: { value?: string }[] | undefined) => (xs ?? []).map((x) => x.value).filter(Boolean).join(', ');
-  const tasks = (p.specs?.dailyTasks ?? []).map((t: string) => `• ${String(t).trim()}`).join('\n');
+  const p = (await (
+    await get(`https://nofluffjobs.com/api/posting/${encodeURIComponent(id)}`)
+  ).json()) as NofluffPosting;
+  const list = (xs: { value?: string }[] | undefined) =>
+    (xs ?? [])
+      .map((x) => x.value)
+      .filter(Boolean)
+      .join(', ');
+  const tasks = (p.specs?.dailyTasks ?? []).map((t) => `• ${str(t).trim()}`).join('\n');
   const text = [
-    list(p.requirements?.musts) && `Must have: ${list(p.requirements.musts)}`,
-    list(p.requirements?.nices) && `Nice to have: ${list(p.requirements.nices)}`,
+    list(p.requirements?.musts) && `Must have: ${list(p.requirements?.musts)}`,
+    list(p.requirements?.nices) && `Nice to have: ${list(p.requirements?.nices)}`,
     p.basics?.seniority?.length && `Seniority: ${p.basics.seniority.join(', ')}`,
-    (p.requirements?.languages ?? []).length &&
-      `Languages: ${p.requirements.languages.map((l: { code?: string; level?: string }) => [l.code, l.level].filter(Boolean).join(' ')).join(', ')}`,
+    p.requirements?.languages?.length && `Languages: ${languages(p.requirements.languages)}`,
     htmlToText(p.requirements?.description),
     tasks && `Daily tasks:\n${tasks}`,
     htmlToText(p.details?.description),
@@ -170,10 +264,18 @@ async function nofluff(id: string) {
     .join('\n\n');
 
   const sal = p.essentials?.originalSalary;
-  const types = Object.entries((sal?.types ?? {}) as Record<string, { period?: string; range?: number[] }>);
-  const cities = ((p.location?.places ?? []) as { city?: string }[]).map((pl) => pl.city);
+  const types = Object.entries(sal?.types ?? {});
+  const cities = (p.location?.places ?? []).map((pl) => pl.city);
   const details: JobDetails = {
-    salary: types.map(([k, t]) => `${(t.range ?? []).map(money).join('–')} ${sal?.currency ?? ''} / ${unit(t.period)} (${CONTRACTS[k] ?? k})`.replace(/\s+/g, ' ')).join('; ') || undefined,
+    salary:
+      types
+        .map(([k, t]) =>
+          `${(t.range ?? []).map(money).join('–')} ${sal?.currency ?? ''} / ${unit(t.period)} (${CONTRACTS[k] ?? k})`.replace(
+            /\s+/g,
+            ' ',
+          ),
+        )
+        .join('; ') || undefined,
     contract: unique(types.map(([k]) => CONTRACTS[k] ?? k)).join(', ') || undefined,
     location: unique(cities.filter((c) => c && c !== 'Remote')).join(', ') || undefined,
     remote: cities.includes('Remote') || undefined,
@@ -185,34 +287,51 @@ async function nofluff(id: string) {
 }
 
 async function justjoin(slug: string) {
-  const j = await (await get(`https://justjoin.it/api/candidate-api/offers/${encodeURIComponent(slug)}`, 'application/json')).json();
-  type Skill = { name?: string; level?: number };
-  const skills = (xs: Skill[] | undefined) => (xs ?? []).map((x) => (x.level ? `${x.name} (${x.level}/5)` : x.name)).filter(Boolean).join(', ');
+  const j = (await (
+    await get(`https://justjoin.it/api/candidate-api/offers/${encodeURIComponent(slug)}`, 'application/json')
+  ).json()) as JustjoinOffer;
+  const skills = (xs: Skill[] | undefined) =>
+    (xs ?? [])
+      .map((x) => (x.level ? `${x.name} (${x.level}/5)` : x.name))
+      .filter(Boolean)
+      .join(', ');
   const text = [
     skills(j.requiredSkills) && `Must have: ${skills(j.requiredSkills)}`,
     skills(j.niceToHaveSkills) && `Nice to have: ${skills(j.niceToHaveSkills)}`,
     j.experienceLevel && `Seniority: ${j.experienceLevel}`,
-    (j.languages ?? []).length && `Languages: ${j.languages.map((l: { code?: string; level?: string }) => [l.code, l.level].filter(Boolean).join(' ')).join(', ')}`,
+    j.languages?.length && `Languages: ${languages(j.languages)}`,
     htmlToText(j.body),
   ]
     .filter(Boolean)
     .join('\n\n');
 
-  // employmentTypes also lists conversions to other currencies: keep the offer's own
-  // from / to are monthly amounts; fromPerUnit / toPerUnit are per `unit` (100 PLN / hour, not 16 800)
-  type Pay = { from?: number; to?: number; fromPerUnit?: number; toPerUnit?: number; currency?: string; currencySource?: string; type?: string; unit?: string };
   const amount = (perUnit?: number, monthly?: number) => {
     const v = perUnit ?? monthly;
     return v == null ? undefined : Math.round(v * 100) / 100;
   };
-  const pay = ((j.employmentTypes ?? []) as Pay[]).filter((e) => e.currencySource !== 'conversion');
-  const workplace = String(j.workplaceType ?? '');
+  const pay = (j.employmentTypes ?? []).filter((e) => e.currencySource !== 'conversion');
+  const workplace = str(j.workplaceType);
   const details: JobDetails = {
-    salary: unique(pay.filter((e) => e.from || e.to).map((e) =>
-      `${[amount(e.fromPerUnit, e.from), amount(e.toPerUnit, e.to)].filter((x) => x != null).map(money).join('–')} ${e.currency?.toUpperCase() ?? ''} / ${unit(e.unit)} (${CONTRACTS[e.type ?? ''] ?? e.type})`.replace(/\s+/g, ' '),
-    )).join('; ') || undefined,
+    salary:
+      unique(
+        pay
+          .filter((e) => e.from || e.to)
+          .map((e) =>
+            `${[amount(e.fromPerUnit, e.from), amount(e.toPerUnit, e.to)]
+              .filter((x) => x != null)
+              .map(money)
+              .join(
+                '–',
+              )} ${e.currency?.toUpperCase() ?? ''} / ${unit(e.unit)} (${CONTRACTS[e.type ?? ''] ?? e.type})`.replace(
+              /\s+/g,
+              ' ',
+            ),
+          ),
+      ).join('; ') || undefined,
     contract: unique(pay.map((e) => CONTRACTS[e.type ?? ''] ?? e.type)).join(', ') || undefined,
-    location: j.city ? `${j.city}${workplace === 'hybrid' ? ' (hybrid)' : workplace === 'office' ? ' (office)' : ''}` : undefined,
+    location: j.city
+      ? `${j.city}${workplace === 'hybrid' ? ' (hybrid)' : workplace === 'office' ? ' (office)' : ''}`
+      : undefined,
     remote: workplace === 'remote' || undefined,
     posted: day(j.publishedAt),
     validUntil: day(j.expiredAt),
@@ -235,13 +354,17 @@ function builtinBody(html: string) {
 const LI_CONTRACT = ['Employment type', 'Forma zatrudnienia', 'Rodzaj zatrudnienia'];
 
 async function linkedin(id: string) {
-  const html = await (await get(`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${encodeURIComponent(id)}`, 'text/html')).text();
+  const html = await (
+    await get(`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${encodeURIComponent(id)}`, 'text/html')
+  ).text();
   const root = parseHtml(html);
   const one = (sel: string) => root.querySelector(sel)?.text.replace(/\s+/g, ' ').trim() || undefined;
-  const criteria = root.querySelectorAll('.description__job-criteria-item').map((li) => [
-    li.querySelector('.description__job-criteria-subheader')?.text.trim() ?? '',
-    li.querySelector('.description__job-criteria-text')?.text.replace(/\s+/g, ' ').trim() ?? '',
-  ]);
+  const criteria = root
+    .querySelectorAll('.description__job-criteria-item')
+    .map((li) => [
+      li.querySelector('.description__job-criteria-subheader')?.text.trim() ?? '',
+      li.querySelector('.description__job-criteria-text')?.text.replace(/\s+/g, ' ').trim() ?? '',
+    ]);
   const description = htmlToText(root.querySelector('.show-more-less-html__markup')?.innerHTML ?? '');
   const details: JobDetails = {
     company: one('.topcard__org-name-link'),
@@ -288,7 +411,9 @@ async function scrape(copy: { src: string; id: string; url: string }): Promise<{
 
 const result = (r: { text: string; details: JobDetails }, max: number): Scraped => {
   const text = r.text.trim();
-  return text.length >= 80 ? { status: 'ok', text: text.slice(0, max), details: r.details } : { status: 'empty', text: '', details: r.details };
+  return text.length >= 80
+    ? { status: 'ok', text: text.slice(0, max), details: r.details }
+    : { status: 'empty', text: '', details: r.details };
 };
 
 /** For the AI: the ad text, capped. Only network / HTTP errors throw, so they can be retried later. */
@@ -310,7 +435,9 @@ export async function readJobPage(copy: { src: string; id: string; url: string }
   let pageTitle = '';
   try {
     const html = await (await get(copy.url, 'text/html')).text();
-    pageTitle = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').replace(/\s+/g, ' ').trim();
+    pageTitle = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
     if (r.text.trim().length < 80) {
       const jp = findJobPosting(html);
       r = jp

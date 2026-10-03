@@ -1,14 +1,40 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, useTransition, type Ref } from 'react';
+import {
+  useEffect,
+  useEffectEvent,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type Ref,
+} from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 import { formatDay } from '@/lib/dates';
 import {
-  GHOST_AFTER_DAYS, isActive, isRejected, reached, STAGES, STATES, stageOf, stateHeading, stateLabel, statesFor, stats,
-  type HistoryEntry, type StageId, type StateId,
+  GHOST_AFTER_DAYS,
+  isActive,
+  isRejected,
+  reached,
+  STAGES,
+  STATES,
+  stageOf,
+  stateHeading,
+  stateLabel,
+  statesFor,
+  stats,
+  type StageId,
+  type StateId,
 } from '@/lib/stages';
-import { refetchContentAction, removeStatusStepAction, setApplicationNoteAction, setApplicationStatusAction, unapplyAction } from '../actions';
+import {
+  refetchContentAction,
+  removeStatusStepAction,
+  setApplicationNoteAction,
+  setApplicationStatusAction,
+  unapplyAction,
+} from '../actions';
 import { SearchIcon } from '../search-box';
 import { TimeZone, useZone } from '../time-zone';
 import { AddApplication, ApplicationForm } from './add-application';
@@ -54,13 +80,18 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
     () => fromServer.map((a) => (a.dup_key in notes ? { ...a, note: notes[a.dup_key] } : a)),
     [fromServer, notes],
   );
-  useEffect(() => {
+  // a new list from the server: keep only what the database doesn't have yet (and nothing for offers
+  // no longer applied). Adjusted while rendering, not in an effect, so there's no extra render.
+  const [notesOf, setNotesOf] = useState(fromServer);
+  if (notesOf !== fromServer) {
+    setNotesOf(fromServer);
     setNotes((cur) => {
-      // keep only what the database doesn't have yet (and nothing for offers no longer applied)
-      const left = Object.fromEntries(Object.entries(cur).filter(([k, v]) => fromServer.some((a) => a.dup_key === k && a.note !== v)));
+      const left = Object.fromEntries(
+        Object.entries(cur).filter(([k, v]) => fromServer.some((a) => a.dup_key === k && a.note !== v)),
+      );
       return Object.keys(left).length === Object.keys(cur).length ? cur : left;
     });
-  }, [fromServer]);
+  }
 
   // ad texts are scraped in the background right after marking: refresh until they're in
   useEffect(() => {
@@ -72,7 +103,9 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
   const shown = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     return apps.filter(
-      (a) => (!filter || filter.test(a)) && words.every((w) => `${a.title} ${a.company ?? ''} ${a.note ?? ''}`.toLowerCase().includes(w)),
+      (a) =>
+        (!filter || filter.test(a)) &&
+        words.every((w) => `${a.title} ${a.company ?? ''} ${a.note ?? ''}`.toLowerCase().includes(w)),
     );
   }, [apps, q, filter]);
 
@@ -80,8 +113,8 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
     return (
       <div className="empty">
         <p>
-          Nothing here yet. Use <strong>Mark applied</strong> on an offer: it shows up here with its complete ad text. Or add one you sent
-          elsewhere:
+          Nothing here yet. Use <strong>Mark applied</strong> on an offer: it shows up here with its complete ad text.
+          Or add one you sent elsewhere:
         </p>
         <AddApplication />
       </div>
@@ -95,7 +128,13 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
       <div className="applied-tools">
         <div className="search">
           <SearchIcon />
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title, company or note…" aria-label="Search applied offers" />
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search title, company or note…"
+            aria-label="Search applied offers"
+          />
         </div>
         <AddApplication />
       </div>
@@ -161,19 +200,58 @@ function StatusChip({ stage, state }: { stage: StageId; state: StateId }) {
 
 // ---- statistics ----------------------------------------------------------------------
 
-function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter: Filter; setFilter: (f: Filter) => void }) {
+function AppliedStats({
+  apps,
+  filter,
+  setFilter,
+}: {
+  apps: Application[];
+  filter: Filter;
+  setFilter: (f: Filter) => void;
+}) {
   const s = useMemo(() => stats(apps), [apps]);
-  const pick = (label: string, test: (a: Application) => boolean) => () => setFilter(filter?.label === label ? null : { label, test });
+  const pick = (label: string, test: (a: Application) => boolean) => () =>
+    setFilter(filter?.label === label ? null : { label, test });
   const on = (label: string) => (filter?.label === label ? 'true' : undefined);
 
   const tiles = [
     { label: 'Sent', value: s.sent, sub: '', test: () => true, cls: '' },
-    { label: 'Positive replies', value: s.positive, sub: pct(s.positive, s.sent), test: (a: Application) => a.stage !== 'submitted', cls: 'good' },
-    { label: 'Offers', value: s.offers, sub: pct(s.offers, s.sent), test: (a: Application) => a.stage === 'offer', cls: 'good' },
+    {
+      label: 'Positive replies',
+      value: s.positive,
+      sub: pct(s.positive, s.sent),
+      test: (a: Application) => a.stage !== 'submitted',
+      cls: 'good',
+    },
+    {
+      label: 'Offers',
+      value: s.offers,
+      sub: pct(s.offers, s.sent),
+      test: (a: Application) => a.stage === 'offer',
+      cls: 'good',
+    },
     { label: 'In progress', value: s.active, sub: '', test: (a: Application) => isActive(a), cls: '' },
-    { label: 'Rejected', value: s.rejected, sub: pct(s.rejected, s.sent), test: (a: Application) => isRejected(a), cls: 'bad' },
-    { label: 'Ghosted', value: s.ghosted, sub: pct(s.ghosted, s.sent), test: (a: Application) => a.stage_state === 'ghosted', cls: 'bad' },
-    { label: stateHeading('pool'), value: s.pool, sub: pct(s.pool, s.sent), test: (a: Application) => a.stage_state === 'pool', cls: 'bad' },
+    {
+      label: 'Rejected',
+      value: s.rejected,
+      sub: pct(s.rejected, s.sent),
+      test: (a: Application) => isRejected(a),
+      cls: 'bad',
+    },
+    {
+      label: 'Ghosted',
+      value: s.ghosted,
+      sub: pct(s.ghosted, s.sent),
+      test: (a: Application) => a.stage_state === 'ghosted',
+      cls: 'bad',
+    },
+    {
+      label: stateHeading('pool'),
+      value: s.pool,
+      sub: pct(s.pool, s.sent),
+      test: (a: Application) => a.stage_state === 'pool',
+      cls: 'bad',
+    },
   ];
 
   return (
@@ -202,7 +280,10 @@ function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter
           return (
             <li key={f.stage}>
               <button type="button" aria-pressed={on(label)} onClick={pick(label, (a) => a.stage === f.stage)}>
-                <span className="funnel-bar" style={{ width: `${s.sent ? Math.max(4, (f.count / s.sent) * 100) : 0}%` }} />
+                <span
+                  className="funnel-bar"
+                  style={{ width: `${s.sent ? Math.max(4, (f.count / s.sent) * 100) : 0}%` }}
+                />
                 <span className="funnel-text">
                   <strong>{f.count}</strong> {label}
                   <span className="muted"> · {pct(f.count, s.sent)} of sent</span>
@@ -234,11 +315,21 @@ function AppliedStats({ apps, filter, setFilter }: { apps: Application[]; filter
                   const n = s.byStage[st.id][x.id];
                   const label = `${st.short} · ${stateLabel(st.id, x.id)}`;
                   // an offer has its own outcomes (Received / Accepted / Rejected) and is never ghosted
-                  if (!statesFor(st.id).some((y) => y.id === x.id)) return <td key={x.id} className="muted">–</td>;
+                  if (!statesFor(st.id).some((y) => y.id === x.id))
+                    return (
+                      <td key={x.id} className="muted">
+                        –
+                      </td>
+                    );
                   return (
                     <td key={x.id}>
                       {n ? (
-                        <button type="button" className="link" aria-pressed={on(label)} onClick={pick(label, (a) => a.stage === st.id && a.stage_state === x.id)}>
+                        <button
+                          type="button"
+                          className="link"
+                          aria-pressed={on(label)}
+                          onClick={pick(label, (a) => a.stage === st.id && a.stage_state === x.id)}
+                        >
                           {n}
                         </button>
                       ) : (
@@ -269,11 +360,18 @@ const noteValue = (text: string) => (text.trim() ? text : null); // as the datab
 
 async function loadApplication(key: string) {
   const res = await fetch(`/api/application?key=${encodeURIComponent(key)}`, { cache: 'no-store' });
-  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `HTTP ${res.status}`);
+  }
   return (await res.json()) as ApplicationWithContent;
 }
 
-function AdModal({ initial, labels, onClose }: {
+function AdModal({
+  initial,
+  labels,
+  onClose,
+}: {
   initial: Application;
   labels: Record<string, string>;
   onClose: (note: string | null | undefined, key: string) => void;
@@ -308,12 +406,16 @@ function AdModal({ initial, labels, onClose }: {
     }
   };
 
-  const opened = useEffectEvent(follow);
+  const opened = useEffectEvent(() => {
+    void follow();
+  });
   useEffect(() => {
     if (!dialog.current?.open) dialog.current?.showModal();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- follow() sets state only after its fetch, not synchronously
     opened();
+    const loads = run;
     return () => {
-      run.current++; // closed: stop looking
+      loads.current++; // closed: stop looking
     };
   }, []);
 
@@ -330,7 +432,12 @@ function AdModal({ initial, labels, onClose }: {
   const setStatus = (stage: StageId, state: StateId) => {
     if (stage === app.stage && state === app.stage_state) return;
     run.current++; // a load already on its way would bring the old status back
-    setApp({ ...app, stage, stage_state: state, history: [...(app.history ?? []), { stage, state, at: new Date().toISOString() }] });
+    setApp({
+      ...app,
+      stage,
+      stage_state: state,
+      history: [...app.history, { stage, state, at: new Date().toISOString() }],
+    });
     act(async () => {
       const res = await setApplicationStatusAction(key, stage, state);
       if (res.error) throw new Error(res.error);
@@ -341,13 +448,19 @@ function AdModal({ initial, labels, onClose }: {
   // a step clicked by mistake: out of the history with every step after it, the status goes back
   // to the step before
   const removeStep = (i: number) => {
-    const all = app.history ?? [];
+    const all = app.history;
     const h = all[i];
     const later = all.length - 1 - i;
-    if (later > 0 && !confirm(`Remove “${stageOf(h.stage).label} · ${stateLabel(h.stage, h.state)}” of ${day(h.at)} and the ${later === 1 ? 'step' : `${later} steps`} after it?`)) return;
+    if (
+      later > 0 &&
+      !confirm(
+        `Remove “${stageOf(h.stage).label} · ${stateLabel(h.stage, h.state)}” of ${day(h.at)} and the ${later === 1 ? 'step' : `${later} steps`} after it?`,
+      )
+    )
+      return;
     run.current++;
     const history = all.slice(0, i);
-    const last = history[history.length - 1];
+    const last = history.at(-1);
     setApp({ ...app, history, stage: last?.stage ?? 'submitted', stage_state: last?.state ?? 'pending' }); // instant
     act(async () => {
       const res = await removeStatusStepAction(key, h);
@@ -365,7 +478,7 @@ function AdModal({ initial, labels, onClose }: {
     run.current++; // a load on its way would bring the old details back
     setApp(fresh);
     setEditing(false);
-    if (fresh.content_status === 'pending') follow(fresh.dup_key);
+    if (fresh.content_status === 'pending') void follow(fresh.dup_key);
   };
 
   const close = () => dialog.current?.close();
@@ -396,7 +509,9 @@ function AdModal({ initial, labels, onClose }: {
       }}
       onClick={(e) => e.target === dialog.current && !editing && close()}
     >
-      {editing && <ApplicationForm app={app as ApplicationWithContent} onCancel={() => setEditing(false)} onSaved={saved} />}
+      {editing && (
+        <ApplicationForm app={app as ApplicationWithContent} onCancel={() => setEditing(false)} onSaved={saved} />
+      )}
       {/* hidden, not gone, while editing: the note keeps what you typed */}
       <div className="modal-body" style={editing ? { display: 'none' } : undefined}>
         <div className="sheet-head">
@@ -438,32 +553,41 @@ function AdModal({ initial, labels, onClose }: {
                 </button>
               ))}
             </div>
-            {(app.history ?? []).length > 0 && (
+            {app.history.length > 0 && (
               // newest first; × takes a step away with the ones after it (above it here), not the first one: applying
               <ol className="timeline" aria-label="History">
-                {app.history.map((h, i) => ({ h, i })).reverse().map(({ h, i }) => {
-                  const later = app.history.length - 1 - i;
-                  return (
-                    <li key={`${h.at}|${h.stage}|${h.state}|${i}`}>
-                      <time dateTime={h.at}>{day(h.at)}</time>
-                      <span>{stageOf(h.stage).label} ·</span>
-                      <span className={`state-text state-${h.state}`}>{stateLabel(h.stage, h.state)}</span>
-                      {h.auto && <span className="muted" title={`No news for ${GHOST_AFTER_DAYS} days`}>(auto)</span>}
-                      {i > 0 && (
-                        <button
-                          type="button"
-                          className="step-remove"
-                          title={later ? 'Remove this step and the ones after it' : 'Remove this step (clicked by mistake)'}
-                          aria-label={`Remove “${stageOf(h.stage).label} · ${stateLabel(h.stage, h.state)}” of ${day(h.at)}${later ? ` and the ${later} after it` : ''}`}
-                          disabled={busy}
-                          onClick={() => removeStep(i)}
-                        >
-                          ×
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
+                {app.history
+                  .map((h, i) => ({ h, i }))
+                  .reverse()
+                  .map(({ h, i }) => {
+                    const later = app.history.length - 1 - i;
+                    return (
+                      <li key={`${h.at}|${h.stage}|${h.state}|${i}`}>
+                        <time dateTime={h.at}>{day(h.at)}</time>
+                        <span>{stageOf(h.stage).label} ·</span>
+                        <span className={`state-text state-${h.state}`}>{stateLabel(h.stage, h.state)}</span>
+                        {h.auto && (
+                          <span className="muted" title={`No news for ${GHOST_AFTER_DAYS} days`}>
+                            (auto)
+                          </span>
+                        )}
+                        {i > 0 && (
+                          <button
+                            type="button"
+                            className="step-remove"
+                            title={
+                              later ? 'Remove this step and the ones after it' : 'Remove this step (clicked by mistake)'
+                            }
+                            aria-label={`Remove “${stageOf(h.stage).label} · ${stateLabel(h.stage, h.state)}” of ${day(h.at)}${later ? ` and the ${later} after it` : ''}`}
+                            disabled={busy}
+                            onClick={() => removeStep(i)}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
               </ol>
             )}
           </section>
@@ -472,13 +596,21 @@ function AdModal({ initial, labels, onClose }: {
 
           {rows.some(([, v]) => v) && (
             <dl className="ad-facts">
-              {rows.filter(([, v]) => v).map(([k, v]) => (
-                <div key={k} className={k === 'Salary' && v!.includes('; ') ? 'wide' : undefined}>
-                  <dt>{k}</dt>
-                  {/* one line per contract type: "14 000–18 000 PLN / month (B2B)" */}
-                  <dd>{v!.split('; ').map((line, i) => <span key={i} className="fact-line">{line}</span>)}</dd>
-                </div>
-              ))}
+              {rows
+                .filter((row): row is [string, string] => Boolean(row[1]))
+                .map(([k, v]) => (
+                  <div key={k} className={k === 'Salary' && v.includes('; ') ? 'wide' : undefined}>
+                    <dt>{k}</dt>
+                    {/* one line per contract type: "14 000–18 000 PLN / month (B2B)" */}
+                    <dd>
+                      {v.split('; ').map((line, i) => (
+                        <span key={i} className="fact-line">
+                          {line}
+                        </span>
+                      ))}
+                    </dd>
+                  </div>
+                ))}
             </dl>
           )}
 
@@ -488,7 +620,11 @@ function AdModal({ initial, labels, onClose }: {
               loadError ? (
                 <p className="form-error">Couldn’t load the ad: {loadError}</p>
               ) : (
-                <div className="skeleton ad-skeleton" role="status" aria-label={app.content_status === 'pending' ? 'Saving the ad text' : 'Loading the ad text'}>
+                <div
+                  className="skeleton ad-skeleton"
+                  role="status"
+                  aria-label={app.content_status === 'pending' ? 'Saving the ad text' : 'Loading the ad text'}
+                >
                   {Array.from({ length: 10 }, (_, i) => (
                     <span key={i} className="bar" style={{ width: `${58 + ((i * 29) % 40)}%` }} />
                   ))}
@@ -498,7 +634,8 @@ function AdModal({ initial, labels, onClose }: {
               app.content
             ) : (
               <p className="form-error">
-                {app.content_status === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'} {app.content_error}
+                {app.content_status === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'}{' '}
+                {app.content_error}
               </p>
             )}
           </div>
@@ -582,7 +719,7 @@ type Draft = { text: string; base: string }; // base = the saved note it was wri
 const draftKey = (key: string) => `jobwatch:note:${key}`;
 function readDraft(key: string): Draft | null {
   try {
-    return JSON.parse(localStorage.getItem(draftKey(key)) ?? 'null');
+    return JSON.parse(localStorage.getItem(draftKey(key)) ?? 'null') as Draft | null;
   } catch {
     return null;
   }
@@ -610,7 +747,17 @@ const NOTE_STATUS: Record<NoteStatus, string> = {
   error: 'not saved yet (kept in this browser, tries again on the next change)',
 };
 
-function NoteEditor({ appKey, initial, editedAt, ref }: { appKey: string; initial: string; editedAt: string | null; ref: Ref<NoteHandle> }) {
+function NoteEditor({
+  appKey,
+  initial,
+  editedAt,
+  ref,
+}: {
+  appKey: string;
+  initial: string;
+  editedAt: string | null;
+  ref: Ref<NoteHandle>;
+}) {
   const day = useDay();
   // an unsaved draft of this note comes back, unless the note was changed somewhere else since
   const [restored] = useState(() => {
@@ -648,13 +795,16 @@ function NoteEditor({ appKey, initial, editedAt, ref }: { appKey: string; initia
 
   useImperativeHandle(ref, () => ({
     flush: () => {
-      save();
+      void save();
       return noteValue(latest.current);
     },
   }));
 
   // a restored draft is saved right away; an outdated one is dropped
-  const mounted = useEffectEvent(() => (latest.current === saved.current ? writeDraft(appKey, null) : save()));
+  const mounted = useEffectEvent(() => {
+    if (latest.current === saved.current) writeDraft(appKey, null);
+    else void save();
+  });
   useEffect(() => {
     mounted();
   }, []);
@@ -682,9 +832,9 @@ function NoteEditor({ appKey, initial, editedAt, ref }: { appKey: string; initia
           writeDraft(appKey, value === saved.current ? null : { text: value, base: saved.current });
           setStatus(value === saved.current ? (status === 'idle' ? 'idle' : 'saved') : 'typing');
           clearTimeout(timer.current);
-          timer.current = setTimeout(save, 700);
+          timer.current = setTimeout(() => void save(), 700);
         }}
-        onBlur={() => save()}
+        onBlur={() => void save()}
         placeholder="Recruiter's name, the salary you asked for, what they asked in the interview, next steps…"
       />
     </label>
