@@ -29,8 +29,8 @@ export const KINDS: Record<KindId, Kind> = {
   nofluff: {
     label: 'NoFluff listing',
     src: 'nofluff',
-    hint: 'A nofluffjobs.com listing page; the offers come from the data embedded in it. The path is a category: /praca-it/react.',
-    defaults: { url: 'https://nofluffjobs.com/pl/praca-it/{keyword_slug}?sort=newest', checkKeyword: true, checkLocation: true },
+    hint: 'A nofluffjobs.com listing page; the offers come from the data embedded in it. The path is a category: /pl/react.',
+    defaults: { url: 'https://nofluffjobs.com/pl/{keyword_slug}?sort=newest', checkKeyword: true, checkLocation: true },
   },
   solidjobs: {
     label: 'Solid.jobs API',

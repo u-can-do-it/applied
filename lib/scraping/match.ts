@@ -19,8 +19,16 @@ export type Found = {
   sort?: number;
 };
 
-/** lowercase, without accents: "Kraków" -> "krakow" */
-export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+// letters of their own, with no accent to take off (no decomposed form): ł, ø, ß, …
+const LETTERS: Record<string, string> = { ł: 'l', ø: 'o', đ: 'd', ħ: 'h', ß: 'ss', æ: 'ae', œ: 'oe' };
+
+/** lowercase, without accents: "Kraków" -> "krakow", "Łódź" -> "lodz" */
+export const fold = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[łøđħßæœ]/g, (c) => LETTERS[c]);
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // what counts as a letter of a word: "c#", "c++" and ".net" are words of their own
 const WORD = 'a-z0-9+#';

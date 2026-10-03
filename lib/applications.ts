@@ -16,7 +16,7 @@ export type Application = {
   company: string | null;
   url: string;
   applied_at: string;
-  details: JobDetails | null;
+  details: SavedDetails | null;
   content_status: 'pending' | 'ok' | 'empty' | 'failed';
   content_error: string | null;
   scraped_at: string | null;
@@ -134,11 +134,68 @@ async function patch(key: string, fields: Partial<ApplicationWithContent>) {
 /** Added by hand or imported (not marked on a scraped offer): its id is ours, not a board's. */
 const ownId = (id: string) => /^(manual|import)-/.test(id);
 
+/** The details "Add application" and "✎ Edit" let you type; only these can be yours. */
+export const TYPED_FIELDS = ['salary', 'contract', 'location', 'remote'] as const;
+export type TypedField = (typeof TYPED_FIELDS)[number];
+/** What an application keeps: the ad's details, plus which of them you typed (they stay over a new scrape). */
+export type SavedDetails = JobDetails & { typed?: TypedField[] };
+
+const isTypedField = (k: unknown): k is TypedField => TYPED_FIELDS.includes(k as TypedField);
+const filled = (v: unknown) => v !== undefined && v !== null && v !== '' && v !== false;
+const hasAny = (d: JobDetails | null | undefined) => Boolean(d && Object.values(d).some(filled));
+const withoutList = ({ typed: _, ...d }: SavedDetails) => d;
+
+/** The form's details as saved: the editable fields you filled in, and their names. */
+export function typedDetails(form: JobDetails | null | undefined): SavedDetails {
+  const d: SavedDetails = {};
+  for (const k of TYPED_FIELDS) if (filled(form?.[k])) Object.assign(d, { [k]: form![k] });
+  const typed = TYPED_FIELDS.filter((k) => k in d);
+  return typed.length ? { ...d, typed } : d;
+}
+
 /**
- * Scrapes the complete ad: the copy that was marked first, then the job's other boards.
- * `typed`: details you just typed in, which stay over what the board says.
+ * The details after "✎ Edit", over the rest of what the board said (posted, valid until…). The form
+ * shows the saved values, so a field is yours only if it already was or you changed it. A new link
+ * is another ad: only what you filled in, without the old one's dates and company.
  */
-export async function saveContent(key: string, opts: { typed?: JobDetails | null } = {}) {
+export function editedDetails(saved: SavedDetails | null, form: JobDetails | null | undefined, id: string, sameLink: boolean): SavedDetails | null {
+  if (!sameLink) {
+    const d = typedDetails(form);
+    return hasAny(d) ? d : null;
+  }
+  const was = typedFields(saved, id);
+  const d: SavedDetails = withoutList(saved ?? {});
+  const typed: TypedField[] = [];
+  for (const k of TYPED_FIELDS) {
+    delete d[k];
+    const v = form?.[k];
+    if (!filled(v)) continue;
+    Object.assign(d, { [k]: v });
+    if (was.includes(k) || v !== saved?.[k]) typed.push(k);
+  }
+  return hasAny(d) ? { ...d, typed } : null;
+}
+
+/** Which saved fields are yours: the list; a row from before it, added by hand or imported: all it has. */
+export function typedFields(saved: SavedDetails | null, id: string): TypedField[] {
+  if (Array.isArray(saved?.typed)) return saved.typed.filter(isTypedField);
+  return ownId(id) ? TYPED_FIELDS.filter((k) => filled(saved?.[k])) : [];
+}
+
+/**
+ * The details to save after a scrape: the fields you typed stay, the rest is what the board says.
+ * A scrape that says nothing keeps the details saved before, so a failed fetch never wipes them.
+ */
+export function mergeDetails(scraped: JobDetails | null | undefined, saved: SavedDetails | null, typed: TypedField[]): SavedDetails | null {
+  const old = withoutList(saved ?? {});
+  const mine = Object.fromEntries(typed.filter((k) => filled(old[k])).map((k) => [k, old[k]]));
+  const merged: SavedDetails = { ...(hasAny(scraped) ? scraped : old), ...mine };
+  if (!hasAny(merged)) return null;
+  return saved?.typed ? { ...merged, typed: saved.typed } : merged;
+}
+
+/** Scrapes the complete ad: the copy that was marked first, then the job's other boards. */
+export async function saveContent(key: string) {
   const app = await getApplication(key);
   if (!app) return;
   const job = await findJob(key).catch(() => null);
@@ -146,9 +203,8 @@ export async function saveContent(key: string, opts: { typed?: JobDetails | null
     { src: app.src, id: app.id, url: app.url },
     ...(job?.copies ?? []).filter((c) => !(c.src === app.src && c.id === app.id)),
   ].filter((c) => c.url); // one added by hand may have no link
-  // added by hand or imported: what you typed (salary, location…) stays over what the board says
-  const typed = { ...(ownId(app.id) ? (app.details ?? {}) : {}), ...(opts.typed ?? {}) };
-  const merge = (d: JobDetails | null | undefined) => (d || Object.keys(typed).length ? { ...(d ?? {}), ...typed } : null);
+  // what you typed (salary, location…) stays over what the board says
+  const merge = (d: JobDetails | null | undefined) => mergeDetails(d, app.details, typedFields(app.details, app.id));
 
   let firstEmpty: { details: JobDetails } | null = null;
   let lastError: string | null = copies.length ? null : 'No link to fetch the ad from.';
@@ -244,7 +300,7 @@ export async function addApplication(a: NewApplication, z: Zone): Promise<{ key?
       url: offer?.url ?? a.url,
       applied_at: a.appliedAt,
       content: text || null,
-      details: a.details,
+      details: hasAny(a.details) ? typedDetails(a.details) : null,
       // with a link but no text, the ad is fetched right after saving (like "Mark applied")
       content_status: text.length >= 80 ? 'ok' : a.url ? 'pending' : 'empty',
       content_error: text.length >= 80 || a.url ? null : NO_TEXT,
@@ -320,16 +376,7 @@ export async function updateApplication(
     if (app.stage_updated_at && Date.parse(app.stage_updated_at) === Date.parse(app.applied_at)) fields.stage_updated_at = at;
   }
 
-  // the typed details over the rest of what the board said (posted, valid until…)
-  const details: JobDetails = { ...(app.details ?? {}) };
-  for (const k of ['salary', 'contract', 'location'] as const) {
-    const v = e.details?.[k];
-    if (v) details[k] = v;
-    else delete details[k];
-  }
-  if (e.details?.remote) details.remote = true;
-  else delete details.remote;
-  fields.details = Object.keys(details).length ? details : null;
+  fields.details = editedDetails(app.details, e.details, app.id, url === app.url);
 
   // the ad text: as typed; left empty, it's fetched from the link (like adding one)
   const text = e.content.trim();

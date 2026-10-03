@@ -96,7 +96,7 @@ from (values
   (1, 'JustJoin', 'justjoin', 'justjoin',
    '{"url": "https://justjoin.it/api/candidate-api/offers?keywords={keyword}&keywordType=any&sortBy=publishedAt&orderBy=descending&itemsCount=100", "checkKeyword": true, "checkLocation": true}'),
   (2, 'NoFluff', 'nofluff', 'nofluff',
-   '{"url": "https://nofluffjobs.com/pl/praca-it/{keyword_slug}?sort=newest", "checkKeyword": true, "checkLocation": true}'),
+   '{"url": "https://nofluffjobs.com/pl/{keyword_slug}?sort=newest", "checkKeyword": true, "checkLocation": true}'),
   (3, 'Solid.jobs', 'solidjobs', 'solidjobs',
    '{"url": "https://solid.jobs/public-api/offers/IT?campaign=jobwatch&search.searchTerm={keyword}&sortActive=validFrom&sortDirection=desc&pageSize=100", "headers": {"X-Api-Version": "1.0", "campaign": "44"}, "checkKeyword": true, "checkLocation": true}'),
   (4, 'Bulldog', 'bulldog', 'bulldog',

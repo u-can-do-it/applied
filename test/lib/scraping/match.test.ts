@@ -21,11 +21,18 @@ describe('fold', () => {
     expect(fold('Crème Brûlée')).toBe('creme brulee');
   });
 
-  it('keeps "ł", which has no accent to drop', () => {
-    // BUG? "ł" is a letter of its own in Unicode (no decomposition), so a city typed as "lodz"
-    // doesn't match "Łódź", nor "wroclaw" "Wrocław"; the user has to type "łodz" / "wrocław"
-    expect(fold('Łódź')).toBe('łodz');
-    expect(fold('Wrocław')).toBe('wrocław');
+  it('letters with a stroke too, which have no accent to drop', () => {
+    expect(fold('Łódź')).toBe('lodz');
+    expect(fold('Wrocław')).toBe('wroclaw');
+    expect(fold('BIAŁYSTOK')).toBe('bialystok');
+    expect(fold('København Đakovo Straße ẞ Æsir Œuvre')).toBe('kobenhavn dakovo strasse ss aesir oeuvre');
+  });
+
+  it('so a city typed without them matches', () => {
+    expect(areaTest({ cities: ['lodz'], remoteOk: false })(offer({ locations: ['Łódź'] }))).toBe(true);
+    expect(areaTest({ cities: ['Łódź'], remoteOk: false })(offer({ locations: ['Lodz, Poland'] }))).toBe(true);
+    expect(keywordTest(['wroclaw'])(['Praca we Wrocławiu'])).toBe(true);
+    expect(expandUrl('https://x.test/{keyword_slug}', ['Łódź']).map((u) => u.url)).toEqual(['https://x.test/lodz']);
   });
 });
 

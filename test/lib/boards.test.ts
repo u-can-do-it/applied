@@ -47,8 +47,22 @@ describe('boardOf', () => {
     expect(boardOf('https://job-boards.greenhouse.io/acme/jobs/1')).toBe('greenhouse');
     expect(boardOf('https://jobs.lever.co/acme/1')).toBe('lever');
     expect(boardOf('http://localhost:3000/x')).toBe('localhost');
-    // BUG? a two-part public suffix gives its first part: "jobs.acme.co.uk" -> "co", not "acme"
-    expect(boardOf('https://jobs.acme.co.uk/1')).toBe('co');
+  });
+
+  it('a two-part ending is not the name', () => {
+    expect(boardOf('https://jobs.acme.co.uk/1')).toBe('acme');
+    expect(boardOf('https://www.acme.com.pl/kariera')).toBe('acme');
+    expect(boardOf('https://careers.acme.com.au/1')).toBe('acme');
+    expect(boardOf('https://acme.co.nz/1')).toBe('acme');
+    expect(boardOf('https://acme.org.uk/1')).toBe('acme');
+    // a plain .co, or the ending alone, stays as before
+    expect(boardOf('https://jobs.lever.co/acme/1')).toBe('lever');
+    expect(boardOf('https://co.uk/')).toBe('co');
+  });
+
+  it('a known board under a two-part ending is still that board', () => {
+    expect(boardOf('https://www.indeed.co.uk/viewjob?jk=abc')).toBe('indeed');
+    expect(cleanLink('https://www.indeed.co.uk/viewjob?jk=abc&from=serp&utm_source=x')).toBe('https://www.indeed.co.uk/viewjob?jk=abc');
   });
 
   it('unknown for what is not a link or not a valid board id', () => {
@@ -93,9 +107,14 @@ describe('cleanLink', () => {
     expect(cleanLink('https://acme.test/job?reference=7&sources=a&trkCampaign=x')).toBe('https://acme.test/job?reference=7&sources=a');
   });
 
-  it('BUG? an Indeed link loses the job id, which is in its query (?jk=…)', () => {
-    // Indeed is in the board list, and every listed board but LinkedIn loses its whole query
-    expect(cleanLink('https://pl.indeed.com/viewjob?jk=0123456789abcdef&from=serp')).toBe('https://pl.indeed.com/viewjob');
+  it('Indeed: the job link with only its id (?jk=…)', () => {
+    const canonical = 'https://pl.indeed.com/viewjob?jk=0123456789abcdef';
+    expect(cleanLink('https://pl.indeed.com/viewjob?jk=0123456789abcdef&from=serp&tk=1abc#apply')).toBe(canonical);
+    expect(cleanLink('https://pl.indeed.com/rc/clk?jk=0123456789abcdef&bb=xyz&xkcb=SoA')).toBe(canonical);
+    // a search page showing one job
+    expect(cleanLink('https://pl.indeed.com/jobs?q=react&l=Warszawa&vjk=0123456789abcdef')).toBe(canonical);
+    // no id: only the tracking goes
+    expect(cleanLink('https://pl.indeed.com/jobs?q=react&utm_source=x')).toBe('https://pl.indeed.com/jobs?q=react');
   });
 
   it('not a link: just trimmed', () => {
@@ -113,6 +132,8 @@ describe('boardIdOf', () => {
     expect(boardIdOf('linkedin', 'https://www.linkedin.com/jobs/view/4123456789/')).toBe('4123456789');
     expect(boardIdOf('linkedin', 'https://pl.linkedin.com/jobs/view/senior-dev-at-acme-4123456789')).toBe('4123456789');
     expect(boardIdOf('linkedin', 'https://www.linkedin.com/jobs/collections/recommended/?currentJobId=4123456789')).toBe('4123456789');
+    expect(boardIdOf('indeed', 'https://pl.indeed.com/viewjob?jk=0123456789abcdef&from=serp')).toBe('0123456789abcdef');
+    expect(boardIdOf('indeed', 'https://pl.indeed.com/jobs?q=react&vjk=0123456789abcdef')).toBe('0123456789abcdef');
   });
 
   it('decodes the path', () => {
@@ -125,10 +146,16 @@ describe('boardIdOf', () => {
     expect(boardIdOf('linkedin', 'https://www.linkedin.com/feed/')).toBeNull();
     expect(boardIdOf('eldorado', 'https://czyjesteldorado.pl/praca/scrum-master')).toBeNull();
     expect(boardIdOf('pracuj', 'https://www.pracuj.pl/praca/react,oferta,1004')).toBeNull();
+    expect(boardIdOf('indeed', 'https://pl.indeed.com/jobs?q=react&jk=')).toBeNull();
     expect(boardIdOf('justjoin', 'not a link')).toBeNull();
   });
 
-  it('BUG? a stray "%" in the path throws instead of giving null', () => {
-    expect(() => boardIdOf('justjoin', 'https://justjoin.it/job-offer/50%-remote')).toThrow(URIError);
+  it('a stray "%" in the path stays as it is instead of throwing', () => {
+    expect(boardIdOf('justjoin', 'https://justjoin.it/job-offer/50%-remote')).toBe('50%-remote');
+    expect(boardIdOf('justjoin', 'https://justjoin.it/job-offer/krak%C3%B3w-50%-remote')).toBe('kraków-50%-remote');
+    // a broken UTF-8 sequence too
+    expect(boardIdOf('justjoin', 'https://justjoin.it/job-offer/a%C3-b')).toBe('a%C3-b');
+    expect(boardIdOf('eldorado', 'https://czyjesteldorado.pl/praca/449389-100%-zdalnie')).toBe('449389');
+    expect(() => cleanLink('https://www.linkedin.com/jobs/view/50%-off-4123456789')).not.toThrow();
   });
 });

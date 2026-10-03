@@ -20,8 +20,8 @@ describe('built-in board parsers', () => {
     expect(first.url).toBe(`https://justjoin.it/job-offer/${first.id}`);
     expect(typeof first.sort).toBe('number');
     expect(r.sample).toContain(`"slug": "${first.id}"`);
-    // BUG? the offer's city is listed again from its locations[], so every place comes twice
-    expect(first.locations).toEqual(['Katowice (Śląskie)', 'Katowice (Śląskie)']);
+    // the offer's city is also among its locations[]: listed once
+    expect(first.locations).toEqual(['Katowice (Śląskie)']);
     expect(r.items).toMatchSnapshot();
   });
 
@@ -59,10 +59,13 @@ describe('built-in board parsers', () => {
     for (const o of r.items) {
       expect(o.url).toMatch(new RegExp(`^https://czyjesteldorado\\.pl/praca/${o.id}-`));
       expect(o.sort).toBe(Number(o.id));
-      // BUG? the parser reads skills from `tags`, but Eldorado's jobs now carry them in `keywords`
-      // (and `categories`); no job in the recorded page has `tags`, so skills are always empty
-      expect(o.skills).toEqual([]);
+      expect(o.skills.length).toBeGreaterThan(0);
     }
+    // the keywords, then the categories (ids, read as words)
+    expect(r.items[0].skills).toEqual([
+      'Azure DevOps', 'ASP.NET Core MVC', 'JavaScript', 'React.js', 'Angular', 'Git', 'Microsoft SQL Server', 'PostgreSQL',
+      'project management', 'agile',
+    ]);
     expect(r.items).toMatchSnapshot();
   });
 
@@ -75,9 +78,9 @@ describe('built-in board parsers', () => {
       expect(o.sort).toBe(Number(o.id));
     }
     expect(r.sample).toMatch(/^<div id="job-card-\d+/);
-    // BUG? "Staff …" is senior on LinkedIn (/senior|lead|principal|staff/) but unknown here (no "staff")
+    // "Staff …" is senior, as on LinkedIn
     expect(r.items[0].title).toMatch(/^Staff /);
-    expect(r.items[0].seniority).toBe('unknown');
+    expect(r.items[0].seniority).toBe('senior');
     expect(r.items).toMatchSnapshot();
   });
 
@@ -126,6 +129,58 @@ describe('board parser edge cases', () => {
     ]);
   });
 
+  it('justjoin: each place once, in order', () => {
+    const body = JSON.stringify({
+      data: [{ slug: 'a', title: 'A', city: 'Gdańsk', locations: [{ city: 'Warszawa' }, { city: 'Gdańsk' }, { city: 'Warszawa' }, {}] }],
+    });
+    expect(parse('justjoin', body).items[0].locations).toEqual(['Gdańsk', 'Warszawa']);
+  });
+
+  it('eldorado: skills from an older page with tags only', () => {
+    const jobs = [{ id: 1, slug: 's', title: 'A', tags: ['React', { name: 'TS' }] }, { id: 2, slug: 's', title: 'B', keywords: [], categories: [] }];
+    const body = `<script>self.__next_f.push([1,${JSON.stringify(JSON.stringify({ jobs }))}])</script>`;
+    expect(parse('eldorado', body).items.map((o) => o.skills)).toEqual([['React', 'TS'], []]);
+  });
+
+  it('builtin and linkedin: the same seniority from the same title', () => {
+    const titles: [string, string][] = [
+      ['Staff Engineer', 'senior'],
+      ['Senior React Developer', 'senior'],
+      ['Tech Lead', 'senior'],
+      ['Principal Engineer', 'senior'],
+      ['Team Leader', 'senior'],
+      ['Junior Developer', 'junior'],
+      ['Software Engineering Intern', 'junior'],
+      ['Interns: Frontend', 'junior'],
+      ['Internship (React)', 'junior'],
+      ['Summer Internships 2026', 'junior'],
+      ['Graduate Developer', 'junior'],
+      ['Graduates Programme', 'junior'],
+      ['Trainee Developer', 'junior'],
+      ['Stażysta Frontend', 'junior'],
+      ['Stażystka HR', 'junior'],
+      ['Zatrudnimy Stażystę', 'junior'],
+      ['Program dla stażystów', 'junior'],
+      ['Staż w IT', 'junior'],
+      ['Internal Tools Developer', 'unknown'],
+      ['International Payments Engineer', 'unknown'],
+      ['Staffing Platform Developer', 'unknown'],
+      ['Leadership Coach', 'unknown'],
+      ['Lead Generation Specialist', 'unknown'],
+      ['Seniority-free Developer', 'unknown'],
+      ['React Developer', 'unknown'],
+    ];
+    const builtin = titles
+      .map(([t], i) => `<div id="job-card-${i + 1}" data-id="job-card"><a data-id="job-card-title" href="/job/x/${i + 1}">${t}</a></div>`)
+      .join('');
+    const linkedin = titles
+      .map(([t], i) => `<li><div data-entity-urn="urn:li:jobPosting:${i + 1}"><h3 class="base-search-card__title">${t}</h3></div></li>`)
+      .join('');
+    const expected = titles.map(([t, s]) => [t, s]);
+    expect(parse('builtin', builtin).items.map((o) => [o.title, o.seniority])).toEqual(expected);
+    expect(parse('linkedin', linkedin).items.map((o) => [o.title, o.seniority])).toEqual(expected);
+  });
+
   it('drops offers without an id, a title or a link', () => {
     const body = JSON.stringify({ data: [{ slug: 'a', title: 'A' }, { slug: '', title: 'B' }, { slug: 'c', title: '' }] });
     const r = parse('justjoin', body);
@@ -165,13 +220,15 @@ describe('generic parsers', () => {
     expect(r.items[1].url).toBe('https://api.example.com/job/8');
   });
 
-  it('json: a list field needs [] at its end', () => {
-    const body = JSON.stringify([{ t: 'A', u: '/a', tags: ['React', 'TS'] }]);
-    const config = (skills: string) => ({ fields: { title: 't', url: 'u', skills } });
+  it('json: a list field works with or without [] at its end', () => {
+    const body = JSON.stringify([{ t: 'A', u: '/a', tags: ['React', 'TS'], places: [{ name: 'Warszawa' }, { name: 'Kraków' }], one: 'Go' }]);
+    const config = (skills: string, location = '') => ({ fields: { title: 't', url: 'u', skills, location } });
     expect(parse('json', body, 'https://x.test', config('tags[]')).items[0].skills).toEqual(['React', 'TS']);
-    // BUG? Settings says the skills / location fields "can be a list", but a path to the list itself
-    // ("tags", not "tags[]") gives no skills at all: the array is one value, and an array's text is ''
-    expect(parse('json', body, 'https://x.test', config('tags')).items[0].skills).toEqual([]);
+    expect(parse('json', body, 'https://x.test', config('tags')).items[0].skills).toEqual(['React', 'TS']);
+    // a list of objects gives their names, a single value stays one
+    expect(parse('json', body, 'https://x.test', config('one', 'places')).items[0]).toMatchObject({ skills: ['Go'], locations: ['Warszawa', 'Kraków'] });
+    // an empty list gives nothing
+    expect(parse('json', JSON.stringify([{ t: 'A', u: '/a', tags: [] }]), 'https://x.test', config('tags')).items[0].skills).toEqual([]);
   });
 
   it('json: a root list needs no path; a missing path says what the JSON has', () => {

@@ -310,7 +310,7 @@ export async function addApplicationAction(input: ApplicationInput): Promise<For
       note: (typeof input.note === 'string' ? input.note.trim().slice(0, NOTE_MAX) : '') || null,
     }, z);
     if (r.error) return { error: r.error };
-    // no ad text but a link: fetch it after the answer, like "Mark applied" does
+    // no ad text but a link: fetch it after the answer, like "Mark applied" does (what you typed stays)
     if (!f.content.trim() && f.url) after(() => saveContent(r.key!));
     refresh();
     return { ok: true, id: r.key };
@@ -330,8 +330,8 @@ export async function updateApplicationAction(key: string, input: ApplicationEdi
     const r = await updateApplication(key, { url: f.url, title: f.title, company: f.company, src: f.board, day: f.day, details: f.details, content: f.content }, z);
     if (r.error || !r.app) return { error: r.error ?? 'This application no longer exists.' };
     const saved = r.app.dup_key;
-    // what you typed stays over what the board says
-    if (r.fetch) after(() => saveContent(saved, { typed: f.details }));
+    // what you typed stays over what the board says (details.typed)
+    if (r.fetch) after(() => saveContent(saved));
     refresh();
     return { app: r.app };
   } catch (e) {

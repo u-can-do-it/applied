@@ -49,6 +49,15 @@ const decode = (s: string) =>
     .replace(/&([a-z]+);/gi, (m, n) => ENT[n.toLowerCase()] ?? m);
 const strip = (s: string) => decode(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 
+// whole words, Polish letters included (\b only knows ASCII): "Staff" but not "Staffing", "Lead" but
+// not "Leadership" or "Lead Generation", "Interns" but not "Internal"
+const word = (alternatives: string) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives})(?![\\p{L}\\p{N}])`, 'iu');
+const SENIOR = word('senior|lead(?:er)?(?!\\s+generation)|principal|staff');
+const JUNIOR = word('junior|interns?|internships?|trainees?|stażyst\\p{L}*|staż|graduates?');
+
+/** For boards without a level of their own: from the title's words. */
+const seniorityOf = (title: string) => (SENIOR.test(title) ? 'senior' : JUNIOR.test(title) ? 'junior' : 'unknown');
+
 // Angular's TransferState escapes its JSON with &q; &a; &l; &g; &s;
 const angular = (s: string) => s.replace(/&q;/g, '"').replace(/&a;/g, '&').replace(/&l;/g, '<').replace(/&g;/g, '>').replace(/&s;/g, "'");
 
@@ -75,7 +84,8 @@ function justjoin(body: string, { src }: Ctx): Parsed {
       remote: o.workplaceType === 'remote',
       url: `https://justjoin.it/job-offer/${str(o.slug)}`,
       skills: [...arr(o.requiredSkills), ...arr(o.niceToHaveSkills)].map(nameOf).filter(Boolean),
-      locations: [str(o.city), ...arr(o.locations).map((l) => (isObj(l) ? str(l.city) : ''))].filter(Boolean),
+      // the offer's city is also among its locations[]
+      locations: [...new Set([str(o.city), ...arr(o.locations).map((l) => (isObj(l) ? str(l.city) : ''))])].filter(Boolean),
       sort: time(o.publishedAt), // exact chronological order
     })),
   };
@@ -217,7 +227,10 @@ function eldorado(body: string, { src }: Ctx): Parsed {
       seniority: str(j.seniority) || 'unknown',
       remote: arr(j.workModes).includes('remote'),
       url: `https://czyjesteldorado.pl/praca/${str(j.id)}-${str(j.slug)}`,
-      skills: arr(j.tags).map(nameOf).filter(Boolean),
+      // keywords = the tech, categories = ids like "project_management"; older pages had tags
+      skills: (j.keywords || j.categories ? [...arr(j.keywords), ...arr(j.categories).map((c) => str(c).replace(/_/g, ' '))] : arr(j.tags))
+        .map(nameOf)
+        .filter(Boolean),
       locations: arr(j.cities).map(nameOf).filter(Boolean), // none = no pin icon
       sort: num(j.id), // insert counter = import order
     })),
@@ -240,7 +253,7 @@ function builtin(body: string, { src }: Ctx): Parsed {
       id,
       title,
       company: company || 'unknown',
-      seniority: /senior|lead|principal/i.test(title) ? 'senior' : /junior|intern|gradu/i.test(title) ? 'junior' : 'unknown',
+      seniority: seniorityOf(title),
       remote: /^remote$/i.test(mode),
       url: `https://builtin.com${href}`,
       skills: [],
@@ -275,7 +288,7 @@ function linkedin(body: string, { src, url }: Ctx): Parsed {
         id,
         title,
         company: text(card, '.base-search-card__subtitle') || null,
-        seniority: /senior|lead|principal|staff/i.test(title) ? 'senior' : /junior|intern|trainee|stażyst/i.test(title) ? 'junior' : 'unknown',
+        seniority: seniorityOf(title),
         remote: remoteOnly || /remote|zdaln/i.test(`${title} ${location}`),
         url: `https://www.linkedin.com/jobs/view/${id}`, // without the per-request tracking parameters
         skills: [],
@@ -363,7 +376,8 @@ function fromJson(body: string, { src, url, config }: Ctx): Parsed {
   const list = at.length === 1 && Array.isArray(at[0]) ? (at[0] as unknown[]) : at; // "data" and "data[]" both work
   if (!list.length) throw new Error(`Nothing at "${config.items}" (the JSON has: ${keysOf(root)})`);
   const f = config.fields ?? {};
-  const get = (item: unknown, field: FieldId) => (f[field]?.trim() ? valuesAt(item, f[field]) : []);
+  // a path to a list gives its items: "tags" works like "tags[]"
+  const get = (item: unknown, field: FieldId) => (f[field]?.trim() ? valuesAt(item, f[field]).flat() : []);
   const link = (item: unknown) => {
     const t = f.url ?? '';
     // "https://site/job/{slug}" fills in values from the offer; otherwise it's a path
