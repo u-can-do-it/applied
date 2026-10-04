@@ -53,6 +53,21 @@ describe('a log line', () => {
 });
 
 describe('secrets', () => {
+  it('a push subscription’s endpoint and keys, and the VAPID private key', () => {
+    vi.stubEnv('VAPID_PRIVATE_KEY', 'vapid-private-key-0123456789abcdef');
+    const line = formatEntry('warn', 'x', {
+      subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/device-id', keys: { p256dh: 'BPk', auth: 'au' } },
+      detail: 'signed with vapid-private-key-0123456789abcdef',
+      VAPID_PRIVATE_KEY: 'x',
+    });
+    expect(JSON.parse(line)).toMatchObject({
+      subscription: { endpoint: '[redacted]', keys: { p256dh: '[redacted]', auth: '[redacted]' } },
+      detail: 'signed with [redacted]',
+      VAPID_PRIVATE_KEY: '[redacted]',
+    });
+    expect(line).not.toContain('device-id');
+  });
+
   it('values under secret-looking keys, at any depth', () => {
     expect(
       entry('info', 'x', {

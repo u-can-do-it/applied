@@ -31,7 +31,7 @@ const HELP = (
     <p>
       Test fetches the pages with the scraper’s values without saving anything. Copy starts a new scraper from this one,
       e.g. for another search on the same board. A new scraper’s first run (or the first after its search changed) only
-      saves its offers, so Telegram isn’t flooded with old ones.
+      saves its offers, so the notifications aren’t flooded with old ones.
     </p>
     <p>What each scraper’s last run found is on the Activity tab.</p>
   </>

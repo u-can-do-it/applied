@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { AUTH_COOKIE, authEnabled, isValidToken } from '@/server/auth';
 import { env } from '@/lib/env';
 
-// Every page and server action needs the login cookie, except the login page itself and the two
-// endpoints machines call (they check their own secret: the cron one, and Telegram's).
+// Every page and server action needs the login cookie, except the login page itself, the two
+// endpoints machines call (they check their own secret: the cron one, and Telegram's), and what the
+// browser fetches without the cookie to install the app and show its notifications: the manifest,
+// the icons and the service worker (public files, nothing private).
 export async function proxy(request: NextRequest) {
   if (!authEnabled()) {
     // fail closed in production: the AI filter stores a CV, it must not end up public
@@ -24,6 +26,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // everything except the login page, the cron + Telegram endpoints, Next's own assets and the favicon
-  matcher: ['/((?!login|api/cron/|api/telegram|_next/static|_next/image|favicon.ico).*)'],
+  // everything except the login page, the cron + Telegram endpoints, Next's own assets, the favicon,
+  // the manifest, the icons and the service worker (test/proxy.test.ts)
+  matcher: [
+    '/((?!login|api/cron/|api/telegram|_next/static|_next/image|favicon\\.ico$|manifest\\.webmanifest$|icons/|sw\\.js$).*)',
+  ],
 };

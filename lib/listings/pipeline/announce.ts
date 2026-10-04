@@ -5,7 +5,7 @@ import { offerKey, toNewOffer, type AddedOffer, type Owners } from './model';
 
 // Step 4, selectAnnouncable (pure): which of the offers new to the database are worth a message.
 
-/** The new offers to queue for Telegram, one per job. */
+/** The new offers to queue for the notifications (Telegram, push), one per job. */
 export function selectAnnouncable(
   added: readonly AddedOffer[],
   owners: Owners,

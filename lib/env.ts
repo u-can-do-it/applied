@@ -15,6 +15,7 @@ const url = z.url({
   error: (issue) => (issue.input === undefined ? 'is not set' : 'is not an http(s) URL'),
 });
 const trimSlashes = (value: string) => value.replace(/\/+$/, '');
+const vapidKey = (what: string) => z.string().regex(/^[\w-]+=*$/, { error: `is not ${what}` });
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).catch('development'),
@@ -51,6 +52,18 @@ const schema = z.object({
   TELEGRAM_CHAT_ID: optional,
   // another Bot API server (e.g. a local one, or a stand-in for tests)
   TELEGRAM_API_URL: z.preprocess(unset, url.default('https://api.telegram.org')).transform(trimSlashes),
+
+  // Web Push (optional: without all three, no push notifications). `npx web-push generate-vapid-keys`
+  // makes the pair; the subject is how a push service reaches you: mailto:you@example.com or an https URL
+  VAPID_PUBLIC_KEY: z.preprocess(unset, vapidKey('a VAPID public key (base64url)').optional()),
+  VAPID_PRIVATE_KEY: z.preprocess(unset, vapidKey('a VAPID private key (base64url)').optional()),
+  VAPID_SUBJECT: z.preprocess(
+    unset,
+    z
+      .string()
+      .regex(/^(mailto:[^@\s]+@[^@\s]+|https:\/\/\S+)$/, { error: 'is not a mailto: address or an https:// URL' })
+      .optional(),
+  ),
 
   // set by Vercel: the production domain, for links in Telegram and the cron / webhook addresses
   VERCEL_PROJECT_PRODUCTION_URL: optional,

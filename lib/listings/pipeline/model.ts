@@ -21,7 +21,8 @@ export type Owners = ReadonlyMap<string, Owned>;
 /** An offer the database didn't have before this run (offers.ingest). */
 export type { AddedOffer };
 
-export type RunError = { scraper: string; error: string };
+/** What went wrong in a run; `warning`: it went through all the same (a channel failed, another sent). */
+export type RunError = { scraper: string; error: string; warning?: true };
 
 export type RunSummary = {
   skipped?: string;
@@ -30,7 +31,7 @@ export type RunSummary = {
   added: number;
   fresh: number;
   notified: number;
-  /** the AI check and Telegram still run, in the background */
+  /** the AI check and the notifications still run, in the background */
   notifyLater?: boolean;
   errors: RunError[];
   ms: number;

@@ -1,6 +1,7 @@
 import 'server-only';
 import { after } from 'next/server';
 import { AI_BUDGET_MS, SCRAPE_LOCK_SECONDS } from '../budgets';
+import { activeChannels } from '../channels';
 import * as queueRepo from '../db/repos/notify-queue';
 import * as runsRepo from '../db/repos/scrape-runs';
 import * as scrapersRepo from '../db/repos/scrapers';
@@ -8,12 +9,11 @@ import * as settingsRepo from '../db/repos/scrape-settings';
 import * as stateRepo from '../db/repos/scrape-state';
 import { log } from '../log';
 import { message } from '../shared/errors';
-import { telegramReady } from '../telegram';
 import { aiFilter } from './pipeline/ai-filter';
 import { newJobs, selectAnnouncable } from './pipeline/announce';
 import { fetchListings } from './pipeline/fetch';
 import type { RunError, RunSummary } from './pipeline/model';
-import { notify } from './pipeline/notify';
+import { notify, type Notified } from './pipeline/notify';
 import { addedPerScraper, scraperOutcomes, summarize } from './pipeline/outcomes';
 import { pickOwners } from './pipeline/owners';
 import { ingest, recordOutcomes } from './pipeline/persist';
@@ -22,16 +22,17 @@ import type { Trigger } from './triggers';
 
 export type { RunSummary } from './pipeline/model';
 
-// One run = every enabled scraper: fetch, parse, filter, save new offers, queue the new jobs
-// for Telegram, check them against the active AI profile and send the matches (unless muted).
+// One run = every enabled scraper: fetch, parse, filter, save new offers, queue the new jobs for
+// the notification channels (Telegram, push), check them against the active AI profile and send
+// the matches (unless muted).
 // The steps are in ./pipeline; this file puts them in order, under the lock, with the run log.
 
 const EMPTY = { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] as RunError[], ms: 0 };
 
 /**
  * Runs every enabled scraper. `locked`: the caller already took the lock (the endpoint does,
- * so it can answer "busy" right away). `background`: the AI check and Telegram go on after the
- * answer (the "Scrape now" button doesn't wait for OpenAI).
+ * so it can answer "busy" right away). `background`: the AI check and the notifications go on
+ * after the answer (the "Scrape now" button doesn't wait for OpenAI).
  */
 export async function runAll(
   trigger: Trigger,
@@ -68,8 +69,8 @@ export async function runAll(
     });
 
     const jobs = newJobs(added);
-    // the announced ones wait in the queue; Telegram gets the matches
-    const send = settings.notify && telegramReady();
+    // the announced ones wait in the queue; the channels get the matches
+    const send = settings.notify && (await activeChannels()).length > 0;
     if (send) await queueRepo.enqueue(fresh);
     const tail = aiTail({ runId, settings, jobs, send, errors, deadline: startedAt + AI_BUDGET_MS });
 
@@ -77,7 +78,7 @@ export async function runAll(
       after(() =>
         tail()
           .catch((failure: unknown) => {
-            log.error('Scrape run: AI check / Telegram failed', { scrapeRunId: runId, trigger, error: failure });
+            log.error('Scrape run: AI check / notifications failed', { scrapeRunId: runId, trigger, error: failure });
           })
           .finally(() => stateRepo.unlock().catch(() => {})),
       );
@@ -111,13 +112,16 @@ function aiTail(run: {
 }) {
   return async (): Promise<{ sent: number; more: RunError[] }> => {
     const more: RunError[] = [];
-    const note = (scraper: string, error?: string | null) => {
-      if (error && !more.some((had) => had.error === error)) more.push({ scraper, error });
+    const note = (scraper: string, error?: string | null, warning = false) => {
+      if (error && !more.some((had) => had.error === error))
+        more.push({ scraper, error, ...(warning && { warning: true as const }) });
     };
     const filtered = await aiFilter(run.settings, run.jobs, run.deadline);
     note('AI', filtered.error);
-    const notified = run.send ? await notify({ deadline: run.deadline }) : { sent: 0 };
-    note('AI / Telegram', 'error' in notified ? notified.error : null);
+    const notified: Notified = run.send ? await notify({ deadline: run.deadline }) : { sent: 0, matched: null };
+    note('AI / Notify', notified.error);
+    // a channel failed but another sent them: a warning, not a failure
+    if (notified.warning) note('Notify', `Sent ${notified.sent}; ${notified.warning}`, true);
     if (filtered.checked || run.send || more.length)
       await runsRepo.update(run.runId, {
         notified: notified.sent,

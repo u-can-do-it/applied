@@ -74,6 +74,20 @@ describe('parseEnv', () => {
     expect(env.OPENAI_MODEL).toBe('gpt-6-luna');
   });
 
+  it('takes the VAPID variables, all optional, and says which is malformed', () => {
+    expect(parseEnv(required).VAPID_PUBLIC_KEY).toBeUndefined();
+    const keys = { VAPID_PUBLIC_KEY: `B${'p'.repeat(86)}`, VAPID_PRIVATE_KEY: 'q'.repeat(43) };
+    for (const subject of ['mailto:me@example.com', 'https://jobwatch.example'])
+      expect(parseEnv({ ...required, ...keys, VAPID_SUBJECT: subject })).toMatchObject({
+        ...keys,
+        VAPID_SUBJECT: subject,
+      });
+    const bad = parseEnv({ ...required, VAPID_PUBLIC_KEY: 'not base64!', VAPID_SUBJECT: 'me@example.com' });
+    expect(() => bad.VAPID_PUBLIC_KEY).toThrow('VAPID_PUBLIC_KEY is not a VAPID public key (base64url)');
+    expect(() => bad.VAPID_SUBJECT).toThrow('VAPID_SUBJECT is not a mailto: address or an https:// URL');
+    expect(() => parseEnv({ ...required, VAPID_SUBJECT: 'http://x.example' }).VAPID_SUBJECT).toThrow();
+  });
+
   it('takes a postgres:// or postgresql:// database URL', () => {
     const url = 'postgresql://postgres.ref:pw@aws-0-eu-central-1.pooler.supabase.com:6543/postgres';
     expect(parseEnv({ ...required, SUPABASE_DB_URL: url }).SUPABASE_DB_URL).toBe(url);

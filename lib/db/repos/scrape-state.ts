@@ -4,7 +4,7 @@ import { db } from '../client';
 import { first } from '../rows';
 import { scrapeState, type ScrapeStateRow } from '../schema';
 
-// The scraping machine's state, one row: the run lock, the last call and run, Telegram muted.
+// The scraping machine's state, one row: the run lock, the last call and run, notifications muted.
 
 export type ScrapeState = Omit<ScrapeStateRow, 'id'>;
 

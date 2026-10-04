@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Checks the migrations in drizzle/ against two throwaway LOCAL databases (never production):
 #   (a) a database set up the old way is left exactly as it was by `npm run db:migrate`: same
-#       schema but the unused functions 0005 drops, same rows (public and cron) but the board seed
-#       markers of 0004. "The old way" is either
+#       schema but the unused functions 0005 drops and the tables added since (0006), same rows
+#       (public and cron) but the board seed markers of 0004. "The old way" is either
 #         - the old SQL files (supabase/reset.sql, ai-filter.sql, scraping.sql, as scripts/db-reset.sh +
 #           db-migrate.sh ran them), then some use: offers, a merged job, an application with its
 #           history, a profile and a verdict, scrapers edited and deleted, Supabase Cron connected; or
@@ -76,9 +76,12 @@ must_migrate() { migrate "$1" || {
 # the whole database's schema, except Drizzle's own bookkeeping; pg_dump's random \restrict key dropped
 schema_dump() { pg_tool pg_dump "$1" --schema-only --exclude-schema=drizzle | grep -Ev '^\\(un)?restrict ' >"$2"; }
 # the rows: the app's, and Supabase Cron's jobs (pg_dump leaves out cron.job: it belongs to the
-# extension, which lives in pg_catalog, so it's read with a query)
+# extension, which lives in pg_catalog, so it's read with a query). The tables added since (not there
+# in (a) before the migration, empty after it) are left out.
 data_dump() {
-  pg_tool pg_dump "$1" --data-only --schema=public --schema=cron | grep -Ev '^\\(un)?restrict ' >"$2"
+  local added=()
+  for table in ${ADDED_TABLES//|/ }; do added+=("--exclude-table=public.$table"); done
+  pg_tool pg_dump "$1" --data-only --schema=public --schema=cron "${added[@]}" | grep -Ev '^\\(un)?restrict ' >"$2"
   pg_tool psql "$1" -X -qtA -c "select jobid, jobname, schedule, command, active, nodename, database, username
     from cron.job order by jobid" >>"$2"
 }
@@ -101,10 +104,17 @@ without_public_schema_acl() {
 # becomes one line (its statements joined by " ↵ "), the dropped functions' entries are left out and
 # the rest sorted: without those functions pg_dump may put the same entries in another order.
 DROPPED_FUNCTIONS='jw_set_application_status|jw_ghost_stale_applications|jw_scrape_lock|jw_source_counts|ai_results|ai_pending|ai_range_stats'
+# tables a later migration adds (0006_push_subscriptions): new in (a), so their entries are left out
+# of the comparison too, and checked to be there
+ADDED_TABLES='push_subscriptions'
 entries_without_dropped_functions() {
-  awk -v names="$DROPPED_FUNCTIONS" '
+  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" '
     function flush() { if (entry != "" && !skip) print entry; entry = "" }
-    /^-- Name: / { flush(); skip = ($0 ~ ("^-- Name: (FUNCTION )?(" names ")\\(")); next }
+    /^-- Name: / {
+      flush()
+      skip = ($0 ~ ("^-- Name: (FUNCTION )?(" names ")\\(")) || ($0 ~ ("^-- Name: (TABLE )?(" tables ")[ ;]"))
+      next
+    }
     # comments, blank lines, and the SETs pg_dump puts before whichever entry comes before the first table
     /^--/ || /^$/ || /^SET default_table/ { next }
     { entry = entry $0 " ↵ " }
@@ -199,13 +209,18 @@ schema_dump "$url_a" "$work/a-after.sql"
 data_dump "$url_a" "$work/a-after-data.sql"
 entries_without_dropped_functions "$work/a-before.sql" "$work/a-before-kept.sql"
 entries_without_dropped_functions "$work/a-after.sql" "$work/a-after-kept.sql"
-same "schema unchanged but for the unused functions 0005 drops ($(wc -l <"$work/a-before.sql") lines of pg_dump)" \
+same "schema unchanged but for the unused functions 0005 drops and the new tables ($(wc -l <"$work/a-before.sql") lines of pg_dump)" \
   "$work/a-before-kept.sql" "$work/a-after-kept.sql"
 if grep -Eq "^CREATE FUNCTION public\.($DROPPED_FUNCTIONS)\(" "$work/a-after.sql"; then
   echo "   FAILED: an unused function is still there after db:migrate" >&2
   exit 1
 fi
 echo "   ok: the unused functions are gone"
+for table in ${ADDED_TABLES//|/ }; do
+  grep -q "^CREATE TABLE public\.$table " "$work/a-after.sql" ||
+    { echo "   FAILED: db:migrate didn't add public.$table" >&2 && exit 1; }
+done
+echo "   ok: the new tables are there (${ADDED_TABLES//|/, })"
 grep -v '^board:' "$work/a-after-data.sql" >"$work/a-after-rows.sql" || true
 same "rows unchanged but for the board seed markers ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
   "$work/a-before-data.sql" "$work/a-after-rows.sql"

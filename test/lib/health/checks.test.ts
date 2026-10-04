@@ -6,6 +6,7 @@ import {
   openAiCheck,
   overall,
   profileCheck,
+  pushCheck,
   runChecks,
   scrapingCheck,
   telegramCheck,
@@ -113,6 +114,29 @@ describe('the checks', () => {
       reason: '@jw_bot, commands connected.',
     });
     expect(telegramCheck({ ready: true, bot, webhookUrl, notify: false }).reason).toContain('switched off');
+    // not set up, but push reaches a device: new offers still go somewhere
+    expect(telegramCheck({ ready: false, bot: null, webhookUrl, notify: true, pushOn: true }).level).toBe('ok');
+  });
+
+  it('Push: not set up (fine with Telegram), malformed, no device, fine', () => {
+    const base = { problem: null, devices: 2, notify: true, telegram: false };
+    expect(pushCheck({ ...base, problem: 'not set' })).toMatchObject({
+      level: 'warn',
+      fix: { type: 'hint', code: 'VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT' },
+    });
+    expect(pushCheck({ ...base, problem: 'not set', telegram: true }).level).toBe('ok');
+    expect(pushCheck({ ...base, problem: 'VAPID_SUBJECT not set' })).toMatchObject({
+      level: 'error',
+      reason: 'VAPID_SUBJECT not set.',
+    });
+    expect(pushCheck({ ...base, devices: 0 })).toMatchObject({
+      level: 'warn',
+      fix: { type: 'link', href: '#notifications-h' },
+    });
+    expect(pushCheck(base)).toEqual({ level: 'ok', reason: '2 devices subscribed.' });
+    expect(pushCheck({ ...base, devices: 1, notify: false }).reason).toBe(
+      '1 device subscribed; sending new offers is switched off.',
+    );
   });
 
   it('OpenAI and the AI profile', () => {

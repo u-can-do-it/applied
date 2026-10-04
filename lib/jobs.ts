@@ -1,11 +1,16 @@
 import 'server-only';
 import type { DateFilter } from './dates';
 import * as offersRepo from './db/repos/offers';
+import * as runsRepo from './db/repos/scrape-runs';
 import type { AiVerdictRow } from './db/schema';
 import { appZone } from './time-zone';
 
-/** A job as the lists show it: its earliest offer, every board's offer, when you applied; on the AI tab, the verdict. */
+/**
+ * A job as the lists show it: its earliest offer, every board's offer, when you applied, whether it
+ * came in with the latest scrape run that brought new jobs (`isNew`); on the AI tab, the verdict.
+ */
 export type ListedJob = offersRepo.Job & {
+  isNew: boolean;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription'>;
 };
 
@@ -25,29 +30,42 @@ export const searchWords = (search: string) =>
     .map((word) => word.slice(0, 40));
 
 type Query = { q: string; src: string; page: number } & DateFilter & {
+    /** only the jobs the latest scrape run that brought new jobs brought (?new=1) */
+    latest?: boolean;
     /** AI tab: results of this profile version */
     ai?: { profileId: string; version: number; rejected: boolean };
   };
 
-export async function getJobs(opts: Query): Promise<{ jobs: ListedJob[]; total: number }> {
-  const zone = await appZone(); // "today", "last 7 days": days there
-  const filter = { words: searchWords(opts.q), src: opts.src, ...zone.resolveRange(opts) };
+/**
+ * One page of the list, how many match in all, how many of those are new (`newCount`), and when the
+ * run that brought them ran (`latest`; null: no run in the log added offers).
+ */
+export type JobPage = { jobs: ListedJob[]; total: number; newCount: number; latest: offersRepo.RunWindow | null };
+
+export async function getJobs(opts: Query): Promise<JobPage> {
+  const [zone, latest] = await Promise.all([appZone(), runsRepo.latestWithNewJobs()]); // "today", "last 7 days": days there
+  if (opts.latest && !latest) return { jobs: [], total: 0, newCount: 0, latest };
+  const filter = {
+    words: searchWords(opts.q),
+    src: opts.src,
+    ...zone.resolveRange(opts),
+    ...(opts.latest && latest ? { newIn: latest } : {}),
+  };
   if (!opts.ai) {
-    const { rows, total } = await offersRepo.pageOfJobs(filter, opts.page, PAGE_SIZE);
-    return { jobs: rows, total };
+    const { rows, total, newCount } = await offersRepo.pageOfJobs(filter, opts.page, PAGE_SIZE, latest);
+    return { jobs: rows, total, newCount, latest };
   }
   const { profileId, version, rejected } = opts.ai;
-  const { rows, total } = await offersRepo.pageOfJudgedJobs(filter, opts.page, PAGE_SIZE, {
-    profileId,
-    version,
-    match: !rejected,
-  });
+  const verdicts = { profileId, version, match: !rejected };
+  const { rows, total, newCount } = await offersRepo.pageOfJudgedJobs(filter, opts.page, PAGE_SIZE, verdicts, latest);
   return {
     jobs: rows.map(({ match, score, summary, checks, hadDescription, ...job }) => ({
       ...job,
       ai: { match, score, summary, checks, hadDescription },
     })),
     total,
+    newCount,
+    latest,
   };
 }
 

@@ -58,7 +58,7 @@ export async function insert(scraper: ScraperInput & { position: number }): Prom
   return id;
 }
 
-/** resetMark: the search changed, so its next run only saves (no Telegram flood) */
+/** resetMark: the search changed, so its next run only saves (no flood of notifications) */
 export async function update(id: string, fields: Partial<ScraperInput & { position: number }>, resetMark = false) {
   await db()
     .update(scrapers)

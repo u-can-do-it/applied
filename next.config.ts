@@ -8,6 +8,18 @@ const nextConfig: NextConfig = {
   // loaded from node_modules as is, next to Node's own fetch, rather than bundled
   serverExternalPackages: ['undici'],
   partialPrefetching: true,
+  // the service worker: always checked for a new version (it controls every page), and only ever run
+  // as itself (public/sw.js loads nothing)
+  headers: () =>
+    Promise.resolve([
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+    ]),
   experimental: {
     // the AI filter's file upload (5 MB max) goes through a server action; default is 1 MB
     serverActions: { bodySizeLimit: '6mb' },

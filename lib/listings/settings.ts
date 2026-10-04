@@ -16,11 +16,11 @@ export type ScrapeSettings = {
   remoteOk: boolean;
   /** titles with these words are not saved at all */
   ignore: string[];
-  /** titles with these words are saved but not sent to Telegram */
+  /** titles with these words are saved but not notified */
   mute: string[];
-  /** send new offers to Telegram */
+  /** send new offers (every notification channel) */
   notify: boolean;
-  /** check new offers against the active AI profile first; Telegram gets only the matches */
+  /** check new offers against the active AI profile first; the channels get only the matches */
   aiFilter: boolean;
   /** the app's time zone (days, times, date filters, the hours above), as picked in Settings; '' = none picked yet */
   timeZone: string;

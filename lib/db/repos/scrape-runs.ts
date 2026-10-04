@@ -1,7 +1,9 @@
 import 'server-only';
-import { and, count, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, max, sql } from 'drizzle-orm';
 import { db } from '../client';
-import { offers, scrapeRuns, type ScrapeRunRow } from '../schema';
+import { first } from '../rows';
+import { offers, offersUnique, scrapeRuns, type ScrapeRunRow } from '../schema';
+import type { RunWindow } from './offers';
 
 // The run log: what each scrape found, saved and sent. Two weeks of it.
 
@@ -27,7 +29,7 @@ export async function finish(id: number, counts: Counts) {
     .where(lt(scrapeRuns.startedAt, new Date(Date.now() - KEEP_MS).toISOString()));
 }
 
-/** What the AI check and Telegram did, after the run itself (they can finish later). */
+/** What the AI check and the notifications did, after the run itself (they can finish later). */
 export async function update(id: number, fields: Partial<Pick<ScrapeRun, 'notified' | 'matched' | 'errors'>>) {
   await db().update(scrapeRuns).set(fields).where(eq(scrapeRuns.id, id));
 }
@@ -51,4 +53,35 @@ export async function addedPerBoard(runIds: number[]): Promise<{ runId: number; 
     .where(inArray(scrapeRuns.id, runIds))
     .groupBy(scrapeRuns.id, offers.src)
     .orderBy(desc(count()));
+}
+
+/**
+ * The newest finished run that brought a new job: one whose earliest offer (offers_unique) was first
+ * seen while it ran, the window Activity counts a run's offers in (addedPerBoard above). The lists
+ * mark those jobs "new". Not just `added > 0`: a run that only found another board's offer of a known
+ * job added an offer but no job. Null: no run in the log brought one.
+ */
+export async function latestWithNewJobs(): Promise<RunWindow | null> {
+  const finished = isNotNull(scrapeRuns.finishedAt);
+  // the newest job first seen during a finished run (runs don't overlap: one at a time, under the lock)
+  const newest = db()
+    .select({ at: max(offersUnique.firstSeen) })
+    .from(offersUnique)
+    .innerJoin(
+      scrapeRuns,
+      and(
+        finished,
+        gte(offersUnique.firstSeen, scrapeRuns.startedAt),
+        lte(offersUnique.firstSeen, scrapeRuns.finishedAt),
+      ),
+    );
+  const run = first(
+    await db()
+      .select({ startedAt: scrapeRuns.startedAt, finishedAt: scrapeRuns.finishedAt })
+      .from(scrapeRuns)
+      .where(and(finished, sql`(${newest}) between ${scrapeRuns.startedAt} and ${scrapeRuns.finishedAt}`))
+      .orderBy(desc(scrapeRuns.startedAt))
+      .limit(1),
+  );
+  return run?.finishedAt ? { startedAt: run.startedAt, finishedAt: run.finishedAt } : null;
 }

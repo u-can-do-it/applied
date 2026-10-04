@@ -2,13 +2,13 @@
 
 Job offers from several boards in one list, newest first, with search, filters, an AI filter that judges
 each job against your profile, and tracking of the applications you send. Jobwatch scrapes the boards itself
-on a schedule and sends new offers to Telegram. One user, one password; a Next.js app on Vercel with a
-Supabase Postgres database.
+on a schedule and sends new offers as push notifications to your phone (it installs as an app) and to
+Telegram. One user, one password; a Next.js app on Vercel with a Supabase Postgres database.
 
 ```
 Supabase Cron ─(schedule from Settings)─→ /api/cron/scrape ─┐
 "Scrape now" ───────────────────────────→ /api/scrape ──────┼─→ scrape pipeline ─→ Postgres (offers)
-Telegram /scrape ───────────────────────→ /api/telegram ────┘   (boards → filters)  └→ AI filter ─→ Telegram
+Telegram /scrape ───────────────────────→ /api/telegram ────┘   (boards → filters)  └→ AI filter ─→ Telegram, push
 AI tab ─→ AI runs (duplicates → assessment, OpenAI) ─→ verdicts      Applied tab ─→ applications + ad text
 ```
 
@@ -27,13 +27,13 @@ npm run dev                  # http://localhost:3000 (no login without APP_PASSW
 Then Settings → **Scrape now**. `npm test` runs the unit tests, `npm run test:db` the database tests on a
 throwaway container.
 
-To deploy (Supabase, Vercel, Supabase Cron, Telegram, OpenAI): [docs/OPERATIONS.md](docs/OPERATIONS.md).
+To deploy (Supabase, Vercel, Supabase Cron, push notifications, Telegram, OpenAI): [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Docs
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): data flow, tables, lifecycles, module map, glossary.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): deploy, environment variables, database and migrations, cron,
-  Telegram, health, logs, recovery.
+  notifications (push on Android, Telegram), health, logs, recovery.
 - [CONTRIBUTING.md](CONTRIBUTING.md): where things live, adding a board, conventions, tests, CI.
 - [docs/decisions/](docs/decisions): why it's built this way (ADRs).
 - [docs/code-review.md](docs/code-review.md): the review the current structure came from.

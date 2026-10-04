@@ -11,8 +11,14 @@ import { cn } from '@/lib/shared/cn';
 // Buttons and toggles run their actions through this (Settings' pause, cron and scraper switches, the
 // time zone select, Telegram's). A form uses components/form.tsx (`answered`, <FormError>) instead.
 
-/** What an action answers here: a message to show ("Saved."), or anything else (not shown). */
+/**
+ * What an action answers here: a message to show ("Saved."), `{ warning }` for one that went through
+ * with something to look at ("Sent 3; Telegram: …"), or anything else (not shown).
+ */
 type Answer = Result<unknown>;
+
+const isWarning = (data: unknown): data is { warning: string } =>
+  typeof data === 'object' && data !== null && typeof (data as { warning?: unknown }).warning === 'string';
 
 /**
  * Runs an action from a button or a toggle (a select that saves as you pick, too): busy state, an optimistic update to show right away,
@@ -29,6 +35,7 @@ export function useAction() {
       const answer = await fn().catch((failure: unknown) => fail(message(failure)));
       if (!answer.ok) startTransition(() => setError(answer.error));
       else if (typeof answer.data === 'string' && answer.data) toast.success(answer.data);
+      else if (isWarning(answer.data)) toast.warning(answer.data.warning);
     });
   };
   return { busy, error, run };

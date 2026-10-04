@@ -7,7 +7,7 @@ import { message } from './shared/errors';
 // happen after the answer (after()) or in the background are only seen here.
 //
 // Never a secret: values under secret-looking keys, the secrets the app is configured with (the
-// database URL, the bot token…), a URL's password and its token-like query parameters are replaced
+// database URL, the bot token, the VAPID private key…), a URL's password and its token-like query parameters are replaced
 // with [redacted]. An error is logged by message() (a failed query's cause, never its SQL or its
 // values) and its stack's "at" lines.
 
@@ -15,8 +15,9 @@ export type LogContext = Record<string, unknown>;
 type Level = 'info' | 'warn' | 'error';
 
 const REDACTED = '[redacted]';
-/** keys whose value is a secret, whatever it looks like */
-const SECRET_KEY = /token|secret|passw|pwd|authorization|cookie|api[-_]?key|credential|signature|^dsn$|db_?url/i;
+/** keys whose value is a secret, whatever it looks like (a push subscription's endpoint and keys too) */
+const SECRET_KEY =
+  /token|secret|passw|pwd|authorization|cookie|api[-_]?key|credential|signature|^dsn$|db_?url|private[-_]?key|endpoint|p256dh|^auth$/i;
 /** query parameters that carry one */
 // a whole name, or its last part after "-" / "_" (access_token, client_secret, x-api-key), so
 // keywords, author or zipcode stay as they are
@@ -31,7 +32,14 @@ const SECRET_TEXT: [RegExp, string][] = [
   [/\b(password|passwd|pwd)\s*=\s*('(?:[^'\\]|\\.)*'|"[^"]*"|[^\s&;,]+)/gi, `$1=${REDACTED}`],
 ];
 const URL_IN_TEXT = /\b[a-z][a-z\d+.-]*:\/\/[^\s"'<>]+/gi;
-const SECRET_ENV = ['SUPABASE_DB_URL', 'APP_PASSWORD', 'CRON_SECRET', 'OPENAI_API_KEY', 'TELEGRAM_BOT_TOKEN'] as const;
+const SECRET_ENV = [
+  'SUPABASE_DB_URL',
+  'APP_PASSWORD',
+  'CRON_SECRET',
+  'OPENAI_API_KEY',
+  'TELEGRAM_BOT_TOKEN',
+  'VAPID_PRIVATE_KEY',
+] as const;
 
 /**
  * The configured secrets' values (a malformed or missing one is simply not there), also as they

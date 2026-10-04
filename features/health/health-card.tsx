@@ -11,6 +11,7 @@ import {
   openAiCheck,
   overall,
   profileCheck,
+  pushCheck,
   runChecks,
   scrapingCheck,
   telegramCheck,
@@ -20,6 +21,8 @@ import {
 import { botAnswer, cronInfo, profileList } from '@/lib/health/reads';
 import { requestOrigin } from '@/lib/listings/schedule';
 import { effectiveTimeZone } from '@/lib/listings/settings';
+import * as pushRepo from '@/lib/db/repos/push-subscriptions';
+import { pushConfigured, pushProblem } from '@/lib/push';
 import { telegramReady } from '@/lib/telegram';
 import { appSettings } from '@/lib/time-zone';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -72,6 +75,9 @@ export async function HealthCard() {
   const when = appSettings()
     .then((settings) => timeIn(zoneOf(effectiveTimeZone(settings)), now))
     .catch(() => timeIn(zoneOf(DEFAULT_TZ), now));
+  // subscribed devices: asked once for both rows; not migrated yet (a new table) is the push row's error
+  const devices = pushConfigured() ? pushRepo.size() : Promise.resolve(0);
+  devices.catch(() => {}); // the push row reports it; the Telegram row reads it as no devices
   const checks: HealthCheck[] = [
     { id: 'db', label: 'Database', check: async () => migrationsCheck(await checkDbHealth()) },
     { id: 'scraping', label: 'Scraping', check: async () => scrapingCheck(await appSettings()) },
@@ -94,6 +100,18 @@ export async function HealthCard() {
           bot: await withinTime(botAnswer(), TELEGRAM_WAIT_MS),
           webhookUrl: `${origin}/api/telegram`,
           notify: (await appSettings()).notify,
+          pushOn: (await devices.catch(() => 0)) > 0,
+        }),
+    },
+    {
+      id: 'push',
+      label: 'Push',
+      check: async () =>
+        pushCheck({
+          problem: pushProblem(),
+          devices: await devices,
+          notify: (await appSettings()).notify,
+          telegram: telegramReady(),
         }),
     },
     { id: 'openai', label: 'OpenAI', check: () => openAiCheck(Boolean(env.OPENAI_API_KEY)) },

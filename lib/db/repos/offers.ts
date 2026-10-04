@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, arrayContains, asc, count, desc, eq, gte, inArray, lt, max, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayContains, asc, count, desc, eq, gte, inArray, lt, lte, max, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../client';
 import { first } from '../rows';
 import { aiVerdicts, offers, offersUnique, jobLinks, type OfferRow, type OfferUniqueRow } from '../schema';
@@ -7,8 +7,14 @@ import { aiVerdicts, offers, offersUnique, jobLinks, type OfferRow, type OfferUn
 // The scraped offers: `offers` (every board's offer) and `offers_unique` (each job once, its
 // earliest offer with every board's link; a view, defined in drizzle/0002_functions.sql).
 
-/** What narrows a list of jobs: every word in the title or the company, a board, first_seen in [gte, lt). */
-export type JobFilter = { words: string[]; src: string; gte?: string; lt?: string };
+/** A scrape run's time: the offers first seen in it are the ones it added (lib/db/repos/scrape-runs.ts). */
+export type RunWindow = { startedAt: string; finishedAt: string };
+
+/**
+ * What narrows a list of jobs: every word in the title or the company, a board, first_seen in
+ * [gte, lt), and only the jobs first seen in a run (`newIn`).
+ */
+export type JobFilter = { words: string[]; src: string; gte?: string; lt?: string; newIn?: RunWindow };
 
 /** One job as the lists show it. */
 export type Job = Pick<
@@ -36,6 +42,16 @@ export const inRange = (range: { gte?: string | null; lt?: string | null }) =>
     range.lt ? lt(offersUnique.firstSeen, range.lt) : undefined,
   );
 
+/** first seen while that run ran (as Activity counts a run's offers) */
+const firstSeenIn = (window: RunWindow) =>
+  and(gte(offersUnique.firstSeen, window.startedAt), lte(offersUnique.firstSeen, window.finishedAt));
+
+/** Per job: was it first seen in the latest run that brought new jobs (`latest`)? And how many of the list were. */
+const newness = (latest: RunWindow | null) => ({
+  isNew: latest ? sql<boolean>`(${firstSeenIn(latest)})` : sql<boolean>`false`,
+  newCount: latest ? sql<number>`(count(*) filter (where ${firstSeenIn(latest)}))::int` : sql<number>`0`,
+});
+
 /** case-insensitively, `word` anywhere in it; `%` and `_` in the word are just characters */
 const contains = (column: typeof offersUnique.title | typeof offersUnique.company, word: string) =>
   sql`${column} ilike ${`%${word.replace(/[\\%_]/g, '\\$&')}%`} escape '\\'`;
@@ -45,26 +61,31 @@ function matching(filter: JobFilter): SQL | undefined {
     filter.src ? arrayContains(offersUnique.boards, [filter.src]) : undefined,
     ...filter.words.map((word) => or(contains(offersUnique.title, word), contains(offersUnique.company, word))),
     inRange(filter),
+    filter.newIn ? firstSeenIn(filter.newIn) : undefined,
   );
 }
 
 // newest first; the board and id make the order total, so pages don't overlap
 const newestFirst = [desc(offersUnique.firstSeen), asc(offersUnique.src), asc(offersUnique.id)];
 
-/** One page of jobs, and how many match in all (the pager needs the exact number). */
-export async function pageOfJobs(filter: JobFilter, page: number, size: number) {
+/**
+ * One page of jobs, and how many match in all (the pager needs the exact number), each marked new if
+ * first seen in `latest`, the latest run that brought a new job; `newCount`: how many of all were.
+ */
+export async function pageOfJobs(filter: JobFilter, page: number, size: number, latest: RunWindow | null = null) {
   const where = matching(filter);
-  const [rows, [{ total }]] = await Promise.all([
+  const { isNew, newCount } = newness(latest);
+  const [rows, [counts]] = await Promise.all([
     db()
-      .select(jobColumns)
+      .select({ ...jobColumns, isNew })
       .from(offersUnique)
       .where(where)
       .orderBy(...newestFirst)
       .limit(size)
       .offset(page * size),
-    db().select({ total: count() }).from(offersUnique).where(where),
+    db().select({ total: count(), newCount }).from(offersUnique).where(where),
   ]);
-  return { rows, total };
+  return { rows, ...counts };
 }
 
 /** The same, for the jobs a profile version judged (matches, or the rejected ones), with the verdict. */
@@ -73,6 +94,7 @@ export async function pageOfJudgedJobs(
   page: number,
   size: number,
   verdicts: { profileId: string; version: number; match: boolean },
+  latest: RunWindow | null = null,
 ) {
   const judged = and(
     eq(aiVerdicts.jobId, offersUnique.jobId),
@@ -80,10 +102,12 @@ export async function pageOfJudgedJobs(
     eq(aiVerdicts.version, verdicts.version),
   );
   const where = and(matching(filter), eq(aiVerdicts.match, verdicts.match));
-  const [rows, [{ total }]] = await Promise.all([
+  const { isNew, newCount } = newness(latest);
+  const [rows, [counts]] = await Promise.all([
     db()
       .select({
         ...jobColumns,
+        isNew,
         match: aiVerdicts.match,
         score: aiVerdicts.score,
         summary: aiVerdicts.summary,
@@ -96,9 +120,9 @@ export async function pageOfJudgedJobs(
       .orderBy(...newestFirst)
       .limit(size)
       .offset(page * size),
-    db().select({ total: count() }).from(offersUnique).innerJoin(aiVerdicts, judged).where(where),
+    db().select({ total: count(), newCount }).from(offersUnique).innerJoin(aiVerdicts, judged).where(where),
   ]);
-  return { rows, total };
+  return { rows, ...counts };
 }
 
 /**

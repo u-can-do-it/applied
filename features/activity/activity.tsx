@@ -90,7 +90,7 @@ export async function Activity() {
             <p>
               Each run goes through every scraper that’s on. “on the pages”: the offers its pages listed; “kept”: the
               ones that passed the filters; “new”: offers not saved before; “matched”: new jobs the AI profile matched;
-              “sent”: what went to Telegram.
+              “sent”: what went out (Telegram, push).
             </p>
             <p>Open a run to see which board its new offers came from, and what failed. The log keeps two weeks.</p>
           </>
@@ -109,11 +109,11 @@ export async function Activity() {
 
       <Section
         id="queue-h"
-        title="Telegram queue"
+        title="Notification queue"
         help={
           <p>
-            New jobs wait here until they’re sent: right after a run, or while Telegram is muted, until you unmute or
-            send them (Settings → Telegram, or /send in the chat).
+            New jobs wait here until they’re sent: right after a run, or while notifications are muted, until you unmute
+            or send them (Settings → Notifications, or /send in Telegram).
           </p>
         }
       >

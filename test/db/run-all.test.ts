@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import webpush from 'web-push';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
+import * as pushRepo from '@/lib/db/repos/push-subscriptions';
 import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
@@ -11,7 +13,11 @@ import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { describeDb, exec } from './database';
 
 // The whole scrape run (lib/listings/run.ts) against the database, with `fetch` stubbed: the board
-// pages, Telegram and OpenAI are answered here, anything else fails the test. No network.
+// pages, Telegram and OpenAI are answered here, anything else fails the test. Push goes through
+// web-push, mocked. No network.
+
+vi.mock('web-push', () => ({ default: { sendNotification: vi.fn() } }));
+const pushed = vi.mocked(webpush.sendNotification);
 
 type Listing = { ref: string; name: string; at: string; mode?: string };
 
@@ -71,6 +77,9 @@ describeDb('a scrape run (runAll)', () => {
     vi.stubEnv('TELEGRAM_API_URL', TELEGRAM);
     vi.stubEnv('OPENAI_API_KEY', ''); // the AI filter is on in the settings, but can't work: everything is sent
     vi.stubEnv('VERCEL_PROJECT_PRODUCTION_URL', '');
+    vi.stubEnv('VAPID_PUBLIC_KEY', ''); // push off unless a test sets it up
+    pushed.mockReset();
+    pushed.mockResolvedValue({ statusCode: 201, body: '', headers: {} });
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -173,7 +182,7 @@ describeDb('a scrape run (runAll)', () => {
     await oneNewOffer();
     telegramDown = true;
     const run = await runAll('cron');
-    const error = { scraper: 'AI / Telegram', error: 'Telegram sendMessage: HTTP 500' };
+    const error = { scraper: 'AI / Notify', error: 'Telegram sendMessage: HTTP 500' };
     expect(run).toMatchObject({ added: 1, fresh: 1, notified: 0, errors: [error] });
     const [log] = await runsRepo.list();
     expect(log).toMatchObject({ fresh: 1, notified: 0, matched: null, errors: [error] });
@@ -193,5 +202,63 @@ describeDb('a scrape run (runAll)', () => {
     expect(log).toMatchObject({ notified: 0, matched: 0, errors: run.errors });
     expect(sent).toEqual([]);
     expect(await queueRepo.size()).toBe(1);
+  });
+
+  /** Push on, with one subscribed device. */
+  async function pushOn() {
+    vi.stubEnv('VAPID_PUBLIC_KEY', `B${'p'.repeat(86)}`);
+    vi.stubEnv('VAPID_PRIVATE_KEY', 'q'.repeat(43));
+    vi.stubEnv('VAPID_SUBJECT', 'mailto:me@example.com');
+    await pushRepo.save({
+      endpoint: 'https://fcm.googleapis.com/fcm/send/a',
+      p256dh: `B${'k'.repeat(86)}`,
+      auth: 'a'.repeat(22),
+      userAgent: null,
+    });
+  }
+  const pushedPayloads = () =>
+    pushed.mock.calls.map(([, body]) => JSON.parse(body as string) as Record<string, unknown>);
+
+  it('both channels get the batch: Telegram its messages, push one notification for it', async () => {
+    await pushOn();
+    await oneNewOffer();
+    const run = await runAll('cron');
+    expect(run).toMatchObject({ added: 1, fresh: 1, notified: 1, errors: [] });
+    expect(sent).toHaveLength(1);
+    expect(pushedPayloads()).toEqual([{ title: '1 new offer', body: 'Frontend React Developer', url: '/?new=1' }]);
+    expect(await queueRepo.size()).toBe(0);
+  });
+
+  it('push only (no Telegram): new offers are queued and pushed', async () => {
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', '');
+    await pushOn();
+    await oneNewOffer();
+    expect(await runAll('cron')).toMatchObject({ fresh: 1, notified: 1, errors: [] });
+    expect(sent).toEqual([]);
+    expect(pushed).toHaveBeenCalledOnce();
+  });
+
+  it('Telegram down, push up: a warning in the log, and the offer isn’t queued again (push got it to you)', async () => {
+    await pushOn();
+    await oneNewOffer();
+    telegramDown = true;
+    const run = await runAll('cron');
+    const warning = { scraper: 'Notify', error: 'Sent 1; Telegram sendMessage: HTTP 500', warning: true };
+    expect(run).toMatchObject({ notified: 1, errors: [warning] });
+    expect((await runsRepo.list())[0]).toMatchObject({ notified: 1, errors: [warning] });
+    expect(pushed).toHaveBeenCalledOnce();
+    expect(await queueRepo.size()).toBe(0);
+  });
+
+  it('both down: the offer stays queued; an expired subscription (410) is removed', async () => {
+    await pushOn();
+    await oneNewOffer();
+    telegramDown = true;
+    pushed.mockRejectedValue(Object.assign(new Error('Received unexpected response code'), { statusCode: 410 }));
+    const run = await runAll('cron');
+    expect(run.notified).toBe(0);
+    expect(run.errors[0].error).toBe('Telegram sendMessage: HTTP 500; Push: no subscribed device got it.');
+    expect((await queueRepo.list()).map((row) => row.id)).toEqual(['2']);
+    expect(await pushRepo.size()).toBe(0);
   });
 });

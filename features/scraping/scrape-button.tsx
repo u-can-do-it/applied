@@ -19,7 +19,7 @@ async function scrapeNow(): Promise<Result<RunSummary>> {
 }
 
 // "Scrape now" in the header: a full run, like the scheduled one (new offers also go to
-// Telegram). The page refreshes with the new offers when it's done; the result is a toast, a run that
+// Telegram and push). The page refreshes with the new offers when it's done; the result is a toast, a run that
 // failed says so next to the button until the next try.
 export function ScrapeButton() {
   const router = useRouter();
@@ -45,9 +45,7 @@ export function ScrapeButton() {
       }
       const title = report.added ? `${report.added} new offer${report.added === 1 ? '' : 's'}` : 'Nothing new';
       const summary = `${report.found} on the pages, ${report.kept} after filters, ${report.added} new${
-        report.notifyLater
-          ? ' · the AI check and Telegram run in the background'
-          : `, ${report.notified} sent to Telegram`
+        report.notifyLater ? ' · the AI check and the notifications run in the background' : `, ${report.notified} sent`
       }`;
       if (!report.errors.length) {
         toast.success(title, { description: summary });

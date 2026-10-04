@@ -1,28 +1,30 @@
 import 'server-only';
 import { assessJobs, type Verdict } from '../../ai/runs';
 import { AI_BUDGET_MS } from '../../budgets';
+import { activeChannels, deliver } from '../../channels';
+import type { Outgoing } from '../../channels/types';
 import * as queueRepo from '../../db/repos/notify-queue';
 import * as settingsRepo from '../../db/repos/scrape-settings';
 import * as stateRepo from '../../db/repos/scrape-state';
-import { env } from '../../env';
 import { log } from '../../log';
 import { message } from '../../shared/errors';
-import { formatNotification, sendMessage, type Outgoing } from '../../telegram';
 import { aiProfile } from './ai-filter';
 import { offerKey } from './model';
 
 type QueuedAt = queueRepo.QueuedAt;
 
-// Step 7, notify: what waits in the queue goes to Telegram, the AI's matches listed. Also called on
-// its own: "Send now" in Settings and /send in Telegram.
+// Step 7, notify: what waits in the queue goes to every notification channel (Telegram, push;
+// lib/channels), the AI's matches listed. Also called on its own: "Send now" in Settings and /send
+// in Telegram.
 
 /** an offer the AI couldn't check for this long goes out anyway, marked, instead of waiting forever */
 const UNCHECKED_AFTER_MS = 20 * 60_000;
 
-type Notified = { sent: number; matched: number | null; error?: string };
-
-const appLink = () =>
-  env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}/ai?days=1&rejected=1` : null;
+/**
+ * `error`: nothing went out, or the AI check failed; `warning`: a channel failed but another delivered
+ * (sent all the same); `noChannel`: nothing was sent because no channel is set up (or has a device).
+ */
+export type Notified = { sent: number; matched: number | null; error?: string; warning?: string; noChannel?: true };
 
 /**
  * Checks what's queued against the AI profile and sends what's ready: the matches listed, the
@@ -32,6 +34,9 @@ const appLink = () =>
 export async function notify(opts: { manual?: boolean; deadline?: number } = {}): Promise<Notified> {
   const queued = await queueRepo.list();
   if (!queued.length) return { sent: 0, matched: null };
+  // no channel: the offers stay queued for when one is set up, and the AI isn't asked about them yet
+  const channels = await activeChannels();
+  if (!channels.length) return { sent: 0, matched: null, noChannel: true };
   const settings = await settingsRepo.get();
   let error: string | undefined;
   const profile = await aiProfile(settings).catch((failure: unknown) => ((error = message(failure)), null));
@@ -68,37 +73,30 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
     else if (verdict.match) matched.push({ ...row, verdict: { score: verdict.score, summary: verdict.summary } });
     else unmatched.push(row);
   }
-  const messages = formatNotification({
+  const delivery = await deliver(channels, {
     matched,
     unmatched,
     unchecked,
     profile: profile?.name ?? null,
     held: Boolean(opts.manual && muted),
-    link: appLink(),
   });
-  let sent = 0;
-  for (let i = 0; i < messages.length; i++) {
-    try {
-      await sendMessage(messages[i].text);
-    } catch (sendError) {
-      // back into the queue with their own time, so they're tried again (and still count as waiting)
-      const left = new Set(messages.slice(i).flatMap((unsent) => unsent.offers.map(offerKey)));
-      const unsent = claimed.filter((row) => left.has(offerKey(row)));
-      await queueRepo.enqueue(unsent).catch((failure: unknown) => {
-        // they're lost to Telegram (still in the database): say so where it can be seen
-        log.error('Telegram: putting unsent offers back in the queue failed', {
-          offers: unsent.length,
-          error: failure,
-        });
-      });
-      return { sent, matched: profile ? matched.length : null, error: message(sendError) };
-    }
-    sent += messages[i].offers.length;
-    if (i < messages.length - 1) await new Promise((resolve) => setTimeout(resolve, 400)); // Telegram: about 1 message/s per chat
-  }
+  // what no channel got to you goes back into the queue with its own time, so it's tried again
+  // (and still counts as waiting)
+  const missed = new Set(delivery.unsent.map(offerKey));
+  const unsent = claimed.filter((row) => missed.has(offerKey(row)));
+  if (unsent.length)
+    await queueRepo.enqueue(unsent).catch((failure: unknown) => {
+      // they're lost to the channels (still in the database): say so where it can be seen
+      log.error('Notify: putting unsent offers back in the queue failed', { offers: unsent.length, error: failure });
+    });
+  const sendError = delivery.errors.join('; ') || undefined;
+  // a channel failed, but another got the offers to you: sent, with a warning
+  const partly = sendError !== undefined && unsent.length < claimed.length;
+  const failure = partly ? error : (sendError ?? error);
   return {
-    sent: matched.length + unchecked.length,
+    sent: [...matched, ...unchecked].filter((row) => !missed.has(offerKey(row))).length,
     matched: profile ? matched.length : null,
-    ...(error ? { error } : {}),
+    ...(partly ? { warning: sendError } : {}),
+    ...(failure ? { error: failure } : {}),
   };
 }

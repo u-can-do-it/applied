@@ -12,7 +12,7 @@ export const DAY_PRESETS = [
   { days: '30', label: '30 days' },
 ] as const;
 
-export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'rejected';
+export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'rejected' | 'new';
 type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
 
 // Builds a link from the current query, changing only the given keys
@@ -51,5 +51,7 @@ export function parseOfferQuery(params: Params) {
     from: preset ? '' : validDay(one(params.from)),
     to: preset ? '' : validDay(one(params.to)),
     rejected: one(params.rejected) === '1',
+    // only what the latest scrape run that brought new jobs brought (a push notification links here)
+    latest: one(params.new) === '1',
   };
 }

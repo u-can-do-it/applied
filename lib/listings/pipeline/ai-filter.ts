@@ -5,7 +5,7 @@ import { getProfile, isUsable, listProfiles, type ProfileWithFile } from '../../
 import { message } from '../../shared/errors';
 import type { ScrapeSettings } from '../settings';
 
-// Step 6, aiFilter: the new jobs checked against the active AI profile, so Telegram (notify) can
+// Step 6, aiFilter: the new jobs checked against the active AI profile, so the notifications (notify) can
 // send only the matches and the AI tab has them judged.
 
 /** The active AI profile, if the AI filter can work: on in Settings, a usable profile, an OpenAI key. */

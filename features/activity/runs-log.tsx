@@ -6,6 +6,7 @@ import { useZone } from '@/components/time-zone';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { ScrapeRun } from '@/lib/db/repos/scrape-runs';
+import { cn } from '@/lib/shared/cn';
 import { seconds } from '@/lib/shared/format';
 import { triggerLabel } from '@/lib/listings/triggers';
 import { filterCounts, filterRuns, isRunFilter, RUN_FILTERS, type RunFilter } from './run-filter';
@@ -66,6 +67,9 @@ export function RunsLog({
 
 function RunRow({ run, added }: { run: ScrapeRun; added: BoardAdded[] }) {
   const zone = useZone();
+  // a warning: it went through all the same (a channel failed, another sent)
+  const warnings = run.errors.filter((failure) => failure.warning).length;
+  const failures = run.errors.length - warnings;
   return (
     <li className="border-b">
       <Collapsible>
@@ -91,9 +95,14 @@ function RunRow({ run, added }: { run: ScrapeRun; added: BoardAdded[] }) {
           ) : (
             <span className="text-muted-foreground">unfinished</span>
           )}
-          {run.errors.length > 0 && (
+          {failures > 0 && (
             <span className="text-destructive">
-              <TriangleAlertIcon /> {run.errors.length} error{run.errors.length === 1 ? '' : 's'}
+              <TriangleAlertIcon /> {failures} error{failures === 1 ? '' : 's'}
+            </span>
+          )}
+          {warnings > 0 && (
+            <span className="text-warning">
+              <TriangleAlertIcon /> {warnings} warning{warnings === 1 ? '' : 's'}
             </span>
           )}
         </CollapsibleTrigger>
@@ -112,7 +121,10 @@ function RunRow({ run, added }: { run: ScrapeRun; added: BoardAdded[] }) {
             </p>
           )}
           {run.errors.map((failure, i) => (
-            <p key={i} className="m-0 mt-1 text-destructive [overflow-wrap:anywhere]">
+            <p
+              key={i}
+              className={cn('m-0 mt-1 [overflow-wrap:anywhere]', failure.warning ? 'text-warning' : 'text-destructive')}
+            >
               {failure.scraper}: {failure.error}
             </p>
           ))}

@@ -16,10 +16,12 @@ flowchart LR
   TgApi --> Pipeline
   Pipeline --> Boards[("board registry (lib/boards) + parsers")]
   Pipeline --> Outbound["fetchOutbound (SSRF checks)"] --> Sites[(job boards)]
-  Pipeline --> Telegram[Telegram Bot API]
+  Pipeline --> Channels["notification channels (lib/channels)"]
+  Channels --> Telegram[Telegram Bot API]
+  Channels --> Push["Web Push (web-push → push services)"] --> Phone["your phone: the installed PWA, public/sw.js"]
   CronApi -->|after the scrape| AiRuns["AI runs: slices under a lock (lib/ai)"]
   AiRuns --> OpenAI
-  UI["features/*: offers · ai · applications · scraping · telegram · health · activity"] --> Actions["server actions: action() = login + zod + Result"]
+  UI["features/*: offers · ai · applications · scraping · notifications · telegram · health · activity"] --> Actions["server actions: action() = login + zod + Result"]
   Actions --> Services["services (lib/*): the rules"] --> Repos["lib/db/repos: one per table"] --> DB[("Supabase Postgres: Drizzle schema + migrations")]
   Pipeline --> Repos
   AiRuns --> Repos
@@ -37,7 +39,7 @@ out of time. Every database access is server-side, through Drizzle over a direct
 | Trigger                              | Route                  | What it does                                                                                                                                                                                                                                                     |
 | ------------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Supabase Cron (`pg_cron` + `pg_net`) | `GET /api/cron/scrape` | Checks the secret, then whether a run is due (`checkDue`: not paused, within the hours, the interval passed). Takes the lock, answers 202 at once, runs the scrape in `after()`, then continues waiting AI runs in the time left. `?force=1`, `?wait=1` by hand. |
-| "Scrape now" (Settings)              | `POST /api/scrape`     | Same-origin and login checks, then a full run whatever the schedule; the AI check and Telegram go on in `after()`.                                                                                                                                               |
+| "Scrape now" (header, Notifications) | `POST /api/scrape`     | Same-origin and login checks, then a full run whatever the schedule; the AI check and the notifications go on in `after()`.                                                                                                                                      |
 | `/scrape` in Telegram                | `POST /api/telegram`   | A full run in `after()`; the bot replies with the counts. The other commands mute, unmute, send the queue and report status.                                                                                                                                     |
 | Opening the AI tab / "Check …"       | server render, action  | Starts an AI run, and on every render continues a paused one in `after()`.                                                                                                                                                                                       |
 | "Mark applied", "Add", "Fetch again" | server actions         | Save the application, then fetch its ad text in `after()`.                                                                                                                                                                                                       |
@@ -62,13 +64,14 @@ out of time. Every database access is server-side, through Drizzle over a direct
    another board's offer of a known job, not a muted title. One per job.
 5. **`recordOutcomes`** (`outcomes.ts` pure, `persist.ts` writes): each scraper's last status, counts and new
    mark; the run's counts go into `scrape_runs`. The announced offers go into `notify_queue` when sending is on
-   and Telegram is configured.
+   and a notification channel is ready (Telegram configured, or push configured with a subscribed device).
 6. **`aiFilter`** (`ai-filter.ts`): every new job (announced or not) is judged against the active AI profile,
    if the AI filter is on, a profile is usable and `OPENAI_API_KEY` is set. No new batch after `AI_BUDGET_MS`.
-7. **`notify`** (`notify.ts`): what waits in the queue goes to Telegram: matches listed with their fit, the
-   rest counted. An offer without a verdict waits for the next run, and after 20 minutes is sent anyway,
-   marked "not checked". While muted nothing is sent (verdicts are still made). Also run on its own by
-   "Send the … now" in Settings and `/send`.
+7. **`notify`** (`notify.ts`): what waits in the queue goes, as one batch, to every ready
+   [channel](#notification-channels): matches listed with their fit, the rest counted. An offer without a
+   verdict waits for the next run, and after 20 minutes is sent anyway, marked "not checked". While muted
+   nothing is sent (verdicts are still made). An offer no channel delivered goes back into the queue. Also run
+   on its own by "Send the … now" in Settings → Notifications and `/send`.
 
 The cron and `/scrape` already run the whole pipeline after their answer, in `after()`. "Scrape now" waits
 for steps 1–5 and gets its counts; steps 6 and 7 go on in `after()` (`background`), still under the lock.
@@ -105,6 +108,40 @@ The work runs in slices of `SLICE_MS` under the run's lock, each in `after()`
 while a run is open, and right after "Check") or by Supabase Cron's next call (`continueWaitingRuns`, after the
 scrape). The scrape's own AI filter (pipeline step 6) uses the same `assessJobs` without a run.
 
+### Notification channels
+
+[`lib/channels/`](../lib/channels): a `Channel` has a `name`, `ready()` (set up, and someone to send to) and
+`send(batch)`, which answers with what it couldn't deliver. `notify` claims the batch from the queue (mute,
+the AI check and the 20-minute rule decide what's in it, as before) and `deliver()` hands the same batch to
+every ready channel at once; one failing or throwing doesn't stop the others. An offer goes back into the queue
+only if no channel got it to you, so a working channel doesn't get it twice
+([ADR 0009](decisions/0009-notification-channels-and-push.md)). When no channel delivered, the errors go into the
+run log (`AI / Notify`); when one failed and another delivered, it's a warning there (`Notify`: "Sent N; …").
+
+- **Telegram** (`channels/telegram.ts`): the messages below; ready with `TELEGRAM_BOT_TOKEN` and
+  `TELEGRAM_CHAT_ID`.
+- **Push** (`channels/push.ts`, [`lib/push.ts`](../lib/push.ts)): one notification per batch ("5 new
+  offers", the first ones named) to every device in `push_subscriptions`, through `web-push` (encrypted per
+  device, signed with the VAPID keys; only to a known push service's https endpoint, through the SSRF guard's address check in production, 10 s
+  each). Ready with the three `VAPID_*` variables
+  and at least one subscribed device. A device the push service answers 404 / 410 for is removed. Tapping the
+  notification opens `/?new=1` (`public/sw.js`).
+
+The PWA side: `app/manifest.ts` (installable, standalone), the icons in `public/icons/` (`scripts/icons.ts`),
+and `public/sw.js`, registered on every page by `features/shell/service-worker.tsx`: it shows a push and opens
+the app where it points, and caches nothing. Settings → Notifications subscribes this browser
+(`features/notifications/`) and saves it with `pushSubscribeAction`, its subscription checked with
+`lib/shared/schemas/push.ts`.
+
+### New in the latest run
+
+The lists mark **new** the jobs whose earliest offer (`offers_unique.first_seen`) was first seen during the
+latest finished scrape run that brought at least one such job (`runsRepo.latestWithNewJobs()`: its
+`started_at`…`finished_at`, the window Activity's `addedPerBoard` counts a run's offers in), compared in SQL to
+the microsecond. A run that only added another board's offer of a known job brought no new job, so it isn't the
+one. The count line says how many ("3 new in the
+last run"), and `?new=1` lists only those, on the offers and the AI tabs alike.
+
 ### Telegram
 
 [`lib/telegram.ts`](../lib/telegram.ts) sends through the Bot API (one block per board, five offers per
@@ -133,24 +170,25 @@ Declared in [`lib/db/schema.ts`](../lib/db/schema.ts); what Drizzle can't declar
 functions, grants, `pg_cron`, seed rows) is in the custom migrations in [`drizzle/`](../drizzle). Queries
 live in [`lib/db/repos/`](../lib/db/repos), one file per table; the rules on top of them stay in `lib/`.
 
-| Table             | Holds                                                                         | Written by                                                                                                                                              |
-| ----------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `offers`          | every board's posting, keyed by `src` + `id`; `dup_key` (title key) generated | `lib/listings/pipeline/persist.ts` (`ingest` → `jw_ingest_offers`)                                                                                      |
-| `job_links`       | title keys merged into another job                                            | `lib/ai/merge-duplicates.ts` (`jw_merge_jobs`)                                                                                                          |
-| `ai_dup_pairs`    | every pair the AI was asked about, and its answer                             | `lib/ai/merge-duplicates.ts`                                                                                                                            |
-| `applications`    | yours, per job: snapshot, ad text, status, history, note                      | `lib/applications.ts` (mark, add, edit, status, note, ghosting, ad text); `jw_merge_jobs` moves them                                                    |
-| `ai_profiles`     | criteria, CV text, version                                                    | `lib/ai/profiles.ts`                                                                                                                                    |
-| `ai_verdicts`     | one per profile version and job                                               | `lib/ai/runs.ts` (`assessBatch`); `lib/ai/profiles.ts` drops older versions' on edit; `jw_merge_jobs` moves them                                        |
-| `ai_runs`         | manual AI runs: range, phase, progress, lock                                  | `lib/ai/runs.ts` (`startRun`, and each slice writes its state's `save`, `lib/ai/run-state.ts`)                                                          |
-| `offer_details`   | an offer's ad text for the AI (`ok` / `empty`)                                | `lib/ai/runs.ts` (`descriptions`)                                                                                                                       |
-| `scrapers`        | saved searches, their config, mark and last result                            | `features/scraping/actions.ts` (Settings), `lib/listings/pipeline/persist.ts` (`recordOutcomes`), `lib/db/seed.ts`                                      |
-| `scrape_settings` | one row: schedule, filters, switches, time zone (jsonb)                       | `features/scraping/actions.ts`, `features/telegram/actions.ts`; created by `0003_seed`                                                                  |
-| `scrape_state`    | one row: run lock, last call, last run, muted                                 | `lib/listings/run.ts` and `/api/cron/scrape` (lock), `lib/listings/schedule.ts` (last call), `/api/telegram` and `features/telegram/actions.ts` (muted) |
-| `scrape_seeds`    | which seeds were added (`board:<id>` markers), so deleted ones stay deleted   | `lib/db/seed.ts`, `0003_seed`, `0004_board_seeds`                                                                                                       |
-| `scrape_runs`     | the run log (two weeks)                                                       | `lib/listings/run.ts`                                                                                                                                   |
-| `notify_queue`    | new jobs waiting for Telegram                                                 | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what failed to send)                                    |
-| `offers_unique`   | view: each job once, its earliest offer, every board's link                   | read-only; defined in `0002_functions`                                                                                                                  |
-| `cron.job`        | Supabase Cron's job                                                           | `jw_cron_*` through `lib/db/repos/cron.ts`, from `features/scraping/actions.ts` and `syncCron` (`lib/listings/schedule.ts`)                             |
+| Table                | Holds                                                                         | Written by                                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `offers`             | every board's posting, keyed by `src` + `id`; `dup_key` (title key) generated | `lib/listings/pipeline/persist.ts` (`ingest` → `jw_ingest_offers`)                                                                                           |
+| `job_links`          | title keys merged into another job                                            | `lib/ai/merge-duplicates.ts` (`jw_merge_jobs`)                                                                                                               |
+| `ai_dup_pairs`       | every pair the AI was asked about, and its answer                             | `lib/ai/merge-duplicates.ts`                                                                                                                                 |
+| `applications`       | yours, per job: snapshot, ad text, status, history, note                      | `lib/applications.ts` (mark, add, edit, status, note, ghosting, ad text); `jw_merge_jobs` moves them                                                         |
+| `ai_profiles`        | criteria, CV text, version                                                    | `lib/ai/profiles.ts`                                                                                                                                         |
+| `ai_verdicts`        | one per profile version and job                                               | `lib/ai/runs.ts` (`assessBatch`); `lib/ai/profiles.ts` drops older versions' on edit; `jw_merge_jobs` moves them                                             |
+| `ai_runs`            | manual AI runs: range, phase, progress, lock                                  | `lib/ai/runs.ts` (`startRun`, and each slice writes its state's `save`, `lib/ai/run-state.ts`)                                                               |
+| `offer_details`      | an offer's ad text for the AI (`ok` / `empty`)                                | `lib/ai/runs.ts` (`descriptions`)                                                                                                                            |
+| `scrapers`           | saved searches, their config, mark and last result                            | `features/scraping/actions.ts` (Settings), `lib/listings/pipeline/persist.ts` (`recordOutcomes`), `lib/db/seed.ts`                                           |
+| `scrape_settings`    | one row: schedule, filters, switches, time zone (jsonb)                       | `features/scraping/actions.ts`, `features/notifications/actions.ts`; created by `0003_seed`                                                                  |
+| `scrape_state`       | one row: run lock, last call, last run, muted                                 | `lib/listings/run.ts` and `/api/cron/scrape` (lock), `lib/listings/schedule.ts` (last call), `/api/telegram` and `features/notifications/actions.ts` (muted) |
+| `scrape_seeds`       | which seeds were added (`board:<id>` markers), so deleted ones stay deleted   | `lib/db/seed.ts`, `0003_seed`, `0004_board_seeds`                                                                                                            |
+| `scrape_runs`        | the run log (two weeks)                                                       | `lib/listings/run.ts`                                                                                                                                        |
+| `notify_queue`       | new jobs waiting to be sent (every channel)                                   | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what no channel sent)                                        |
+| `push_subscriptions` | the browsers that get push notifications: endpoint, keys, device              | `features/notifications/actions.ts` (enable, disable), `lib/push.ts` (removes one the push service says is gone)                                             |
+| `offers_unique`      | view: each job once, its earliest offer, every board's link                   | read-only; defined in `0002_functions`                                                                                                                       |
+| `cron.job`           | Supabase Cron's job                                                           | `jw_cron_*` through `lib/db/repos/cron.ts`, from `features/scraping/actions.ts` and `syncCron` (`lib/listings/schedule.ts`)                                  |
 
 RLS is on for every table, with no policies: Supabase's public API can't read anything.
 
@@ -243,11 +281,12 @@ Outside `ok` the text is always what you typed, so a fetch that fails or finds n
 
 | Where                                      | What                                                                                                                                                                                                                                           |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`app/`](../app)                           | Routes only: pages (`/` offers, `/ai`, `/applied`, `/activity`, `/settings`, `/login`), layout, `error.tsx`, `globals.css` (tokens), and `api/` (`application`, `changes`, `cron/scrape`, `health`, `scrape`, `telegram`).                     |
-| [`features/`](../features)                 | One folder per area, with its components and its `actions.ts`: `offers`, `ai`, `applications`, `scraping`, `telegram`, `health`, `activity`, `login`, `shell` (header, tabs, auto-refresh).                                                    |
+| [`app/`](../app)                           | Routes only: pages (`/` offers, `/ai`, `/applied`, `/activity`, `/settings`, `/login`), layout, `manifest.ts`, `error.tsx`, `globals.css` (tokens), and `api/` (`application`, `changes`, `cron/scrape`, `health`, `scrape`, `telegram`).      |
+| [`public/`](../public)                     | `sw.js` (the service worker: push notifications, no cache) and `icons/` (made by `scripts/icons.ts`); served without the login.                                                                                                                |
+| [`features/`](../features)                 | One folder per area, with its components and its `actions.ts`: `offers`, `ai`, `applications`, `scraping`, `notifications`, `telegram`, `health`, `activity`, `login`, `shell` (header, tabs, auto-refresh, service worker).                   |
 | [`components/`](../components)             | Pieces more than one feature uses (forms, confirm, date input, time zone, hooks); `components/ui/` holds the shadcn/ui components.                                                                                                             |
 | [`server/`](../server)                     | The request's gate: the login cookie (`auth.ts`), `requireLogin()` (`session.ts`), the action wrapper (`action.ts`).                                                                                                                           |
-| [`proxy.ts`](../proxy.ts)                  | Every request but the login page, `/api/cron/` and `/api/telegram` needs the cookie; production without `APP_PASSWORD` answers 503.                                                                                                            |
+| [`proxy.ts`](../proxy.ts)                  | Every request but the login page, `/api/cron/`, `/api/telegram`, the manifest, the icons and `sw.js` needs the cookie; production without `APP_PASSWORD` answers 503.                                                                          |
 | [`lib/boards/`](../lib/boards)             | The board registry: one file per board (hosts, link ids, listing defaults, seeds); `index.ts` lists them.                                                                                                                                      |
 | [`lib/listings/`](../lib/listings)         | Scraping: `run.ts` and `pipeline/` (the steps), `parsers/` (one per board, plus generic JSON / HTML / RSS), `registry.ts`, `kinds.ts`, `match.ts` (filters), `settings.ts`, `schedule.ts` (cron secret, `checkDue`), `cron.ts` (the schedule). |
 | [`lib/ads/`](../lib/ads)                   | An offer's full ad text and details, one reader per board that needs one.                                                                                                                                                                      |
@@ -255,9 +294,10 @@ Outside `ok` the text is always what you typed, so a fetch that fails or finds n
 | [`lib/db/`](../lib/db)                     | `schema.ts`, `client.ts` (the connection), `connection.ts`, `health.ts` (pending migrations), `seed.ts` (board seeds), `repos/` (one per table).                                                                                               |
 | [`lib/health/`](../lib/health)             | The Health card's checks (pure) and the reads they need.                                                                                                                                                                                       |
 | [`lib/shared/`](../lib/shared)             | What client components may import: `Result`, errors, formatting, URL filters, `cn()`, the Zod schemas (`schemas/`).                                                                                                                            |
-| `lib/*.ts`                                 | Services and helpers: `applications.ts`, `ad-content-state.ts`, `stages.ts`, `jobs.ts`, `dates.ts`, `time-zone.ts`, `telegram.ts`, `changes.ts`, `budgets.ts`, `env.ts`, `log.ts`, `outbound.ts`, `dom.ts`, `hmac.ts`.                         |
+| [`lib/channels/`](../lib/channels)         | The notification channels (Telegram, push) and `deliver()`, which hands each the batch.                                                                                                                                                        |
+| `lib/*.ts`                                 | Services and helpers: `applications.ts`, `ad-content-state.ts`, `stages.ts`, `jobs.ts`, `dates.ts`, `time-zone.ts`, `telegram.ts`, `push.ts`, `changes.ts`, `budgets.ts`, `env.ts`, `log.ts`, `outbound.ts`, `dom.ts`, `hmac.ts`.              |
 | [`drizzle/`](../drizzle)                   | The migrations (written by `npm run db:generate`, custom ones by hand) and drizzle-kit's snapshots.                                                                                                                                            |
-| [`scripts/`](../scripts)                   | `db-migrate.ts` (`npm run db:migrate`), `db-preflight.sql`, `db-verify-migrations.sh`, `test-db.sh`, `db-reset-local.sh`, `lib-local-db.sh` (the localhost guard).                                                                             |
+| [`scripts/`](../scripts)                   | `db-migrate.ts` (`npm run db:migrate`), `db-preflight.sql`, `db-verify-migrations.sh`, `test-db.sh`, `db-reset-local.sh`, `lib-local-db.sh` (the localhost guard), `icons.ts` (the app's icons).                                               |
 | [`test/`](../test)                         | Vitest: unit tests mirroring the source tree, `test/db/` against a real database, `test/fixtures/` (recorded board pages).                                                                                                                     |
 | [`supabase/scripts/`](../supabase/scripts) | `remove-duplicates.sql`, a one-off cleanup from before the app de-duplicated jobs; kept for reference, not to be run.                                                                                                                          |
 
@@ -297,6 +337,10 @@ way, the entry says so (_stored as_): those names stay (production data and appl
   `notify_queue.dup_key`, `ai_dup_pairs.key_a`/`key_b`.
 - **first seen**: When a scraper first saw an offer; "newest" everywhere means this
   ([ADR 0002](decisions/0002-newest-by-first-seen.md)). _Stored as:_ `offers.first_seen`.
+- **new**: A job first seen in the latest finished scrape run that brought new jobs: marked in the lists, listed by
+  `?new=1` (`isNew`, `latestWithNewJobs`). Not a stored flag.
+- **channel**: Where new offers are sent: Telegram or push (`lib/channels/`, `Channel`). A **device** is one
+  browser subscribed to push. _Stored as:_ `push_subscriptions`.
 - **merge**: The AI deciding two jobs are one (`lib/ai/merge-duplicates.ts`): the later one's title keys then
   point at the kept job's id (`job_links`), and its verdicts and application follow. Not to be confused with
   `supabase/scripts/remove-duplicates.sql`, a one-off cleanup of duplicate rows.

@@ -227,7 +227,7 @@ export const offerDetails = pgTable(
   ],
 ).enableRLS();
 
-// ---- scraping: the scrapers, settings, machine state, runs and the Telegram queue -----------------
+// ---- scraping: the scrapers, settings, machine state, runs and the notification queue ------------
 
 // kind = the parser; src = the board as stored in offers.src (searches on one board share it)
 export const scrapers = pgTable(
@@ -244,7 +244,7 @@ export const scrapers = pgTable(
       .notNull()
       .default(sql`'{}'::jsonb`), // url, headers, filters, field paths…
     // newest "sort value" seen; older offers that show up later are saved but not announced.
-    // null = never ran: the first run only saves, so a new scraper doesn't flood Telegram.
+    // null = never ran: the first run only saves, so a new scraper doesn't flood the notifications.
     mark: doublePrecision('mark'),
     lastRunAt: timestamptz('last_run_at'),
     lastStatus: text('last_status').$type<'ok' | 'error'>(),
@@ -306,9 +306,9 @@ export const scrapeRuns = pgTable(
     kept: integer('kept').notNull().default(0), // after keyword / city filters
     added: integer('added').notNull().default(0), // new rows in offers
     fresh: integer('fresh').notNull().default(0), // new jobs worth a message (not another board's offer of a known one)
-    notified: integer('notified').notNull().default(0), // sent to Telegram in this run
+    notified: integer('notified').notNull().default(0), // sent (Telegram, push) in this run
     errors: jsonb('errors')
-      .$type<{ scraper: string; error: string }[]>()
+      .$type<{ scraper: string; error: string; warning?: true }[]>() // warning: went through all the same
       .notNull()
       .default(sql`'[]'::jsonb`),
     matched: integer('matched'), // null = no AI filter
@@ -333,6 +333,18 @@ export const notifyQueue = pgTable(
   },
   (table) => [primaryKey({ name: 'notify_queue_pkey', columns: [table.src, table.id] })],
 ).enableRLS();
+
+// ---- push: the browsers that get the notifications (Settings → Notifications) ---------------------
+
+// one per browser that said yes; the push service's endpoint identifies it. Removed when the push
+// service answers 404 / 410 (the subscription expired or was revoked), or "Disable on this device"
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  endpoint: text('endpoint').primaryKey(), // the push service's URL for this browser (https)
+  p256dh: text('p256dh').notNull(), // the browser's public key, to encrypt the message for it
+  auth: text('auth').notNull(), // and its auth secret
+  userAgent: text('user_agent'), // which device it is, for Settings
+  createdAt: createdAt(),
+}).enableRLS();
 
 // ---- views ----------------------------------------------------------------------------------------
 
@@ -373,4 +385,5 @@ export type ScrapeStateRow = typeof scrapeState.$inferSelect;
 export type ScrapeSeedRow = typeof scrapeSeeds.$inferSelect;
 export type ScrapeRunRow = typeof scrapeRuns.$inferSelect;
 export type NotifyQueueRow = typeof notifyQueue.$inferSelect;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type OfferUniqueRow = typeof offersUnique.$inferSelect;

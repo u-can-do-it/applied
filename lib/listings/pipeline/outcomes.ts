@@ -40,7 +40,7 @@ export function scraperOutcomes(
 export const runErrors = (fetched: readonly Fetched[]): RunError[] =>
   fetched.flatMap(({ scraper, result }) => (result.error ? [{ scraper: scraper.name, error: result.error }] : []));
 
-/** The run's counts, before the AI check and Telegram. */
+/** The run's counts, before the AI check and the notifications. */
 export function summarize(run: {
   fetched: readonly Fetched[];
   owners: Owners;

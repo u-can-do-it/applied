@@ -12,7 +12,7 @@ export function ScraperStatus({ scraper }: { scraper: Scraper }) {
   if (!scraper.lastRunAt)
     return (
       <p className="m-0 mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
-        Not run yet{scraper.mark === null ? ' · its first run only saves (no Telegram)' : ''}
+        Not run yet{scraper.mark === null ? ' · its first run only saves (no notifications)' : ''}
       </p>
     );
   const when = formatTime(scraper.lastRunAt);
@@ -45,7 +45,7 @@ export function ScraperStatus({ scraper }: { scraper: Scraper }) {
 export function ScraperBrief({ scraper }: { scraper: Scraper }) {
   const { formatTime } = useZone();
   const firstRun = scraper.mark === null && (
-    <span className="text-muted-foreground"> · its next run only saves (no Telegram)</span>
+    <span className="text-muted-foreground"> · its next run only saves (no notifications)</span>
   );
   if (!scraper.lastRunAt) return <p className="m-0 mt-0.5 text-xs text-muted-foreground">Not run yet{firstRun}</p>;
   const failed = scraper.lastStatus === 'error' || scraper.lastError;

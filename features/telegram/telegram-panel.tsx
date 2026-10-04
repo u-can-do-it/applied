@@ -1,28 +1,19 @@
 'use client';
 
-import { useOptimistic } from 'react';
-import { BellIcon, BellOffIcon, CheckIcon, SparklesIcon } from 'lucide-react';
-import { CheckField, Code } from '@/components/field';
+import { CheckIcon } from 'lucide-react';
+import { Code } from '@/components/field';
 import { PanelHeading } from '@/components/help';
 import { ActionError, useAction } from '@/components/use-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
 import type { BotInfo } from '@/lib/telegram';
-import { PANEL, SMALL } from '@/features/scraping/panel-styles';
-import {
-  sendQueueAction,
-  setAiFilterAction,
-  setMutedAction,
-  setNotifyAction,
-  telegramConnectAction,
-  telegramDisconnectAction,
-  telegramTestAction,
-} from './actions';
+import { BUTTONS, PANEL, SMALL } from '@/features/scraping/panel-styles';
+import { telegramConnectAction, telegramDisconnectAction, telegramTestAction } from './actions';
 import { TelegramHelp } from './telegram-help';
 
-// The Telegram panel in Settings. Its buttons and toggles behave like the other panels': the new value
-// shows at once (useOptimistic), "Saved." is a toast, what went wrong shows next to the control (useAction).
+// The Telegram panel in Settings: the bot, a test message and its commands. Sending, mute, the queue and
+// the AI filter apply to every channel: they're in the Notifications panel. What went wrong shows next
+// to the buttons (useAction).
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
@@ -38,28 +29,13 @@ function Panel({ children }: { children: React.ReactNode }) {
 export function TelegramPanel({
   ready,
   bot,
-  notify,
-  muted,
-  queued,
-  ai,
   webhookUrl,
 }: {
   ready: boolean;
   bot: (BotInfo & { error?: undefined }) | { error: string } | null;
-  notify: boolean;
-  muted: boolean;
-  queued: number;
-  /** the AI filter: on in settings, the active profile (if usable), whether OPENAI_API_KEY is set */
-  ai: { on: boolean; profile: string | null; keySet: boolean };
   webhookUrl: string;
 }) {
   const act = useAction();
-  // what the buttons show right away; the refreshed page brings the real values
-  type View = { notify: boolean; muted: boolean; queued: number; aiOn: boolean };
-  const [view, show] = useOptimistic<View, Partial<View>>({ notify, muted, queued, aiOn: ai.on }, (cur, patch) => ({
-    ...cur,
-    ...patch,
-  }));
   if (!ready) {
     return (
       <Panel>
@@ -74,90 +50,20 @@ export function TelegramPanel({
   const hooked = info?.webhook === webhookUrl;
   return (
     <Panel>
-      <p className={SMALL}>
-        {info ? (
-          <>
-            Bot <strong>@{info.username}</strong>
-          </>
-        ) : (
-          <span className="text-warning">Can’t reach the bot: {bot?.error}</span>
-        )}
-      </p>
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 text-sm">
-        <CheckField>
-          <Switch
-            checked={view.notify}
-            onCheckedChange={(on) => {
-              act.run(
-                () => setNotifyAction({ on }),
-                () => show({ notify: on }),
-              );
-            }}
-          />
-          Send new offers
-        </CheckField>
-        <span className="text-xs">
-          {view.muted ? (
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+        <p className={SMALL}>
+          {info ? (
             <>
-              <BellOffIcon /> Muted, {view.queued} waiting
+              Bot <strong>@{info.username}</strong>
             </>
           ) : (
-            <>
-              <BellIcon /> On{view.queued ? `, ${view.queued} waiting` : ''}
-            </>
+            <span className="text-warning">Can’t reach the bot: {bot?.error}</span>
           )}
-        </span>
-        <Button
-          type="button"
-          variant="outline"
-          aria-busy={act.busy || undefined}
-          onClick={() => {
-            const mute = !view.muted;
-            act.run(
-              () => setMutedAction({ muted: mute }),
-              () => show(mute ? { muted: true } : { muted: false, queued: 0 }),
-            );
-          }}
-        >
-          {view.muted ? 'Unmute and send' : 'Mute'}
-        </Button>
-        {view.queued > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            aria-busy={act.busy || undefined}
-            onClick={() => act.run(sendQueueAction, () => show({ queued: 0 }))}
-          >
-            Send the {view.queued} now
-          </Button>
-        )}
+        </p>
         <Button type="button" variant="outline" disabled={act.busy} onClick={() => act.run(telegramTestAction)}>
           Test message
         </Button>
       </div>
-      <CheckField className="mt-2.5">
-        <Switch
-          checked={view.aiOn}
-          onCheckedChange={(on) => {
-            act.run(
-              () => setAiFilterAction({ on }),
-              () => show({ aiOn: on }),
-            );
-          }}
-        />
-        <span>
-          <SparklesIcon /> Only offers the AI profile matches{ai.profile ? ` (“${ai.profile}”)` : ''}
-        </span>
-      </CheckField>
-      <p className="mt-0.5 mb-2 ml-10 text-xs text-muted-foreground">
-        {!view.aiOn
-          ? 'Off: every new offer is sent.'
-          : !ai.keySet
-            ? 'OPENAI_API_KEY isn’t set: until it is, every new offer is sent.'
-            : !ai.profile
-              ? 'No AI profile yet (AI filter tab → Profile): until then, every new offer is sent.'
-              : 'On: only the matches are sent, with their fit.'}
-      </p>
       <p className={SMALL}>
         Commands in the chat:{' '}
         {hooked ? (
@@ -171,7 +77,7 @@ export function TelegramPanel({
         )}
         {info?.webhookError && <span className="text-warning"> · last error: {info.webhookError}</span>}
       </p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <div className={BUTTONS}>
         <Button
           type="button"
           variant={hooked ? 'outline' : 'default'}

@@ -8,12 +8,12 @@ export function ScrapingHelp({ cron }: { cron: CronStatus }) {
     <>
       <p>
         A run goes through every scraper that’s on: it reads their pages, keeps the offers that pass the filters, saves
-        the new ones and sends them to Telegram. A scheduled run comes every interval, within the hours; “Scrape now” at
-        the top starts one at any time, paused or not.
+        the new ones and sends them to Telegram and push. A scheduled run comes every interval, within the hours;
+        “Scrape now” at the top starts one at any time, paused or not.
       </p>
       <p>
         The time zone is the one for these hours and for every day and time the app shows (lists, date filters,
-        Telegram). Your browser’s zone is offered; only a pick here changes it, and Supabase Cron’s hours with it.
+        notifications). Your browser’s zone is offered; only a pick here changes it, and Supabase Cron’s hours with it.
       </p>
       <p>
         Supabase Cron is what calls the app on its own: a job in the database (pg_cron and pg_net, which{' '}

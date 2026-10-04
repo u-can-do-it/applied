@@ -17,9 +17,10 @@ when you touched the database code or the migrations; it needs Docker). Set up a
   with `'use server'`, every action built with `action()` / `formAction()` from `server/action.ts`).
   `offers` (the lists, filters, Mark applied's button), `ai` (profiles, AI runs and their card), `applications`
   (the Applied tab, applying, the add/edit form), `scraping` (Settings: schedule, time zone, filters, scrapers,
-  Supabase Cron, the "Scrape now" button), `telegram` (its Settings panel), `health` (Settings' Health card),
+  Supabase Cron, the "Scrape now" button), `notifications` (Settings → Notifications: push on this device, mute,
+  the queue, the AI filter switch), `telegram` (its Settings panel), `health` (Settings' Health card),
   `activity` (the Activity tab: runs, scrapers' results, the queue, cron calls, AI runs), `login`, and `shell`
-  (the header, tabs, auto-refresh). A feature imports another's module by its `@/features/…` path.
+  (the header, tabs, auto-refresh, the service worker's registration). A feature imports another's module by its `@/features/…` path.
 - **`components/`: pieces more than one feature uses** (`DateInput`, `TimeZone` / `useZone`, `useAction` for
   a button or a toggle, `useAppForm` for a form ([below](#forms)), `useConfirm()` for "are you sure?",
   `useReturnFocus()` for a dialog opened from code, `useAutosave()` for a field that saves itself,
@@ -124,7 +125,8 @@ Tailwind v4 and shadcn/ui ([ADR 0007](docs/decisions/0007-shadcn-ui-and-tailwind
   must catch and log its own failure: nobody else sees it.
 - A request to a link from a user or a page goes through `fetchOutbound()` and its body through `readText()`
   (`lib/outbound.ts`, the [SSRF checks](docs/OPERATIONS.md#ssrf-policy)). Plain `fetch` only for services the
-  environment configures (Telegram, OpenAI).
+  environment configures (Telegram, OpenAI); push goes through `web-push` to the push service the browser chose
+  (`lib/push.ts`: https only, with a timeout).
 - A page is read with `parsePage()` (`lib/dom.ts`) or, for a feed, `fast-xml-parser`, not regular expressions.
 
 ## The database

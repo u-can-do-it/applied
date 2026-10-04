@@ -12,7 +12,7 @@ describe('one', () => {
 
 describe('parseOfferQuery', () => {
   it('keeps the filters that make sense', () => {
-    expect(parseOfferQuery({ q: 'react', src: 'justjoin', page: '2', days: '7', rejected: '1' })).toEqual({
+    expect(parseOfferQuery({ q: 'react', src: 'justjoin', page: '2', days: '7', rejected: '1', new: '1' })).toEqual({
       q: 'react',
       src: 'justjoin',
       page: 2,
@@ -20,13 +20,14 @@ describe('parseOfferQuery', () => {
       from: '',
       to: '',
       rejected: true,
+      latest: true,
     });
   });
 
   it('drops what does not', () => {
     expect(
-      parseOfferQuery({ q: 'x'.repeat(300), src: 'Not a board', page: '-3', days: '12', from: '2026-02-30' }),
-    ).toEqual({ q: 'x'.repeat(200), src: '', page: 0, days: '', from: '', to: '', rejected: false });
+      parseOfferQuery({ q: 'x'.repeat(300), src: 'Not a board', page: '-3', days: '12', from: '2026-02-30', new: 'y' }),
+    ).toEqual({ q: 'x'.repeat(200), src: '', page: 0, days: '', from: '', to: '', rejected: false, latest: false });
   });
 
   it('a day preset wins over a range', () => {

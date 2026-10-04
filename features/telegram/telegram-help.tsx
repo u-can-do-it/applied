@@ -1,6 +1,6 @@
 import { Code } from '@/components/field';
 
-/** The Telegram panel's help: setting the bot up, the AI filter, and the chat's commands. */
+/** The Telegram panel's help: setting the bot up, and the chat's commands. */
 export function TelegramHelp() {
   return (
     <>
@@ -11,18 +11,14 @@ export function TelegramHelp() {
         <Code>message.chat.id</Code> (a group’s starts with -).
       </p>
       <p>
-        <strong>Mute</strong> keeps new offers in a queue instead of sending them; unmuting sends what waited.
-      </p>
-      <p>
-        <strong>Only offers the AI profile matches:</strong> every new offer is checked right after scraping, as the AI
-        tab would (also the ones that aren’t sent, like a new scraper’s first run). The message lists the matches with
-        their fit; if none match, it just says how many new offers there are. One the AI can’t check for 20 minutes is
-        sent anyway, marked. Without <Code>OPENAI_API_KEY</Code> or an AI profile, every new offer is sent.
+        <strong>Messages:</strong> one block per board, five offers per message. Sending, mute and the AI filter are in
+        the Notifications panel above: they apply to push notifications too.
       </p>
       <p>
         <strong>Commands:</strong> /mute, /resume, /send (what waits), /scrape (a run now) and /status, from your chat
-        only. They reach the app once “Connect commands” has set the bot’s webhook to it. A bot gets commands either by
-        webhook or by polling, not both: nothing else may be reading this bot’s updates.
+        only. Mute and /send hold and send for every channel. They reach the app once “Connect commands” has set the
+        bot’s webhook to it. A bot gets commands either by webhook or by polling, not both: nothing else may be reading
+        this bot’s updates.
       </p>
     </>
   );

@@ -4,7 +4,7 @@ import { BellOffIcon } from 'lucide-react';
 import { useZone } from '@/components/time-zone';
 import type { QueuedAt } from '@/lib/db/repos/notify-queue';
 
-/** The offers waiting to be sent to Telegram, oldest first: the first few of `total`. */
+/** The offers waiting to be sent (Telegram, push), oldest first: the first few of `total`. */
 export function QueueList({ queue, total, muted }: { queue: QueuedAt[]; total: number; muted: boolean }) {
   const zone = useZone();
   return (

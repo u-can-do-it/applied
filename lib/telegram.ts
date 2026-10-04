@@ -2,9 +2,11 @@ import 'server-only';
 import { hmac } from './hmac';
 import { env } from './env';
 import type { Queued } from './db/repos/notify-queue';
+import type { Outgoing } from './channels/types';
 
-// Telegram bot: the messages about new offers, and the /mute /resume /send /status
-// commands (they arrive at /api/telegram once the webhook is connected in Settings).
+// Telegram bot: the messages about new offers (one of the notification channels, lib/channels), and
+// the /mute /resume /send /status commands (they arrive at /api/telegram once the webhook is
+// connected in Settings).
 // TELEGRAM_BOT_TOKEN (from @BotFather) and TELEGRAM_CHAT_ID (your chat with the bot).
 
 const BATCH = 5; // offers per message
@@ -42,7 +44,7 @@ async function call<T>(method: string, body: Record<string, unknown> = {}): Prom
 export const sendMessage = (text: string, chatId = ownerChat()) =>
   call('sendMessage', { chat_id: chatId, text: text.slice(0, 4096) });
 
-export type Outgoing = Queued & { verdict?: { score: number; summary: string | null } };
+export type { Outgoing };
 export type Message = { text: string; offers: Queued[] };
 
 const offerText = (offer: Outgoing) => {

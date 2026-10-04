@@ -63,7 +63,7 @@ export const saveScraperAction = action(scraperSchema, async ({ id, scraper }) =
   if (id) {
     const old = await scrapersRepo.get(id);
     if (!old) throw new Error('This scraper no longer exists.');
-    // a different search: its first run only saves, so Telegram isn't flooded with "new" old offers
+    // a different search: its first run only saves, so the notifications aren't flooded with "new" old offers
     const changed = old.kind !== scraper.kind || old.src !== scraper.src || old.config.url !== scraper.config.url;
     await scrapersRepo.update(id, scraper, changed);
     refresh();

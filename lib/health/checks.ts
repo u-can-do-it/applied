@@ -93,9 +93,13 @@ export type TelegramInput = {
   bot: BotInfo | { error: string } | null;
   webhookUrl: string;
   notify: boolean;
+  /** push notifications reach a device: without Telegram, new offers still go somewhere */
+  pushOn?: boolean;
 };
 
-export function telegramCheck({ ready, bot, webhookUrl, notify }: TelegramInput): HealthResult {
+export function telegramCheck({ ready, bot, webhookUrl, notify, pushOn }: TelegramInput): HealthResult {
+  if (!ready && pushOn)
+    return { level: 'ok', reason: 'Not set up; push notifications send new offers (no chat commands).' };
   if (!ready)
     return {
       level: 'warn',
@@ -126,6 +130,40 @@ export function telegramCheck({ ready, bot, webhookUrl, notify }: TelegramInput)
   return {
     level: 'ok',
     reason: `${name}, commands connected${notify ? '' : '; sending new offers is switched off'}.`,
+  };
+}
+
+const VAPID = 'VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT';
+
+export type PushInput = {
+  /** what's wrong with the VAPID variables (lib/push.ts pushProblem): 'not set', one malformed…; null: fine */
+  problem: string | null;
+  /** subscribed devices */
+  devices: number;
+  notify: boolean;
+  /** Telegram is set up: without push, new offers still go somewhere */
+  telegram: boolean;
+};
+
+export function pushCheck({ problem, devices, notify, telegram }: PushInput): HealthResult {
+  if (problem === 'not set')
+    return telegram
+      ? { level: 'ok', reason: 'Off (no VAPID keys); Telegram sends new offers.' }
+      : {
+          level: 'warn',
+          reason: 'Not set up: no notifications on your phone.',
+          fix: { type: 'hint', text: 'Set', code: VAPID },
+        };
+  if (problem) return { level: 'error', reason: `${problem}.`, fix: { type: 'hint', text: 'Check', code: VAPID } };
+  if (!devices)
+    return {
+      level: 'warn',
+      reason: 'No device gets them yet.',
+      fix: { type: 'link', href: '#notifications-h', label: 'Enable on this device' },
+    };
+  return {
+    level: 'ok',
+    reason: `${devices} device${devices === 1 ? '' : 's'} subscribed${notify ? '' : '; sending new offers is switched off'}.`,
   };
 }
 
@@ -175,7 +213,8 @@ export function lastRunCheck(
       return { level: 'error', reason: `The run of ${when} didn’t finish.`, fix: SEE_RUNS };
     return { level: 'ok', reason: `A run is going (started ${when}).` };
   }
-  const failed = run.errors.filter((failure) => failure.scraper !== 'Run');
+  // a warning (a channel failed, another sent) isn't a failure
+  const failed = run.errors.filter((failure) => failure.scraper !== 'Run' && !failure.warning);
   if (run.errors.some((failure) => failure.scraper === 'Run'))
     return { level: 'error', reason: `The run of ${when} failed.`, fix: SEE_RUNS };
   if (failed.length) {

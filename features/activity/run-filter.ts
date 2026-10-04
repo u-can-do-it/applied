@@ -17,7 +17,7 @@ type Filterable = Pick<ScrapeRun, 'trigger' | 'errors'>;
 
 export function filterRuns<R extends Filterable>(runs: readonly R[], filter: RunFilter): R[] {
   if (filter === 'all') return [...runs];
-  if (filter === 'failed') return runs.filter((run) => run.errors.length > 0);
+  if (filter === 'failed') return runs.filter((run) => run.errors.some((failure) => !failure.warning));
   return runs.filter((run) => run.trigger === filter);
 }
 

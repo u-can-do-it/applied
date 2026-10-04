@@ -104,7 +104,7 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
           <form.AppField name="mute">
             {(field) => (
               <field.TextField
-                label="Save, but don’t send to Telegram"
+                label="Save, but don’t notify"
                 hint="Whole words: “java” doesn’t hit JavaScript, “.net” also hits ASP.NET."
               />
             )}

@@ -4,7 +4,7 @@ import { db } from '../client';
 import { isOneOf } from '../rows';
 import { notifyQueue, type NotifyQueueRow } from '../schema';
 
-// New jobs waiting to be sent to Telegram; while muted, they pile up.
+// New jobs waiting to be sent to the notification channels (Telegram, push); while muted, they pile up.
 
 /** An offer to send (jobId: its job, whose AI verdict decides if it's sent). */
 export type Queued = Omit<NotifyQueueRow, 'queuedAt'>;
