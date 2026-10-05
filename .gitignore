@@ -9,3 +9,6 @@ next-env.d.ts
 
 # private data files (e.g. imported applications)
 /data/
+
+# local Claude Code config (dev-server preview)
+.claude/
