@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { zoneOf } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
 import { applyAction, unapplyAction } from '@/features/applications/actions';
+import { ON_HOVER } from './offer-actions';
 
 /** "Mark applied" / "Applied 02.10.2026" with a check mark - flips on the click frame, the server catches up. */
 export function ApplyButton({
@@ -54,6 +55,7 @@ export function ApplyButton({
         size="xs"
         className={cn(
           'rounded-full bg-transparent font-normal text-muted-foreground hover:border-muted-foreground hover:bg-transparent hover:text-foreground dark:bg-transparent dark:hover:bg-transparent',
+          !applied && ON_HOVER,
           applied && 'border-success text-success hover:border-success hover:text-success dark:border-success',
         )}
         onClick={() => void toggle()}

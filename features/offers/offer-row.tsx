@@ -39,7 +39,8 @@ function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, st
 /**
  * One job in the list. A job the latest scrape run that brought new jobs brought is marked "new", with a
  * faint tint, so what came in last time stands out; one you opened before has a check mark after its title.
- * The archive button takes it out of the list (or, in the archived list, back into the others).
+ * The archive button takes it out of the list (or, in the archived list, back into the others). With a
+ * mouse, the archive and "Mark applied" buttons show on the row's hover (or keyboard focus) only.
  */
 export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; labels: Record<string, string> }) {
   return (
@@ -47,7 +48,7 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
       <SeenItem
         jobId={job.jobId}
         seen={job.seen}
-        className={cn(OFFER, job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]')}
+        className={cn(OFFER, 'group/offer', job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]')}
         data-new={job.isNew || undefined}
       >
         <time

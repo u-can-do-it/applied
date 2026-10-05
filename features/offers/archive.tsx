@@ -4,7 +4,9 @@ import { createContext, use, useOptimistic, useTransition, type ReactNode } from
 import { ArchiveIcon, ArchiveRestoreIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/shared/cn';
 import { archiveAction, restoreAction } from './actions';
+import { ON_HOVER } from './offer-actions';
 
 // "Archived": a job you don't want in the lists any more (one reposted again and again, say). The row
 // leaves the list on the click frame, the refreshed list catches up, and the toast's Undo puts it back;
@@ -62,7 +64,7 @@ export function ArchiveButton() {
       type="button"
       variant="ghost"
       size="icon-xs"
-      className="rounded-full text-muted-foreground"
+      className={cn('rounded-full text-muted-foreground', ON_HOVER)}
       onClick={row.move}
       aria-label={row.archived ? `Restore ${row.title}` : `Archive ${row.title}`}
       title={row.archived ? 'Back in the lists' : 'Archive: leave it out of the lists'}
