@@ -179,6 +179,13 @@ describe('filtersSchema', () => {
 });
 
 describe('storedSettingsSchema', () => {
+  it('reads Telegram as on in a row saved before the switch existed, and keeps it off once switched off', () => {
+    const { telegramEnabled: _, ...older } = DEFAULT_SETTINGS;
+    expect(storedSettingsSchema.parse(older).telegramEnabled).toBe(true);
+    expect(storedSettingsSchema.parse({ ...older, telegramEnabled: 'no' }).telegramEnabled).toBe(true);
+    expect(storedSettingsSchema.parse({ ...older, telegramEnabled: false }).telegramEnabled).toBe(false);
+  });
+
   it('fills in what is missing or wrong with the defaults', () => {
     expect(storedSettingsSchema.parse(undefined)).toEqual(DEFAULT_SETTINGS);
     expect(storedSettingsSchema.parse('nonsense')).toEqual(DEFAULT_SETTINGS);

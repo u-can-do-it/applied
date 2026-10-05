@@ -22,6 +22,8 @@ export type ScrapeSettings = {
   notify: boolean;
   /** check new offers against the active AI profile first; the channels get only the matches */
   aiFilter: boolean;
+  /** Telegram gets new offers and answers commands; off keeps the bot and its webhook, silent */
+  telegramEnabled: boolean;
   /** the app's time zone (days, times, date filters, the hours above), as picked in Settings; '' = none picked yet */
   timeZone: string;
   /**
@@ -43,6 +45,7 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
   mute: ['.net', 'dotnet', 'go', 'golang', 'java'],
   notify: true,
   aiFilter: true,
+  telegramEnabled: true,
   timeZone: '',
   browserTimeZone: '',
 };

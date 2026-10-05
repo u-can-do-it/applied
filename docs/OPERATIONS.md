@@ -275,6 +275,11 @@ Commands: `/mute` (also `/pause`, `/stop`: new offers wait in the queue, for eve
 switches are in Settings → Notifications. With the AI filter on, a message lists only the matches; an offer the
 AI couldn't check for 20 minutes is sent anyway, marked "not checked".
 
+**Send to Telegram** (Settings → Telegram, on by default) switches Telegram off without removing the bot, the
+webhook or the variables: no messages about new offers (they're queued only while push can still send them),
+**Test message** is disabled, and commands are answered 200 to Telegram but get no reply and run nothing. The
+Health card's Telegram row says "Off in Settings". **Disconnect** removes the webhook, if you want that too.
+
 ## OpenAI
 
 `OPENAI_API_KEY` (platform.openai.com → API keys) turns on three jobs, each with its own model and effort
@@ -288,7 +293,7 @@ the link" fills in only what the page says plainly. `OPENAI_BASE_URL` points it 
 - **The Health card** at the top of Settings has one row per dependency, green, amber or red, with the reason and
   the fix (a button, a page, or a command): **Database** (reachable, every migration applied), **Scraping**
   (on with its schedule, or paused), **Supabase Cron** (connected, following the settings, its last answer),
-  **Last run** (finished, which scrapers failed), **Telegram** (configured, reachable, commands connected),
+  **Last run** (finished, which scrapers failed), **Telegram** (configured, reachable, commands connected, or off in Settings),
   **Push** (the VAPID keys set and well-formed, how many devices are subscribed),
   **OpenAI** (key set), **AI profile** (one exists, with criteria or a CV). A check that throws is a red row
   saying why; the others still show.

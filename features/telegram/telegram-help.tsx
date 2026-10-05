@@ -11,6 +11,10 @@ export function TelegramHelp() {
         <Code>message.chat.id</Code> (a group’s starts with -).
       </p>
       <p>
+        <strong>Send to Telegram:</strong> off stops the messages about new offers and the answers to commands (they’re
+        ignored), without removing the bot, its webhook or the variables. Push notifications go on.
+      </p>
+      <p>
         <strong>Messages:</strong> one block per board, five offers per message. Sending, mute and the AI filter are in
         the Notifications panel above: they apply to push notifications too.
       </p>

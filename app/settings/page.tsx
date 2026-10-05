@@ -93,12 +93,16 @@ async function Settings() {
         muted={state.muted}
         queued={queued}
         ai={ai}
-        telegram={telegramReady()}
+        telegram={telegramReady() && settings.telegramEnabled}
         push={{ publicKey: vapidPublicKey(), endpoints: devices.map((device) => device.endpoint) }}
       />
       {/* the bot is asked over the network: a slow answer holds up only this panel */}
       <Suspense fallback={<Skeleton className="mb-3.5 h-28 rounded-xl" />}>
-        <TelegramSection ready={telegramReady()} webhookUrl={`${origin}/api/telegram`} />
+        <TelegramSection
+          ready={telegramReady()}
+          enabled={settings.telegramEnabled}
+          webhookUrl={`${origin}/api/telegram`}
+        />
       </Suspense>
       <ScrapersPanel scrapers={scrapers} counts={counts} keywords={settings.keywords} />
     </TimeZone>

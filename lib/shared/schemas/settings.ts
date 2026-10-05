@@ -41,6 +41,7 @@ export const storedSettingsSchema: z.ZodMiniType<ScrapeSettings> = z.catch(
     mute: words(defaults.mute),
     notify: flag(defaults.notify),
     aiFilter: flag(defaults.aiFilter),
+    telegramEnabled: flag(defaults.telegramEnabled),
     timeZone: zoneOrNone,
     browserTimeZone: zoneOrNone,
   }),

@@ -16,7 +16,8 @@ import { effectiveTimeZone } from '@/lib/listings/settings';
 import { ownerChat, sendMessage, telegramReady, webhookSecret } from '@/lib/telegram';
 
 // Telegram webhook: the bot's commands. Connected from Settings; Telegram sends the secret
-// back in a header, and only your own chat (TELEGRAM_CHAT_ID) may give commands.
+// back in a header, and only your own chat (TELEGRAM_CHAT_ID) may give commands, while
+// "Send to Telegram" is on.
 export const maxDuration = 300;
 
 const ROUTE = '/api/telegram';
@@ -37,6 +38,8 @@ export async function POST(request: NextRequest) {
   const text = (typeof sent === 'string' ? sent : '').trim().toLowerCase();
   // ignore everyone else: the bot's username is guessable. Always 200, or Telegram retries.
   if (!text || chatId !== ownerChat()) return NextResponse.json({ ok: true });
+  // switched off in Settings: the webhook stays connected, but the chat gets no answer and nothing runs
+  if (!(await settingsRepo.get()).telegramEnabled) return NextResponse.json({ ok: true });
 
   const reply = (answer: string) => sendMessage(answer, chatId);
   const cmd = text.split(/\s+/)[0].replace(/@\w+$/, ''); // "/status@my_bot" in groups

@@ -78,6 +78,10 @@ export async function HealthCard() {
   // subscribed devices: asked once for both rows; not migrated yet (a new table) is the push row's error
   const devices = pushConfigured() ? pushRepo.size() : Promise.resolve(0);
   devices.catch(() => {}); // the push row reports it; the Telegram row reads it as no devices
+  // Telegram set up and not switched off in Settings (unreadable settings: as it was, on)
+  const telegramEnabled = appSettings()
+    .then((settings) => settings.telegramEnabled)
+    .catch(() => true);
   const checks: HealthCheck[] = [
     { id: 'db', label: 'Database', check: async () => migrationsCheck(await checkDbHealth()) },
     { id: 'scraping', label: 'Scraping', check: async () => scrapingCheck(await appSettings()) },
@@ -94,14 +98,18 @@ export async function HealthCard() {
     {
       id: 'telegram',
       label: 'Telegram',
-      check: async () =>
-        telegramCheck({
+      check: async () => {
+        const enabled = await telegramEnabled;
+        return telegramCheck({
           ready: telegramReady(),
-          bot: await withinTime(botAnswer(), TELEGRAM_WAIT_MS),
+          enabled,
+          // switched off: the row doesn't wait for the bot
+          bot: enabled ? await withinTime(botAnswer(), TELEGRAM_WAIT_MS) : null,
           webhookUrl: `${origin}/api/telegram`,
           notify: (await appSettings()).notify,
           pushOn: (await devices.catch(() => 0)) > 0,
-        }),
+        });
+      },
     },
     {
       id: 'push',
@@ -111,7 +119,7 @@ export async function HealthCard() {
           problem: pushProblem(),
           devices: await devices,
           notify: (await appSettings()).notify,
-          telegram: telegramReady(),
+          telegram: telegramReady() && (await telegramEnabled),
         }),
     },
     { id: 'openai', label: 'OpenAI', check: () => openAiCheck(Boolean(env.OPENAI_API_KEY)) },

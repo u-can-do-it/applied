@@ -38,7 +38,7 @@ export function NotificationsPanel({
   queued: number;
   /** the AI filter: on in settings, the active profile (if usable), whether OPENAI_API_KEY is set */
   ai: { on: boolean; profile: string | null; keySet: boolean };
-  /** TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set */
+  /** TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set, and "Send to Telegram" is on */
   telegram: boolean;
   /** the VAPID public key (null: push isn't set up), and the subscribed devices' endpoints */
   push: { publicKey: string | null; endpoints: string[] };
@@ -62,7 +62,7 @@ export function NotificationsPanel({
             <>New offers go to {channels}.</>
           ) : (
             <span className="text-warning">
-              Nothing sends new offers yet: enable this device below, or set up Telegram.
+              Nothing sends new offers yet: enable this device below, or set up Telegram and switch it on.
             </span>
           )}{' '}
           <a href="#health-h" className="text-brand underline-offset-4 hover:underline">

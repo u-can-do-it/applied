@@ -16,7 +16,7 @@ import { mutedSchema, switchSchema } from '@/lib/shared/schemas/settings';
 // Settings → Notifications: what goes to every channel (Telegram, push), and this device's push
 // subscription. The answers that say something ("Sent.") are their data; the rest answer with nothing.
 
-const NO_CHANNEL = 'Nothing to send it with: set up Telegram, or enable notifications on a device.';
+const NO_CHANNEL = 'Nothing to send it with: set up Telegram and switch it on, or enable notifications on a device.';
 
 export const setNotifyAction = action(switchSchema, async ({ on }) => {
   await settingsRepo.save({ ...(await settingsRepo.get()), notify: on });

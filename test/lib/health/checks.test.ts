@@ -118,6 +118,18 @@ describe('the checks', () => {
     expect(telegramCheck({ ready: false, bot: null, webhookUrl, notify: true, pushOn: true }).level).toBe('ok');
   });
 
+  it('Telegram: switched off in Settings is green, whatever the bot says', () => {
+    const webhookUrl = 'https://jobwatch.example/api/telegram';
+    const off = { ready: true, enabled: false, webhookUrl, notify: true };
+    expect(telegramCheck({ ...off, bot: null })).toEqual({
+      level: 'ok',
+      reason: 'Off in Settings: no messages, commands ignored.',
+    });
+    expect(telegramCheck({ ...off, bot: { error: 'Unauthorized' } }).level).toBe('ok');
+    // not set up says so, switch or not
+    expect(telegramCheck({ ...off, ready: false, bot: null }).level).toBe('warn');
+  });
+
   it('Push: not set up (fine with Telegram), malformed, no device, fine', () => {
     const base = { problem: null, devices: 2, notify: true, telegram: false };
     expect(pushCheck({ ...base, problem: 'not set' })).toMatchObject({

@@ -90,6 +90,8 @@ export function cronCheck(
 export type TelegramInput = {
   /** TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set */
   ready: boolean;
+  /** "Send to Telegram" in Settings (default on) */
+  enabled?: boolean;
   bot: BotInfo | { error: string } | null;
   webhookUrl: string;
   notify: boolean;
@@ -97,7 +99,9 @@ export type TelegramInput = {
   pushOn?: boolean;
 };
 
-export function telegramCheck({ ready, bot, webhookUrl, notify, pushOn }: TelegramInput): HealthResult {
+export function telegramCheck({ ready, enabled = true, bot, webhookUrl, notify, pushOn }: TelegramInput): HealthResult {
+  // switched off on purpose: nothing to fix (the bot isn't asked)
+  if (ready && !enabled) return { level: 'ok', reason: 'Off in Settings: no messages, commands ignored.' };
   if (!ready && pushOn)
     return { level: 'ok', reason: 'Not set up; push notifications send new offers (no chat commands).' };
   if (!ready)
@@ -141,7 +145,7 @@ export type PushInput = {
   /** subscribed devices */
   devices: number;
   notify: boolean;
-  /** Telegram is set up: without push, new offers still go somewhere */
+  /** Telegram is set up and switched on: without push, new offers still go somewhere */
   telegram: boolean;
 };
 

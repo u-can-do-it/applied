@@ -122,7 +122,7 @@ only if no channel got it to you, so a working channel doesn't get it twice
 run log (`AI / Notify`); when one failed and another delivered, it's a warning there (`Notify`: "Sent N; …").
 
 - **Telegram** (`channels/telegram.ts`): the messages below; ready with `TELEGRAM_BOT_TOKEN` and
-  `TELEGRAM_CHAT_ID`.
+  `TELEGRAM_CHAT_ID`, while "Send to Telegram" (`telegramEnabled` in the settings) is on.
 - **Push** (`channels/push.ts`, [`lib/push.ts`](../lib/push.ts)): one notification per batch ("5 new
   offers", the first ones named) to every device in `push_subscriptions`, through `web-push` (encrypted per
   device, signed with the VAPID keys; only to a known push service's https endpoint, through the SSRF guard's address check in production, 10 s

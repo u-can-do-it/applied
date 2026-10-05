@@ -143,7 +143,7 @@ describe('sendQueueAction', () => {
     vi.mocked(notify).mockResolvedValue({ sent: 0, matched: null, noChannel: true });
     expect(await sendQueueAction()).toEqual({
       ok: false,
-      error: 'Nothing to send it with: set up Telegram, or enable notifications on a device.',
+      error: 'Nothing to send it with: set up Telegram and switch it on, or enable notifications on a device.',
     });
     vi.mocked(notify).mockResolvedValue({ sent: 3, matched: null });
     expect(await sendQueueAction()).toEqual({ ok: true, data: 'Sent 3.' });
