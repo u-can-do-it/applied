@@ -14,8 +14,8 @@ isn't. How it works inside: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 1. **Supabase:** create a project at supabase.com (the free tier is enough), or add Supabase from the Vercel
    Marketplace. Under **Connect** you'll need two URIs, each with `[YOUR-PASSWORD]` replaced by the database
-   password: the **Session pooler** (port 5432) for migrations, and the **Transaction pooler** (port 6543) for
-   the app.
+   password: the **Session pooler** (port 5432), for migrations and the app alike. Not the **Transaction
+   pooler** (6543): the app's pages hang through it ([ADR 0001](decisions/0001-drizzle-over-postgrest.md#update-2026-10-05-the-session-pooler-not-the-transaction-pooler)).
 2. **Migrate it** from your machine (Node from `.nvmrc`): put the Session pooler URI in `.env` as
    `SUPABASE_DB_URL`, then `npm install` and `npm run db:migrate`. That creates the tables, the view, the
    functions, the default settings and the boards' scrapers, and turns on `pg_cron` + `pg_net`.
@@ -45,28 +45,28 @@ read, with its name, so the parts that don't need it keep working. Locally they 
 (`.env.example` lists them, with comments); on Vercel from **Settings → Environment Variables**. An empty value
 (`VAR=`) counts as not set.
 
-| Variable                        | Required             | Default                     | What for                                                                                                                                                                             |
-| ------------------------------- | -------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SUPABASE_DB_URL`               | yes                  |                             | The database, a `postgres://` / `postgresql://` URI. Vercel: the Transaction pooler (6543). `npm run db:migrate`: the Session pooler (5432). Server-side only, never `NEXT_PUBLIC_`. |
-| `APP_PASSWORD`                  | in production        |                             | The login. Without it, production answers 503 everywhere (`proxy.ts`); a dev server stays open. Pages are also `noindex` (`app/layout.tsx`).                                         |
-| `CRON_SECRET`                   | no                   | derived from `APP_PASSWORD` | The bearer token Supabase Cron sends to `/api/cron/scrape`. Without it and without `APP_PASSWORD`, only a dev server accepts cron calls.                                             |
-| `OPENAI_API_KEY`                | no                   |                             | The AI filter, AI runs and "Fill in from the link". Without it the app runs without them.                                                                                            |
-| `OPENAI_MODEL`                  | no                   | `gpt-6-luna`                | The model for every AI job unless one below is set.                                                                                                                                  |
-| `OPENAI_ASSESS_MODEL`           | no                   | `OPENAI_MODEL`              | Judging jobs against a profile.                                                                                                                                                      |
-| `OPENAI_DEDUP_MODEL`            | no                   | `OPENAI_MODEL`              | Deciding whether two jobs are the same.                                                                                                                                              |
-| `OPENAI_EXTRACT_MODEL`          | no                   | `OPENAI_MODEL`              | "Fill in from the link" reading a page.                                                                                                                                              |
-| `OPENAI_ASSESS_EFFORT`          | no                   | `high`                      | Reasoning effort: `none`, `low`, `medium` or `high`. Dropped automatically when the model refuses it.                                                                                |
-| `OPENAI_DEDUP_EFFORT`           | no                   | `low`                       | Same, for duplicates.                                                                                                                                                                |
-| `OPENAI_EXTRACT_EFFORT`         | no                   | `low`                       | Same, for "Fill in from the link".                                                                                                                                                   |
-| `OPENAI_BASE_URL`               | no                   | `https://api.openai.com/v1` | Another OpenAI-compatible endpoint (a proxy, Azure-compatible). An http(s) URL; trailing slashes are trimmed.                                                                        |
-| `TELEGRAM_BOT_TOKEN`            | no (both or neither) |                             | The bot that sends new offers and takes commands. Without both, no Telegram (push may still send).                                                                                   |
-| `TELEGRAM_CHAT_ID`              | no (both or neither) |                             | Your chat with the bot; the only chat whose commands count. A group's starts with `-`.                                                                                               |
-| `TELEGRAM_API_URL`              | no                   | `https://api.telegram.org`  | Another Bot API server (a local one, or a stand-in for tests).                                                                                                                       |
-| `VAPID_PUBLIC_KEY`              | no (all three)       |                             | Push notifications ([below](#push-notifications-on-android)): the public key of the pair `npx web-push generate-vapid-keys` makes (base64url). Without all three, push is off.       |
-| `VAPID_PRIVATE_KEY`             | no (all three)       |                             | Its private key. A secret: server-side only, never `NEXT_PUBLIC_`, never logged.                                                                                                     |
-| `VAPID_SUBJECT`                 | no (all three)       |                             | How a push service can reach you: `mailto:you@example.com` or an `https://` URL.                                                                                                     |
-| `VERCEL_PROJECT_PRODUCTION_URL` | set by Vercel        |                             | The production domain: links in Telegram, and the address Supabase Cron and the Telegram webhook are given. Locally the request's own address is used.                               |
-| `NODE_ENV`                      | set by Next          | `development`               | `production` turns on the login requirement and the [SSRF checks](#ssrf-policy).                                                                                                     |
+| Variable                        | Required             | Default                     | What for                                                                                                                                                                                                 |
+| ------------------------------- | -------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SUPABASE_DB_URL`               | yes                  |                             | The database, a `postgres://` / `postgresql://` URI. The Session pooler (5432), on Vercel and for `npm run db:migrate` alike; not the Transaction pooler (6543). Server-side only, never `NEXT_PUBLIC_`. |
+| `APP_PASSWORD`                  | in production        |                             | The login. Without it, production answers 503 everywhere (`proxy.ts`); a dev server stays open. Pages are also `noindex` (`app/layout.tsx`).                                                             |
+| `CRON_SECRET`                   | no                   | derived from `APP_PASSWORD` | The bearer token Supabase Cron sends to `/api/cron/scrape`. Without it and without `APP_PASSWORD`, only a dev server accepts cron calls.                                                                 |
+| `OPENAI_API_KEY`                | no                   |                             | The AI filter, AI runs and "Fill in from the link". Without it the app runs without them.                                                                                                                |
+| `OPENAI_MODEL`                  | no                   | `gpt-6-luna`                | The model for every AI job unless one below is set.                                                                                                                                                      |
+| `OPENAI_ASSESS_MODEL`           | no                   | `OPENAI_MODEL`              | Judging jobs against a profile.                                                                                                                                                                          |
+| `OPENAI_DEDUP_MODEL`            | no                   | `OPENAI_MODEL`              | Deciding whether two jobs are the same.                                                                                                                                                                  |
+| `OPENAI_EXTRACT_MODEL`          | no                   | `OPENAI_MODEL`              | "Fill in from the link" reading a page.                                                                                                                                                                  |
+| `OPENAI_ASSESS_EFFORT`          | no                   | `high`                      | Reasoning effort: `none`, `low`, `medium` or `high`. Dropped automatically when the model refuses it.                                                                                                    |
+| `OPENAI_DEDUP_EFFORT`           | no                   | `low`                       | Same, for duplicates.                                                                                                                                                                                    |
+| `OPENAI_EXTRACT_EFFORT`         | no                   | `low`                       | Same, for "Fill in from the link".                                                                                                                                                                       |
+| `OPENAI_BASE_URL`               | no                   | `https://api.openai.com/v1` | Another OpenAI-compatible endpoint (a proxy, Azure-compatible). An http(s) URL; trailing slashes are trimmed.                                                                                            |
+| `TELEGRAM_BOT_TOKEN`            | no (both or neither) |                             | The bot that sends new offers and takes commands. Without both, no Telegram (push may still send).                                                                                                       |
+| `TELEGRAM_CHAT_ID`              | no (both or neither) |                             | Your chat with the bot; the only chat whose commands count. A group's starts with `-`.                                                                                                                   |
+| `TELEGRAM_API_URL`              | no                   | `https://api.telegram.org`  | Another Bot API server (a local one, or a stand-in for tests).                                                                                                                                           |
+| `VAPID_PUBLIC_KEY`              | no (all three)       |                             | Push notifications ([below](#push-notifications-on-android)): the public key of the pair `npx web-push generate-vapid-keys` makes (base64url). Without all three, push is off.                           |
+| `VAPID_PRIVATE_KEY`             | no (all three)       |                             | Its private key. A secret: server-side only, never `NEXT_PUBLIC_`, never logged.                                                                                                                         |
+| `VAPID_SUBJECT`                 | no (all three)       |                             | How a push service can reach you: `mailto:you@example.com` or an `https://` URL.                                                                                                                         |
+| `VERCEL_PROJECT_PRODUCTION_URL` | set by Vercel        |                             | The production domain: links in Telegram, and the address Supabase Cron and the Telegram webhook are given. Locally the request's own address is used.                                                   |
+| `NODE_ENV`                      | set by Next          | `development`               | `production` turns on the login requirement and the [SSRF checks](#ssrf-policy).                                                                                                                         |
 
 Read only by the scripts and tests, not by the app: `DOTENV=0` (`npm run db:migrate` ignores `.env`),
 `TEST_DATABASE_URL` (the database tests' local database), `SUPABASE_IMAGE` (`scripts/test-db.sh`'s and
@@ -100,8 +100,8 @@ scripts/db-reset-local.sh postgresql://postgres:local@localhost:5432/postgres   
 - **Never `drizzle-kit push`.** It changes the database straight from `schema.ts`, without a migration file
   and without a record of it, and it doesn't know about the view, the functions or the grants, so it may try to
   drop or alter what they depend on.
-- **Which URL:** migrations want the **Session pooler** (5432): the migrator uses prepared statements, which
-  the transaction pooler doesn't keep. The app uses the **Transaction pooler** (6543). TLS is added on its own
+- **Which URL:** the **Session pooler** (5432) for both: the migrator uses prepared statements, which the
+  transaction pooler doesn't keep, and the app's pages hang through the transaction pooler. TLS is added on its own
   (`sslmode=require`) for anything that isn't localhost; that encrypts the connection but doesn't verify the
   server's certificate (add `sslmode=verify-full` and `sslrootcert` to the URL for that).
 - **`npm run db:verify`** ([`scripts/db-verify-migrations.sh`](../scripts/db-verify-migrations.sh)) starts two
@@ -168,7 +168,7 @@ pooler** URI): `set -a; . ./.env; set +a` first.
    npm run db:verify -- --from-dump data/prod-public.sql
    ```
 
-4. **Vercel → Settings → Environment Variables:** add `SUPABASE_DB_URL` = the **Transaction pooler** URI.
+4. **Vercel → Settings → Environment Variables:** add `SUPABASE_DB_URL` = the **Session pooler** URI (port 5432).
    Keep `SUPABASE_URL` and `SUPABASE_SECRET_KEY` for now: the old deployment needs them if you roll back.
 5. **Deploy the new version** (push, or redeploy in Vercel) against the database as it is. Check that the
    offers, Applied, AI and Settings pages load. `/api/health` answers `"db": "behind"` (503) and the Health card
@@ -371,7 +371,7 @@ allowed"; a scraper shows it as its error.
   services refuse the new key for the old subscriptions: enable notifications again on each device (the old
   subscriptions are removed as their pushes fail, or with **Disable on this device**).
 - **Rotating the database password:** Supabase → Project Settings → Database, then the new password in
-  `SUPABASE_DB_URL` on Vercel (Transaction pooler) and in `.env` (Session pooler); redeploy.
+  `SUPABASE_DB_URL` on Vercel and in `.env` (both the Session pooler); redeploy.
 
 ## Timeouts and the pooler
 
@@ -393,12 +393,12 @@ Elsewhere: a listing page 20 s (`lib/listings/pipeline/fetch.ts`), a Telegram ca
 20 s (the app answers at once and scrapes after the response).
 
 **The connection** ([`lib/db/client.ts`](../lib/db/client.ts),
-[ADR 0001](decisions/0001-drizzle-over-postgrest.md)): through Supabase's transaction pooler, `prepare: false`
-(consecutive statements may land on different backends), at most 5 connections per function instance,
-10 s to connect, idle ones closed after 20 s. Each connection asks for `statement_timeout` 30 s and
+[ADR 0001](decisions/0001-drizzle-over-postgrest.md)): through Supabase's session pooler (5432), at most 3
+connections per function instance (each holds a real database connection while open), 10 s to connect, idle
+ones closed after 20 s, `prepare: false`. Each connection asks for `statement_timeout` 30 s and
 `lock_timeout` 10 s as startup parameters, so a slow query or a lock wait fails instead of running out a
-function's time. The transaction pooler may not pass those on: check with `show statement_timeout` through the
-6543 URI, and if it says `0`, set them on the role the app connects as:
+function's time. Should a URL ever not pass those on (`show statement_timeout` says `0`), set them on the
+role the app connects as:
 
 ```sql
 alter role <app role> set statement_timeout = '30s';

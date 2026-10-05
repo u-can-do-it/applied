@@ -21,13 +21,13 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).catch('development'),
 
   // the database (lib/db, npm run db:migrate); nothing loads without it. Supabase → Connect →
-  // Transaction pooler (port 6543) on Vercel; the Session pooler (5432) works too and is what
-  // migrations want
+  // Session pooler (port 5432), on Vercel and here alike. Not the Transaction pooler (6543): pages
+  // hang through it (lib/db/client.ts)
   SUPABASE_DB_URL: z.preprocess(
     unset,
     z
       .string({ error: 'is not set' })
-      .regex(/^postgres(ql)?:\/\//, { error: 'is not a postgresql:// URL (Supabase → Connect → Transaction pooler)' }),
+      .regex(/^postgres(ql)?:\/\//, { error: 'is not a postgresql:// URL (Supabase → Connect → Session pooler)' }),
   ),
 
   // the login; production without it answers 503 everywhere (proxy.ts)

@@ -54,6 +54,18 @@ real connection only for the length of a transaction. Hence:
   `alter role <app role> set statement_timeout = '30s'; alter role <app role> set lock_timeout = '10s';`
   (better on a role of the app's own than on `postgres`, which migrations and the SQL Editor use too).
 
+### Update 2026-10-05: the session pooler, not the transaction pooler
+
+Through the transaction pooler the app's pages hung until Vercel's 300 s limit (`Task timed out after 300
+seconds` on `/`, `/ai`, `/applied`, `/activity`, `/settings`) while the API routes stayed fast. Reproduced
+locally against the same database: through 6543 `/settings` hung, through 5432 it rendered in 0.45 s. With
+postgres.js, two or more queries sent back to back on one connection through 6543 lose their answers (the
+first one to three come back, the rest never do), whatever their size and even with `max_pipeline: 1`; one
+at a time, awaited, they never hang, and through 5432 nothing hangs. A page sends a dozen queries at once, an
+API route one to three. So the app connects through the **session pooler** (5432) like the migrations, with
+`max: 3`: in session mode each client connection holds a real database connection while it's open, so the
+pool is smaller, and idle connections still close after 20 s. `prepare: false` stays (harmless there).
+
 ## Alternative considered: `@supabase/supabase-js`
 
 The lighter option, and a fine one: no connection string on Vercel, works on the Edge runtime, `.eq()` / `.in()` /
@@ -67,7 +79,7 @@ while Drizzle lets the same SQL live next to ordinary typed queries and transact
 
 ## Consequences
 
-- `SUPABASE_DB_URL` is the app's only database setting (Vercel: transaction pooler URI). `SUPABASE_URL` and
+- `SUPABASE_DB_URL` is the app's only database setting (the session pooler URI, see the update above). `SUPABASE_URL` and
   `SUPABASE_SECRET_KEY` are no longer read: every module queries through Drizzle ([OPERATIONS.md → "Upgrading a
   database set up before Drizzle"](../OPERATIONS.md#upgrading-a-database-set-up-before-drizzle-once) says when to remove them).
 - Database access needs the Node runtime (not Edge). That's the case today.

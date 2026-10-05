@@ -5,12 +5,14 @@ import { env } from '../env';
 import { isoTimestamp, TIMESTAMPTZ_OID, withSsl } from './connection';
 import * as schema from './schema';
 
-// A few connections per serverless instance, through Supabase's transaction pooler (port 6543):
-// Vercel starts many short-lived instances, and with Fluid compute one instance serves several
-// requests at once (a page, a server action, an after() worker), so a single connection would
-// queue them. The pooler, not the instance, holds the real database connections, so a small pool
-// here is cheap. It hands out a different backend per transaction, so prepared statements can't be
-// reused across calls: `prepare: false`. See docs/decisions/0001-drizzle-over-postgrest.md.
+// A few connections per serverless instance, through Supabase's SESSION pooler (port 5432), not the
+// transaction pooler (6543): through 6543, two queries back to back on one connection lose their
+// answers, and a page (a dozen queries at once) hung until the function's limit. With Fluid compute
+// one instance serves several requests at once (a page, a server action, an after() worker), so a
+// single connection would queue them; in session mode each connection holds a real database
+// connection while it's open, so the pool stays small (3) and idle ones close after 20 s.
+// `prepare: false` is kept: harmless here, and needed if the URL is ever a transaction pooler's.
+// See docs/decisions/0001-drizzle-over-postgrest.md.
 
 export type Db = PostgresJsDatabase<typeof schema>;
 
@@ -25,13 +27,12 @@ export function db(): Db {
     void cache.jobwatchDb?.client.end(); // .env changed under `next dev`
     const client = postgres(withSsl(url), {
       prepare: false,
-      max: 5,
+      max: 3,
       // a frozen instance's connection is dropped by the pooler anyway; don't hold it longer
       idle_timeout: 20,
       connect_timeout: 10,
       // A query or a lock wait never holds a function past its time limit (PostgREST had a 30 s
-      // timeout too). Startup parameters: Supabase's transaction pooler may not pass them on, see
-      // docs/decisions/0001-drizzle-over-postgrest.md for the role-level fallback.
+      // timeout too). Startup parameters: the session pooler passes them on.
       connection: { application_name: 'jobwatch', statement_timeout: 30_000, lock_timeout: 10_000 },
     });
     const database = drizzle({ client, schema });
