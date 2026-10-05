@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/shared/cn';
 import { kindOf } from '@/lib/listings/kinds';
+import { nextRunAt } from '@/lib/listings/quota';
 import type { Scraper } from '@/lib/db/repos/scrapers';
 import { toggleScraperAction } from './actions';
 import { PANEL } from './panel-styles';
@@ -95,7 +96,7 @@ export function ScrapersPanel({
                     {saved(counts[scraper.src]?.offers)}
                   </span>
                 </div>
-                <ScraperBrief scraper={scraper} />
+                <ScraperBrief scraper={scraper} nextAt={nextRunAt(scraper, list, keywords)} />
               </div>
               <div className="flex flex-wrap justify-end gap-1.5 max-[560px]:col-start-2 max-[560px]:justify-start">
                 <Button type="button" variant="outline" size="sm" onClick={() => edit(toDraft(scraper), true)}>

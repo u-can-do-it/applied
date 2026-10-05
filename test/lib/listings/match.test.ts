@@ -171,6 +171,19 @@ describe('expandUrl', () => {
     ).toEqual(['https://x.test/node-js', 'https://x.test/krakow-senior', 'https://x.test/c']);
   });
 
+  it('{keywords}: every keyword in one link, space-separated', () => {
+    expect(expandUrl('https://x.test/?what_or={keywords}', ['React', 'C#', 'Node.js'])).toEqual([
+      { url: 'https://x.test/?what_or=React%20C%23%20Node.js', keyword: null, page: 1 },
+    ]);
+    expect(expandUrl('https://x.test/search/{page}?q={keywords}', ['a', 'b'], 2).map((link) => link.url)).toEqual([
+      'https://x.test/search/1?q=a%20b',
+      'https://x.test/search/2?q=a%20b',
+    ]);
+    expect(() => expandUrl('https://x.test/?q={keywords}', [])).toThrow(
+      'The link has {keywords} but there are no keywords',
+    );
+  });
+
   it('{keyword} without keywords is an error', () => {
     expect(() => expandUrl('https://x.test/?q={keyword}', [])).toThrow(/no keywords/);
     expect(() => expandUrl('https://x.test/{keyword_slug}', [])).toThrow(/no keywords/);

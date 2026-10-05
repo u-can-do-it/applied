@@ -33,6 +33,11 @@ export type Listing = {
   /** a new scraper of this kind starts with this search */
   defaults: SearchDefaults;
   /**
+   * Its API's quota of calls, as one call per this many minutes on average: its scrapers run as often as
+   * their calls allow, whatever the schedule (lib/listings/quota.ts)
+   */
+  minutesPerCall?: number;
+  /**
    * The scrapers the board comes with: the defaults, under this name, with another link if given.
    * `npm run db:migrate` adds them once per database (lib/db/seed.ts), so deleting them is for good.
    */

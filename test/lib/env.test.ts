@@ -23,6 +23,8 @@ describe('parseEnv', () => {
     expect(env.APP_PASSWORD).toBeUndefined();
     expect(env.CRON_SECRET).toBeUndefined();
     expect(env.VERCEL_PROJECT_PRODUCTION_URL).toBeUndefined();
+    expect(env.ADZUNA_APP_ID).toBeUndefined();
+    expect(env.ADZUNA_APP_KEY).toBeUndefined();
   });
 
   it('counts an empty value (VAR= in .env) as not set', () => {

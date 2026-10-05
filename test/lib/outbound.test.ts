@@ -316,6 +316,28 @@ describe('every outbound request goes through the check', () => {
   });
 });
 
+describe('fetchPage: a refused request', () => {
+  const answer = (status: number, body: string, type: string) =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(new Response(body, { status, headers: { 'content-type': type } })),
+    );
+
+  it("says the API's own reason when it answers JSON", async () => {
+    answer(401, '{"exception":"AUTH_FAIL","display":"Authorisation failed"}', 'application/json; charset=utf8');
+    await expect(fetchPage('https://board.test/api')).rejects.toThrow(/^HTTP 401: Authorisation failed$/);
+    answer(429, '{"error":{"message":"Too many requests"}}', 'application/json');
+    await expect(fetchPage('https://board.test/api')).rejects.toThrow(
+      'HTTP 429: Too many requests (the site blocks this server?)',
+    );
+  });
+
+  it('just the status for a page', async () => {
+    answer(500, '<html>Oops</html>', 'text/html');
+    await expect(fetchPage('https://board.test/jobs')).rejects.toThrow(/^HTTP 500$/);
+  });
+});
+
 describe('readText: the body, capped', () => {
   const streamOf = (chunks: number, size: number) => {
     let sent = 0;

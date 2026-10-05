@@ -28,6 +28,8 @@ export type Kind = {
   src?: string;
   /** a new scraper of this kind starts with this search */
   defaults?: SearchDefaults;
+  /** its API's quota: one call per this many minutes (the board's listing.minutesPerCall) */
+  minutesPerCall?: number;
 };
 
 const KINDS: Kind[] = [
@@ -37,6 +39,7 @@ const KINDS: Kind[] = [
     label: listing.label,
     hint: listing.hint,
     defaults: listing.defaults,
+    minutesPerCall: listing.minutesPerCall,
   })),
   ...GENERIC_KINDS,
 ];

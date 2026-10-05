@@ -106,6 +106,29 @@ describe('built-in board parsers', () => {
     }
     expect(result.items).toMatchSnapshot();
   });
+
+  it('adzuna: the search API', () => {
+    const result = parse('adzuna', fixture('adzuna.json'));
+    expect(result.total).toBe(3);
+    expect(result.items).toHaveLength(3);
+    for (const offer of result.items) {
+      expect(offer.url).toMatch(new RegExp(`^https://www\\.adzuna\\.pl/details/${offer.id}\\?`));
+      // its dates are the ads' own, older than when Adzuna lists them: no watermark
+      expect(offer.sort).toBeUndefined();
+      // its descriptions mention every stack in passing: the keyword check reads the title only
+      expect(offer.skills).toEqual([]);
+    }
+    const [senior, remote, junior] = result.items;
+    // the <strong> around the words searched for is gone
+    expect(senior.title).toBe('Senior React Developer');
+    expect(senior.seniority).toBe('senior');
+    expect(senior.locations).toEqual(['Warszawa, mazowieckie', 'Polska', 'mazowieckie', 'Warszawa']);
+    // remote only by its title or place: the description's "100% zdalna" isn't trusted
+    expect([senior.remote, remote.remote, junior.remote]).toEqual([false, false, false]);
+    expect(junior.company).toBeNull();
+    expect(junior.seniority).toBe('junior');
+    expect(result.items).toMatchSnapshot();
+  });
 });
 
 describe('board parser edge cases', () => {
@@ -132,6 +155,9 @@ describe('board parser edge cases', () => {
     expect(() => parse('bulldog', '<script id="__NEXT_DATA__">{"props":{}}</script>')).toThrow(/is not a list/);
     expect(() => parse('eldorado', '<html></html>')).toThrow(/no jobs/);
     expect(() => parse('builtin', '<html></html>')).toThrow(/no job cards/);
+    expect(() => parse('adzuna', '{"count":0}')).toThrow('Adzuna: no results list (got count)');
+    // what it answers a browser's Accept without content-type=application/json (lib/listings/api-params.ts)
+    expect(() => parse('adzuna', '<!DOCTYPE html><title>Adzuna API</title>')).toThrow(/is not JSON/);
   });
 
   it('reads NoFluff state escaped the Angular way', () => {

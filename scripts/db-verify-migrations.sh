@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Checks the migrations in drizzle/ against two throwaway LOCAL databases (never production):
 #   (a) a database set up the old way is left exactly as it was by `npm run db:migrate`: same
-#       schema but the unused functions 0005 drops and the tables added since (0006), same rows
-#       (public and cron) but the board seed markers of 0004. "The old way" is either
+#       schema but the unused functions 0005 drops, the tables added since (0006…) and the scraper
+#       kinds of the boards added since (0009…), same rows (public and cron) but the board seed
+#       markers of 0004 and those new boards' seeded scrapers. "The old way" is either
 #         - the old SQL files (supabase/reset.sql, ai-filter.sql, scraping.sql, as scripts/db-reset.sh +
 #           db-migrate.sh ran them), then some use: offers, a merged job, an application with its
 #           history, a profile and a verdict, scrapers edited and deleted, Supabase Cron connected; or
@@ -107,8 +108,12 @@ DROPPED_FUNCTIONS='jw_set_application_status|jw_ghost_stale_applications|jw_scra
 # tables a later migration adds (0006_push_subscriptions, 0007_seen_jobs, 0008_archived_jobs): new in (a), so
 # their entries are left out of the comparison too, and checked to be there
 ADDED_TABLES='push_subscriptions|seen_jobs|archived_jobs'
+# boards added since (0009_adzuna_kind): a migration lets their kind into scrapers_kind_check, and
+# lib/db/seed.ts adds their scrapers after the migrations. Taken out of the kinds for the comparison,
+# and their seeded scrapers out of the rows, and checked to be there
+ADDED_BOARDS='adzuna'
 entries_without_dropped_functions() {
-  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" '
+  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v boards="$ADDED_BOARDS" '
     function flush() { if (entry != "" && !skip) print entry; entry = "" }
     /^-- Name: / {
       flush()
@@ -117,9 +122,12 @@ entries_without_dropped_functions() {
     }
     # comments, blank lines, and the SETs pg_dump puts before whichever entry comes before the first table
     /^--/ || /^$/ || /^SET default_table/ { next }
-    { entry = entry $0 " ↵ " }
+    { gsub("\047(" boards ")\047::text, ", ""); entry = entry $0 " ↵ " }
     END { flush() }' "$1" | LC_ALL=C sort >"$2"
 }
+# the scrapers lib/db/seed.ts adds for the boards added since: src and kind are the board, in the COPY
+# rows (tab-separated) and in seed_rows (|-separated)
+without_added_boards() { grep -Ev "[|	]($ADDED_BOARDS)[|	]($ADDED_BOARDS)[|	]" "$1" >"$2" || true; }
 seed_rows() {
   # config is left out: the seeds' URLs were updated after LEGACY_REF
   pg_tool psql "$1" -X -qtA -c 'select position, name, src, kind, enabled from public.scrapers order by position' \
@@ -221,8 +229,15 @@ for table in ${ADDED_TABLES//|/ }; do
     { echo "   FAILED: db:migrate didn't add public.$table" >&2 && exit 1; }
 done
 echo "   ok: the new tables are there (${ADDED_TABLES//|/, })"
-grep -v '^board:' "$work/a-after-data.sql" >"$work/a-after-rows.sql" || true
-same "rows unchanged but for the board seed markers ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
+for board in ${ADDED_BOARDS//|/ }; do
+  grep -q "^CONSTRAINT scrapers_kind_check .*'$board'::text" <(grep -o "CONSTRAINT scrapers_kind_check.*" "$work/a-after.sql") ||
+    { echo "   FAILED: db:migrate didn't let the $board kind into scrapers" >&2 && exit 1; }
+  grep -Eq "	$board	$board	" "$work/a-after-data.sql" ||
+    { echo "   FAILED: db:migrate didn't seed $board's scrapers" >&2 && exit 1; }
+done
+echo "   ok: the new boards are there, seeded (${ADDED_BOARDS//|/, })"
+grep -v '^board:' "$work/a-after-data.sql" | without_added_boards /dev/stdin "$work/a-after-rows.sql"
+same "rows unchanged but for the board seed markers and the new boards' scrapers ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
   "$work/a-before-data.sql" "$work/a-after-rows.sql"
 applied=$(pg_tool psql "$url_a" -X -qtAc 'select count(*) from drizzle.__drizzle_migrations')
 echo "   ok: $applied migrations recorded in drizzle.__drizzle_migrations"
@@ -241,13 +256,17 @@ if [[ -n $from_dump ]]; then
   fi
 else
   same "schema equal to (a), but for the public schema's own grants" "$work/a-objects.sql" "$work/b-objects.sql"
-  seed_rows "$url_b" "$work/b-seeds.txt"
-  same "seed rows equal to the old files'" "$work/a-seeds.txt" "$work/b-seeds.txt"
+  seed_rows "$url_b" "$work/b-all-seeds.txt"
+  without_added_boards "$work/b-all-seeds.txt" "$work/b-seeds.txt"
+  same "seed rows equal to the old files', but for the new boards'" "$work/a-seeds.txt" "$work/b-seeds.txt"
 fi
 board_markers "$url_a" "$work/a-markers.txt"
 board_markers "$url_b" "$work/b-markers.txt"
 [[ -s $work/b-markers.txt ]] || { echo "   FAILED: no board seed markers after db:migrate" >&2 && exit 1; }
 same "board seed markers equal ($(wc -l <"$work/b-markers.txt") boards)" "$work/a-markers.txt" "$work/b-markers.txt"
+# 0001's kind check predates the boards added since: their seeded scrapers would break it while the files
+# re-run in order (db:migrate itself never runs an applied file again); only the schema is compared here
+run_sql "$url_b" "removing the new boards' scrapers" <<<"delete from public.scrapers where kind ~ '^($ADDED_BOARDS)\$'"
 for file in drizzle/[0-9]*.sql; do run_sql "$url_b" "$file (second run)" <"$file"; done
 schema_dump "$url_b" "$work/b-again.sql"
 same "every migration file runs a second time without changing the schema" "$work/b.sql" "$work/b-again.sql"

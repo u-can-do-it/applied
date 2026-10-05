@@ -64,6 +64,13 @@
       "when": 1791212626190,
       "tag": "0008_archived_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791231794835,
+      "tag": "0009_adzuna_kind",
+      "breakpoints": true
     }
   ]
 }

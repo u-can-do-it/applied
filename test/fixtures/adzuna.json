@@ -1,0 +1,62 @@
+{
+  "__CLASS__": "Adzuna::API::Response::JobSearchResults",
+  "count": 412,
+  "mean": 21450.37,
+  "results": [
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "5123456789",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJzIjoiZXhhbXBsZSJ9.REDACTED",
+      "title": "Senior <strong>React</strong> Developer",
+      "description": "Dołącz do zespołu budującego platformę e-commerce. Wymagania: <strong>React</strong>, TypeScript, Next.js, testy jednostkowe. Praca hybrydowa w Warszawie, 2 dni w biurze…",
+      "created": "2026-10-05T07:41:12Z",
+      "redirect_url": "https://www.adzuna.pl/details/5123456789?se=REDACTED&utm_medium=api&utm_source=REDACTED&v=REDACTED",
+      "company": { "__CLASS__": "Adzuna::API::Response::Company", "display_name": "Acme Commerce Sp. z o.o." },
+      "location": {
+        "__CLASS__": "Adzuna::API::Response::Location",
+        "display_name": "Warszawa, mazowieckie",
+        "area": ["Polska", "mazowieckie", "Warszawa"]
+      },
+      "category": { "__CLASS__": "Adzuna::API::Response::Category", "label": "IT", "tag": "it-jobs" },
+      "contract_time": "full_time",
+      "contract_type": "permanent",
+      "salary_min": 22000,
+      "salary_max": 28000,
+      "salary_is_predicted": "0",
+      "latitude": 52.2297,
+      "longitude": 21.0122
+    },
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "5123401122",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJzIjoiZXhhbXBsZTIifQ.REDACTED",
+      "title": "Frontend Engineer (Vue / TypeScript)",
+      "description": "Szukamy osoby do rozwoju panelu klienta. Stack: Vue 3, TypeScript, Vite. Mile widziane <strong>React</strong>. Praca w 100% zdalna z dowolnego miejsca w Polsce…",
+      "created": "2026-10-05T06:02:55Z",
+      "redirect_url": "https://www.adzuna.pl/details/5123401122?se=REDACTED&utm_medium=api&utm_source=REDACTED&v=REDACTED",
+      "company": { "__CLASS__": "Adzuna::API::Response::Company", "display_name": "Panel Systems" },
+      "location": {
+        "__CLASS__": "Adzuna::API::Response::Location",
+        "display_name": "Kraków, małopolskie",
+        "area": ["Polska", "małopolskie", "Kraków"]
+      },
+      "category": { "__CLASS__": "Adzuna::API::Response::Category", "label": "IT", "tag": "it-jobs" },
+      "contract_time": "full_time",
+      "salary_is_predicted": "1",
+      "salary_min": 15000,
+      "salary_max": 15000
+    },
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "5122998877",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJzIjoiZXhhbXBsZTMifQ.REDACTED",
+      "title": "Junior Fullstack Developer",
+      "description": "Program dla absolwentów: Node.js, <strong>React</strong>, PostgreSQL. Biuro w Gdańsku…",
+      "created": "2026-10-04T15:20:00Z",
+      "redirect_url": "https://www.adzuna.pl/details/5122998877?se=REDACTED&utm_medium=api&utm_source=REDACTED&v=REDACTED",
+      "company": { "__CLASS__": "Adzuna::API::Response::Company" },
+      "location": { "__CLASS__": "Adzuna::API::Response::Location", "display_name": "Gdańsk", "area": ["Polska", "pomorskie", "Gdańsk"] },
+      "category": { "__CLASS__": "Adzuna::API::Response::Category", "label": "IT", "tag": "it-jobs" }
+    }
+  ]
+}

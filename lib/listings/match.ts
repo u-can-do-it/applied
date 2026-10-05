@@ -72,8 +72,9 @@ const slug = (keyword: string) =>
 export const MAX_PAGES = 5;
 
 /**
- * A URL with {keyword} / {keyword_slug} becomes one URL per keyword; with {start} (0, 10, 20…) or
- * {page} (1, 2, 3…) also one per page, `pages` of them. Without placeholders, just itself.
+ * A URL with {keyword} / {keyword_slug} becomes one URL per keyword; {keywords} is all of them in one,
+ * space-separated (for an API that takes a list); with {start} (0, 10, 20…) or {page} (1, 2, 3…) also
+ * one per page, `pages` of them. Without placeholders, just itself.
  */
 export function expandUrl(
   url: string,
@@ -81,8 +82,12 @@ export function expandUrl(
   pages = 1,
 ): { url: string; keyword: string | null; page: number }[] {
   const hasKeyword = /\{keyword(?:_slug)?\}/.test(url);
-  if (hasKeyword && !keywords.length)
-    throw new Error('The link has {keyword} but there are no keywords in the filters.');
+  const hasKeywords = url.includes('{keywords}');
+  if ((hasKeyword || hasKeywords) && !keywords.length)
+    throw new Error(
+      `The link has ${hasKeyword ? '{keyword}' : '{keywords}'} but there are no keywords in the filters.`,
+    );
+  if (hasKeywords) url = url.replaceAll('{keywords}', encodeURIComponent(keywords.join(' ')));
   const paged = /\{(?:start|page)\}/.test(url);
   const pageCount = paged ? Math.max(1, Math.min(MAX_PAGES, Math.floor(pages) || 1)) : 1;
   const out: { url: string; keyword: string | null; page: number }[] = [];

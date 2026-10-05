@@ -1,0 +1,2 @@
+ALTER TABLE "scrapers" DROP CONSTRAINT IF EXISTS "scrapers_kind_check";--> statement-breakpoint
+ALTER TABLE "scrapers" ADD CONSTRAINT "scrapers_kind_check" CHECK (kind in ('justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'adzuna', 'json', 'html', 'rss'));

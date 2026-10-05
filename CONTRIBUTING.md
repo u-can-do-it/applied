@@ -153,7 +153,10 @@ Tailwind v4 and shadcn/ui ([ADR 0007](docs/decisions/0007-shadcn-ui-and-tailwind
    - `idFromLink` when its job links show the offer's id (`linkIdIsOfferId: false` if its scraper saves
      another id), `cleanLink` when its links need their query (otherwise a board's link loses it);
    - a board Jobwatch scrapes also has a `listing`: the scraper kind's label and hint in Settings, the
-     default search, and the `seeds` (the scrapers it comes with).
+     default search, and the `seeds` (the scrapers it comes with); `minutesPerCall` when its API has a quota
+     of calls (`lib/listings/quota.ts` then runs its scrapers as often as their calls allow). What its API
+     needs in every link (an API key, read from a variable of its own) goes in `lib/listings/api-params.ts`,
+     never in the link.
 2. **Its parser** (a scraped board): `lib/listings/parsers/<id>.ts`, a `ListingParser` that turns one page
    into offers, with a `sort` value if the board has a date or a counter (it becomes the scraper's mark).
 3. **Register it** in `lib/boards/index.ts`, at the end of `SCRAPED_BOARDS` if it is scraped (that order is

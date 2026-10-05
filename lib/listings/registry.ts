@@ -1,5 +1,6 @@
 import 'server-only';
 import type { KindId } from './kinds';
+import { parseAdzuna } from './parsers/adzuna';
 import { parseBuiltin } from './parsers/builtin';
 import { parseBulldog } from './parsers/bulldog';
 import { parseEldorado } from './parsers/eldorado';
@@ -20,6 +21,7 @@ export const PARSERS = {
   eldorado: parseEldorado,
   builtin: parseBuiltin,
   linkedin: parseLinkedin,
+  adzuna: parseAdzuna,
   json: parseJson,
   html: parseHtmlListing,
   rss: parseRss,

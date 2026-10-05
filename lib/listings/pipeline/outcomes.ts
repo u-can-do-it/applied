@@ -1,5 +1,5 @@
 import type { Queued } from '../../db/repos/notify-queue';
-import type { ScraperOutcome } from '../../db/repos/scrapers';
+import type { Scraper, ScraperOutcome } from '../../db/repos/scrapers';
 import { offerKey, type AddedOffer, type Fetched, type Owners, type RunError, type RunSummary } from './model';
 
 // Step 5, the outcomes (pure): what each scraper's run did, its new watermark, and the run's counts.
@@ -46,6 +46,8 @@ export function summarize(run: {
   owners: Owners;
   added: readonly AddedOffer[];
   fresh: readonly Queued[];
+  /** the enabled scrapers it skipped for their board's quota */
+  waiting?: readonly Pick<Scraper, 'name'>[];
   ms: number;
 }): RunSummary {
   return {
@@ -55,6 +57,7 @@ export function summarize(run: {
     fresh: run.fresh.length,
     notified: 0,
     errors: runErrors(run.fetched),
+    ...(run.waiting?.length ? { waiting: run.waiting.map((scraper) => scraper.name) } : {}),
     ms: run.ms,
   };
 }

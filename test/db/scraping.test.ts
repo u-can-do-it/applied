@@ -61,7 +61,7 @@ describeDb('scrapers', () => {
     } finally {
       await exec(sql`delete from public.scrapers where kind = 'hologram'`);
       await exec(sql`alter table public.scrapers add constraint scrapers_kind_check
-        check (kind in ('justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'json', 'html', 'rss'))`);
+        check (kind in ('justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'adzuna', 'json', 'html', 'rss'))`);
     }
   });
 });

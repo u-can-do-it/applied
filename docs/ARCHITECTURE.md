@@ -55,7 +55,11 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 1. **`fetchListings`** (`fetch.ts`): every enabled scraper's pages (4 scrapers at once, 20 s per page), through
    `fetchOutbound`, parsed by the scraper's kind ([`lib/listings/registry.ts`](../lib/listings/registry.ts)),
    then filtered: a keyword in the title or skills and a city (or remote), each where the scraper checks it,
-   and not an ignored title. A scraper's failure is part of its result, never the run's.
+   and not an ignored title. A scraper's failure is part of its result, never the run's. A board with a quota
+   of calls (`listing.minutesPerCall`, Adzuna one an hour) runs only as often as its scrapers' calls allow
+   ([`lib/listings/quota.ts`](../lib/listings/quota.ts)): `dueScrapers` leaves the others out of the run, and
+   the summary names them (`waiting`). What its API needs in every link (the keys, from the environment, and
+   Adzuna's `content-type`) is added to the request only (`lib/listings/api-params.ts`).
 2. **`pickOwners`** (`owners.ts`, pure): the first scraper that found an offer owns it.
 3. **`ingest`** (`persist.ts`): `jw_ingest_offers` inserts the offers the database doesn't have and answers with
    them, each with its title key and whether that job was seen before.

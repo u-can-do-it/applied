@@ -1,5 +1,57 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`built-in board parsers > adzuna: the search API 1`] = `
+[
+  {
+    "company": "Acme Commerce Sp. z o.o.",
+    "id": "5123456789",
+    "locations": [
+      "Warszawa, mazowieckie",
+      "Polska",
+      "mazowieckie",
+      "Warszawa",
+    ],
+    "remote": false,
+    "seniority": "senior",
+    "skills": [],
+    "src": "adzuna",
+    "title": "Senior React Developer",
+    "url": "https://www.adzuna.pl/details/5123456789?se=REDACTED&utm_medium=api&utm_source=REDACTED&v=REDACTED",
+  },
+  {
+    "company": "Panel Systems",
+    "id": "5123401122",
+    "locations": [
+      "Kraków, małopolskie",
+      "Polska",
+      "małopolskie",
+      "Kraków",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "adzuna",
+    "title": "Frontend Engineer (Vue / TypeScript)",
+    "url": "https://www.adzuna.pl/details/5123401122?se=REDACTED&utm_medium=api&utm_source=REDACTED&v=REDACTED",
+  },
+  {
+    "company": null,
+    "id": "5122998877",
+    "locations": [
+      "Gdańsk",
+      "Polska",
+      "pomorskie",
+    ],
+    "remote": false,
+    "seniority": "junior",
+    "skills": [],
+    "src": "adzuna",
+    "title": "Junior Fullstack Developer",
+    "url": "https://www.adzuna.pl/details/5122998877?se=REDACTED&utm_medium=api&utm_source=REDACTED&v=REDACTED",
+  },
+]
+`;
+
 exports[`built-in board parsers > builtin: the job cards 1`] = `
 [
   {

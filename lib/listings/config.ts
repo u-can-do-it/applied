@@ -23,7 +23,7 @@ export const JSON_SOURCES = [
 export type JsonSource = (typeof JSON_SOURCES)[number]['id'];
 
 export type ScraperConfig = {
-  /** {keyword} / {keyword_slug} = each keyword from the settings, so one search per keyword */
+  /** {keyword} / {keyword_slug} = each keyword from the settings, so one search per keyword; {keywords} = all of them in one search */
   url: string;
   /** with {start} (0, 10, 20…) or {page} (1, 2, 3…) in the link: how many pages to fetch */
   pages?: number;

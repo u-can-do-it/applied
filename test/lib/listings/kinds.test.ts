@@ -14,6 +14,12 @@ describe('scraper kinds', () => {
     expect(KIND_IDS.filter(isGeneric)).toEqual(['json', 'html', 'rss']);
   });
 
+  it('a board with a quota of calls says how many minutes a call; the others have none', () => {
+    expect(kindOf('adzuna').minutesPerCall).toBe(60);
+    expect(kindOf('justjoin').minutesPerCall).toBeUndefined();
+    expect(kindOf('json').minutesPerCall).toBeUndefined();
+  });
+
   it('every kind has a parser, and every parser a kind', () => {
     expect(Object.keys(PARSERS).sort()).toEqual([...KIND_IDS].sort());
   });
@@ -34,6 +40,7 @@ describe('scraper kinds', () => {
       ['Built In', 'builtin'],
       ['LinkedIn – Warszawa', 'linkedin'],
       ['LinkedIn – remote', 'linkedin'],
+      ['Adzuna', 'adzuna'],
     ]);
     for (const seed of SEED_SCRAPERS) expect(seed.src).toBe(seed.kind);
     expect(SEED_SCRAPERS[0].config).toEqual(kindOf('justjoin').defaults);

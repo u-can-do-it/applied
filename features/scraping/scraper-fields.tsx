@@ -22,7 +22,7 @@ export const ScraperFields = withForm({
     const kind = useSelector(form.store, (state) => state.values.kind);
     const url = useSelector(form.store, (state) => state.values.url);
     const generic = isGeneric(kind);
-    const usesKeyword = /\{keyword(_slug)?\}/.test(url);
+    const usesKeyword = /\{keyword(_slug|s)?\}/.test(url);
     const paged = /\{(start|page)\}/.test(url);
     return (
       <>
@@ -69,7 +69,8 @@ export const ScraperFields = withForm({
               hint={
                 <>
                   <Code>{'{keyword}'}</Code> and <Code>{'{keyword_slug}'}</Code> become each keyword from Filters (
-                  {keywords.join(', ') || 'none set'}): one search per keyword.
+                  {keywords.join(', ') || 'none set'}): one search per keyword; <Code>{'{keywords}'}</Code> is all of
+                  them in one.
                   {!usesKeyword && ' Without them the link is fetched as it is.'} <Code>{'{start}'}</Code> (0, 10, 20…)
                   or <Code>{'{page}'}</Code> (1, 2, 3…) fetch several pages.
                 </>

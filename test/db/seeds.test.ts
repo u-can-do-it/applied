@@ -44,7 +44,8 @@ const registry = SEED_SCRAPERS.map((scraper, index) => ({ position: index + 1, .
 describeDb('seeds', () => {
   it('a fresh install starts with the registry’s scrapers and the default settings', async () => {
     await exec(sql`delete from public.scrape_seeds`);
-    expect(await migrateAndSeed()).toEqual([]); // the migrations seeded today's boards already
+    // the migrations seeded the boards of their day; seed.ts adds the ones since
+    expect(await migrateAndSeed()).toEqual(['adzuna']);
     expect(await rows()).toEqual(registry);
     // the seed has the settings of its day; the ones added since come from the defaults when read
     const [{ settings }] = await exec(sql`select settings from public.scrape_settings`);
@@ -58,11 +59,16 @@ describeDb('seeds', () => {
     await exec(sql`delete from public.scrape_seeds where name = 'board:linkedin'`);
     await exec(sql`delete from public.scrapers where src = 'linkedin'`);
     await exec(sql`update public.scrapers set position = position + 10`);
+    const last = Math.max(...(await rows()).map((scraper) => scraper.position));
 
     expect(await seed()).toEqual(['linkedin']);
     expect(await seed()).toEqual([]);
     const linkedin = (await rows()).filter((scraper) => scraper.src === 'linkedin');
-    expect(linkedin).toEqual(registry.slice(6).map((scraper, index) => ({ ...scraper, position: 17 + index })));
+    expect(linkedin).toEqual(
+      registry
+        .filter((scraper) => scraper.src === 'linkedin')
+        .map((scraper, index) => ({ ...scraper, position: last + 1 + index })),
+    );
   });
 
   it('scrapers you deleted stay deleted', async () => {

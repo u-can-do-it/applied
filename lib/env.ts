@@ -53,6 +53,11 @@ const schema = z.object({
   // another Bot API server (e.g. a local one, or a stand-in for tests)
   TELEGRAM_API_URL: z.preprocess(unset, url.default('https://api.telegram.org')).transform(trimSlashes),
 
+  // Adzuna's API (optional: without both, its scraper fails with "ADZUNA_APP_ID is not set");
+  // developer.adzuna.com → Dashboard → API Access Details
+  ADZUNA_APP_ID: optional,
+  ADZUNA_APP_KEY: optional,
+
   // Web Push (optional: without all three, no push notifications). `npx web-push generate-vapid-keys`
   // makes the pair; the subject is how a push service reaches you: mailto:you@example.com or an https URL
   VAPID_PUBLIC_KEY: z.preprocess(unset, vapidKey('a VAPID public key (base64url)').optional()),

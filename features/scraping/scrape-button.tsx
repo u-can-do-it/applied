@@ -46,7 +46,7 @@ export function ScrapeButton() {
       const title = report.added ? `${report.added} new offer${report.added === 1 ? '' : 's'}` : 'Nothing new';
       const summary = `${report.found} on the pages, ${report.kept} after filters, ${report.added} new${
         report.notifyLater ? ' · the AI check and the notifications run in the background' : `, ${report.notified} sent`
-      }`;
+      }${report.waiting?.length ? ` · skipped for the quota: ${report.waiting.join(', ')}` : ''}`;
       if (!report.errors.length) {
         toast.success(title, { description: summary });
         return;

@@ -2,14 +2,18 @@ import 'server-only';
 import type { Scraper } from '../../db/repos/scrapers';
 import { BROWSER_UA, fetchOutbound, readText } from '../../outbound';
 import { message } from '../../shared/errors';
+import { withApiParams } from '../api-params';
+import { isObj, str } from '../extract';
 import { areaTest, expandUrl, keywordTest, titleTest } from '../match';
 import { parseBody } from '../parse';
+import { isDue } from '../quota';
 import type { ScrapeSettings } from '../settings';
 import type { Found } from '../types';
 import type { Fetched } from './model';
 
 // Step 1, fetchListings: every enabled scraper's pages, fetched, parsed and filtered (keywords,
-// cities, ignored titles). A scraper's failure is part of its result, never the run's.
+// cities, ignored titles). A scraper's failure is part of its result, never the run's. A board with a quota
+// of calls has its scrapers skipped by the runs in between (lib/listings/quota.ts).
 
 const TIMEOUT_MS = 20_000;
 const PARALLEL = 4;
@@ -26,11 +30,26 @@ export async function fetchPage(url: string, headers: Record<string, string> = {
     signal: AbortSignal.timeout(TIMEOUT_MS),
     cache: 'no-store',
   });
-  if (!res.ok)
+  if (!res.ok) {
+    const reason = await reasonOf(res);
     throw new Error(
-      `HTTP ${res.status}${res.status === 403 || res.status === 429 ? ' (the site blocks this server?)' : ''}`,
+      `HTTP ${res.status}${reason ? `: ${reason}` : ''}${res.status === 403 || res.status === 429 ? ' (the site blocks this server?)' : ''}`,
     );
+  }
   return readText(res);
+}
+
+/** An API's own words for a refusal, when it answers JSON ({"display": "Authorisation failed"}, {"message": …}). */
+async function reasonOf(res: Response): Promise<string> {
+  if (!res.headers.get('content-type')?.includes('json')) return '';
+  try {
+    const answer: unknown = JSON.parse(await readText(res));
+    if (!isObj(answer)) return '';
+    const error = isObj(answer.error) ? answer.error.message : answer.error;
+    return str(answer.display ?? answer.message ?? error).slice(0, 200);
+  } catch {
+    return '';
+  }
 }
 
 export type PageResult = {
@@ -84,7 +103,8 @@ export async function scrape(
   for (const target of urls) {
     const { keyword, page, url } = target;
     try {
-      const parsed = parseBody(scraper.kind, await fetchPage(url, config.headers), { src: scraper.src, url, config });
+      const body = await fetchPage(withApiParams(scraper.kind, url), config.headers);
+      const parsed = parseBody(scraper.kind, body, { src: scraper.src, url, config });
       sample ??= parsed.sample;
       found += parsed.total;
       let pageKept = 0;
@@ -137,9 +157,19 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
   return out;
 }
 
-/** Scrapes every enabled scraper, a few at a time; each result stays with its scraper, in order. */
-export async function fetchListings(scrapers: readonly Scraper[], settings: ScrapeSettings): Promise<Fetched[]> {
+/** The enabled scrapers this run goes through, and the ones that wait for their board's quota. */
+export function dueScrapers(
+  scrapers: readonly Scraper[],
+  settings: Pick<ScrapeSettings, 'keywords'>,
+  now = Date.now(),
+) {
   const enabled = scrapers.filter((scraper) => scraper.enabled);
-  const results = await mapLimit(enabled, PARALLEL, (scraper) => scrape(scraper, settings));
-  return enabled.map((scraper, i) => ({ scraper, result: results[i] }));
+  const due = enabled.filter((scraper) => isDue(scraper, scrapers, settings.keywords, now));
+  return { due, waiting: enabled.filter((scraper) => !due.includes(scraper)) };
+}
+
+/** Scrapes the given scrapers, a few at a time; each result stays with its scraper, in order. */
+export async function fetchListings(scrapers: readonly Scraper[], settings: ScrapeSettings): Promise<Fetched[]> {
+  const results = await mapLimit([...scrapers], PARALLEL, (scraper) => scrape(scraper, settings));
+  return scrapers.map((scraper, i) => ({ scraper, result: results[i] }));
 }

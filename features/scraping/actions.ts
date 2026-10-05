@@ -46,10 +46,10 @@ export const saveScheduleAction = action(scheduleSchema, async (schedule) =>
 
 export const saveFiltersAction = action(filtersSchema, async (filters) => {
   if (!filters.keywords.length) {
-    const uses = (await scrapersRepo.list()).find(
-      (scraper) => scraper.enabled && /\{keyword(_slug)?\}/.test(scraper.config.url),
-    );
-    if (uses) throw new Error(`Add at least one keyword: ${uses.name}'s link has {keyword} in it.`);
+    for (const scraper of await scrapersRepo.list()) {
+      const placeholder = scraper.enabled && scraper.config.url.match(/\{keyword(?:_slug|s)?\}/)?.[0];
+      if (placeholder) throw new Error(`Add at least one keyword: ${scraper.name}'s link has ${placeholder} in it.`);
+    }
   }
   await settingsRepo.save({ ...(await settingsRepo.get()), ...filters });
   refresh();
