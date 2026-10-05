@@ -42,7 +42,7 @@ export function AdText({ app, loadError }: { app: Shown; loadError: string | nul
         )}
       </div>
       {app.scrapedAt && hasText && (
-        <p className="m-0 -mt-1.5 text-xs text-muted-foreground">Ad saved {day(app.scrapedAt)}.</p>
+        <p className="m-0 -mt-1.5 text-xs text-muted-foreground">saved {day(app.scrapedAt)}.</p>
       )}
     </>
   );

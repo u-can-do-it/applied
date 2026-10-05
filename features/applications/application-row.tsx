@@ -21,7 +21,7 @@ const facts = (details: Application['details']) =>
 
 const CONTENT: Record<Application['contentStatus'], string> = {
   pending: 'saving the ad…',
-  ok: 'ad saved',
+  ok: 'saved',
   empty: 'no ad text',
   failed: 'couldn’t fetch the ad',
 };
