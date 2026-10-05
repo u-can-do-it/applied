@@ -1,49 +1,26 @@
 import { ArrowLeftIcon, ArrowRightIcon } from 'lucide-react';
 import { rangeStats } from '@/lib/ai/runs';
-import { addDays, DEFAULT_TZ, describeRange, zoneOf, type Zone } from '@/lib/dates';
-import { getJobs, getTotalCount, PAGE_SIZE, type ListedJob } from '@/lib/jobs';
+import { DEFAULT_TZ, describeRange, zoneOf } from '@/lib/dates';
+import { getJobs, getTotalCount, PAGE_SIZE } from '@/lib/jobs';
 import { isUsable, listProfiles } from '@/lib/ai/profiles';
 import { labelsOf, type BoardOption } from '@/lib/listings/board-filter';
 import { message } from '@/lib/shared/errors';
 import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { withParams } from '@/lib/shared/search-params';
 import { appZone } from '@/lib/time-zone';
+import { DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { LoadError } from '@/components/load-error';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavLink } from './nav';
 import { OFFER, OfferRow } from './offer-row';
 import { NewCount } from './new-count';
 
-// days and times in the app's time zone
-const dayLabel = (zone: Zone, at: string) => `${zone.weekday(at)} ${zone.formatDayOf(at)}`; // "Thu 02.10.2026"
-
 const fmt = (count: number) => count.toLocaleString('en-GB');
 
 // shared with the skeleton, so the rows don't move when the list comes in
 const COUNT =
   'mt-1 mb-0 min-h-[19px] text-[13px] text-muted-foreground tabular-nums [&_a]:text-brand [&_a]:no-underline [&_strong]:font-semibold [&_strong]:text-foreground';
-const DAY_HEADING =
-  'sticky top-0 z-1 mt-6 mb-0 bg-background py-2 text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase';
-// no overflow-hidden: it would clip the fit tooltip; the rows have no background of their own
-const DAY_LIST = 'm-0 list-none divide-y rounded-[10px] border bg-card p-0';
 const EMPTY = 'mt-8 mb-4 text-center text-muted-foreground';
-
-function groupByDay(jobs: ListedJob[], zone: Zone) {
-  const today = zone.day();
-  const yesterday = addDays(today, -1);
-  const groups: { day: string; label: string; jobs: ListedJob[] }[] = [];
-  for (const job of jobs) {
-    const day = zone.day(job.firstSeen);
-    let group = groups.at(-1);
-    if (!group || group.day !== day) {
-      const label = day === today ? 'Today' : day === yesterday ? 'Yesterday' : dayLabel(zone, job.firstSeen);
-      group = { day, label, jobs: [] };
-      groups.push(group);
-    }
-    group.jobs.push(job);
-  }
-  return groups;
-}
 
 export async function Results({
   searchParams,
@@ -156,11 +133,11 @@ export async function Results({
         </p>
       )}
 
-      {groupByDay(data.jobs, zone).map((group) => (
+      {groupByDay(data.jobs, (job) => job.firstSeen, zone).map((group) => (
         <section key={group.day}>
           <h2 className={DAY_HEADING}>{group.label}</h2>
           <ol className={DAY_LIST}>
-            {group.jobs.map((job) => (
+            {group.items.map((job) => (
               <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
             ))}
           </ol>

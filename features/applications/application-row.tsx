@@ -6,7 +6,6 @@ import { workModeOf, workModeText } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { StatusChip } from './status-chip';
-import { useDay } from './use-day';
 
 const facts = (details: Application['details']) =>
   [
@@ -35,7 +34,7 @@ const CONTENT_COLOUR: Record<Application['contentStatus'], string> = {
 const META =
   "mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']";
 
-/** One application in the list; a click opens its window. */
+/** One application in the list (under the day you applied: no date of its own); a click opens its window. */
 export function ApplicationRow({
   app,
   labels,
@@ -48,23 +47,16 @@ export function ApplicationRow({
   active?: boolean;
   onOpen: () => void;
 }) {
-  const day = useDay();
   return (
     <button
       type="button"
       className={cn(
-        'group/row grid w-full cursor-pointer grid-cols-[84px_1fr_auto] items-start gap-3 px-3.5 py-3 text-left max-[560px]:grid-cols-[1fr_auto]',
+        'group/row grid w-full cursor-pointer grid-cols-[1fr_auto] items-start gap-3 px-3.5 py-3 text-left',
         active && 'bg-accent',
       )}
       aria-current={active || undefined}
       onClick={onOpen}
     >
-      <time
-        dateTime={app.appliedAt}
-        className="pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full"
-      >
-        {day(app.appliedAt)}
-      </time>
       <span className="flex min-w-0 flex-col">
         <span className="font-semibold [overflow-wrap:anywhere] group-hover/row:text-brand group-hover/row:underline group-hover/row:underline-offset-2">
           {app.title}

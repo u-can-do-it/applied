@@ -4,8 +4,9 @@ import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
+import { DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { searchBox, searchInput } from '@/components/search-field';
-import { TimeZone } from '@/components/time-zone';
+import { TimeZone, useZone } from '@/components/time-zone';
 import { useRefreshWhile } from '@/components/use-refresh-while';
 import { Button } from '@/components/ui/button';
 import { AddApplication } from './add-application';
@@ -13,7 +14,8 @@ import { AppliedStats, type Filter } from './applied-stats';
 import { ApplicationRow } from './application-row';
 import { ApplicationSheet, type SheetHandle } from './application-sheet';
 
-// The Applied tab: statistics, the list, and one application's window.
+// The Applied tab: statistics, the list (by the day you applied, like the offer lists), and one
+// application's window.
 
 /** a note saved in the window, and its note_updated_at once the database answered */
 type NoteOverlay = { note: string | null; at?: string | null };
@@ -31,6 +33,7 @@ export function AppliedList({ tz, ...props }: { apps: Application[]; labels: Rec
 }
 
 function List({ apps: fromServer, labels }: { apps: Application[]; labels: Record<string, string> }) {
+  const zone = useZone();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>(null);
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
@@ -151,18 +154,25 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
       </p>
 
       {/* a click in it doesn't close the window (application-sheet.tsx): it shows another application */}
-      <ol data-application-list className="mt-3 mb-0 list-none divide-y rounded-[10px] border bg-card p-0">
-        {shown.map((app) => (
-          <li key={app.jobId}>
-            <ApplicationRow
-              app={app}
-              labels={labels}
-              active={open?.jobId === app.jobId}
-              onOpen={() => void show(app)}
-            />
-          </li>
+      <div data-application-list>
+        {groupByDay(shown, (app) => app.appliedAt, zone).map((group) => (
+          <section key={group.day}>
+            <h2 className={DAY_HEADING}>{group.label}</h2>
+            <ol className={DAY_LIST}>
+              {group.items.map((app) => (
+                <li key={app.jobId}>
+                  <ApplicationRow
+                    app={app}
+                    labels={labels}
+                    active={open?.jobId === app.jobId}
+                    onOpen={() => void show(app)}
+                  />
+                </li>
+              ))}
+            </ol>
+          </section>
         ))}
-      </ol>
+      </div>
 
       {open && (
         <ApplicationSheet
