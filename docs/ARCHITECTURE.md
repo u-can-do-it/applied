@@ -56,7 +56,7 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
    `fetchOutbound`, parsed by the scraper's kind ([`lib/listings/registry.ts`](../lib/listings/registry.ts)),
    then filtered: a keyword in the title or skills and a city (or remote), each where the scraper checks it,
    and not an ignored title. A scraper's failure is part of its result, never the run's. A board with a quota
-   of calls (`listing.minutesPerCall`, Adzuna one an hour) is scraped by the schedule only as often as its
+   of calls (`listing.minutesPerCall`, Adzuna one every 20 minutes) is scraped by the schedule only as often as its
    scrapers' calls allow ([`lib/listings/quota.ts`](../lib/listings/quota.ts)): `scrapersToRun` leaves them
    out of a cron run in between; "Scrape now" and `/scrape` take them anyway. What its API needs in every link (the keys, from the environment, and
    Adzuna's `content-type`) is added to the request only (`lib/listings/api-params.ts`).

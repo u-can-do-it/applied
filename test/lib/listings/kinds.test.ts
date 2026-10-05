@@ -15,7 +15,7 @@ describe('scraper kinds', () => {
   });
 
   it('a board with a quota of calls says how many minutes a call; the others have none', () => {
-    expect(kindOf('adzuna').minutesPerCall).toBe(60);
+    expect(kindOf('adzuna').minutesPerCall).toBe(20);
     expect(kindOf('justjoin').minutesPerCall).toBeUndefined();
     expect(kindOf('json').minutesPerCall).toBeUndefined();
   });

@@ -6,7 +6,7 @@ import type { Scraper } from '../db/repos/scrapers';
 import { kindOf } from './kinds';
 import { expandUrl } from './match';
 
-type QuotaScraper = Pick<Scraper, 'kind' | 'enabled' | 'config' | 'lastRunAt' | 'lastStatus'>;
+type QuotaScraper = Pick<Scraper, 'kind' | 'enabled' | 'config' | 'lastRunAt'>;
 
 // a run's scrapers are recorded a little after it starts, so the next one an interval later finds a little
 // less gone: within this, it's due
@@ -35,10 +35,8 @@ export function intervalOf(scraper: QuotaScraper, scrapers: readonly QuotaScrape
 export function nextRunAt(scraper: QuotaScraper, scrapers: readonly QuotaScraper[], keywords: string[]) {
   const every = intervalOf(scraper, scrapers, keywords);
   if (!every || !scraper.lastRunAt) return null;
-  // a failed run (a missing key, a refusal) tries again sooner, but not on every run: a used-up quota
-  // answers 429 until it resets
-  const minutes = scraper.lastStatus === 'ok' ? every : every / 4;
-  return Date.parse(scraper.lastRunAt) + minutes * 60_000 - EARLY_MS;
+  // a failed run waits the same (a used-up quota answers 429 until it resets); Scrape now tries it any time
+  return Date.parse(scraper.lastRunAt) + every * 60_000 - EARLY_MS;
 }
 
 export function isDue(scraper: QuotaScraper, scrapers: readonly QuotaScraper[], keywords: string[], now = Date.now()) {

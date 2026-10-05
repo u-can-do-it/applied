@@ -3,32 +3,32 @@ import type { Scraper } from '@/lib/db/repos/scrapers';
 import { scrapersToRun } from '@/lib/listings/pipeline/fetch';
 import { intervalOf, isDue, nextRunAt } from '@/lib/listings/quota';
 
-// A board with a quota of calls (Adzuna: one an hour) runs as often as its scrapers' calls allow.
+// A board with a quota of calls (Adzuna: one every 20 minutes) runs as often as its scrapers' calls allow.
 
 const now = Date.parse('2026-10-05T12:00:00Z');
 const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
 const URL = 'https://api.adzuna.com/v1/api/jobs/pl/search/{page}?what_or={keywords}';
 
-type Quota = Pick<Scraper, 'kind' | 'enabled' | 'config' | 'lastRunAt' | 'lastStatus'>;
+type Quota = Pick<Scraper, 'kind' | 'enabled' | 'config' | 'lastRunAt'>;
 const scraper = (extra: Partial<Quota> = {}): Quota => ({
   kind: 'adzuna',
   enabled: true,
   config: { url: URL },
-  lastRunAt: ago(30),
-  lastStatus: 'ok',
+  lastRunAt: ago(10),
   ...extra,
 });
 const keywords = ['React', 'Vue'];
 
 describe('the quota of calls', () => {
-  it('one scraper, one page: once an hour, with a few minutes to spare for the run before it', () => {
+  it('one scraper, one page: every 20 minutes, so every other run of a 10-minute schedule', () => {
     const one = [scraper()];
-    expect(intervalOf(one[0], one, keywords)).toBe(60);
+    expect(intervalOf(one[0], one, keywords)).toBe(20);
+    // the run 10 minutes later skips it, the one 20 minutes later (recorded a little after it started) takes it
     for (const [minutes, due] of [
-      [30, false],
-      [54, false],
-      [56, true],
-      [120, true],
+      [10, false],
+      [14, false],
+      [19.9, true],
+      [40, true],
     ] as const)
       expect(isDue({ ...one[0], lastRunAt: ago(minutes) }, one, keywords, now), `${minutes} min`).toBe(due);
   });
@@ -38,15 +38,9 @@ describe('the quota of calls', () => {
     const perKeyword = scraper({ config: { url: URL.replace('{keywords}', '{keyword}') } });
     const off = scraper({ enabled: false, config: { url: URL, pages: 5 } });
     const other = { ...scraper(), kind: 'justjoin' as const };
-    expect(intervalOf(paged, [paged], keywords)).toBe(180);
-    expect(intervalOf(perKeyword, [perKeyword], keywords)).toBe(120);
-    expect(intervalOf(paged, [paged, perKeyword, off, other], keywords)).toBe(300);
-  });
-
-  it('after a failure it tries again sooner, but not on every run', () => {
-    const failed = scraper({ lastStatus: 'error', lastRunAt: ago(5) });
-    expect(isDue(failed, [failed], keywords, now)).toBe(false);
-    expect(isDue({ ...failed, lastRunAt: ago(11) }, [failed], keywords, now)).toBe(true);
+    expect(intervalOf(paged, [paged], keywords)).toBe(60);
+    expect(intervalOf(perKeyword, [perKeyword], keywords)).toBe(40);
+    expect(intervalOf(paged, [paged, perKeyword, off, other], keywords)).toBe(100);
   });
 
   it('never run, or a board without a quota: due on every run', () => {
