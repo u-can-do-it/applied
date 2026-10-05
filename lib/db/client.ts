@@ -5,14 +5,12 @@ import { env } from '../env';
 import { isoTimestamp, TIMESTAMPTZ_OID, withSsl } from './connection';
 import * as schema from './schema';
 
-// A few connections per serverless instance, through Supabase's SESSION pooler (port 5432), not the
-// transaction pooler (6543): through 6543, two queries back to back on one connection lose their
-// answers, and a page (a dozen queries at once) hung until the function's limit. With Fluid compute
-// one instance serves several requests at once (a page, a server action, an after() worker), so a
-// single connection would queue them; in session mode each connection holds a real database
-// connection while it's open, so the pool stays small (3) and idle ones close after 20 s.
-// `prepare: false` is kept: harmless here, and needed if the URL is ever a transaction pooler's.
-// See docs/decisions/0001-drizzle-over-postgrest.md.
+// A few connections per serverless instance, through Supabase's session pooler (port 5432). Not the
+// transaction pooler (6543): through it, queries sent back to back on one connection lose their
+// answers, and a page sends a dozen at once. With Fluid compute one instance serves several requests
+// at once (a page, a server action, an after() worker), so a single connection would queue them; in
+// session mode each connection holds a real database connection while it's open, so the pool stays
+// small and idle ones close after 20 s. See docs/decisions/0001-drizzle-over-postgrest.md.
 
 export type Db = PostgresJsDatabase<typeof schema>;
 
@@ -31,8 +29,10 @@ export function db(): Db {
       // a frozen instance's connection is dropped by the pooler anyway; don't hold it longer
       idle_timeout: 20,
       connect_timeout: 10,
-      // A query or a lock wait never holds a function past its time limit (PostgREST had a 30 s
-      // timeout too). Startup parameters: the session pooler passes them on.
+      // Meant to stop a slow query or a lock wait before the function's time limit. The session
+      // pooler doesn't pass startup parameters on: the connections run with the role's own
+      // settings (statement_timeout 2 min, no lock_timeout) unless they're set on the role
+      // (docs/OPERATIONS.md → "Timeouts and the pooler").
       connection: { application_name: 'jobwatch', statement_timeout: 30_000, lock_timeout: 10_000 },
     });
     const database = drizzle({ client, schema });

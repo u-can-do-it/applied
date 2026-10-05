@@ -7,19 +7,19 @@
 
 ## Context
 
-New offers went to Telegram only. The user wants them on an Android phone as notifications of the app itself,
-without Telegram, while Telegram keeps working for whoever uses it. The queue (`notify_queue`), mute and the AI
+The user wants new offers on an Android phone as notifications of the app itself, without Telegram, while
+Telegram keeps working for whoever uses it. The queue (`notify_queue`), mute and the AI
 check already decide what is worth sending and when; they shouldn't be repeated per channel.
 
 ## Decision
 
-- **One batch, every channel.** `notify` builds the batch as before (claimed from the queue, AI verdicts, the
+- **One batch, every channel.** `notify` builds the batch (claimed from the queue, AI verdicts, the
   20-minute rule, mute) and `deliver()` hands the same batch to every ready channel at once. A channel answers
   with what it couldn't deliver; one that throws counts as having delivered nothing. One channel failing never
   stops another.
 - **Put back what no channel delivered.** An offer goes back into the queue only if every channel failed for
-  it. With Telegram alone this is what it always did; with both, an offer push got to you isn't queued again
-  because Telegram was down (it would come again as a push). Such a partial delivery is a success with a
+  it. With Telegram alone that is every offer it failed to send; with both, an offer push got to you isn't
+  queued again because Telegram was down (it would come again as a push). Such a partial delivery is a success with a
   warning ("Sent 3; Telegram: …"): a toast in Settings, a warning (not an error) in the run log. Only when no
   channel delivered is it an error.
 - **Push is a PWA with Web Push and VAPID** (`web-push`), no third-party service: `app/manifest.ts`,
@@ -42,8 +42,8 @@ check already decide what is worth sending and when; they shouldn't be repeated 
 
 ## Consequences
 
-- Mute, the queue and the AI filter moved from the Telegram panel to Settings → Notifications; Telegram's
-  panel keeps its own set-up. The `/mute` and `/send` commands act on every channel.
+- Mute, the queue and the AI filter are in Settings → Notifications, for every channel; Telegram's panel has
+  only its own set-up. The `/mute` and `/send` commands act on every channel.
 - A channel is ready only with someone to send to (push: at least one device), so new offers aren't queued
   for nobody.
 - A new channel is a `Channel` (`name`, `ready`, `send`) added to `CHANNELS`.

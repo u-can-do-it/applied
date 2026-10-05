@@ -29,8 +29,8 @@ flowchart LR
 
 Everything runs in one Next.js app on Vercel. There is no queue or worker service: background work runs in
 `after()` (after the response, in the same function) and is picked up again by the next trigger when it runs
-out of time. Every database access is server-side, through Drizzle over a direct Postgres connection
-([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
+out of time. Every database access is server-side, through Drizzle over postgres.js, connected to Supabase's
+Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 
 ## Data flow
 
@@ -64,7 +64,7 @@ out of time. Every database access is server-side, through Drizzle over a direct
    another board's offer of a known job, not a muted title. One per job.
 5. **`recordOutcomes`** (`outcomes.ts` pure, `persist.ts` writes): each scraper's last status, counts and new
    mark; the run's counts go into `scrape_runs`. The announced offers go into `notify_queue` when sending is on
-   and a notification channel is ready (Telegram configured, or push configured with a subscribed device).
+   and a notification channel is ready (Telegram set up and switched on, or push set up with a subscribed device).
 6. **`aiFilter`** (`ai-filter.ts`): every new job (announced or not) is judged against the active AI profile,
    if the AI filter is on, a profile is usable and `OPENAI_API_KEY` is set. No new batch after `AI_BUDGET_MS`.
 7. **`notify`** (`notify.ts`): what waits in the queue goes, as one batch, to every ready
@@ -89,7 +89,7 @@ their APIs, Built In and LinkedIn from their pages, the other scraped boards fro
   application, trying the job's other boards if the clicked one fails. The state machine is
   [below](#application-ad-content). What the board didn't give (salary, location, remote / hybrid / on-site and
   a hybrid job's office and home days) OpenAI reads from the saved text (`lib/application-details.ts`,
-  `details.textRead`); the Applied page reads the texts saved before that, 40 per visit, after it renders.
+  `details.textRead`); a saved text not read yet is read when the Applied page has rendered, 40 per visit.
 
 "Fill in from the link" (Add application) reads the page the same way and lets OpenAI
 (`OPENAI_EXTRACT_MODEL`) fill in the form.
@@ -115,7 +115,7 @@ scrape). The scrape's own AI filter (pipeline step 6) uses the same `assessJobs`
 
 [`lib/channels/`](../lib/channels): a `Channel` has a `name`, `ready()` (set up, and someone to send to) and
 `send(batch)`, which answers with what it couldn't deliver. `notify` claims the batch from the queue (mute,
-the AI check and the 20-minute rule decide what's in it, as before) and `deliver()` hands the same batch to
+the AI check and the 20-minute rule decide what's in it) and `deliver()` hands the same batch to
 every ready channel at once; one failing or throwing doesn't stop the others. An offer goes back into the queue
 only if no channel got it to you, so a working channel doesn't get it twice
 ([ADR 0009](decisions/0009-notification-channels-and-push.md)). When no channel delivered, the errors go into the
@@ -149,7 +149,7 @@ last run"), and `?new=1` lists only those, on the offers and the AI tabs alike.
 
 [`lib/telegram.ts`](../lib/telegram.ts) sends through the Bot API (one message per batch, one block per board in
 it; what doesn't fit in Telegram's 4096 characters is counted, with a link to the new offers; if it fails to
-send, the batch goes back into the queue). Commands arrive at
+send, the batch counts as undelivered by Telegram, as [above](#notification-channels)). Commands arrive at
 `/api/telegram` once the webhook is connected in Settings: Telegram sends back a secret derived from the bot
 token, and only `TELEGRAM_CHAT_ID` may give commands. Set-up: [OPERATIONS.md → Telegram](OPERATIONS.md#telegram).
 
@@ -165,8 +165,8 @@ in a year, so an hour wider where clocks change). The app still decides whether 
 
 The app has one time zone (Settings; `lib/time-zone.ts`): the scraping hours, "today" and the date filters,
 every date and time shown, and Telegram's. Only a pick in Settings changes it (and reschedules Supabase Cron);
-the browser's zone is only offered. An install from before the setting keeps the zone it last saw from a
-browser (`browserTimeZone`); without either, Europe/Warsaw.
+the browser's zone is only offered. Without a pick, the stored settings' `browserTimeZone` if they have one
+(the app never writes it); without either, Europe/Warsaw (`effectiveTimeZone`).
 
 ## Tables
 
@@ -305,13 +305,13 @@ Outside `ok` the text is always what you typed, so a fetch that fails or finds n
 | [`drizzle/`](../drizzle)                   | The migrations (written by `npm run db:generate`, custom ones by hand) and drizzle-kit's snapshots.                                                                                                                                            |
 | [`scripts/`](../scripts)                   | `db-migrate.ts` (`npm run db:migrate`), `db-preflight.sql`, `db-verify-migrations.sh`, `test-db.sh`, `db-reset-local.sh`, `lib-local-db.sh` (the localhost guard), `icons.ts` (the app's icons).                                               |
 | [`test/`](../test)                         | Vitest: unit tests mirroring the source tree, `test/db/` against a real database, `test/fixtures/` (recorded board pages).                                                                                                                     |
-| [`supabase/scripts/`](../supabase/scripts) | `remove-duplicates.sql`, a one-off cleanup from before the app de-duplicated jobs; kept for reference, not to be run.                                                                                                                          |
+| [`supabase/scripts/`](../supabase/scripts) | `remove-duplicates.sql`, a one-off cleanup of duplicate offers, run once by hand; kept for reference, not to be run.                                                                                                                           |
 
 ## Glossary
 
 The words Jobwatch uses for its things, and what each one means in the code. One word per idea: a code
-identifier uses the word below, never a synonym. Where the database or a stored format still spells it the old
-way, the entry says so (_stored as_): those names stay (production data and applied migrations), and
+identifier uses the word below, never a synonym. Where the database or a stored format spells it differently,
+the entry says so (_stored as_): those names stay (production data and applied migrations), and
 `lib/db/schema.ts` maps them to the word used in TypeScript.
 
 ### The domain
@@ -412,7 +412,5 @@ Values that live outside the code keep their names, so nothing breaks across a d
 - an application's history entries (`{ stage, state, at, auto }`, jsonb);
 - note drafts in the browser: `localStorage` key `jobwatch:note:<job id>`, value `{ text, base }`;
 - the URL's filters (`?q=`, `?src=`, `?days=`…);
-- `/api/application` takes `?jobId=`, and still `?key=` from pages loaded before the rename. That only keeps
-  their ad text loading: the server actions take the new field names (`jobId`, `outcome`) with no alias, so a
-  tab opened before the deploy needs a reload (its unsaved note stays in `localStorage` meanwhile);
+- `/api/application` takes `?jobId=` (or `?key=`, the same);
 - what the prompts send OpenAI and read back (a job's `board`, `first_seen`; a pair's `p`; an offer's `n`).

@@ -1,19 +1,18 @@
 # 1. Drizzle ORM over a direct Postgres connection, instead of PostgREST
 
 - Status: accepted (2026-10-03)
-- Context: [code review](../code-review.md), §2 "Data layer"
 
 ## Context
 
-The app talked to Supabase through a 50-line PostgREST client (`lib/supabase.ts`) that was itself a deliberate
-choice: no dependency, plain `fetch`, works anywhere. It cost more than it saved:
+The schema needs real SQL: a window-function view (`offers_unique`), a generated column (`dup_key`), `pg_trgm`
+similarity, upserts, and `jw_*` / `ai_*` functions (ingesting offers, merging jobs, duplicate candidates,
+Supabase Cron). The code needs row types that follow the schema, transactions, and versioned migrations with a
+record of which ran.
 
-- Every module built URLs by hand (`dup_key=eq.…`, `in.(…)`, `or=(…)`), with four separate quoting helpers.
-- Row types were hand-written mirrors of the SQL, and drifted silently.
-- The schema needs real SQL: a window-function view (`offers_unique`), a generated column (`dup_key`), `pg_trgm`
-  similarity, upserts, and about a dozen `jw_*` / `ai_*` functions. Through PostgREST these are opaque RPCs.
-- Schema changes were loose files (`supabase/*.sql`) applied by a Docker `psql` script, with nothing recording
-  which ran. The code grew fallbacks for half-migrated databases.
+Supabase's own way in is PostgREST, its REST API over the database: no dependency, plain `fetch`, works
+anywhere. But every query is a hand-built URL (`dup_key=eq.…`, `in.(…)`, `or=(…)`) with its own quoting, row
+types are hand-written mirrors of the SQL that drift silently, and the view's and functions' SQL can only be
+called as opaque RPCs.
 
 ## Decision
 
@@ -21,56 +20,44 @@ Use **Drizzle ORM** (`drizzle-orm`, `drizzle-kit`) with the **`postgres`** (post
 to Supabase's Postgres.
 
 - `lib/db/schema.ts` declares the tables; row types are inferred from it (`typeof offers.$inferSelect`).
-- `drizzle/` holds versioned migrations: a baseline generated from the schema (edited to be idempotent, so it runs
-  as a no-op on the database the old SQL files built), plus custom SQL migrations for what Drizzle doesn't model
-  (extensions, the view, the functions, grants, `pg_cron`, seeds). `npm run db:migrate` (drizzle-orm's migrator) applies them and records
-  them in `drizzle.__drizzle_migrations`; `GET /api/health` compares that record with the migrations the build has.
-- Queries become typed Drizzle queries, joins and transactions; several RPCs (`jw_set_application_status`,
-  `jw_ghost_stale_applications`, `jw_scrape_lock`) can become plain TypeScript transactions, where they're testable.
+- `drizzle/` holds versioned migrations: a baseline generated from the schema (made idempotent by hand, so on a
+  database that already has the tables it changes nothing), plus custom SQL migrations for what Drizzle doesn't
+  model (extensions, the view, the functions, grants, `pg_cron`, seeds). `npm run db:migrate` (drizzle-orm's
+  migrator) applies them and records them in `drizzle.__drizzle_migrations`; `GET /api/health` compares that
+  record with the migrations the build has.
+- Queries are typed Drizzle queries, joins and transactions in `lib/db/repos/`. What needs no SQL of its own
+  (application status changes, ghosting, the scrape lock) is TypeScript there too, where it's testable.
 
-### The connection: transaction pooler, `prepare: false`, `max: 5`
+### The connection: the session pooler, `max: 3`, `prepare: false`
 
 Everything that touches the database runs server-side in Node: route handlers, server actions, `after()`
 callbacks. `proxy.ts` never queries it. So holding a Postgres connection is possible; the question is how many.
 
 On Vercel the app runs as many short-lived function instances, more under load. If each opened a few direct
 connections, a burst (a scrape, the AI worker, a couple of tabs) could exhaust the database's connection limit.
-Supabase's **transaction pooler** (Supavisor, port 6543) sits in between: instances connect to it, and it lends a
-real connection only for the length of a transaction. Hence:
+Supabase's pooler (Supavisor) sits in between. The app connects through its **Session pooler** (port 5432), on
+Vercel and for `npm run db:migrate` alike (`lib/db/client.ts`):
 
-- `max: 5`: a small pool per instance. With Vercel's Fluid compute an instance serves several requests at
-  once (a page render, a server action, an `after()` worker), and one connection would make them queue. The
-  connections are to the pooler, which lends a real database connection only per transaction, so five per instance
-  costs the database little. (The code review suggested `max: 1`, which assumed one request per instance.)
-- `prepare: false`: in transaction mode consecutive statements can land on different backends, so a statement
-  prepared on one isn't there for the next. postgres.js prepares by default; this turns it off.
-- `npm run db:migrate` is run from a developer machine against the **session pooler** (port 5432) instead: it
-  prepares statements, and it's one long session anyway.
-- `statement_timeout: 30s`, `lock_timeout: 10s` are sent as startup parameters (`connection` in
-  `lib/db/client.ts`), so a slow query or a lock wait fails instead of running out a function's time
-  (PostgREST had a 30 s limit of its own). A pooler in transaction mode may not pass startup parameters on to
-  the backend it lends: whether Supavisor does wasn't verified here (`show statement_timeout` through the 6543
-  URI tells). If it doesn't, set them on the role the app connects as, which every backend applies:
-  `alter role <app role> set statement_timeout = '30s'; alter role <app role> set lock_timeout = '10s';`
-  (better on a role of the app's own than on `postgres`, which migrations and the SQL Editor use too).
-
-### Update 2026-10-05: the session pooler, not the transaction pooler
-
-Through the transaction pooler the app's pages hung until Vercel's 300 s limit (`Task timed out after 300
-seconds` on `/`, `/ai`, `/applied`, `/activity`, `/settings`) while the API routes stayed fast. Reproduced
-locally against the same database: through 6543 `/settings` hung, through 5432 it rendered in 0.45 s. With
-postgres.js, two or more queries sent back to back on one connection through 6543 lose their answers (the
-first one to three come back, the rest never do), whatever their size and even with `max_pipeline: 1`; one
-at a time, awaited, they never hang, and through 5432 nothing hangs. A page sends a dozen queries at once, an
-API route one to three. So the app connects through the **session pooler** (5432) like the migrations, with
-`max: 3`: in session mode each client connection holds a real database connection while it's open, so the
-pool is smaller, and idle connections still close after 20 s. `prepare: false` stays (harmless there).
+- Not the **Transaction pooler** (port 6543): with postgres.js, queries sent back to back on one connection
+  through it lose their answers. A page sends a dozen queries at once, so pages hang until the function's time
+  limit.
+- `max: 3`: a small pool per instance. In session mode each connection holds a real database connection while
+  it's open, so the pool stays small; with Vercel's Fluid compute one instance serves several requests at once
+  (a page render, a server action, an `after()` worker), so a single connection would make them queue.
+- `idle_timeout: 20` s (a frozen instance's connection is dropped by the pooler anyway), `connect_timeout: 10` s.
+- `prepare: false`: queries go out without named prepared statements; harmless in session mode.
+- `statement_timeout` 30 s and `lock_timeout` 10 s are sent as startup parameters (`connection` in
+  `lib/db/client.ts`), meant to stop a slow query or a lock wait before a function's time limit. The session
+  pooler doesn't pass them on: the connections run with the role's `statement_timeout` (2 min), no
+  `lock_timeout` and `application_name` `Supavisor`. Setting them on the role the app connects as would apply
+  them: `alter role <role> set statement_timeout = '30s'; alter role <role> set lock_timeout = '10s';`. That
+  isn't done yet ([OPERATIONS.md → Timeouts and the pooler](../OPERATIONS.md#timeouts-and-the-pooler)).
 
 ## Alternative considered: `@supabase/supabase-js`
 
 The lighter option, and a fine one: no connection string on Vercel, works on the Edge runtime, `.eq()` / `.in()` /
-`.rpc()` instead of hand-built URLs (the quoting helpers would go either way), types generated by
-`supabase gen types`, and the Supabase CLI (`supabase/migrations/`, `supabase db push`) for versioned migrations.
+`.rpc()` instead of hand-built URLs, types generated by `supabase gen types`, and the Supabase CLI
+(`supabase/migrations/`, `supabase db push`) for versioned migrations.
 
 It would be the better pick if the app ran queries on the Edge, needed to avoid holding any database connection, or
 used Supabase Auth, Storage or Realtime. None of those apply. And it keeps the core problem: the view, the generated
@@ -79,11 +66,10 @@ while Drizzle lets the same SQL live next to ordinary typed queries and transact
 
 ## Consequences
 
-- `SUPABASE_DB_URL` is the app's only database setting (the session pooler URI, see the update above). `SUPABASE_URL` and
-  `SUPABASE_SECRET_KEY` are no longer read: every module queries through Drizzle ([OPERATIONS.md → "Upgrading a
-  database set up before Drizzle"](../OPERATIONS.md#upgrading-a-database-set-up-before-drizzle-once) says when to remove them).
+- `SUPABASE_DB_URL` (the Session pooler URI) is the app's only database setting.
 - Database access needs the Node runtime (not Edge). That's the case today.
 - Schema changes go through `lib/db/schema.ts` and `npm run db:generate`; a deploy with a new migration needs
   `npm run db:migrate`, and `/api/health` says "behind" until it's run.
-- `scripts/db-verify-migrations.sh` checks the migrations against throwaway local databases (old setup, empty
-  database, schema drift).
+- `scripts/db-verify-migrations.sh` (`npm run db:verify`) checks the migrations against throwaway local
+  databases: an existing database is left as it was, an empty one gets the same schema, every migration can run
+  twice, and `schema.ts` and the migrations agree.

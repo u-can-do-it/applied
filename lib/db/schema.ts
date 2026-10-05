@@ -36,7 +36,7 @@ import type { ScraperConfig } from '../listings/config';
 import { KIND_IDS, type KindId } from '../listings/kinds';
 import type { HistoryEntry, OutcomeId, StageId } from '../stages';
 
-// Timestamps are strings, as they were from PostgREST: ISO 8601 with the microseconds, e.g.
+// Timestamps are strings: ISO 8601 with the microseconds, e.g.
 // "2026-10-03T12:34:56.123456+00:00" (lib/db/client.ts turns Postgres' text into that). They cross
 // into client components as they are, lib/dates.ts parses them, and one read back in a `where`
 // (a note's note_updated_at) matches to the microsecond. The mode changes no DDL.

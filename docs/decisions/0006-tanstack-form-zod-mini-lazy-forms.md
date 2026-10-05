@@ -1,13 +1,13 @@
 # 6. Forms: TanStack Form with the actions' Zod schemas (`zod/mini`), loaded lazily
 
 - Status: accepted (2026-10-03)
-- Context: [code review](../code-review.md) §4; [`components/form.tsx`](../../components/form.tsx)
+- Context: [`components/form.tsx`](../../components/form.tsx)
 
 ## Context
 
-Each form had its own state handling (a `useServerForm` hook, a hand-kept `touched` set for "Fill in from the
-link", draft objects in the scraper editor), and validation lived in three places: ad-hoc checks in the
-browser, normalising functions on the server, and the server action's own guards.
+The forms need each field's state (touched and dirty: "Fill in from the link" must skip what you changed),
+and the same rules in the browser and in the server action. Rules written separately for the browser, for
+normalising on the server and for the action's guards drift apart.
 
 ## Decision
 

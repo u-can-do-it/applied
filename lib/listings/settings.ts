@@ -27,8 +27,8 @@ export type ScrapeSettings = {
   /** the app's time zone (days, times, date filters, the hours above), as picked in Settings; '' = none picked yet */
   timeZone: string;
   /**
-   * Before the time zone was a setting of its own, the app followed the browser it was opened in and
-   * kept its zone here. No longer written: an install that never picked a zone keeps using that one.
+   * The zone of the browser the app was opened in, kept by installs that never picked one in
+   * Settings; they keep using it. Never written.
    */
   browserTimeZone: string;
 };

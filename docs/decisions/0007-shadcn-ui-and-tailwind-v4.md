@@ -1,14 +1,11 @@
 # 7. shadcn/ui and Tailwind v4 for the UI
 
 - Status: accepted (2026-10-03)
-- Context: [code review](../code-review.md) §4 "Component library: use shadcn/ui"
 
 ## Context
 
-Every control was hand-made: four dialogs, a masked date field over a hidden native picker, a tooltip placed
-with `requestAnimationFrame`, `confirm()`, inline feedback paragraphs, and an 846-line global stylesheet with
-ten dark-mode blocks. None of it is what makes Jobwatch useful, and all of it had to be maintained and kept
-accessible.
+The app needs dialogs, side sheets, confirmations, a date picker, tooltips, toasts and a dark theme. None of
+it is what makes Jobwatch useful, and hand-made, all of it would have to be maintained and kept accessible.
 
 ## Decision
 

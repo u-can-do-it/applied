@@ -1,6 +1,6 @@
 # 2. "Newest" means when Jobwatch first saw an offer (`first_seen`)
 
-- Status: accepted (2026-10-03; in place since the first version)
+- Status: accepted (2026-10-03)
 - Context: [ARCHITECTURE.md → The scrape pipeline](../ARCHITECTURE.md#the-scrape-pipeline)
 
 ## Context

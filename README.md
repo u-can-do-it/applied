@@ -36,4 +36,3 @@ To deploy (Supabase, Vercel, Supabase Cron, push notifications, Telegram, OpenAI
   notifications (push on Android, Telegram), health, logs, recovery.
 - [CONTRIBUTING.md](CONTRIBUTING.md): where things live, adding a board, conventions, tests, CI.
 - [docs/decisions/](docs/decisions): why it's built this way (ADRs).
-- [docs/code-review.md](docs/code-review.md): the review the current structure came from.

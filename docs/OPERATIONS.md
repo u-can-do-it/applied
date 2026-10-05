@@ -5,7 +5,7 @@ isn't. How it works inside: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 - [Deploy on Vercel](#deploy-on-vercel)
 - [Environment variables](#environment-variables)
-- [Database](#database) (set-up, migrations, [upgrading from before Drizzle](#upgrading-a-database-set-up-before-drizzle-once))
+- [Database](#database) (set-up, migrations, [a local database](#a-local-database))
 - [Supabase Cron](#supabase-cron) · [Notifications](#notifications) ([push on Android](#push-notifications-on-android), [Telegram](#telegram)) · [OpenAI](#openai)
 - [Health](#health) · [Logs](#logs) · [SSRF policy](#ssrf-policy)
 - [Recovery](#recovery) · [Timeouts and the pooler](#timeouts-and-the-pooler)
@@ -13,14 +13,14 @@ isn't. How it works inside: [ARCHITECTURE.md](ARCHITECTURE.md).
 ## Deploy on Vercel
 
 1. **Supabase:** create a project at supabase.com (the free tier is enough), or add Supabase from the Vercel
-   Marketplace. Under **Connect** you'll need two URIs, each with `[YOUR-PASSWORD]` replaced by the database
+   Marketplace. Under **Connect** you'll need one URI, with `[YOUR-PASSWORD]` replaced by the database
    password: the **Session pooler** (port 5432), for migrations and the app alike. Not the **Transaction
-   pooler** (6543): the app's pages hang through it ([ADR 0001](decisions/0001-drizzle-over-postgrest.md#update-2026-10-05-the-session-pooler-not-the-transaction-pooler)).
+   pooler** (6543): the app's pages hang through it ([the connection](#timeouts-and-the-pooler)).
 2. **Migrate it** from your machine (Node from `.nvmrc`): put the Session pooler URI in `.env` as
    `SUPABASE_DB_URL`, then `npm install` and `npm run db:migrate`. That creates the tables, the view, the
    functions, the default settings and the boards' scrapers, and turns on `pg_cron` + `pg_net`.
 3. **Vercel:** push the repo to GitHub, then **Add New → Project → import it** (or `npx vercel` from the
-   folder). Under **Settings → Environment Variables** add at least `SUPABASE_DB_URL` (the **Transaction
+   folder). Under **Settings → Environment Variables** add at least `SUPABASE_DB_URL` (the same **Session
    pooler** URI) and `APP_PASSWORD`; the rest is optional ([below](#environment-variables)). Deploy. The
    build needs no variables: nothing reads the database or the env while building. The functions run in
    `fra1` (Frankfurt, `vercel.json`), next to a Supabase project in Zurich (`eu-central-2`) or Frankfurt
@@ -101,19 +101,19 @@ scripts/db-reset-local.sh postgresql://postgres:local@localhost:5432/postgres   
   and without a record of it, and it doesn't know about the view, the functions or the grants, so it may try to
   drop or alter what they depend on.
 - **Which URL:** the **Session pooler** (5432) for both: the migrator uses prepared statements, which the
-  transaction pooler doesn't keep, and the app's pages hang through the transaction pooler. TLS is added on its own
+  Transaction pooler (6543) doesn't keep, and the app's pages hang through it
+  ([the connection](#timeouts-and-the-pooler)). TLS is added on its own
   (`sslmode=require`) for anything that isn't localhost; that encrypts the connection but doesn't verify the
   server's certificate (add `sslmode=verify-full` and `sslrootcert` to the URL for that).
 - **`npm run db:verify`** ([`scripts/db-verify-migrations.sh`](../scripts/db-verify-migrations.sh)) starts two
-  `supabase/postgres` containers and checks that (a) a database set up by the SQL files used before Drizzle,
-  then used a little, is left as it was by `npm run db:migrate` (but for what `0004` and `0005` change, and
-  the tables added since, `0006`);
-  (b) an empty database gets the same schema from the migrations alone, every migration can run twice, and a
-  view built on `offers_unique` makes the migration fail and roll back instead of being dropped; (c)
-  `schema.ts` and the migrations agree. With `--from-dump file.sql`, (a) starts from a dump of production. It
-  refuses any database that isn't on localhost (`bash scripts/lib-local-db.sh` tests that guard) and reads the
-  old SQL files from git, so it needs the full history (`git fetch --unshallow` in a shallow clone). Run it
-  after changing a migration.
+  `supabase/postgres` containers and checks that (a) a database built by the pre-Drizzle SQL files (read from
+  git at `a290945`), then used a little, is left as it was by `npm run db:migrate` (but for what `0004` and
+  `0005` change, and the tables `0006` onwards add); (b) an empty database gets the same schema from the
+  migrations alone, every migration can run twice, and a view built on `offers_unique` makes the migration
+  fail and roll back instead of being dropped; (c) `schema.ts` and the migrations agree. With
+  `--from-dump file.sql`, (a) starts from a dump of a database's `public` schema instead. It refuses any
+  database that isn't on localhost (`bash scripts/lib-local-db.sh` tests that guard) and needs the full git
+  history (`git fetch --unshallow` in a shallow clone). Run it after changing a migration.
 - **RLS** is on for every table with no policies, so Supabase's public/anon key can't read anything.
 - **Retention:** the scrape run log keeps two weeks, Supabase Cron's own log (`cron.job_run_details`) a week.
 
@@ -130,72 +130,6 @@ SUPABASE_DB_URL=postgresql://postgres:local@localhost:5432/postgres npm run db:m
 
 Put the same URL in `.env` for `npm run dev`. `scripts/db-reset-local.sh <url>` wipes such a database and
 migrates it again. Supabase Cron can't call a dev server on localhost; use "Scrape now".
-
-### Upgrading a database set up before Drizzle (once)
-
-Until commit `a290945`, the schema came from `supabase/*.sql`, applied by `scripts/db-migrate.sh` (both now
-only in git history). The migrations up to `0003_seed` are written to be no-ops on a database those files
-built; `0004_board_seeds` adds the boards' seed markers, and `0005_drop_unused_functions` drops seven SQL
-functions only the old code called. The new code needs nothing that only the migrations create and calls none
-of the dropped functions, so it is deployed first, against the database as it is, and migrated after.
-`npm run db:verify` checks the migrations on a copy built from the old files; your production database has its
-own history, though, so check it first. The commands below use `SUPABASE_DB_URL` from `.env` (the **Session
-pooler** URI): `set -a; . ./.env; set +a` first.
-
-1. **Back it up.** The dump holds your data, CV included: keep it out of git (`data/` is ignored).
-
-   ```bash
-   mkdir -p data
-   docker run --rm postgres:17-alpine pg_dump "$SUPABASE_DB_URL" -Fc > data/backup-before-drizzle.dump
-   ```
-
-2. **Pre-flight checks** (read-only; every row should say PASS):
-
-   ```bash
-   docker run --rm -i postgres:17-alpine psql "$SUPABASE_DB_URL" -X -q < scripts/db-preflight.sql
-   ```
-
-   [`scripts/db-preflight.sql`](../scripts/db-preflight.sql) checks that the old files' last version ran (the
-   LinkedIn seed is recorded, the settings row exists, no `ai_filter` table from the first AI filter,
-   `ai_verdicts` keyed by job), that no migration ran yet (no `drizzle` schema), and that nothing but the app's
-   four functions is built on `offers_unique` (`0002_functions` drops and re-creates the view; anything else
-   on it, such as a view you made in the SQL Editor, would make the migration fail). A FAIL says what to do.
-
-3. **Optionally, rehearse on a copy:** dump the `public` schema and let `db:verify` start from it.
-
-   ```bash
-   docker run --rm postgres:17-alpine pg_dump "$SUPABASE_DB_URL" --schema=public > data/prod-public.sql
-   npm run db:verify -- --from-dump data/prod-public.sql
-   ```
-
-4. **Vercel → Settings → Environment Variables:** add `SUPABASE_DB_URL` = the **Session pooler** URI (port 5432).
-   Keep `SUPABASE_URL` and `SUPABASE_SECRET_KEY` for now: the old deployment needs them if you roll back.
-5. **Deploy the new version** (push, or redeploy in Vercel) against the database as it is. Check that the
-   offers, Applied, AI and Settings pages load. `/api/health` answers `"db": "behind"` (503) and the Health card
-   lists the pending migrations: expected until step 6. If anything misbehaves, roll back with Vercel's
-   **Instant Rollback** to the old deployment; the database hasn't changed.
-6. **Migrate:** Settings → Pause scraping, and don't start AI checks (the migration re-creates the
-   `offers_unique` view and its functions, which takes locks those would wait on, or hold). Then
-   `npm run db:migrate`, once, locally, with the Session pooler URI. Everything runs in one transaction: if any
-   statement fails, it prints why and rolls back, and the database is as it was. On success it records the six
-   migrations, so later ones run normally; the boards' scrapers are not added again (their markers are there).
-   `/api/health` now says `"db": "ok"`. Resume scraping in Settings. Supabase Cron and the Telegram webhook keep
-   working: their secrets are derived as before.
-7. **Remove `SUPABASE_URL` and `SUPABASE_SECRET_KEY`** from Vercel and from your `.env` once you're satisfied:
-   nothing reads them any more. The secret key itself can then be deleted in Supabase (Project Settings → API
-   Keys), since the app no longer uses Supabase's REST API.
-
-**Rolling back after migrating.** The old deployment calls the seven functions `0005` dropped. Re-create them
-from the old SQL files (idempotent; never run `reset.sql`, which wipes the data):
-
-```bash
-git show a290945:supabase/ai-filter.sql | psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1
-git show a290945:supabase/scraping.sql | psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1
-```
-
-(`psql` from Docker works too: `docker run --rm -i postgres:17-alpine psql …`.) Then roll the Vercel
-deployment back to the old one, with `SUPABASE_URL` and `SUPABASE_SECRET_KEY` still set. Restoring the backup
-from step 1 (`pg_restore`) is the last resort: it loses everything written since.
 
 ## Supabase Cron
 
@@ -393,12 +327,16 @@ Elsewhere: a listing page 20 s (`lib/listings/pipeline/fetch.ts`), a Telegram ca
 20 s (the app answers at once and scrapes after the response).
 
 **The connection** ([`lib/db/client.ts`](../lib/db/client.ts),
-[ADR 0001](decisions/0001-drizzle-over-postgrest.md)): through Supabase's session pooler (5432), at most 3
-connections per function instance (each holds a real database connection while open), 10 s to connect, idle
-ones closed after 20 s, `prepare: false`. Each connection asks for `statement_timeout` 30 s and
-`lock_timeout` 10 s as startup parameters, so a slow query or a lock wait fails instead of running out a
-function's time. Should a URL ever not pass those on (`show statement_timeout` says `0`), set them on the
-role the app connects as:
+[ADR 0001](decisions/0001-drizzle-over-postgrest.md)): postgres.js through Supabase's Session pooler (5432),
+at most 3 connections per function instance (each holds a real database connection while open), 10 s to
+connect, idle ones closed after 20 s, `prepare: false`. Not the Transaction pooler (6543): through it, with
+postgres.js, queries sent back to back on one connection lose their answers, and a page sends a dozen at
+once, so pages hang until the function's time limit.
+
+Each connection sends `statement_timeout` 30 s and `lock_timeout` 10 s (and `application_name` `jobwatch`)
+as startup parameters, but the Session pooler (Supavisor) doesn't pass them on: the connections run with the
+role's `statement_timeout` (2 min), no `lock_timeout` and `application_name` `Supavisor` (`show
+statement_timeout` says which). For 30 s and 10 s, set them on the role the app connects as:
 
 ```sql
 alter role <app role> set statement_timeout = '30s';

@@ -1,3 +1,3 @@
 # Glossary
 
-Moved to [ARCHITECTURE.md → Glossary](ARCHITECTURE.md#glossary).
+See [ARCHITECTURE.md → Glossary](ARCHITECTURE.md#glossary).

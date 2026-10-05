@@ -1,14 +1,13 @@
 # 3. AI runs work in `after()` slices under a lock, continued by the AI tab and by Supabase Cron
 
 - Status: accepted (2026-10-03)
-- Context: [code review](../code-review.md) §6 "AI runs depend on an open browser tab";
-  [ARCHITECTURE.md → AI run](../ARCHITECTURE.md#ai-run)
+- Context: [ARCHITECTURE.md → AI run](../ARCHITECTURE.md#ai-run)
 
 ## Context
 
 An AI run can mean hundreds of OpenAI calls (each up to two minutes) plus fetching every job's ad. The app
 runs on Vercel functions, which stop at `maxDuration` (300 s here), and has no queue or worker of its own.
-At first a slice was started only by the AI tab refreshing, so closing the tab stalled the run.
+A run whose work only the AI tab started would stall as soon as the tab closed.
 
 ## Decision
 

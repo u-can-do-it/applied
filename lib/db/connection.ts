@@ -25,8 +25,8 @@ export const MIGRATIONS_SCHEMA = 'drizzle';
 export const MIGRATIONS_TABLE = '__drizzle_migrations';
 
 /**
- * A timestamptz as Postgres prints it ("2026-10-03 12:34:56.123456+00", "… +05:30") in ISO 8601, as
- * PostgREST answered: "2026-10-03T12:34:56.123456+00:00". Every browser's Date parses this; the
+ * A timestamptz as Postgres prints it ("2026-10-03 12:34:56.123456+00", "… +05:30") in ISO 8601:
+ * "2026-10-03T12:34:56.123456+00:00". Every browser's Date parses this; the
  * space and the hour-only offset aren't ISO, and Safari has refused them. The microseconds stay, so
  * the value read back in a `where` is the same instant. Anything else ('infinity') is left alone.
  */

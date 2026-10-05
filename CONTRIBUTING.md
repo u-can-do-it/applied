@@ -137,8 +137,8 @@ Tailwind v4 and shadcn/ui ([ADR 0007](docs/decisions/0007-shadcn-ui-and-tailwind
 - Apply it with `npm run db:migrate` to a local database; never `drizzle-kit push`. After changing a migration,
   `npm run db:check` and `npm run db:verify`.
 - A deploy with a new migration needs `npm run db:migrate` on production ([OPERATIONS.md](docs/OPERATIONS.md#database)).
-- Timestamps are strings, ISO 8601 with microseconds (`2026-10-03T12:34:56.123456+00:00`, `lib/db/client.ts`),
-  as PostgREST gave them: they go to the browser as they are, `lib/dates.ts` parses them, and one read back in
+- Timestamps are strings, ISO 8601 with microseconds (`2026-10-03T12:34:56.123456+00:00`, `lib/db/client.ts`):
+  they go to the browser as they are, `lib/dates.ts` parses them, and one read back in
   a `where` (a note's `note_updated_at`) matches to the microsecond.
 
 ## How to add a board
@@ -182,7 +182,7 @@ starts with `// @vitest-environment jsdom` and uses Testing Library.
 | `npx vitest run test/lib/dates.test.ts`             | One file; `npx vitest` watches.                                                                                                                                                                                                                                |
 | `npm run test:db`                                   | The database tests: starts a `supabase/postgres` container, migrates it with `npm run db:migrate` (`DOTENV=0`, so `.env` isn't read), runs `test/db/` one file at a time, removes it. They refuse anything but localhost: they empty the tables. Needs Docker. |
 | `scripts/test-db.sh <local url>`                    | The same against an empty local database you started (what CI does).                                                                                                                                                                                           |
-| `npm run db:verify`                                 | The migrations against two throwaway databases: old set-up → migrated is unchanged, empty → same schema, every migration twice, `schema.ts` agrees. Needs Docker and the full git history.                                                                     |
+| `npm run db:verify`                                 | The migrations against two throwaway databases: pre-Drizzle set-up → migrated is unchanged, empty → same schema, every migration twice, `schema.ts` agrees. Needs Docker and the full git history.                                                             |
 | `npx vitest run -u test/lib/listings/parse.test.ts` | Rewrites the parser snapshots; read the diff. Re-recording the board fixtures: [test/fixtures/README.md](test/fixtures/README.md).                                                                                                                             |
 
 Pure modules get unit tests (the pipeline's pure steps, the state machines, dates, matching, the Health

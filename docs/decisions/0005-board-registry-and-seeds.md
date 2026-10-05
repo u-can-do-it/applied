@@ -1,14 +1,14 @@
 # 5. A board registry, one file per board; seeds from the registry, once per board
 
 - Status: accepted (2026-10-03)
-- Context: [code review](../code-review.md) §3 "Knowledge about a board lives in six files";
-  [CONTRIBUTING.md → How to add a board](../../CONTRIBUTING.md#how-to-add-a-board)
+- Context: [CONTRIBUTING.md → How to add a board](../../CONTRIBUTING.md#how-to-add-a-board)
 
 ## Context
 
-What Jobwatch knew about one board (its hosts, how its links show an offer id, its default search, its
-parser, its ad reader, its seed scrapers, the database's list of kinds) was spread over six files and a SQL
-seed. Adding a board meant finding all of them; the seed was a hand-written insert in a migration.
+What Jobwatch knows about one board (its hosts, how its links show an offer id, its default search, its
+parser, its ad reader, its seed scrapers, the database's list of kinds) is needed by the server, the browser,
+the database and the migration script. Adding a board should mean one place to describe it, and its seed
+scrapers should reach every database without a hand-written insert in a migration.
 
 ## Decision
 
@@ -22,7 +22,7 @@ seed. Adding a board meant finding all of them; the seed was a hand-written inse
 - Seeds come from the registry: after the migrations, `npm run db:migrate` runs `seedBoards`
   (`lib/db/seed.ts`), which adds the seeds of every board without a `board:<id>` marker in `scrape_seeds`,
   and the marker, in one transaction (the marker first, so of two migrations at once only one seeds).
-  `0004_board_seeds` gave the boards seeded before this their markers.
+  `0004_board_seeds` adds the markers of the boards whose scrapers `0003_seed` adds.
 
 ## Consequences
 

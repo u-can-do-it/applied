@@ -1,6 +1,6 @@
 # 4. One password; the login cookie is an HMAC of it
 
-- Status: accepted (2026-10-03; in place since the AI filter stored a CV)
+- Status: accepted (2026-10-03)
 - Context: [`server/auth.ts`](../../server/auth.ts), [`proxy.ts`](../../proxy.ts)
 
 ## Context
