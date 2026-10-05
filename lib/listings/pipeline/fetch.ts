@@ -157,15 +157,19 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
   return out;
 }
 
-/** The enabled scrapers this run goes through, and the ones that wait for their board's quota. */
-export function dueScrapers(
+/**
+ * The enabled scrapers a run goes through: a scheduled run leaves out those whose board's quota of calls
+ * holds them back (lib/listings/quota.ts); a run you start yourself (Scrape now, /scrape) takes them all.
+ */
+export function scrapersToRun(
   scrapers: readonly Scraper[],
   settings: Pick<ScrapeSettings, 'keywords'>,
+  scheduled: boolean,
   now = Date.now(),
-) {
-  const enabled = scrapers.filter((scraper) => scraper.enabled);
-  const due = enabled.filter((scraper) => isDue(scraper, scrapers, settings.keywords, now));
-  return { due, waiting: enabled.filter((scraper) => !due.includes(scraper)) };
+): Scraper[] {
+  return scrapers.filter(
+    (scraper) => scraper.enabled && (!scheduled || isDue(scraper, scrapers, settings.keywords, now)),
+  );
 }
 
 /** Scrapes the given scrapers, a few at a time; each result stays with its scraper, in order. */

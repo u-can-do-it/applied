@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Scraper } from '@/lib/db/repos/scrapers';
+import { scrapersToRun } from '@/lib/listings/pipeline/fetch';
 import { intervalOf, isDue, nextRunAt } from '@/lib/listings/quota';
 
 // A board with a quota of calls (Adzuna: one an hour) runs as often as its scrapers' calls allow.
@@ -53,5 +54,15 @@ describe('the quota of calls', () => {
     const justjoin = scraper({ kind: 'justjoin', lastRunAt: ago(0) });
     expect(nextRunAt(justjoin, [justjoin], keywords)).toBeNull();
     expect(isDue(justjoin, [justjoin], keywords, now)).toBe(true);
+  });
+
+  it('a scheduled run leaves out a scraper its quota holds back; Scrape now and /scrape take it anyway', () => {
+    const adzuna = { ...scraper(), id: 'a', name: 'Adzuna' } as Scraper;
+    const justjoin = { ...scraper({ kind: 'justjoin' }), id: 'j', name: 'JustJoin' } as Scraper;
+    const off = { ...scraper({ kind: 'nofluff', enabled: false }), id: 'n', name: 'NoFluff' } as Scraper;
+    const all = [adzuna, justjoin, off];
+    const names = (scheduled: boolean) => scrapersToRun(all, { keywords }, scheduled, now).map((one) => one.name);
+    expect(names(true)).toEqual(['JustJoin']);
+    expect(names(false)).toEqual(['Adzuna', 'JustJoin']);
   });
 });

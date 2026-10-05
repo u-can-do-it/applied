@@ -43,7 +43,7 @@ export function ScraperStatus({ scraper }: { scraper: Scraper }) {
 
 /**
  * Settings' line about a scraper: whether its last run went through (the details are on Activity), and when
- * it runs next if its board's quota of calls holds it back (`nextAt`).
+ * the schedule runs it next if its board's quota of calls holds it back (`nextAt`; Scrape now runs it any time).
  */
 export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: number | null }) {
   const { formatTime } = useZone();
@@ -52,7 +52,10 @@ export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: n
   );
   // a time already past still holds: the next run is after it
   const waits = scraper.enabled && nextAt && (
-    <span className="text-muted-foreground"> · runs again after {formatTime(nextAt)} (its board’s quota of calls)</span>
+    <span className="text-muted-foreground">
+      {' '}
+      · scheduled again after {formatTime(nextAt)} (its board’s quota of calls; Scrape now runs it any time)
+    </span>
   );
   if (!scraper.lastRunAt) return <p className="m-0 mt-0.5 text-xs text-muted-foreground">Not run yet{firstRun}</p>;
   const failed = scraper.lastStatus === 'error' || scraper.lastError;

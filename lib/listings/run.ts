@@ -11,7 +11,7 @@ import { log } from '../log';
 import { message } from '../shared/errors';
 import { aiFilter } from './pipeline/ai-filter';
 import { newJobs, selectAnnouncable } from './pipeline/announce';
-import { dueScrapers, fetchListings } from './pipeline/fetch';
+import { fetchListings, scrapersToRun } from './pipeline/fetch';
 import type { RunError, RunSummary } from './pipeline/model';
 import { notify, type Notified } from './pipeline/notify';
 import { addedPerScraper, scraperOutcomes, summarize } from './pipeline/outcomes';
@@ -47,8 +47,7 @@ export async function runAll(
     const [settings, scrapers] = await Promise.all([settingsRepo.get(), scrapersRepo.list()]);
     runId = await runsRepo.start(trigger);
 
-    const { due, waiting } = dueScrapers(scrapers, settings);
-    const fetched = await fetchListings(due, settings);
+    const fetched = await fetchListings(scrapersToRun(scrapers, settings, trigger === 'cron'), settings);
     const owners = pickOwners(fetched);
     const added = await ingest(owners);
     const fresh = selectAnnouncable(added, owners, settings);
@@ -56,7 +55,7 @@ export async function runAll(
     const outcomes = scraperOutcomes(fetched, addedBy);
     await recordOutcomes(outcomes);
 
-    const summary = summarize({ fetched, owners, added, fresh, waiting, ms: Date.now() - startedAt });
+    const summary = summarize({ fetched, owners, added, fresh, ms: Date.now() - startedAt });
     const { errors } = summary;
     for (const failed of errors)
       log.warn('Scraper failed', { scrapeRunId: runId, trigger, scraper: failed.scraper, error: failed.error });

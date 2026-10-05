@@ -34,8 +34,6 @@ export type RunSummary = {
   /** the AI check and the notifications still run, in the background */
   notifyLater?: boolean;
   errors: RunError[];
-  /** the scrapers this run skipped: their board's quota of calls (lib/listings/quota.ts) */
-  waiting?: string[];
   ms: number;
 };
 

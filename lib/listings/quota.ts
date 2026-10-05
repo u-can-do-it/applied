@@ -1,6 +1,7 @@
-// A board whose API has a quota of calls (its listing's minutesPerCall): its scrapers run as often as their
-// calls allow, on average one call per that many minutes over all of them, whatever the schedule; the runs in
-// between skip them. Shared by the server (lib/listings/pipeline/fetch.ts) and Settings (when it runs next).
+// A board whose API has a quota of calls (its listing's minutesPerCall): the schedule runs its scrapers as
+// often as their calls allow, on average one call per that many minutes over all of them; the scheduled runs
+// in between skip them. A run you start yourself takes them anyway (and counts: the next scheduled one waits
+// from it). Shared by the server (lib/listings/pipeline/fetch.ts) and Settings (when it runs next).
 import type { Scraper } from '../db/repos/scrapers';
 import { kindOf } from './kinds';
 import { expandUrl } from './match';
