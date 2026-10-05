@@ -80,7 +80,8 @@ const application: ApplicationInput = {
   salary: '20k',
   contract: '',
   location: '',
-  remote: true,
+  workMode: 'remote',
+  officeDays: '2 office / 3 home',
   content: '',
   note: '  call back ',
 };
@@ -93,7 +94,7 @@ describe('addApplicationSchema', () => {
       board: 'justjoin',
       day: '2026-10-01',
       company: 'Acme',
-      details: { salary: '20k', remote: true },
+      details: { salary: '20k', workMode: 'remote', remote: true },
       content: '',
       stage: 'submitted',
       outcome: 'pending',
@@ -113,8 +114,17 @@ describe('addApplicationSchema', () => {
     expect(problem(addApplicationSchema, { ...application, stage: 'hired?' })).toBe('Unknown status.');
   });
 
+  it('keeps the days in the office only for a hybrid job; rejects an unknown work mode', () => {
+    expect(addApplicationSchema.parse({ ...application, workMode: 'hybrid' }).details).toEqual({
+      salary: '20k',
+      workMode: 'hybrid',
+      officeDays: '2 office / 3 home',
+    });
+    expect(problem(addApplicationSchema, { ...application, workMode: 'mars' })).toBe('Unknown work mode.');
+  });
+
   it('without a link the board is "unknown", and no details is null', () => {
-    const parsed = addApplicationSchema.parse({ ...application, url: '', salary: '', remote: false });
+    const parsed = addApplicationSchema.parse({ ...application, url: '', salary: '', workMode: '' });
     expect(parsed.board).toBe('unknown');
     expect(parsed.details).toBeNull();
   });

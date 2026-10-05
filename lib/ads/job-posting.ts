@@ -66,6 +66,7 @@ function detailsFromJobPosting(jp: Record<string, unknown>): JobDetails {
       ).join(', ') || undefined,
     location: unique(places).join(', ') || undefined,
     remote: asString(jp.jobLocationType).toUpperCase() === 'TELECOMMUTE' || undefined,
+    workMode: asString(jp.jobLocationType).toUpperCase() === 'TELECOMMUTE' ? 'remote' : undefined,
     posted: day(jp.datePosted),
     validUntil: day(jp.validThrough),
     company: asText((jp.hiringOrganization as { name?: string } | undefined)?.name) || undefined,

@@ -1,4 +1,5 @@
 import type { ApplicationWithContent } from '@/lib/applications';
+import { workModeOf } from '@/lib/ads/details';
 import type { Zone } from '@/lib/dates';
 import type { ApplicationInput } from '@/lib/shared/schemas/applications';
 import type { JobDraft } from './actions';
@@ -19,7 +20,8 @@ export const empty = (zone: Zone): Draft => ({
   salary: '',
   contract: '',
   location: '',
-  remote: false,
+  workMode: '',
+  officeDays: '',
   content: '',
   note: '',
 });
@@ -36,7 +38,8 @@ export const draftOf = (application: ApplicationWithContent, zone: Zone): Draft 
   salary: application.details?.salary ?? '',
   contract: application.details?.contract ?? '',
   location: application.details?.location ?? '',
-  remote: Boolean(application.details?.remote),
+  workMode: workModeOf(application.details) ?? '',
+  officeDays: application.details?.officeDays ?? '',
   content: application.content ?? '',
   note: '',
 });
@@ -56,7 +59,8 @@ export function withFilled(current: Draft, filled: JobDraft, touched: ReadonlySe
   put('location', filled.location);
   put('salary', filled.salary);
   put('contract', filled.contract);
+  put('workMode', filled.workMode);
+  put('officeDays', filled.officeDays);
   put('content', filled.content);
-  if (!touched.has('remote') && (!editing || !next.remote)) next.remote = filled.remote;
   return next;
 }

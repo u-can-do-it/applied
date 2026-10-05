@@ -6,6 +6,7 @@ import {
   languages,
   money,
   asString,
+  isWorkMode,
   unique,
   unit,
   type AdReader,
@@ -90,10 +91,9 @@ async function fromApi(slug: string) {
       ).join('; ') || undefined,
     contract:
       unique(pay.map((employment) => CONTRACTS[employment.type ?? ''] ?? employment.type)).join(', ') || undefined,
-    location: offer.city
-      ? `${offer.city}${workplace === 'hybrid' ? ' (hybrid)' : workplace === 'office' ? ' (office)' : ''}`
-      : undefined,
+    location: offer.city || undefined,
     remote: workplace === 'remote' || undefined,
+    workMode: workplace === 'office' ? 'onsite' : isWorkMode(workplace) ? workplace : undefined,
     posted: day(offer.publishedAt),
     validUntil: day(offer.expiredAt),
     company: offer.companyName || undefined,

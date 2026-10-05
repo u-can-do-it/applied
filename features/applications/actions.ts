@@ -20,6 +20,7 @@ import { boardIdOf, boardOf, cleanLink } from '@/lib/boards';
 import { env } from '@/lib/env';
 import { extractJob, type ExtractedJob } from '@/lib/ai/openai';
 import { readJobPage } from '@/lib/ads';
+import { workModeOf, type WorkMode } from '@/lib/ads/details';
 import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import {
@@ -94,7 +95,8 @@ export type JobDraft = {
   title: string;
   company: string;
   location: string;
-  remote: boolean;
+  workMode: WorkMode | '';
+  officeDays: string;
   salary: string;
   contract: string;
   content: string;
@@ -138,7 +140,8 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
     title: offer?.title || ai?.title || read?.pageTitle || '',
     company: offer?.company || ai?.company || details.company || '',
     location: ai?.location || details.location || '',
-    remote: ai ? ai.remote === 'yes' : Boolean(details.remote),
+    workMode: (ai && ai.workMode !== 'unknown' ? ai.workMode : workModeOf(details)) ?? '',
+    officeDays: ai?.officeDays || details.officeDays || '',
     salary: ai?.salary || details.salary || '',
     contract: ai?.contract || details.contract || '',
     content: read?.text ?? '',

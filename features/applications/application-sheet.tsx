@@ -1,7 +1,7 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, useTransition, type Ref } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 import { stageOf, outcomeLabel, type StageId, type OutcomeId } from '@/lib/stages';
 import { message } from '@/lib/shared/errors';
@@ -26,16 +26,28 @@ import { useDay } from './use-day';
 // status, details, note) and keeps one height: only the ad text loads, into its own box, and
 // everything between the title and the buttons scrolls inside the window. "Edit" shows the "Add
 // application" form in its place.
+// Not modal: no backdrop, the page keeps scrolling, and the list beside it stays in use: a click on
+// another application shows that one here (the list asks leave() first); a click anywhere else closes it.
+
+export type SheetHandle = {
+  /** Before another application is shown: its note as it is now (saved on the way), or null if you'd rather stay (editing). */
+  leave: () => Promise<{ note: string | null | undefined; jobId: string } | null>;
+};
 
 export function ApplicationSheet({
+  ref,
   initial,
   labels,
+  switched = false,
   onClose,
   onNoteSaved,
   onNoteStale,
 }: {
+  ref?: Ref<SheetHandle>;
   initial: Application;
   labels: Record<string, string>;
+  /** shown in place of another application's: no sliding in */
+  switched?: boolean;
   onClose: (note: string | null | undefined, jobId: string) => void;
   onNoteSaved: (jobId: string, note: string | null, at: string) => void;
   onNoteStale: (jobId: string) => void;
@@ -55,6 +67,7 @@ export function ApplicationSheet({
     requestAnimationFrame(() => editButton.current?.focus());
   };
   const closedWith = useRef<string | null | undefined>(undefined); // the note as the window closed
+  const clickedAway = useRef(false); // closed by a click elsewhere on the page: the focus stays there
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, start] = useTransition();
@@ -141,6 +154,22 @@ export function ApplicationSheet({
     closedWith.current = gone.current ? undefined : note.current?.flush();
     setOpen(false);
   };
+
+  useImperativeHandle(ref, () => ({
+    leave: async () => {
+      if (
+        editing &&
+        !(await confirm({
+          title: 'Leave the edit?',
+          description: 'What you changed in the form isn’t saved.',
+          action: 'Leave',
+          destructive: true,
+        }))
+      )
+        return null;
+      return { note: gone.current ? undefined : note.current?.flush(), jobId };
+    },
+  }));
   const unmark = async () => {
     const yes = await confirm({
       title: 'Unmark as applied?',
@@ -167,9 +196,12 @@ export function ApplicationSheet({
   // A side panel: it reads like a page about one application, as tall as the screen, with the list
   // still in view beside it on a wide one
   return (
-    <Sheet open={open} onOpenChange={(next) => !next && close()}>
+    <Sheet open={open} onOpenChange={(next) => !next && close()} modal={false}>
       <SheetContent
-        className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]"
+        className={cn(
+          'gap-0 shadow-2xl data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]',
+          switched && 'data-open:animate-none',
+        )}
         showCloseButton={!editing}
         // editing: Esc goes back to the window, and a click outside does nothing (the form would be lost)
         onEscapeKeyDown={(event) => {
@@ -177,9 +209,23 @@ export function ApplicationSheet({
           event.preventDefault();
           stopEditing();
         }}
-        onInteractOutside={(event) => (editing ? event.preventDefault() : keepOpenOnToast(event))}
+        // a click in the list picks another application (the list switches the window); elsewhere, it closes
+        onPointerDownOutside={(event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          if (editing || target?.closest('[data-application-list]')) event.preventDefault();
+          else keepOpenOnToast(event);
+          clickedAway.current = !event.defaultPrevented;
+        }}
+        // the focus going elsewhere (a confirmation, a toast, the list) isn't leaving
+        onFocusOutside={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => {
-          focus.onCloseAutoFocus(event);
+          // still open: it's going because another application took its place (leave() said the rest)
+          if (open) {
+            event.preventDefault();
+            return;
+          }
+          if (clickedAway.current) event.preventDefault();
+          else focus.onCloseAutoFocus(event);
           onClose(closedWith.current, jobId);
         }}
       >

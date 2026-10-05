@@ -6,11 +6,30 @@ export type JobDetails = {
   salary?: string; // "20 200–23 500 PLN / month; 140–160 PLN / hour (B2B)"
   contract?: string; // "B2B", "Full-time"
   location?: string; // "Warszawa, Gdańsk"
-  remote?: boolean;
+  remote?: boolean; // fully remote (workMode 'remote'); what the rows from before workMode have
+  workMode?: WorkMode;
+  officeDays?: string; // hybrid: "2 office / 3 home"
   posted?: string; // YYYY-MM-DD
   validUntil?: string; // YYYY-MM-DD
   company?: string;
 };
+
+export const WORK_MODES = ['remote', 'hybrid', 'onsite'] as const;
+export type WorkMode = (typeof WORK_MODES)[number];
+export const WORK_MODE_LABELS: Record<WorkMode, string> = { remote: 'Remote', hybrid: 'Hybrid', onsite: 'On-site' };
+export const isWorkMode = (value: unknown): value is WorkMode => WORK_MODES.includes(value as WorkMode);
+
+/** Where the job is done: the work mode, or "remote" for a row from before there was one. */
+export const workModeOf = (details: JobDetails | null | undefined): WorkMode | undefined =>
+  details?.workMode ?? (details?.remote ? 'remote' : undefined);
+
+/** "Remote", "Hybrid (2 office / 3 home)", "On-site"; undefined when the ad doesn't say. */
+export function workModeText(details: JobDetails | null | undefined) {
+  const mode = workModeOf(details);
+  if (!mode) return undefined;
+  const days = mode === 'hybrid' ? details?.officeDays : undefined;
+  return days ? `${WORK_MODE_LABELS[mode]} (${days})` : WORK_MODE_LABELS[mode];
+}
 
 /** One offer's ad as read from its board. */
 export type Ad = { text: string; details: JobDetails };

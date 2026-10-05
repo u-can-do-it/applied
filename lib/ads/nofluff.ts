@@ -75,6 +75,7 @@ export const readNofluff: AdReader = async ({ id }) => {
     contract: unique(types.map(([contract]) => CONTRACTS[contract] ?? contract)).join(', ') || undefined,
     location: unique(cities.filter((city) => city && city !== 'Remote')).join(', ') || undefined,
     remote: cities.includes('Remote') || undefined,
+    workMode: cities.includes('Remote') ? 'remote' : undefined,
     posted: day(posting.posted),
     validUntil: day(posting.expiresAt),
     company: posting.company?.name || undefined,

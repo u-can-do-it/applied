@@ -29,7 +29,8 @@ const page: JobDraft = {
   title: 'React Developer',
   company: 'Acme',
   location: 'Warszawa',
-  remote: true,
+  workMode: 'remote',
+  officeDays: '',
   salary: '20k',
   contract: 'B2B',
   content: 'The ad text',
@@ -75,7 +76,8 @@ describe('ApplicationForm', () => {
     expect(box('Title *').value).toBe('My own title');
     expect(box('Salary').value).toBe('20k');
     expect(box('Ad text').value).toBe('The ad text');
-    expect(screen.getByRole('checkbox', { name: 'Remote' }).getAttribute('aria-checked')).toBe('true');
+    expect(box('Work mode').value).toBe('remote');
+    expect(screen.queryByLabelText('Office / home days')).toBeNull(); // a hybrid job's
 
     // filled in, not typed: another page fills it again
     fillFromLink.mockResolvedValue({ ok: true, data: { ...page, company: 'Globex', title: 'Other' } });
@@ -144,7 +146,8 @@ describe('ApplicationForm', () => {
       salary: '',
       contract: '',
       location: '',
-      remote: false,
+      workMode: '',
+      officeDays: '',
       content: '',
       note: '',
     });

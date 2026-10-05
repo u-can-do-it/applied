@@ -8,6 +8,15 @@ import * as offersRepo from './db/repos/offers';
 import type { NewApplicationRow } from './db/schema';
 import { scrapeOfferFull } from './ads';
 import type { JobDetails } from './ads/details';
+import {
+  editedDetails,
+  hasAny,
+  mergeDetails,
+  ownId,
+  typedDetails,
+  typedFields,
+  withTextDetails,
+} from './application-details';
 import { message } from './shared/errors';
 import { NOTE_CONFLICT, NOTE_MAX } from './shared/schemas/applications';
 import { GHOST_AFTER_DAYS, type HistoryEntry, type OutcomeId, type StageId } from './stages';
@@ -19,6 +28,17 @@ import { GHOST_AFTER_DAYS, type HistoryEntry, type OutcomeId, type StageId } fro
 
 export type Application = applicationsRepo.Application;
 export type ApplicationWithContent = applicationsRepo.ApplicationWithContent;
+export {
+  editedDetails,
+  mergeDetails,
+  readDetailsFromText,
+  TYPED_FIELDS,
+  typedDetails,
+  typedFields,
+  withTextDetails,
+  type SavedDetails,
+  type TypedField,
+} from './application-details';
 
 export const listApplications = () => applicationsRepo.list();
 export const getApplication = (jobId: string) => applicationsRepo.get(jobId);
@@ -97,82 +117,6 @@ export const unmarkApplied = (jobId: string) => applicationsRepo.remove(jobId);
 
 const patch = (jobId: string, fields: Partial<NewApplicationRow>) => applicationsRepo.patch(jobId, fields);
 
-/** Added by hand or imported (not marked on a scraped offer): its id is ours, not a board's. */
-const ownId = (id: string) => /^(manual|import)-/.test(id);
-
-/** The details "Add application" and "Edit" let you type; only these can be yours. */
-export const TYPED_FIELDS = ['salary', 'contract', 'location', 'remote'] as const;
-export type TypedField = (typeof TYPED_FIELDS)[number];
-/** What an application keeps: the ad's details, plus which of them you typed (they stay over a new scrape). */
-export type SavedDetails = JobDetails & { typed?: TypedField[] };
-
-const isTypedField = (field: unknown): field is TypedField => TYPED_FIELDS.includes(field as TypedField);
-const filled = (value: unknown) => value !== undefined && value !== null && value !== '' && value !== false;
-const hasAny = (details: JobDetails | null | undefined) => Boolean(details && Object.values(details).some(filled));
-const withoutList = ({ typed: _, ...details }: SavedDetails) => details;
-
-/** The form's details as saved: the editable fields you filled in, and their names. */
-export function typedDetails(form: JobDetails | null | undefined): SavedDetails {
-  const details: SavedDetails = {};
-  for (const field of TYPED_FIELDS) {
-    const value = form?.[field];
-    if (filled(value)) Object.assign(details, { [field]: value });
-  }
-  const typed = TYPED_FIELDS.filter((field) => field in details);
-  return typed.length ? { ...details, typed } : details;
-}
-
-/**
- * The details after "Edit", over the rest of what the board said (posted, valid until…). The form
- * shows the saved values, so a field is yours only if it already was or you changed it. A new link
- * is another ad: only what you filled in, without the old one's dates and company.
- */
-export function editedDetails(
-  saved: SavedDetails | null,
-  form: JobDetails | null | undefined,
-  id: string,
-  sameLink: boolean,
-): SavedDetails | null {
-  if (!sameLink) {
-    const details = typedDetails(form);
-    return hasAny(details) ? details : null;
-  }
-  const was = typedFields(saved, id);
-  const details: SavedDetails = withoutList(saved ?? {});
-  const typed: TypedField[] = [];
-  for (const field of TYPED_FIELDS) {
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- field is one of the four TYPED_FIELDS, not a dynamic key
-    delete details[field];
-    const value = form?.[field];
-    if (!filled(value)) continue;
-    Object.assign(details, { [field]: value });
-    if (was.includes(field) || value !== saved?.[field]) typed.push(field);
-  }
-  return hasAny(details) ? { ...details, typed } : null;
-}
-
-/** Which saved fields are yours: the list; a row from before it, added by hand or imported: all it has. */
-export function typedFields(saved: SavedDetails | null, id: string): TypedField[] {
-  if (Array.isArray(saved?.typed)) return saved.typed.filter(isTypedField);
-  return ownId(id) ? TYPED_FIELDS.filter((field) => filled(saved?.[field])) : [];
-}
-
-/**
- * The details to save after a scrape: the fields you typed stay, the rest is what the board says.
- * A scrape that says nothing keeps the details saved before, so a failed fetch never wipes them.
- */
-export function mergeDetails(
-  scraped: JobDetails | null | undefined,
-  saved: SavedDetails | null,
-  typed: TypedField[],
-): SavedDetails | null {
-  const old = withoutList(saved ?? {});
-  const mine = Object.fromEntries(typed.filter((field) => filled(old[field])).map((field) => [field, old[field]]));
-  const merged: SavedDetails = { ...(hasAny(scraped) ? scraped : old), ...mine };
-  if (!hasAny(merged)) return null;
-  return saved?.typed ? { ...merged, typed: saved.typed } : merged;
-}
-
 /** Scrapes the complete ad: the offer that was marked first, then the job's other boards. */
 export async function saveContent(jobId: string) {
   const app = await getApplication(jobId);
@@ -186,8 +130,12 @@ export async function saveContent(jobId: string) {
   const merge = (scraped: JobDetails | null | undefined) =>
     mergeDetails(scraped, app.details, typedFields(app.details, app.id));
 
-  const save = (event: ContentEvent, details: JobDetails | null | undefined) =>
-    patch(jobId, { ...columnsOf(transition(contentOf(app), event).state), details: merge(details) });
+  const save = async (event: ContentEvent, details: JobDetails | null | undefined) => {
+    let merged = merge(details);
+    // what the board didn't give (salary, work mode…), from the text
+    if (event.type === 'fetchSucceeded') merged = await withTextDetails(merged, { ...app, content: event.text });
+    await patch(jobId, { ...columnsOf(transition(contentOf(app), event).state), details: merged });
+  };
 
   let firstEmpty: { details: JobDetails } | null = null;
   let lastError: string | null = offers.length ? null : NO_LINK;

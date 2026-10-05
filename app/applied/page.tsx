@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { connection } from 'next/server';
+import { after, connection } from 'next/server';
 import { Suspense } from 'react';
-import { ghostStale, listApplications } from '@/lib/applications';
+import { ghostStale, listApplications, readDetailsFromText } from '@/lib/applications';
 import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import { labelsOf, boardOptions } from '@/lib/listings/board-filter';
@@ -40,6 +40,12 @@ async function Applications() {
       log.error('Ghosting stale applications failed', { route: '/applied', error: failure });
     });
     loaded = await Promise.all([listApplications(), boardOptions(), appTimeZone()]);
+    // ad texts saved before their details were read from them (salary, work mode…): 40 per visit
+    after(() =>
+      readDetailsFromText().catch((failure: unknown) => {
+        log.error('Reading details from the ad texts failed', { route: '/applied', error: failure });
+      }),
+    );
   } catch (error) {
     return <LoadError title="Can’t load applications." detail={message(error)} />;
   }

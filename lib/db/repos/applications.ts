@@ -1,5 +1,6 @@
 import 'server-only';
 import { and, desc, eq, getTableColumns, inArray, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
+import type { SavedDetails } from '../../applications';
 import type { OutcomeId, StageId } from '../../stages';
 import { db } from '../client';
 import { first } from '../rows';
@@ -101,4 +102,41 @@ export async function setNoteIfUnchanged(jobId: string, note: string | null, see
     )
     .returning({ noteUpdatedAt: applications.noteUpdatedAt });
   return first(saved)?.noteUpdatedAt ?? null;
+}
+
+/** Applications with an ad text not yet read for its details (details.textRead), newest first. */
+export function withUnreadText(limit: number) {
+  return db()
+    .select({
+      jobId: applications.jobId,
+      url: applications.url,
+      title: applications.title,
+      content: applications.content,
+      details: applications.details,
+    })
+    .from(applications)
+    .where(
+      and(
+        eq(applications.contentStatus, 'ok'),
+        sql`${applications.content} is not null`,
+        sql`${applications.details}->>'textRead' is null`,
+      ),
+    )
+    .orderBy(desc(applications.appliedAt))
+    .limit(limit);
+}
+
+/** Sets the details if they're still `before` (nothing saved them meanwhile). Whether it did. */
+export async function setDetailsIfUnchanged(jobId: string, before: SavedDetails | null, details: SavedDetails) {
+  const saved = await db()
+    .update(applications)
+    .set({ details })
+    .where(
+      and(
+        eq(applications.jobId, jobId),
+        before ? sql`${applications.details} = ${JSON.stringify(before)}::jsonb` : isNull(applications.details),
+      ),
+    )
+    .returning({ jobId: applications.jobId });
+  return saved.length > 0;
 }

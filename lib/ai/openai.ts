@@ -217,7 +217,8 @@ export type ExtractedJob = {
   title: string;
   company: string;
   location: string;
-  remote: 'yes' | 'no' | 'unknown';
+  workMode: 'remote' | 'hybrid' | 'onsite' | 'unknown';
+  officeDays: string;
   salary: string;
   contract: string;
   seniority: string;
@@ -227,7 +228,8 @@ const EXTRACT_SCHEMA = strictObject({
   title: { type: 'string' },
   company: { type: 'string' },
   location: { type: 'string' },
-  remote: { type: 'string', enum: ['yes', 'no', 'unknown'] },
+  workMode: { type: 'string', enum: ['remote', 'hybrid', 'onsite', 'unknown'] },
+  officeDays: { type: 'string' },
   salary: { type: 'string' },
   contract: { type: 'string' },
   seniority: { type: 'string' },
@@ -237,7 +239,8 @@ const EXTRACT_SYSTEM = `You read the web page of one job offer and fill in a for
 title: the job title as written in the ad, without the company or the city.
 company: the employer; if only a recruitment agency is named, the agency.
 location: the city or cities ("Warszawa, Kraków"), or the country when that's all there is.
-remote: "yes" for fully remote work, "no" for office or hybrid, "unknown" when it doesn't say.
+workMode: "remote" for fully remote work, "hybrid" for part office / part home, "onsite" for the office only, "unknown" when it doesn't say.
+officeDays: for hybrid work, the days a week in the office and at home when the ad says them, e.g. "2 office / 3 home" (a 5-day week when only one is given; a range as "1–2 office"); else "".
 salary: as written, with the currency, the period and the contract when given, e.g. "20 000–25 000 PLN / month (B2B)"; several on separate parts joined with "; ".
 contract: e.g. "B2B", "Permanent (UoP)", "B2B, Permanent".
 seniority: junior, mid, senior or lead, or "".`;

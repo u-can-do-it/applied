@@ -85,8 +85,11 @@ their APIs, Built In and LinkedIn from their pages, the other scraped boards fro
 - **The AI** (`scrapeOffer`, capped at 8 000 characters) reads it once per offer and caches it in
   `offer_details`; a network error isn't cached, so a later run tries again. A job is judged on its title if
   no offer has a text.
-- **Applications** (`scrapeOfferFull`, plus salary, contract, location, dates) save it in the application,
-  trying the job's other boards if the clicked one fails. The state machine is [below](#application-ad-content).
+- **Applications** (`scrapeOfferFull`, plus salary, contract, location, work mode, dates) save it in the
+  application, trying the job's other boards if the clicked one fails. The state machine is
+  [below](#application-ad-content). What the board didn't give (salary, location, remote / hybrid / on-site and
+  a hybrid job's office and home days) OpenAI reads from the saved text (`lib/application-details.ts`,
+  `details.textRead`); the Applied page reads the texts saved before that, 40 per visit, after it renders.
 
 "Fill in from the link" (Add application) reads the page the same way and lets OpenAI
 (`OPENAI_EXTRACT_MODEL`) fill in the form.

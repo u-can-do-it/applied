@@ -2,13 +2,14 @@
 
 import { FileTextIcon, NotebookPenIcon } from 'lucide-react';
 import type { Application } from '@/lib/applications';
+import { workModeText } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { StatusChip } from './status-chip';
 import { useDay } from './use-day';
 
 const facts = (details: Application['details']) =>
-  [details?.salary?.split('; ')[0], details?.contract, details?.remote ? 'Remote' : null, details?.location]
+  [details?.salary?.split('; ')[0], details?.contract, workModeText(details), details?.location]
     .filter(Boolean)
     .join(' · ');
 
@@ -31,17 +32,24 @@ const META =
 export function ApplicationRow({
   app,
   labels,
+  active = false,
   onOpen,
 }: {
   app: Application;
   labels: Record<string, string>;
+  /** its window is open */
+  active?: boolean;
   onOpen: () => void;
 }) {
   const day = useDay();
   return (
     <button
       type="button"
-      className="group/row grid w-full cursor-pointer grid-cols-[84px_1fr_auto] items-start gap-3 px-3.5 py-3 text-left max-[560px]:grid-cols-[1fr_auto]"
+      className={cn(
+        'group/row grid w-full cursor-pointer grid-cols-[84px_1fr_auto] items-start gap-3 px-3.5 py-3 text-left max-[560px]:grid-cols-[1fr_auto]',
+        active && 'bg-accent',
+      )}
+      aria-current={active || undefined}
       onClick={onOpen}
     >
       <time

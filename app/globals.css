@@ -154,6 +154,13 @@
     scrollbar-gutter: stable;
   }
 
+  /* a modal window locks the page's scroll (react-remove-scroll) and makes up for the scrollbar with
+     a margin as wide; the gutter above already keeps that space, so the margin would push the page
+     sideways */
+  html body[data-scroll-locked] {
+    margin-right: 0 !important;
+  }
+
   body {
     background: var(--background);
     color: var(--foreground);

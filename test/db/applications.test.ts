@@ -1,11 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
+import { extractJob } from '@/lib/ai/openai';
 import {
   addApplication,
   getApplication,
   ghostStale,
   listApplications,
   markApplied,
+  readDetailsFromText,
   removeStatusStep,
   saveContent,
   setNote,
@@ -21,6 +23,11 @@ import { NOTE_CONFLICT } from '@/lib/shared/schemas/applications';
 import { describeDb, exec, ISO } from './database';
 
 const utc = zoneOf('UTC');
+
+// the details read from an ad text: never the real AI
+vi.mock('@/lib/ai/openai', () => ({ extractJob: vi.fn() }));
+const extract = vi.mocked(extractJob);
+afterEach(() => vi.unstubAllEnvs());
 
 async function scrapedJob() {
   const [added] = await offersRepo.ingest([
@@ -242,5 +249,35 @@ describeDb('applications', () => {
     );
     expect(moved.app?.appliedAt).toBe('2026-09-28T12:00:00+00:00');
     expect(moved.app?.history[0].at).toBe('2026-09-28T12:00:00.000Z');
+  });
+
+  it('reads the details of the saved ad texts not read yet, once, without overwriting a newer save', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    extract.mockResolvedValue({
+      title: 'x',
+      company: 'x',
+      location: 'Warszawa',
+      workMode: 'hybrid',
+      officeDays: '2 office / 3 home',
+      salary: '',
+      contract: 'Permanent (UoP)',
+      seniority: '',
+    });
+    const ad = 'A complete ad text: what you would do, what they ask for, the hybrid work in Warszawa.';
+    const one = await addApplication(typed('One', { content: ad, details: { salary: '20k' } }), utc);
+    await addApplication(typed('No text'), utc);
+    expect(await readDetailsFromText()).toBe(1);
+    const read = await getApplication(one.jobId ?? '');
+    expect(read?.details).toMatchObject({
+      salary: '20k',
+      contract: 'Permanent (UoP)',
+      location: 'Warszawa',
+      workMode: 'hybrid',
+      officeDays: '2 office / 3 home',
+      typed: ['salary'],
+    });
+    expect(read?.details?.textRead).toBeTruthy();
+    expect(await readDetailsFromText()).toBe(0); // read already
+    expect(extract).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { editedDetails, mergeDetails, typedDetails, typedFields } from '@/lib/applications';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { extractJob, type ExtractedJob } from '@/lib/ai/openai';
+import { editedDetails, mergeDetails, typedDetails, typedFields, withTextDetails } from '@/lib/applications';
+
+vi.mock('@/lib/ai/openai', () => ({ extractJob: vi.fn() }));
+const extract = vi.mocked(extractJob);
 
 describe('typedDetails', () => {
   it('the editable fields you filled in, and their names', () => {
@@ -29,11 +33,19 @@ describe('typedFields', () => {
     expect(typedFields({ salary: 'x', remote: true, posted: '2026-10-01' }, 'manual-abc')).toEqual([
       'salary',
       'remote',
+      'workMode',
     ]);
     expect(typedFields({ contract: 'B2B' }, 'import-1')).toEqual(['contract']);
     // marked on a scraped offer: all of it is the board's
     expect(typedFields({ salary: 'x' }, '4123456789')).toEqual([]);
     expect(typedFields(null, 'manual-abc')).toEqual([]);
+  });
+});
+
+describe('typedFields and the work mode', () => {
+  it('"remote" typed before there was a work mode: the work mode is yours too', () => {
+    expect(typedFields({ remote: true, typed: ['remote'] }, 'jk123')).toEqual(['remote', 'workMode']);
+    expect(typedFields({ workMode: 'hybrid', typed: ['workMode'] }, 'jk123')).toEqual(['workMode']);
   });
 });
 
@@ -152,5 +164,66 @@ describe('editedDetails', () => {
 
   it('nothing left: null', () => {
     expect(editedDetails({ salary: 'x' }, {}, '1', true)).toBeNull();
+  });
+
+  it("an old remote row shown as work mode remote, left alone: still the board's", () => {
+    expect(editedDetails({ remote: true }, { remote: true, workMode: 'remote' }, '4123456789', true)).toEqual({
+      remote: true,
+      workMode: 'remote',
+      typed: [],
+    });
+    expect(
+      editedDetails({ remote: true }, { workMode: 'hybrid', officeDays: '2 office / 3 home' }, '4123456789', true),
+    ).toEqual({ workMode: 'hybrid', officeDays: '2 office / 3 home', typed: ['workMode', 'officeDays'] });
+  });
+});
+
+describe('withTextDetails', () => {
+  const app = { url: 'https://theprotocol.it/x', title: 'Frontend Developer', content: 'Praca hybrydowa…' };
+  const read: ExtractedJob = {
+    title: 'Frontend Developer',
+    company: 'Empik',
+    location: 'Warszawa',
+    workMode: 'hybrid',
+    officeDays: '2 office / 3 home',
+    salary: '',
+    contract: 'Permanent (UoP)',
+    seniority: 'mid',
+  };
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    extract.mockReset();
+  });
+
+  it('fills only what nobody gave, and marks the text read', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    extract.mockResolvedValueOnce(read);
+    const { textRead, ...details } = (await withTextDetails({ contract: 'B2B', typed: ['contract'] }, app)) ?? {};
+    expect(details).toEqual({
+      contract: 'B2B',
+      location: 'Warszawa',
+      workMode: 'hybrid',
+      officeDays: '2 office / 3 home',
+      typed: ['contract'],
+    });
+    expect(textRead).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('a remote row stays remote, without days in the office', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    extract.mockResolvedValueOnce(read);
+    const details = await withTextDetails({ remote: true }, app);
+    expect(details).toMatchObject({ remote: true, workMode: 'remote', location: 'Warszawa' });
+    expect(details?.officeDays).toBeUndefined();
+  });
+
+  it('no key, no text or the AI failing: the details as they were, unmarked', async () => {
+    vi.stubEnv('OPENAI_API_KEY', '');
+    expect(await withTextDetails({ salary: 'x' }, app)).toEqual({ salary: 'x' });
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    expect(await withTextDetails(null, { ...app, content: ' ' })).toBeNull();
+    extract.mockRejectedValueOnce(new Error('timeout'));
+    expect(await withTextDetails({ salary: 'x' }, app)).toEqual({ salary: 'x' });
+    expect(extract).toHaveBeenCalledTimes(1);
   });
 });

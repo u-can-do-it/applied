@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { AddApplication } from './add-application';
 import { AppliedStats, type Filter } from './applied-stats';
 import { ApplicationRow } from './application-row';
-import { ApplicationSheet } from './application-sheet';
+import { ApplicationSheet, type SheetHandle } from './application-sheet';
 
 // The Applied tab: statistics, the list, and one application's window.
 
@@ -34,6 +34,8 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>(null);
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
+  const [switched, setSwitched] = useState(false); // …in place of another one
+  const sheet = useRef<SheetHandle>(null);
   const pending = fromServer.some((app) => app.contentStatus === 'pending');
 
   // notes written in the window show in the list at once, with when the database took them (the
@@ -68,6 +70,23 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
       return Object.keys(left).length === Object.keys(cur).length ? cur : left;
     });
   }
+
+  // the note as the window left it, in the list at once (unless the database has a newer one)
+  const keepNote = (jobId: string, note: string | null | undefined, before: string | null) => {
+    if (note !== undefined && note !== before) setNotes((cur) => ({ ...cur, [jobId]: { note, at: cur[jobId]?.at } }));
+  };
+
+  // a click on an application: its window, or the open window shows it instead (once the one there lets go)
+  const show = async (app: Application) => {
+    if (open?.jobId === app.jobId) return;
+    if (open) {
+      const left = await sheet.current?.leave();
+      if (left === null) return; // stays: an edit under way
+      if (left) keepNote(left.jobId, left.note, open.note);
+    }
+    setSwitched(Boolean(open));
+    setOpen(app);
+  };
 
   // ad texts are scraped in the background right after marking: refresh until they're in
   useRefreshWhile(pending, 3000, fromServer);
@@ -131,23 +150,30 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
         )}
       </p>
 
-      <ol className="mt-3 mb-0 list-none divide-y rounded-[10px] border bg-card p-0">
+      {/* a click in it doesn't close the window (application-sheet.tsx): it shows another application */}
+      <ol data-application-list className="mt-3 mb-0 list-none divide-y rounded-[10px] border bg-card p-0">
         {shown.map((app) => (
           <li key={app.jobId}>
-            <ApplicationRow app={app} labels={labels} onOpen={() => setOpen(app)} />
+            <ApplicationRow
+              app={app}
+              labels={labels}
+              active={open?.jobId === app.jobId}
+              onOpen={() => void show(app)}
+            />
           </li>
         ))}
       </ol>
 
       {open && (
         <ApplicationSheet
+          ref={sheet}
           key={open.jobId}
           initial={open}
           labels={labels}
+          switched={switched}
           onClose={(note, jobId) => {
             setOpen(null);
-            if (note !== undefined && note !== open.note)
-              setNotes((cur) => ({ ...cur, [jobId]: { note, at: cur[jobId]?.at } }));
+            keepNote(jobId, note, open.note);
           }}
           onNoteSaved={(jobId, note, at) => setNotes((cur) => ({ ...cur, [jobId]: { note, at } }))}
           // changed elsewhere: what the window saved before is outdated, the list shows the database's

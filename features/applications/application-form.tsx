@@ -4,6 +4,7 @@ import { startTransition, useId, useState, useTransition } from 'react';
 import { useSelector, type StandardSchemaV1 } from '@tanstack/react-form';
 import { SparklesIcon } from 'lucide-react';
 import type { ApplicationWithContent } from '@/lib/applications';
+import { WORK_MODE_LABELS, WORK_MODES } from '@/lib/ads/details';
 import { BOARD_SUGGESTIONS, boardOf, isLink } from '@/lib/boards';
 import { addApplicationSchema, applicationFieldsSchema } from '@/lib/shared/schemas/applications';
 import { addApplicationAction, fillFromLinkAction, updateApplicationAction } from './actions';
@@ -13,6 +14,7 @@ import { answered, checkOnSubmit, FormError, formSchema, noImplicitSubmit, useAp
 import { firstError } from '@/components/form-fields';
 import { useZone } from '@/components/time-zone';
 import { Button } from '@/components/ui/button';
+import { NativeSelectOption } from '@/components/ui/native-select';
 import { SheetFooter } from '@/components/ui/sheet';
 import { draftOf, empty, withFilled, type Draft, type Field as DraftField } from './application-draft';
 import { ApplicationFormHeader } from './application-form-header';
@@ -48,8 +50,9 @@ export function ApplicationForm(props: FormProps) {
     onSubmit: ({ value, formApi }) =>
       startSave(async () => {
         if (props.app) {
-          const { url, title, company, board, day, salary, contract, location, remote, content } = value; // not the status, not the note
-          const input = { url, title, company, board, day, salary, contract, location, remote, content };
+          // not the status, not the note
+          const { url, title, company, board, day, salary, contract, location, workMode, officeDays, content } = value;
+          const input = { url, title, company, board, day, salary, contract, location, workMode, officeDays, content };
           const answer = await answered(formApi, updateApplicationAction({ jobId: props.app.jobId, input }));
           const onSaved = props.onSaved;
           if (answer.ok) startTransition(() => onSaved(answer.data));
@@ -62,6 +65,7 @@ export function ApplicationForm(props: FormProps) {
   });
   const url = useSelector(form.store, (state) => state.values.url);
   const noContent = useSelector(form.store, (state) => !state.values.content.trim());
+  const hybrid = useSelector(form.store, (state) => state.values.workMode === 'hybrid');
 
   const fill = () => {
     setInfo(null);
@@ -190,18 +194,38 @@ export function ApplicationForm(props: FormProps) {
             <StatusFields form={form} />
           </div>
         )}
+        {/* "e.g.": an empty field mustn't read as one filled in */}
         <div className={ROW}>
           <form.AppField name="salary">
-            {(field) => <field.TextField label="Salary" placeholder="20 000–25 000 PLN / month (B2B)" />}
+            {(field) => <field.TextField label="Salary" placeholder="e.g. 20 000–25 000 PLN / month (B2B)" />}
           </form.AppField>
           <form.AppField name="contract">
-            {(field) => <field.TextField label="Contract" placeholder="B2B" />}
+            {(field) => <field.TextField label="Contract" placeholder="e.g. B2B" />}
           </form.AppField>
           <form.AppField name="location">
-            {(field) => <field.TextField label="Location" placeholder="Warszawa" />}
+            {(field) => <field.TextField label="Location" placeholder="e.g. Warszawa" />}
           </form.AppField>
         </div>
-        <form.AppField name="remote">{(field) => <field.CheckboxField label="Remote" />}</form.AppField>
+        <div className={ROW}>
+          <form.AppField name="workMode">
+            {(field) => (
+              <field.SelectField label="Work mode" controlClassName="w-full">
+                <NativeSelectOption value="">Not given</NativeSelectOption>
+                {WORK_MODES.map((mode) => (
+                  <NativeSelectOption key={mode} value={mode}>
+                    {WORK_MODE_LABELS[mode]}
+                  </NativeSelectOption>
+                ))}
+              </field.SelectField>
+            )}
+          </form.AppField>
+          {/* the days in the office are a hybrid job's */}
+          {hybrid && (
+            <form.AppField name="officeDays">
+              {(field) => <field.TextField label="Office / home days" placeholder="e.g. 2 office / 3 home" />}
+            </form.AppField>
+          )}
+        </div>
         <form.AppField name="content">
           {(field) => (
             <field.TextareaField

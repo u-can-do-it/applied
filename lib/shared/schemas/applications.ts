@@ -2,7 +2,7 @@
 import * as z from 'zod/mini';
 import { BOARD_RE, boardOf, isLink } from '../../boards';
 import { validDay } from '../../dates';
-import type { JobDetails } from '../../ads/details';
+import { isWorkMode, type JobDetails, type WorkMode } from '../../ads/details';
 import { isOutcome, isStage, type OutcomeId, type StageId } from '../../stages';
 import { DAY_ERROR, NOTE_MAX } from '../application-messages';
 import { jobId, string, text } from './common';
@@ -69,7 +69,11 @@ export const applicationFieldsSchema = z.object({
   salary: text(200),
   contract: text(100),
   location: text(200),
-  remote: z._default(z.boolean(), false),
+  workMode: z._default(
+    z.custom<WorkMode | ''>((mode) => mode === '' || isWorkMode(mode), 'Unknown work mode.'),
+    '',
+  ),
+  officeDays: text(100),
   content: z.pipe(
     string(),
     z.transform((content: string) => content.slice(0, 200_000)),
@@ -77,12 +81,22 @@ export const applicationFieldsSchema = z.object({
 });
 
 /** The form's fields as saved, the same for adding and editing. */
-function toApplication({ salary, contract, location, remote, ...form }: z.output<typeof applicationFieldsSchema>) {
+function toApplication({
+  salary,
+  contract,
+  location,
+  workMode,
+  officeDays,
+  ...form
+}: z.output<typeof applicationFieldsSchema>) {
   const details: JobDetails = {};
   if (salary) details.salary = salary;
   if (contract) details.contract = contract;
   if (location) details.location = location;
-  if (remote) details.remote = true;
+  if (workMode) details.workMode = workMode;
+  if (workMode === 'remote') details.remote = true;
+  // the days in the office are a hybrid job's
+  if (workMode === 'hybrid' && officeDays) details.officeDays = officeDays;
   return {
     title: form.title,
     url: form.url,
