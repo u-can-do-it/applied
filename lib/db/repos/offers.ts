@@ -2,6 +2,7 @@ import 'server-only';
 import { and, arrayContains, asc, count, desc, eq, gte, inArray, lt, lte, max, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../client';
 import { first } from '../rows';
+import { isSeen } from './seen-jobs';
 import { aiVerdicts, offers, offersUnique, jobLinks, type OfferRow, type OfferUniqueRow } from '../schema';
 
 // The scraped offers: `offers` (every board's offer) and `offers_unique` (each job once, its
@@ -77,7 +78,7 @@ export async function pageOfJobs(filter: JobFilter, page: number, size: number, 
   const { isNew, newCount } = newness(latest);
   const [rows, [counts]] = await Promise.all([
     db()
-      .select({ ...jobColumns, isNew })
+      .select({ ...jobColumns, isNew, seen: isSeen() })
       .from(offersUnique)
       .where(where)
       .orderBy(...newestFirst)
@@ -108,6 +109,7 @@ export async function pageOfJudgedJobs(
       .select({
         ...jobColumns,
         isNew,
+        seen: isSeen(),
         match: aiVerdicts.match,
         score: aiVerdicts.score,
         summary: aiVerdicts.summary,

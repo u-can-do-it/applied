@@ -50,6 +50,13 @@
       "when": 1791070417484,
       "tag": "0006_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791200124871,
+      "tag": "0007_seen_jobs",
+      "breakpoints": true
     }
   ]
 }

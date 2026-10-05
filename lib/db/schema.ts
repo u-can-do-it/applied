@@ -346,6 +346,13 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   createdAt: createdAt(),
 }).enableRLS();
 
+// The jobs you opened from a list (the title or a board's link): a check mark after the title, on
+// every device. A job's id, as the lists have it when it's opened (an AI merge doesn't move it).
+export const seenJobs = pgTable('seen_jobs', {
+  jobId: text('dup_key').primaryKey(),
+  seenAt: timestamptz('seen_at').notNull().defaultNow(), // the first time
+}).enableRLS();
+
 // ---- views ----------------------------------------------------------------------------------------
 
 // Each job once: its earliest offer, plus every board it was posted on. Defined in

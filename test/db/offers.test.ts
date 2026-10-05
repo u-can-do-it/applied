@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { expect, it } from 'vitest';
 import * as linksRepo from '@/lib/db/repos/job-links';
 import * as offersRepo from '@/lib/db/repos/offers';
+import { markSeen } from '@/lib/db/repos/seen-jobs';
 import { getJobs, getTotalCount, PAGE_SIZE } from '@/lib/jobs';
 import { describeDb, exec, ISO } from './database';
 
@@ -153,6 +154,20 @@ describeDb('offers', () => {
     expect(counts.rss.offers).toBe(1);
     expect(counts.rss.newest).toMatch(ISO);
     expect(await offersRepo.newestFirstSeen()).toMatch(ISO);
+  });
+
+  it('marks the jobs you opened as seen, keeping the first time', async () => {
+    const [react, java] = await offersRepo.ingest([
+      offer('justjoin', '1', 'React Developer', 'Acme'),
+      offer('nofluff', 'a', 'Java Developer', 'Other'),
+    ]);
+    expect((await page()).jobs.map((job) => job.seen)).toEqual([false, false]);
+    await markSeen(react.titleKey);
+    const [first] = await exec(sql`select seen_at from public.seen_jobs`);
+    await markSeen(react.titleKey); // opened again
+    expect(await exec(sql`select seen_at from public.seen_jobs`)).toEqual([first]);
+    const seen = Object.fromEntries((await page()).jobs.map((job) => [job.jobId, job.seen]));
+    expect(seen).toEqual({ [react.titleKey]: true, [java.titleKey]: false });
   });
 });
 

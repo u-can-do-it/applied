@@ -7,10 +7,12 @@ import { appZone } from './time-zone';
 
 /**
  * A job as the lists show it: its earliest offer, every board's offer, when you applied, whether it
- * came in with the latest scrape run that brought new jobs (`isNew`); on the AI tab, the verdict.
+ * came in with the latest scrape run that brought new jobs (`isNew`), whether you opened it before
+ * (`seen`); on the AI tab, the verdict.
  */
 export type ListedJob = offersRepo.Job & {
   isNew: boolean;
+  seen: boolean;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription'>;
 };
 

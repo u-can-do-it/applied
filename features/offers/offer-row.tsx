@@ -5,6 +5,7 @@ import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
 import { FitScore } from './fit-score';
+import { SeenItem, SeenMark } from './seen';
 
 // shared with the skeleton, so the rows don't move when the list comes in
 export const OFFER = 'grid grid-cols-[44px_1fr_auto] items-start gap-3 px-3.5 py-3 max-[560px]:grid-cols-[1fr_auto]';
@@ -36,11 +37,13 @@ function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, st
 
 /**
  * One job in the list. A job the latest scrape run that brought new jobs brought is marked "new", with a
- * faint tint, so what came in last time stands out.
+ * faint tint, so what came in last time stands out; one you opened before has a check mark after its title.
  */
 export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; labels: Record<string, string> }) {
   return (
-    <li
+    <SeenItem
+      jobId={job.jobId}
+      seen={job.seen}
       className={cn(OFFER, job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]')}
       data-new={job.isNew || undefined}
     >
@@ -65,6 +68,7 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
         >
           {job.title}
         </a>
+        <SeenMark />
         <div className="mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']">
           {job.company && <span>{job.company}</span>}
           {job.seniority && job.seniority !== 'unknown' && <span>{job.seniority}</span>}
@@ -88,6 +92,6 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
         <BoardLinks job={job} labels={labels} />
         <ApplyButton jobId={job.jobId} src={job.src} id={job.id} appliedAt={job.appliedAt} tz={zone.tz} />
       </div>
-    </li>
+    </SeenItem>
   );
 }
