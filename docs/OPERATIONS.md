@@ -332,9 +332,24 @@ Elsewhere: a listing page 20 s (`lib/listings/pipeline/fetch.ts`), a Telegram ca
 **The connection** ([`lib/db/client.ts`](../lib/db/client.ts),
 [ADR 0001](decisions/0001-drizzle-over-postgrest.md)): postgres.js through Supabase's Session pooler (5432),
 at most 3 connections per function instance (each holds a real database connection while open), 10 s to
-connect, idle ones closed after 20 s, `prepare: false`. Not the Transaction pooler (6543): through it, with
+connect, idle ones closed after 5 s, `prepare: false`. Not the Transaction pooler (6543): through it, with
 postgres.js, queries sent back to back on one connection lose their answers, and a page sends a dozen at
 once, so pages hang until the function's time limit.
+
+The Session pooler takes 15 clients at once (its pool size, Supabase → Database → Settings → Connection
+pooling). Fluid compute freezes an instance between requests, timers and all, so a connection still open
+when it froze would hold one of them for as long as the instance lives; enough of them and every page fails
+with `EMAXCONNSESSION max clients reached in session mode`. So on Vercel each query keeps its request going
+(`waitUntil`) until the idle connections have closed, about 15 s after the last query (`holdUntilIdle`; what
+`@vercel/functions`' `attachDatabasePool` does for `pg`, which doesn't support postgres.js). If it happens
+anyway, the SQL Editor (a direct connection, not through the pooler) shows and frees them:
+
+```sql
+select application_name, state, count(*) from pg_stat_activity group by 1, 2 order by 3 desc;
+-- the pooler's idle connections; the app opens new ones on its next query
+select pg_terminate_backend(pid) from pg_stat_activity
+where application_name = 'Supavisor' and state = 'idle' and state_change < now() - interval '1 minute';
+```
 
 Each connection sends `statement_timeout` 30 s and `lock_timeout` 10 s (and `application_name` `jobwatch`)
 as startup parameters, but the Session pooler (Supavisor) doesn't pass them on: the connections run with the
