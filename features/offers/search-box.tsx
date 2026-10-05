@@ -47,7 +47,6 @@ export function SearchBox({ query }: { query: URLSearchParams }) {
         placeholder="Search title or company…"
         aria-label="Search offers"
         autoComplete="off"
-        autoFocus
       />
       {KEPT.map((name) => {
         const kept = query.get(name);

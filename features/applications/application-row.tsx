@@ -2,16 +2,23 @@
 
 import { FileTextIcon, NotebookPenIcon } from 'lucide-react';
 import type { Application } from '@/lib/applications';
-import { workModeText } from '@/lib/ads/details';
+import { workModeOf, workModeText } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { StatusChip } from './status-chip';
 import { useDay } from './use-day';
 
 const facts = (details: Application['details']) =>
-  [details?.salary?.split('; ')[0], details?.contract, workModeText(details), details?.location]
-    .filter(Boolean)
-    .join(' · ');
+  [
+    { key: 'salary', text: details?.salary?.split('; ')[0] },
+    { key: 'contract', text: details?.contract },
+    {
+      key: 'mode',
+      text: workModeText(details),
+      className: workModeOf(details) === 'remote' ? 'text-success' : undefined,
+    },
+    { key: 'location', text: details?.location },
+  ].filter((fact) => fact.text);
 
 const CONTENT: Record<Application['contentStatus'], string> = {
   pending: 'saving the ad…',
@@ -64,7 +71,11 @@ export function ApplicationRow({
         </span>
         <span className={META}>
           {app.company && <span>{app.company}</span>}
-          {facts(app.details) && <span>{facts(app.details)}</span>}
+          {facts(app.details).map((fact) => (
+            <span key={fact.key} className={fact.className}>
+              {fact.text}
+            </span>
+          ))}
         </span>
         {app.note?.trim() && (
           <span className="mt-[3px] truncate text-[13px] text-muted-foreground">
