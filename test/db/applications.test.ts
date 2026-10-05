@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { afterEach, expect, it, vi } from 'vitest';
-import { extractJob } from '@/lib/ai/openai';
+import { assessOffers, extractJob } from '@/lib/ai/openai';
+import { fitOf, saveProfile } from '@/lib/ai/profiles';
 import {
   addApplication,
+  assessFit,
   getApplication,
   ghostStale,
   listApplications,
@@ -24,9 +26,10 @@ import { describeDb, exec, ISO } from './database';
 
 const utc = zoneOf('UTC');
 
-// the details read from an ad text: never the real AI
-vi.mock('@/lib/ai/openai', () => ({ extractJob: vi.fn() }));
+// the details read from an ad text, and the fit: never the real AI
+vi.mock('@/lib/ai/openai', () => ({ extractJob: vi.fn(), assessOffers: vi.fn() }));
 const extract = vi.mocked(extractJob);
+const assess = vi.mocked(assessOffers);
 afterEach(() => vi.unstubAllEnvs());
 
 async function scrapedJob() {
@@ -128,6 +131,31 @@ describeDb('applications', () => {
     app = await getApplication(bare.jobId ?? '');
     expect(app).toMatchObject({ contentStatus: 'failed', content: null, contentError: NO_LINK });
     expect(app?.scrapedAt).toMatch(ISO);
+  });
+
+  it('asks the AI how well an application fits the active profile, and keeps the verdict', async () => {
+    const ad = 'Product designer, Figma, design systems, remote across Europe. '.repeat(2);
+    const added = await addApplication(typed('Designer', { content: ad, details: { workMode: 'remote' } }), utc);
+    const jobId = added.jobId ?? '';
+    await expect(assessFit(jobId)).rejects.toThrow(/^No AI profile/);
+    await saveProfile({ name: 'P', prompt: 'Design roles', file: 'keep' });
+    assess.mockResolvedValueOnce([
+      { n: 1, match: true, score: 77, summary: 'fits', checks: [{ item: 'Figma', met: true }] },
+    ]);
+    const fit = await assessFit(jobId);
+    expect(fit).toEqual({
+      match: true,
+      score: 77,
+      summary: 'fits',
+      checks: [{ item: 'Figma', met: true }],
+      hadDescription: true,
+    });
+    expect(assess).toHaveBeenLastCalledWith('Design roles', null, [
+      { n: 1, title: 'Designer', company: 'Hand Made', seniority: null, remote: true, description: ad.trim() },
+    ]);
+    expect(await fitOf(jobId)).toEqual(fit); // kept: the window and the AI tab have it from now on
+    assess.mockResolvedValueOnce([]);
+    await expect(assessFit(jobId)).rejects.toThrow('The AI gave no answer: try again.');
   });
 
   it('appends status changes to the history and takes them back', async () => {

@@ -7,7 +7,9 @@ import * as linksRepo from './db/repos/job-links';
 import * as offersRepo from './db/repos/offers';
 import type { NewApplicationRow } from './db/schema';
 import { scrapeOfferFull } from './ads';
-import type { JobDetails } from './ads/details';
+import { workModeOf, type JobDetails } from './ads/details';
+import { getProfile, isUsable, listProfiles, type Fit } from './ai/profiles';
+import { assessOne } from './ai/runs';
 import {
   editedDetails,
   hasAny,
@@ -156,6 +158,32 @@ export async function saveContent(jobId: string) {
     firstEmpty ? { type: 'fetchFoundNoText', at } : { type: 'fetchFailed', error: lastError, at },
     firstEmpty?.details,
   );
+}
+
+// ---- how well it fits (the AI) -----------------------------------------------------------
+
+/**
+ * Asks the AI how well the job fits the active profile (a job no run judged: one added by hand,
+ * or applied to before the profile changed), from the saved ad text, or the title alone without
+ * one. The verdict is kept like a run's, so the AI tab has it too.
+ */
+export async function assessFit(jobId: string): Promise<Fit> {
+  const [app, profiles] = await Promise.all([getApplication(jobId), listProfiles()]);
+  if (!app) throw new Error('This application no longer exists.');
+  const active = profiles.at(0);
+  if (!isUsable(active)) throw new Error('No AI profile to check it with: set one up on the AI tab.');
+  const [profile, job] = await Promise.all([getProfile(active.id), findJob(jobId).catch(() => null)]);
+  if (!profile) throw new Error('That AI profile no longer exists.');
+  const mode = workModeOf(app.details);
+  const fit = await assessOne(profile, jobId, {
+    title: app.title,
+    company: app.company,
+    seniority: job?.seniority ?? null,
+    remote: mode ? mode === 'remote' : (job?.remote ?? null),
+    description: app.contentStatus === 'ok' && app.content ? app.content : null,
+  });
+  if (!fit) throw new Error('The AI gave no answer: try again.');
+  return fit;
 }
 
 // ---- added by hand ("Add application") --------------------------------------------------

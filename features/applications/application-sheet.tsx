@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { refetchContentAction, removeStatusStepAction, setApplicationStatusAction, unapplyAction } from './actions';
 import { AdDetails } from './ad-details';
 import { AdText } from './ad-text';
+import { ApplicationFit, FitSummary } from './application-fit';
 import { ApplicationFooter } from './application-footer';
 import { moveDraft, writeDraft } from './note-drafts';
 import { LazyApplicationForm, loadApplicationForm } from './lazy-application-form';
@@ -72,7 +73,7 @@ export function ApplicationSheet({
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const loaded = useApplication(jobId, { acting: busy });
-  const app = loaded.data ?? initial;
+  const app: Shown = loaded.data ?? initial;
   const gone = useRef(false); // unmarked: there's no note to save any more
 
   // shown at once; a load already on its way would bring the old state back, so it's dropped
@@ -137,14 +138,16 @@ export function ApplicationSheet({
 
   // saved in the form: back to the window with it (under its new job, if it's another job's now)
   const saved = (fresh: ApplicationWithContent) => {
-    if (fresh.jobId !== jobId) {
+    const moved = fresh.jobId !== jobId;
+    if (moved) {
       moveDraft(jobId, fresh.jobId);
       setJobId(fresh.jobId);
     }
-    show(fresh, fresh.jobId);
+    // the AI's verdict is the job's: the same job keeps it, another one loads its own
+    show(moved ? fresh : { ...fresh, fit: app.fit }, fresh.jobId);
     setEditing(false);
     // the ad text is fetched again (the link changed): look for it now, then every 3 s
-    if (fresh.contentStatus === 'pending')
+    if (moved || fresh.contentStatus === 'pending')
       void queryClient.refetchQueries({ queryKey: applicationKey(fresh.jobId), type: 'all' });
   };
 
@@ -233,17 +236,23 @@ export function ApplicationSheet({
         {/* hidden, not gone, while editing: the note keeps what you typed */}
         <div className={cn('flex min-h-0 flex-1 flex-col', editing && 'hidden')}>
           <SheetHeader className="gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">
-            {/* the form has the window's title while it's open */}
-            {editing ? (
-              <h2 className="m-0 text-lg font-semibold">{app.title}</h2>
-            ) : (
-              <SheetTitle className="text-lg font-semibold">{app.title}</SheetTitle>
-            )}
-            {editing ? (
-              <p className="m-0 text-[13px] text-muted-foreground">{subtitle}</p>
-            ) : (
-              <SheetDescription className="text-[13px]">{subtitle}</SheetDescription>
-            )}
+            <div className="flex items-start gap-3">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                {/* the form has the window's title while it's open */}
+                {editing ? (
+                  <h2 className="m-0 text-lg font-semibold">{app.title}</h2>
+                ) : (
+                  <SheetTitle className="text-lg font-semibold">{app.title}</SheetTitle>
+                )}
+                {editing ? (
+                  <p className="m-0 text-[13px] text-muted-foreground">{subtitle}</p>
+                ) : (
+                  <SheetDescription className="text-[13px]">{subtitle}</SheetDescription>
+                )}
+              </div>
+              <ApplicationFit app={app} jobId={jobId} onError={setActionError} />
+            </div>
+            <FitSummary app={app} />
           </SheetHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-3.5 py-3 [scrollbar-gutter:stable] *:shrink-0 sm:px-5 sm:py-3.5">

@@ -1,6 +1,7 @@
 import 'server-only';
 import { and, count, desc, eq, inArray, lt, notExists, sql } from 'drizzle-orm';
 import { db } from '../client';
+import { first } from '../rows';
 import { aiVerdicts, offersUnique, type AiVerdictRow } from '../schema';
 import { inRange, type Job } from './offers';
 
@@ -10,6 +11,8 @@ type ProfileVersion = { id: string; version: number };
 type Range = { gte?: string | null; lt?: string | null };
 
 export type Verdict = Pick<AiVerdictRow, 'match' | 'score' | 'summary'>;
+/** A verdict with its reasons: the requirement checklist, and whether the ad text was there. */
+export type Fit = Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription'>;
 
 /** The verdicts this profile version has for these jobs, by job id. */
 export async function forJobs(profile: ProfileVersion, jobIds: string[]): Promise<Map<string, Verdict>> {
@@ -30,6 +33,23 @@ export async function forJobs(profile: ProfileVersion, jobIds: string[]): Promis
       ),
     );
   return new Map(rows.map(({ jobId, ...verdict }) => [jobId, verdict]));
+}
+
+/** This profile version's verdict on one job, with its checklist; null if it hasn't judged it. */
+export async function ofJob(profile: ProfileVersion, jobId: string): Promise<Fit | null> {
+  const rows = await db()
+    .select({
+      match: aiVerdicts.match,
+      score: aiVerdicts.score,
+      summary: aiVerdicts.summary,
+      checks: aiVerdicts.checks,
+      hadDescription: aiVerdicts.hadDescription,
+    })
+    .from(aiVerdicts)
+    .where(
+      and(eq(aiVerdicts.profileId, profile.id), eq(aiVerdicts.version, profile.version), eq(aiVerdicts.jobId, jobId)),
+    );
+  return first(rows);
 }
 
 /** Saves them; a job judged again by the same profile version gets the new verdict. */

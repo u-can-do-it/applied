@@ -5,11 +5,18 @@ import * as verdictsRepo from '../db/repos/ai-verdicts';
 // AI profiles and the rule that versions them: a verdict belongs to the version it was made with.
 
 export type { Profile, ProfileWithFile } from '../db/repos/ai-profiles';
+export type { Fit } from '../db/repos/ai-verdicts';
 
 /** Most recently used first: the first one is the active profile. */
 export const listProfiles = () => profilesRepo.list();
 
 export const getProfile = (id: string) => profilesRepo.get(id);
+
+/** How well the job fits the active profile, as its current version judged it; null: not judged (or no profile). */
+export async function fitOf(jobId: string): Promise<verdictsRepo.Fit | null> {
+  const active = (await listProfiles()).at(0);
+  return active ? verdictsRepo.ofJob(active, jobId) : null;
+}
 
 export const isUsable = <P extends { prompt: string; fileName: string | null }>(
   profile: P | null | undefined,

@@ -6,6 +6,7 @@ import { action } from '@/server/action';
 import {
   addApplication,
   appliedAtOf,
+  assessFit,
   findOfferByLink,
   jobIdFor,
   markApplied,
@@ -64,6 +65,12 @@ export const refetchContentAction = action(jobIdSchema, async ({ jobId }) => {
   await saveContent(jobId);
   refresh();
 });
+
+/**
+ * Asks the AI how well the job fits the active profile; answers with the verdict. No page refresh:
+ * the window shows it, and the list doesn't show scores.
+ */
+export const assessFitAction = action(jobIdSchema, async ({ jobId }) => assessFit(jobId));
 
 /** Sets where an application stands, e.g. technical interview / passed. */
 export const setApplicationStatusAction = action(setStatusSchema, async ({ jobId, stage, outcome }) => {

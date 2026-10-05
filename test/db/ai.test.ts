@@ -7,7 +7,7 @@ import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as verdictsRepo from '@/lib/db/repos/ai-verdicts';
 import * as offersRepo from '@/lib/db/repos/offers';
 import { getJobs } from '@/lib/jobs';
-import { activateProfile, getProfile, listProfiles, saveProfile } from '@/lib/ai/profiles';
+import { activateProfile, fitOf, getProfile, listProfiles, saveProfile } from '@/lib/ai/profiles';
 import { describeDb, exec, ISO } from './database';
 
 const job = (src: string, id: string, title: string, company: string) => ({
@@ -68,6 +68,23 @@ describeDb('AI profiles', () => {
     expect(listed.map((profile) => profile.name)).toEqual(['Older', 'Newer']);
     expect('fileText' in listed[0]).toBe(false);
     expect(listed[0].lastUsedAt).toMatch(ISO);
+  });
+
+  it("gives a job's fit as the active profile's current version judged it", async () => {
+    const [key, unjudged] = await threeJobs();
+    expect(await fitOf(key)).toBeNull(); // no profile yet
+    const id = await saveProfile({ name: 'P', prompt: 'React', file: 'keep' });
+    await verdictsRepo.save([verdict({ id, version: 1 }, key, true)]);
+    expect(await fitOf(key)).toEqual({
+      match: true,
+      score: 90,
+      summary: 'fits',
+      checks: [{ item: 'React', met: true }],
+      hadDescription: false,
+    });
+    expect(await fitOf(unjudged)).toBeNull();
+    await saveProfile({ name: 'Other', prompt: 'Vue', file: 'keep' }); // another profile is the active one now
+    expect(await fitOf(key)).toBeNull();
   });
 });
 

@@ -2,23 +2,27 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import type { Fit } from '@/lib/ai/profiles';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
 
-/** An application as its window shows it: no content yet = the ad text is still loading. */
-export type Shown = Application & { content?: string | null };
+/**
+ * An application as its window shows it: no content yet = the ad text is still loading. `fit`: the
+ * active AI profile's verdict on the job (null: not judged; missing: not loaded yet).
+ */
+export type Shown = Application & { content?: string | null; fit?: Fit | null };
 
 export const applicationKey = (jobId: string) => ['application', jobId] as const;
 
 const PENDING_EVERY_MS = 3000;
 
-/** GET /api/application: the saved application with its complete ad text. */
+/** GET /api/application: the saved application with its complete ad text and the AI's verdict. */
 export async function loadApplication(jobId: string) {
   const res = await fetch(`/api/application?jobId=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error ?? `HTTP ${res.status}`);
   }
-  return (await res.json()) as ApplicationWithContent;
+  return (await res.json()) as ApplicationWithContent & { fit: Fit | null };
 }
 
 /**

@@ -178,6 +178,29 @@ async function assessBatch(profile: ProfileWithFile, batch: Pending[], beforeAsk
   return { saved: rows.length, answered: new Set(rows.map((row) => row.jobId)) };
 }
 
+/**
+ * One job judged on its own (an application's window asks for it): with the ad text given, not
+ * scraped. The verdict is kept like a run's; null if the AI left it out of its answer.
+ */
+export async function assessOne(
+  profile: ProfileWithFile,
+  jobId: string,
+  offer: Omit<OfferForAi, 'n'>,
+): Promise<verdictsRepo.Fit | null> {
+  const file = profile.fileName && profile.fileText ? { name: profile.fileName, text: profile.fileText } : null;
+  const assessment = (await assessOffers(profile.prompt, file, [{ n: 1, ...offer }])).at(0);
+  if (!assessment) return null;
+  const fit = {
+    match: assessment.match,
+    score: assessment.score,
+    summary: assessment.summary,
+    checks: assessment.checks,
+    hadDescription: Boolean(offer.description),
+  };
+  await verdictsRepo.save([{ profileId: profile.id, version: profile.version, jobId, ...fit }]);
+  return fit;
+}
+
 // ---- new offers, before Telegram --------------------------------------------------------
 
 export type Verdict = verdictsRepo.Verdict;
