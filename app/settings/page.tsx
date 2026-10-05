@@ -51,6 +51,15 @@ export default function SettingsPage() {
 
 async function Settings() {
   await connection(); // always fresh: statuses change all the time
+  // the same answers the Health card above got (read once per request), asked alongside the rest
+  const extras = Promise.all([
+    cronInfo(),
+    requestOrigin(),
+    profileList().catch(() => []),
+    // only with the VAPID keys (without them nothing is pushed); not yet migrated (the table is new):
+    // none, the Health card says the database is behind
+    vapidPublicKey() ? pushRepo.list().catch(() => []) : Promise.resolve([]),
+  ]);
   let data;
   try {
     const [settings, scrapers, state, queued, counts] = await Promise.all([
@@ -64,15 +73,7 @@ async function Settings() {
   } catch (error) {
     return <LoadError title="Can’t load the settings." detail={message(error)} />;
   }
-  // the same answers the Health card above got (read once per request)
-  const [cron, origin, profiles, devices] = await Promise.all([
-    cronInfo(),
-    requestOrigin(),
-    profileList().catch(() => []),
-    // only with the VAPID keys (without them nothing is pushed); not yet migrated (the table is new):
-    // none, the Health card says the database is behind
-    vapidPublicKey() ? pushRepo.list().catch(() => []) : Promise.resolve([]),
-  ]);
+  const [cron, origin, profiles, devices] = await extras;
   // what the AI filter would check new offers against: the active profile, if it can work
   const active = profiles[0];
   const ai = {

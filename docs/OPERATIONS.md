@@ -22,7 +22,10 @@ isn't. How it works inside: [ARCHITECTURE.md](ARCHITECTURE.md).
 3. **Vercel:** push the repo to GitHub, then **Add New → Project → import it** (or `npx vercel` from the
    folder). Under **Settings → Environment Variables** add at least `SUPABASE_DB_URL` (the **Transaction
    pooler** URI) and `APP_PASSWORD`; the rest is optional ([below](#environment-variables)). Deploy. The
-   build needs no variables: nothing reads the database or the env while building.
+   build needs no variables: nothing reads the database or the env while building. The functions run in
+   `fra1` (Frankfurt, `vercel.json`), next to a Supabase project in Zurich (`eu-central-2`) or Frankfurt
+   (`eu-central-1`): a page makes a dozen queries, and from Vercel's default `iad1` each crosses the Atlantic.
+   A project elsewhere wants the Vercel region nearest it there.
 4. **Open the app**, log in, and check the [Health card](#health) at the top of Settings. Then
    **Scrape now**, and on the Activity tab check that every scraper shows a check mark (a board may block
    Vercel's servers; the error says so). LinkedIn's terms don't allow scraping, and it may refuse requests from
