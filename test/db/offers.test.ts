@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { expect, it } from 'vitest';
 import * as linksRepo from '@/lib/db/repos/job-links';
 import * as offersRepo from '@/lib/db/repos/offers';
+import { archive, restore } from '@/lib/db/repos/archived-jobs';
 import { markSeen } from '@/lib/db/repos/seen-jobs';
 import { getJobs, getTotalCount, PAGE_SIZE } from '@/lib/jobs';
 import { describeDb, exec, ISO } from './database';
@@ -20,8 +21,20 @@ const offer = (src: string, id: string, title: string, company: string | null, r
 const seenAt = (src: string, id: string, at: string) =>
   exec(sql`update public.offers set first_seen = ${at}::timestamptz where src = ${src} and id = ${id}`);
 
-const page = (query = '', src = '', extra: { days?: string; from?: string; to?: string; page?: number } = {}) =>
-  getJobs({ q: query, src, page: extra.page ?? 0, days: extra.days, from: extra.from, to: extra.to });
+const page = (
+  query = '',
+  src = '',
+  extra: { days?: string; from?: string; to?: string; page?: number; archived?: boolean } = {},
+) =>
+  getJobs({
+    q: query,
+    src,
+    page: extra.page ?? 0,
+    days: extra.days,
+    from: extra.from,
+    to: extra.to,
+    archived: extra.archived,
+  });
 
 describeDb('offers', () => {
   it('saves new offers once, and says which jobs were known before', async () => {
@@ -168,6 +181,39 @@ describeDb('offers', () => {
     expect(await exec(sql`select seen_at from public.seen_jobs`)).toEqual([first]);
     const seen = Object.fromEntries((await page()).jobs.map((job) => [job.jobId, job.seen]));
     expect(seen).toEqual({ [react.titleKey]: true, [java.titleKey]: false });
+  });
+
+  it('leaves archived jobs out of the lists and the counts, and lists them on their own', async () => {
+    const added = await offersRepo.ingest([
+      offer('justjoin', '1', 'React Developer', 'Acme'),
+      offer('nofluff', 'a', 'Java Developer', 'Other'),
+      offer('bulldog', 'x', 'Go Developer', 'Gopher'),
+    ]);
+    const jobOf = (src: string) => added.find((row) => row.src === src)?.titleKey ?? '';
+    const [react, java, go] = [jobOf('justjoin'), jobOf('nofluff'), jobOf('bulldog')];
+    await archive(react);
+    await archive(react); // twice: still one
+    await archive(java);
+
+    const listed = await page();
+    expect(listed.jobs.map((job) => [job.jobId, job.archived])).toEqual([[go, false]]);
+    expect([listed.total, listed.archivedCount]).toEqual([1, 2]);
+    expect(await getTotalCount()).toBe(1);
+    // a filter narrows the archived count too
+    expect((await page('java')).archivedCount).toBe(1);
+
+    const archived = await page('', '', { archived: true });
+    expect(archived.jobs.map((job) => job.archived)).toEqual([true, true]);
+    expect(archived.jobs.map((job) => job.jobId).sort()).toEqual([java, react].sort());
+    expect(archived.total).toBe(2);
+
+    // the job's next offer (another board's) stays archived with it
+    await offersRepo.ingest([offer('nofluff', 'b', 'React Developer', 'ACME')]);
+    expect((await page()).total).toBe(1);
+
+    await restore(react);
+    expect((await page()).jobs.map((job) => job.jobId).sort()).toEqual([go, react].sort());
+    expect(await getTotalCount()).toBe(2);
   });
 });
 

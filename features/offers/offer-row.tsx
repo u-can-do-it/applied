@@ -4,6 +4,7 @@ import type { ListedJob } from '@/lib/jobs';
 import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
+import { ArchiveButton, ArchiveRow } from './archive';
 import { FitScore } from './fit-score';
 import { SeenItem, SeenMark } from './seen';
 
@@ -38,60 +39,66 @@ function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, st
 /**
  * One job in the list. A job the latest scrape run that brought new jobs brought is marked "new", with a
  * faint tint, so what came in last time stands out; one you opened before has a check mark after its title.
+ * The archive button takes it out of the list (or, in the archived list, back into the others).
  */
 export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; labels: Record<string, string> }) {
   return (
-    <SeenItem
-      jobId={job.jobId}
-      seen={job.seen}
-      className={cn(OFFER, job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]')}
-      data-new={job.isNew || undefined}
-    >
-      <time
-        dateTime={job.firstSeen}
-        title={fullLabel(zone, job.firstSeen)}
-        className="pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full max-[560px]:p-0"
+    <ArchiveRow jobId={job.jobId} title={job.title} archived={job.archived}>
+      <SeenItem
+        jobId={job.jobId}
+        seen={job.seen}
+        className={cn(OFFER, job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]')}
+        data-new={job.isNew || undefined}
       >
-        {zone.formatTime(job.firstSeen)}
-      </time>
-      <div className="min-w-0">
-        {job.isNew && (
-          <Badge variant="success" className="mr-1.5 align-[1px]" title="Brought by the latest scrape run">
-            new
-          </Badge>
-        )}
-        <a
-          href={job.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-semibold no-underline [overflow-wrap:anywhere] visited:text-muted-foreground hover:text-brand hover:underline hover:underline-offset-2"
+        <time
+          dateTime={job.firstSeen}
+          title={fullLabel(zone, job.firstSeen)}
+          className="pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full max-[560px]:p-0"
         >
-          {job.title}
-        </a>
-        <SeenMark />
-        <div className="mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']">
-          {job.company && <span>{job.company}</span>}
-          {job.seniority && job.seniority !== 'unknown' && <span>{job.seniority}</span>}
-          <span className={job.remote ? 'text-success' : undefined}>{job.remote ? 'Remote' : 'Office / hybrid'}</span>
+          {zone.formatTime(job.firstSeen)}
+        </time>
+        <div className="min-w-0">
+          {job.isNew && (
+            <Badge variant="success" className="mr-1.5 align-[1px]" title="Brought by the latest scrape run">
+              new
+            </Badge>
+          )}
+          <a
+            href={job.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold no-underline [overflow-wrap:anywhere] visited:text-muted-foreground hover:text-brand hover:underline hover:underline-offset-2"
+          >
+            {job.title}
+          </a>
+          <SeenMark />
+          <div className="mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']">
+            {job.company && <span>{job.company}</span>}
+            {job.seniority && job.seniority !== 'unknown' && <span>{job.seniority}</span>}
+            <span className={job.remote ? 'text-success' : undefined}>{job.remote ? 'Remote' : 'Office / hybrid'}</span>
+          </div>
+          {job.ai?.summary && (
+            <p className="mt-1 mb-0 text-xs text-brand">
+              <SparklesIcon /> {job.ai.summary}
+            </p>
+          )}
         </div>
-        {job.ai?.summary && (
-          <p className="mt-1 mb-0 text-xs text-brand">
-            <SparklesIcon /> {job.ai.summary}
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col items-end gap-1.5">
-        {job.ai && (
-          <FitScore
-            score={job.ai.score}
-            summary={job.ai.summary}
-            checks={job.ai.checks}
-            hadDescription={job.ai.hadDescription}
-          />
-        )}
-        <BoardLinks job={job} labels={labels} />
-        <ApplyButton jobId={job.jobId} src={job.src} id={job.id} appliedAt={job.appliedAt} tz={zone.tz} />
-      </div>
-    </SeenItem>
+        <div className="flex flex-col items-end gap-1.5">
+          {job.ai && (
+            <FitScore
+              score={job.ai.score}
+              summary={job.ai.summary}
+              checks={job.ai.checks}
+              hadDescription={job.ai.hadDescription}
+            />
+          )}
+          <BoardLinks job={job} labels={labels} />
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            <ArchiveButton />
+            <ApplyButton jobId={job.jobId} src={job.src} id={job.id} appliedAt={job.appliedAt} tz={zone.tz} />
+          </div>
+        </div>
+      </SeenItem>
+    </ArchiveRow>
   );
 }

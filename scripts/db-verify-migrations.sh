@@ -104,9 +104,9 @@ without_public_schema_acl() {
 # becomes one line (its statements joined by " ↵ "), the dropped functions' entries are left out and
 # the rest sorted: without those functions pg_dump may put the same entries in another order.
 DROPPED_FUNCTIONS='jw_set_application_status|jw_ghost_stale_applications|jw_scrape_lock|jw_source_counts|ai_results|ai_pending|ai_range_stats'
-# tables a later migration adds (0006_push_subscriptions, 0007_seen_jobs): new in (a), so their entries are left out
-# of the comparison too, and checked to be there
-ADDED_TABLES='push_subscriptions|seen_jobs'
+# tables a later migration adds (0006_push_subscriptions, 0007_seen_jobs, 0008_archived_jobs): new in (a), so
+# their entries are left out of the comparison too, and checked to be there
+ADDED_TABLES='push_subscriptions|seen_jobs|archived_jobs'
 entries_without_dropped_functions() {
   awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" '
     function flush() { if (entry != "" && !skip) print entry; entry = "" }

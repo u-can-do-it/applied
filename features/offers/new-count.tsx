@@ -49,3 +49,31 @@ export function NewCount({
     </>
   );
 }
+
+/**
+ * The count line's " · 3 archived", which lists only the archived jobs (?archived=1), and there a way
+ * back to the others.
+ */
+export function ArchivedCount({
+  archivedCount,
+  active,
+  current,
+  path,
+}: {
+  /** how many jobs these filters find among the archived ones */
+  archivedCount: number;
+  /** ?archived=1 */
+  active: boolean;
+  current: URLSearchParams;
+  path: string;
+}) {
+  if (!active && !archivedCount) return null;
+  return (
+    <>
+      {' · '}
+      <NavLink href={withParams(current, { archived: active ? null : '1' }, path)}>
+        {active ? 'back to the list' : `${archivedCount.toLocaleString('en-GB')} archived`}
+      </NavLink>
+    </>
+  );
+}

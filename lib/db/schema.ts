@@ -353,6 +353,13 @@ export const seenJobs = pgTable('seen_jobs', {
   seenAt: timestamptz('seen_at').notNull().defaultNow(), // the first time
 }).enableRLS();
 
+// The jobs you archived from a list: left out of the lists (until restored), on every device. A job's id,
+// as the lists have it when it's archived (an AI merge doesn't move it).
+export const archivedJobs = pgTable('archived_jobs', {
+  jobId: text('dup_key').primaryKey(),
+  archivedAt: timestamptz('archived_at').notNull().defaultNow(),
+}).enableRLS();
+
 // ---- views ----------------------------------------------------------------------------------------
 
 // Each job once: its earliest offer, plus every board it was posted on. Defined in

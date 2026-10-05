@@ -70,7 +70,7 @@ export function ApplyButton({
         )}
       </Button>
       {error && (
-        <span role="alert" className="max-w-56 text-right text-xs text-destructive">
+        <span role="alert" className="w-full max-w-56 text-right text-xs text-destructive">
           {error}
         </span>
       )}

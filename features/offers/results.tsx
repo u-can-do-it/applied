@@ -13,7 +13,7 @@ import { LoadError } from '@/components/load-error';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavLink } from './nav';
 import { OFFER, OfferRow } from './offer-row';
-import { NewCount } from './new-count';
+import { ArchivedCount, NewCount } from './new-count';
 
 const fmt = (count: number) => count.toLocaleString('en-GB');
 
@@ -33,7 +33,7 @@ export async function Results({
 }) {
   const path = mode === 'ai' ? '/ai' : '/';
   const query = parseOfferQuery(await searchParams);
-  const { q, src, page, days, from, to, latest } = query;
+  const { q, src, page, days, from, to, latest, archived } = query;
   const rejected = mode === 'ai' && query.rejected;
   const filtered = Boolean(q || src || days || from || to || latest);
   const range = describeRange({ days, from, to });
@@ -42,7 +42,16 @@ export async function Results({
 
   // the URL as the list understands it, for the pager links
   const current = new URLSearchParams();
-  const params = { q, src, days, from, to, rejected: rejected ? '1' : '', new: latest ? '1' : '' };
+  const params = {
+    q,
+    src,
+    days,
+    from,
+    to,
+    rejected: rejected ? '1' : '',
+    new: latest ? '1' : '',
+    archived: archived ? '1' : '',
+  };
   for (const [param, value] of Object.entries(params)) if (value) current.set(param, value);
 
   let data: Awaited<ReturnType<typeof getJobs>> | null = null; // stays null only on the AI tab without a profile
@@ -62,6 +71,7 @@ export async function Results({
             from,
             to,
             latest,
+            archived,
             ai: { profileId: profile.id, version: profile.version, rejected },
           }),
           rangeStats(profile, zone.resolveRange({ days, from, to })),
@@ -70,7 +80,7 @@ export async function Results({
     } else {
       // in parallel: the filtered page and (if filtered) the unfiltered count
       [data, all] = await Promise.all([
-        getJobs({ q, src, page, days, from, to, latest }),
+        getJobs({ q, src, page, days, from, to, latest, archived }),
         filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
       ]);
     }
@@ -91,10 +101,21 @@ export async function Results({
   const newLine = (
     <NewCount newCount={data.newCount} latest={data.latest} active={latest} zone={zone} current={current} path={path} />
   );
+  const archivedLine = (
+    <ArchivedCount archivedCount={data.archivedCount} active={archived} current={current} path={path} />
+  );
 
   return (
     <>
-      {mode === 'ai' && stats ? (
+      {archived ? (
+        <p className={COUNT}>
+          {/* "3 archived offers · last 7 days · show all" */}
+          <strong>{fmt(data.total)}</strong> archived {data.total === 1 ? 'offer' : 'offers'}
+          {range && ` · ${range}`}
+          {newLine}
+          {archivedLine}
+        </p>
+      ) : mode === 'ai' && stats ? (
         <p className={COUNT}>
           {/* "9 match of 14 checked · 6 not checked yet · today · show 5 rejected" */}
           <strong>{fmt(stats.matched)}</strong> match of {fmt(stats.checked)} checked
@@ -102,6 +123,7 @@ export async function Results({
           {range && ` · ${range}`}
           {(q || src || latest) && <> · {fmt(data.total)} shown</>}
           {newLine}
+          {archivedLine}
           {' · '}
           <NavLink href={withParams(current, { rejected: rejected ? null : '1' }, path)}>
             {rejected ? 'show matches' : `show ${fmt(stats.checked - stats.matched)} rejected`}
@@ -114,22 +136,27 @@ export async function Results({
           {filtered && all !== null && <> of {fmt(all)}</>} offers
           {range && ` · ${range}`}
           {newLine}
+          {archivedLine}
         </p>
       )}
 
       {data.jobs.length === 0 && (
         <p className={EMPTY}>
-          {mode === 'ai'
-            ? stats && stats.checked === 0
-              ? `Nothing ${range ? `from ${range} ` : ''}has been checked with this profile yet. Use the buttons above.`
-              : rejected
-                ? 'Nothing was rejected here.'
-                : 'No matches here. Check the rejected ones, or loosen the profile.'
-            : latest && !data.latest
-              ? 'No scrape run has brought new offers lately.'
-              : filtered
-                ? 'Nothing matches these filters.'
-                : 'No offers yet. Use “Scrape now” at the top, or wait for the next scheduled run.'}
+          {archived
+            ? filtered
+              ? 'No archived offers match these filters.'
+              : 'Nothing archived. The archive button on an offer moves it here.'
+            : mode === 'ai'
+              ? stats && stats.checked === 0
+                ? `Nothing ${range ? `from ${range} ` : ''}has been checked with this profile yet. Use the buttons above.`
+                : rejected
+                  ? 'Nothing was rejected here.'
+                  : 'No matches here. Check the rejected ones, or loosen the profile.'
+              : latest && !data.latest
+                ? 'No scrape run has brought new offers lately.'
+                : filtered
+                  ? 'Nothing matches these filters.'
+                  : 'No offers yet. Use “Scrape now” at the top, or wait for the next scheduled run.'}
         </p>
       )}
 

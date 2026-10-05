@@ -191,6 +191,7 @@ live in [`lib/db/repos/`](../lib/db/repos), one file per table; the rules on top
 | `notify_queue`       | new jobs waiting to be sent (every channel)                                   | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what no channel sent)                                        |
 | `push_subscriptions` | the browsers that get push notifications: endpoint, keys, device              | `features/notifications/actions.ts` (enable, disable), `lib/push.ts` (removes one the push service says is gone)                                             |
 | `seen_jobs`          | the jobs you opened from a list (title or board link), per job id             | `features/offers/actions.ts` (`markSeenAction`, on a click in the row, `features/offers/seen.tsx`)                                                           |
+| `archived_jobs`      | the jobs you archived from a list, per job id                                 | `features/offers/actions.ts` (`archiveAction`, `restoreAction`, from the row's button, `features/offers/archive.tsx`)                                        |
 | `offers_unique`      | view: each job once, its earliest offer, every board's link                   | read-only; defined in `0002_functions`                                                                                                                       |
 | `cron.job`           | Supabase Cron's job                                                           | `jw_cron_*` through `lib/db/repos/cron.ts`, from `features/scraping/actions.ts` and `syncCron` (`lib/listings/schedule.ts`)                                  |
 
@@ -338,13 +339,17 @@ way, the entry says so (_stored as_): those names stay (production data and appl
 - **job id** (`jobId`): Which job something belongs to. A job's id is one of its title keys: its own, or, after
   an AI merge, the kept job's. An application, a verdict and a queued notification point at a job by its id.
   _Stored as:_ `offers_unique.dup_key`, `job_links.job_key`, `applications.dup_key`, `ai_verdicts.dup_key`,
-  `notify_queue.dup_key`, `seen_jobs.dup_key`, `ai_dup_pairs.key_a`/`key_b`.
+  `notify_queue.dup_key`, `seen_jobs.dup_key`, `archived_jobs.dup_key`, `ai_dup_pairs.key_a`/`key_b`.
 - **first seen**: When a scraper first saw an offer; "newest" everywhere means this
   ([ADR 0002](decisions/0002-newest-by-first-seen.md)). _Stored as:_ `offers.first_seen`.
 - **new**: A job first seen in the latest finished scrape run that brought new jobs: marked in the lists, listed by
   `?new=1` (`isNew`, `latestWithNewJobs`). Not a stored flag.
 - **seen**: A job whose offer you opened from a list (its title or a board's link): a check mark after its title,
   on every device. An AI merge doesn't move it. _Stored as:_ `seen_jobs`.
+- **archived**: A job you took out of the lists with its archive button (a repost you already decided on, say):
+  left out of the offers and the AI tab and their counts, listed by `?archived=1` (the count line's "3 archived"),
+  where the same button restores it. The job's later offers stay archived with it; an AI merge doesn't move it.
+  _Stored as:_ `archived_jobs`.
 - **channel**: Where new offers are sent: Telegram or push (`lib/channels/`, `Channel`). A **device** is one
   browser subscribed to push. _Stored as:_ `push_subscriptions`.
 - **merge**: The AI deciding two jobs are one (`lib/ai/merge-duplicates.ts`): the later one's title keys then

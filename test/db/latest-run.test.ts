@@ -130,6 +130,6 @@ describeDb('new in the latest run', () => {
     const all = await list();
     expect(all).toMatchObject({ total: 1, newCount: 0, latest: null });
     expect(all.jobs[0].isNew).toBe(false);
-    expect(await list({ latest: true })).toEqual({ jobs: [], total: 0, newCount: 0, latest: null });
+    expect(await list({ latest: true })).toEqual({ jobs: [], total: 0, newCount: 0, archivedCount: 0, latest: null });
   });
 });

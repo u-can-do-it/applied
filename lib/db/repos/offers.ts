@@ -1,9 +1,34 @@
 import 'server-only';
-import { and, arrayContains, asc, count, desc, eq, gte, inArray, lt, lte, max, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  arrayContains,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lt,
+  lte,
+  max,
+  not,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { db } from '../client';
 import { first } from '../rows';
+import { isArchived } from './archived-jobs';
 import { isSeen } from './seen-jobs';
-import { aiVerdicts, offers, offersUnique, jobLinks, type OfferRow, type OfferUniqueRow } from '../schema';
+import {
+  aiVerdicts,
+  archivedJobs,
+  offers,
+  offersUnique,
+  jobLinks,
+  type OfferRow,
+  type OfferUniqueRow,
+} from '../schema';
 
 // The scraped offers: `offers` (every board's offer) and `offers_unique` (each job once, its
 // earliest offer with every board's link; a view, defined in drizzle/0002_functions.sql).
@@ -13,9 +38,17 @@ export type RunWindow = { startedAt: string; finishedAt: string };
 
 /**
  * What narrows a list of jobs: every word in the title or the company, a board, first_seen in
- * [gte, lt), and only the jobs first seen in a run (`newIn`).
+ * [gte, lt), only the jobs first seen in a run (`newIn`), and the archived jobs instead of the others
+ * (`archived`).
  */
-export type JobFilter = { words: string[]; src: string; gte?: string; lt?: string; newIn?: RunWindow };
+export type JobFilter = {
+  words: string[];
+  src: string;
+  gte?: string;
+  lt?: string;
+  newIn?: RunWindow;
+  archived?: boolean;
+};
 
 /** One job as the lists show it. */
 export type Job = Pick<
@@ -47,16 +80,14 @@ export const inRange = (range: { gte?: string | null; lt?: string | null }) =>
 const firstSeenIn = (window: RunWindow) =>
   and(gte(offersUnique.firstSeen, window.startedAt), lte(offersUnique.firstSeen, window.finishedAt));
 
-/** Per job: was it first seen in the latest run that brought new jobs (`latest`)? And how many of the list were. */
-const newness = (latest: RunWindow | null) => ({
-  isNew: latest ? sql<boolean>`(${firstSeenIn(latest)})` : sql<boolean>`false`,
-  newCount: latest ? sql<number>`(count(*) filter (where ${firstSeenIn(latest)}))::int` : sql<number>`0`,
-});
+/** Per job: was it first seen in the latest run that brought new jobs (`latest`)? */
+const newness = (latest: RunWindow | null) => (latest ? sql<boolean>`(${firstSeenIn(latest)})` : sql<boolean>`false`);
 
 /** case-insensitively, `word` anywhere in it; `%` and `_` in the word are just characters */
 const contains = (column: typeof offersUnique.title | typeof offersUnique.company, word: string) =>
   sql`${column} ilike ${`%${word.replace(/[\\%_]/g, '\\$&')}%`} escape '\\'`;
 
+/** What the filter asks for, archived or not. */
 function matching(filter: JobFilter): SQL | undefined {
   return and(
     filter.src ? arrayContains(offersUnique.boards, [filter.src]) : undefined,
@@ -66,27 +97,44 @@ function matching(filter: JobFilter): SQL | undefined {
   );
 }
 
+/** The archived jobs with `archived`, the others without. */
+const shown = (filter: JobFilter) => (filter.archived ? isArchived() : not(isArchived()));
+
+/** count(*) of the rows where `condition` holds */
+const countWhere = (condition: SQL | undefined) =>
+  sql<number>`(count(*) filter (where ${condition ?? sql`true`}))::int`;
+
+/**
+ * The numbers under a list's filters (`matching`): how many it shows (`total`), how many of those the
+ * latest run that brought new jobs (`latest`) brought, and how many jobs are archived.
+ */
+const counts = (filter: JobFilter, latest: RunWindow | null) => ({
+  total: countWhere(shown(filter)),
+  newCount: latest ? countWhere(and(shown(filter), firstSeenIn(latest))) : sql<number>`0`,
+  archivedCount: countWhere(isArchived()),
+});
+
 // newest first; the board and id make the order total, so pages don't overlap
 const newestFirst = [desc(offersUnique.firstSeen), asc(offersUnique.src), asc(offersUnique.id)];
 
 /**
  * One page of jobs, and how many match in all (the pager needs the exact number), each marked new if
- * first seen in `latest`, the latest run that brought a new job; `newCount`: how many of all were.
+ * first seen in `latest`, the latest run that brought a new job; `newCount`: how many of all were;
+ * `archivedCount`: how many jobs these filters find among the archived ones.
  */
 export async function pageOfJobs(filter: JobFilter, page: number, size: number, latest: RunWindow | null = null) {
   const where = matching(filter);
-  const { isNew, newCount } = newness(latest);
-  const [rows, [counts]] = await Promise.all([
+  const [rows, [numbers]] = await Promise.all([
     db()
-      .select({ ...jobColumns, isNew, seen: isSeen() })
+      .select({ ...jobColumns, isNew: newness(latest), seen: isSeen(), archived: isArchived() })
       .from(offersUnique)
-      .where(where)
+      .where(and(where, shown(filter)))
       .orderBy(...newestFirst)
       .limit(size)
       .offset(page * size),
-    db().select({ total: count(), newCount }).from(offersUnique).where(where),
+    db().select(counts(filter, latest)).from(offersUnique).where(where),
   ]);
-  return { rows, ...counts };
+  return { rows, ...numbers };
 }
 
 /** The same, for the jobs a profile version judged (matches, or the rejected ones), with the verdict. */
@@ -103,13 +151,13 @@ export async function pageOfJudgedJobs(
     eq(aiVerdicts.version, verdicts.version),
   );
   const where = and(matching(filter), eq(aiVerdicts.match, verdicts.match));
-  const { isNew, newCount } = newness(latest);
-  const [rows, [counts]] = await Promise.all([
+  const [rows, [numbers]] = await Promise.all([
     db()
       .select({
         ...jobColumns,
-        isNew,
+        isNew: newness(latest),
         seen: isSeen(),
+        archived: isArchived(),
         match: aiVerdicts.match,
         score: aiVerdicts.score,
         summary: aiVerdicts.summary,
@@ -118,25 +166,28 @@ export async function pageOfJudgedJobs(
       })
       .from(offersUnique)
       .innerJoin(aiVerdicts, judged)
-      .where(where)
+      .where(and(where, shown(filter)))
       .orderBy(...newestFirst)
       .limit(size)
       .offset(page * size),
-    db().select({ total: count(), newCount }).from(offersUnique).innerJoin(aiVerdicts, judged).where(where),
+    db().select(counts(filter, latest)).from(offersUnique).innerJoin(aiVerdicts, judged).where(where),
   ]);
-  return { rows, ...counts };
+  return { rows, ...numbers };
 }
 
 /**
- * How many jobs there are, each once, ignoring every filter: the same number as rows in
- * offers_unique, counted on the tables instead (one id per job), without the view's window
- * function and its per-job lists.
+ * How many jobs there are, each once, ignoring every filter, the archived ones left out: the same
+ * number as rows in offers_unique, counted on the tables instead (one id per job), without the view's
+ * window function and its per-job lists.
  */
 export async function countJobs(): Promise<number> {
+  const jobId = sql`coalesce(${jobLinks.jobId}, ${offers.titleKey})`;
   const [{ jobs }] = await db()
-    .select({ jobs: sql<number>`count(distinct coalesce(${jobLinks.jobId}, ${offers.titleKey}))::int` })
+    .select({ jobs: sql<number>`count(distinct ${jobId})::int` })
     .from(offers)
-    .leftJoin(jobLinks, eq(jobLinks.titleKey, offers.titleKey));
+    .leftJoin(jobLinks, eq(jobLinks.titleKey, offers.titleKey))
+    .leftJoin(archivedJobs, eq(archivedJobs.jobId, jobId))
+    .where(sql`${archivedJobs.jobId} is null`);
   return jobs;
 }
 

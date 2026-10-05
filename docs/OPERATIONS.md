@@ -79,7 +79,7 @@ The tables are declared in [`lib/db/schema.ts`](../lib/db/schema.ts) (Drizzle OR
 holds the migrations, applied in order and recorded in the database (`drizzle.__drizzle_migrations`), so each
 runs once. What Drizzle can't declare (extensions, the `offers_unique` view, the `jw_*` / `ai_*` functions,
 grants, `pg_cron`, the seed rows) is in custom migrations: `0000_extensions`, `0002_functions`, `0003_seed`,
-`0004_board_seeds`, `0005_drop_unused_functions`; `0006_push_subscriptions` adds the push devices' table, `0007_seen_jobs` the jobs you opened. Every
+`0004_board_seeds`, `0005_drop_unused_functions`; `0006_push_subscriptions` adds the push devices' table, `0007_seen_jobs` the jobs you opened, `0008_archived_jobs` the jobs you archived. Every
 migration is idempotent. Why Drizzle:
 [ADR 0001](decisions/0001-drizzle-over-postgrest.md).
 
