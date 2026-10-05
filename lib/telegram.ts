@@ -9,7 +9,6 @@ import type { Outgoing } from './channels/types';
 // connected in Settings).
 // TELEGRAM_BOT_TOKEN (from @BotFather) and TELEGRAM_CHAT_ID (your chat with the bot).
 
-const BATCH = 5; // offers per message
 const api = (method: string) => `${env.TELEGRAM_API_URL}/bot${env.TELEGRAM_BOT_TOKEN ?? ''}/${method}`;
 
 export const telegramReady = () => Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID);
@@ -47,6 +46,10 @@ export const sendMessage = (text: string, chatId = ownerChat()) =>
 export type { Outgoing };
 export type Message = { text: string; offers: Queued[] };
 
+const LIMIT = 4096; // Telegram's longest message
+
+const plural = (count: number) => `${count} new offer${count === 1 ? '' : 's'}`;
+
 const offerText = (offer: Outgoing) => {
   const where = offer.remote ? 'zdalnie' : offer.location || 'stacjonarnie';
   const ai = offer.verdict
@@ -55,28 +58,24 @@ const offerText = (offer: Outgoing) => {
   return `🆕 ${offer.title}\n${[offer.company, offer.seniority, where].filter(Boolean).join(' · ')}${ai}\n${offer.url}`;
 };
 
-/** One block per board, five offers per message. */
-function blocks(offers: Outgoing[], heading?: string): Message[] {
+/** One block per board, in board order. */
+function blocks(offers: Outgoing[]): string[] {
   const bySrc = new Map<string, Outgoing[]>();
   for (const offer of offers) bySrc.set(offer.src, [...(bySrc.get(offer.src) ?? []), offer]);
-  const out: Message[] = [];
-  for (const src of [...bySrc.keys()].sort()) {
-    const list = bySrc.get(src) ?? [];
-    for (let i = 0; i < list.length; i += BATCH) {
-      const part = list.slice(i, i + BATCH);
-      let text = part.map(offerText).join('\n\n');
-      if (i === 0) text = `---------------------- ${src} ----------------------\n${text}`;
-      out.push({ text, offers: part });
-    }
-  }
-  if (heading && out.length) out[0] = { ...out[0], text: `${heading}\n${out[0].text}` };
-  return out;
+  return [...bySrc.keys()]
+    .sort()
+    .map(
+      (src) =>
+        `---------------------- ${src} ----------------------\n${(bySrc.get(src) ?? []).map(offerText).join('\n\n')}`,
+    );
 }
 
 /**
- * What goes to the chat. With the AI filter, only the matches are listed; the others are just
- * counted ("3 new offers, none matched"), and offers the AI couldn't check in time are listed
- * with a warning, so nothing is lost when OpenAI is down.
+ * The one message a run's batch makes (null when there's nothing in it). With the AI filter, only
+ * the matches are listed; the others are just counted ("3 new offers, none matched"), and offers the
+ * AI couldn't check in time are listed with a warning, so nothing is lost when OpenAI is down. What
+ * doesn't fit in a message is counted ("+ 4 more"), with a link to the app's new offers; it all
+ * counts as sent.
  */
 export function formatNotification(notification: {
   matched: Outgoing[]; // everything new when the AI filter is off
@@ -85,30 +84,41 @@ export function formatNotification(notification: {
   profile: string | null; // the AI profile's name when the AI filter decided
   held: boolean; // sent by hand after a mute
   link: string | null; // the app's AI tab, to look at what didn't match
-}): Message[] {
-  const total = notification.matched.length + notification.unmatched.length + notification.unchecked.length;
-  const out = [
-    ...blocks(notification.matched),
-    ...blocks(notification.unchecked, '⚠ Not checked by the AI (it failed for a while):'),
-  ];
-  if (notification.unmatched.length) {
-    const what = `${notification.unmatched.length} new offer(s)`;
-    if (out.length) {
-      // a line under the last message, so it doesn't cost a message of its own
-      const last = out[out.length - 1];
-      out[out.length - 1] = {
-        text: `${last.text}\n\n+ ${what} didn't match “${notification.profile}”.`,
-        offers: [...last.offers, ...notification.unmatched],
-      };
-    } else {
-      out.push({
-        text: `🆕 ${what}, none matched “${notification.profile}”.${notification.link ? `\n${notification.link}` : ''}`,
-        offers: notification.unmatched,
-      });
-    }
+  more?: string | null; // the app's new offers, for what didn't fit
+}): Message | null {
+  const { matched, unmatched, unchecked, profile } = notification;
+  const offers = [...matched, ...unmatched, ...unchecked];
+  if (!offers.length) return null;
+  const held = notification.held ? `📬 Held while muted.\n` : '';
+  if (!matched.length && !unchecked.length)
+    return {
+      text: `${held}🆕 ${plural(unmatched.length)}, none matched “${profile}”.${notification.link ? `\n${notification.link}` : ''}`,
+      offers,
+    };
+
+  const heading = `🆕 ${plural(offers.length)}${profile !== null && matched.length ? `, ${matched.length} matching “${profile}”` : ''}`;
+  const listable = matched.length + unchecked.length;
+  // the message with the first `listed` of the matches and then the unchecked ones
+  const render = (listed: number) => {
+    const parts = [held + heading, ...blocks(matched.slice(0, listed))];
+    const uncheckedListed = unchecked.slice(0, Math.max(0, listed - matched.length));
+    if (uncheckedListed.length)
+      parts.push(`⚠ Not checked by the AI (it failed for a while):\n${blocks(uncheckedListed).join('\n\n')}`);
+    if (listed < listable)
+      parts.push(
+        `+ ${listed ? `${listable - listed} more` : plural(listable)}${notification.more ? `: ${notification.more}` : '.'}`,
+      );
+    if (unmatched.length) parts.push(`+ ${plural(unmatched.length)} didn't match “${profile}”.`);
+    return parts.join('\n\n');
+  };
+  // as many as fit (each one listed makes it longer)
+  let [fits, tooMany] = [0, listable + 1];
+  while (tooMany - fits > 1) {
+    const mid = Math.floor((fits + tooMany) / 2);
+    if (render(mid).length <= LIMIT) fits = mid;
+    else tooMany = mid;
   }
-  if (notification.held && out.length) out.unshift({ text: `📬 ${total} offer(s) held while muted`, offers: [] });
-  return out;
+  return { text: render(fits), offers };
 }
 
 // ---- webhook (commands) ------------------------------------------------------------------

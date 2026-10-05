@@ -15,8 +15,9 @@ export function TelegramHelp() {
         ignored), without removing the bot, its webhook or the variables. Push notifications go on.
       </p>
       <p>
-        <strong>Messages:</strong> one block per board, five offers per message. Sending, mute and the AI filter are in
-        the Notifications panel above: they apply to push notifications too.
+        <strong>Messages:</strong> one per run, with a block per board (what doesn’t fit is counted, with a link to the
+        app). Sending, mute and the AI filter are in the Notifications panel above: they apply to push notifications
+        too.
       </p>
       <p>
         <strong>Commands:</strong> /mute, /resume, /send (what waits), /scrape (a run now) and /status, from your chat

@@ -147,8 +147,9 @@ last run"), and `?new=1` lists only those, on the offers and the AI tabs alike.
 
 ### Telegram
 
-[`lib/telegram.ts`](../lib/telegram.ts) sends through the Bot API (one block per board, five offers per
-message, a short pause between messages; what fails to send goes back into the queue). Commands arrive at
+[`lib/telegram.ts`](../lib/telegram.ts) sends through the Bot API (one message per batch, one block per board in
+it; what doesn't fit in Telegram's 4096 characters is counted, with a link to the new offers; if it fails to
+send, the batch goes back into the queue). Commands arrive at
 `/api/telegram` once the webhook is connected in Settings: Telegram sends back a secret derived from the bot
 token, and only `TELEGRAM_CHAT_ID` may give commands. Set-up: [OPERATIONS.md → Telegram](OPERATIONS.md#telegram).
 
