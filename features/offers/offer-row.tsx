@@ -48,7 +48,11 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
       <SeenItem
         jobId={job.jobId}
         seen={job.seen}
-        className={cn(OFFER, 'group/offer', job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]')}
+        className={cn(
+          OFFER,
+          'group/offer',
+          job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]',
+        )}
         data-new={job.isNew || undefined}
       >
         <time

@@ -20,12 +20,6 @@ const facts = (details: Application['details']) =>
     { key: 'location', text: details?.location },
   ].filter((fact) => fact.text);
 
-const CONTENT: Record<Application['contentStatus'], string> = {
-  pending: 'saving the ad…',
-  ok: 'saved',
-  empty: 'no ad text',
-  failed: 'couldn’t fetch the ad',
-};
 const CONTENT_COLOUR: Record<Application['contentStatus'], string> = {
   pending: 'text-muted-foreground',
   ok: 'text-success',
