@@ -6,6 +6,7 @@ import { workModeOf, workModeText } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { StatusChip } from './status-chip';
+import { Check } from 'lucide-react';
 
 const facts = (details: Application['details']) =>
   [
@@ -81,7 +82,7 @@ export function ApplicationRow({
           {labels[app.src] ?? app.src}
         </Badge>
         <span className={cn('text-xs whitespace-nowrap', CONTENT_COLOUR[app.contentStatus])}>
-          {app.contentStatus === 'ok' && <FileTextIcon />} {CONTENT[app.contentStatus]}
+          {app.contentStatus === 'ok' && <FileTextIcon />} <Check size="8px" />
         </span>
       </span>
     </button>
