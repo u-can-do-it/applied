@@ -105,7 +105,7 @@ async function Settings() {
           webhookUrl={`${origin}/api/telegram`}
         />
       </Suspense>
-      <ScrapersPanel scrapers={scrapers} counts={counts} keywords={settings.keywords} />
+      <ScrapersPanel scrapers={scrapers} counts={counts} keywords={settings.keywords} schedule={settings} />
     </TimeZone>
   );
 }

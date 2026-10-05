@@ -56,6 +56,10 @@ export const INTERVALS = [5, 10, 15, 30, 60, 120] as const;
 export const effectiveTimeZone = (settings: Pick<ScrapeSettings, 'timeZone' | 'browserTimeZone'> | null | undefined) =>
   settings?.timeZone || settings?.browserTimeZone || DEFAULT_TZ;
 
+/** from..to in whole hours; 22..6 runs over night; equal = all day */
+export const inHours = (hour: number, from: number, to: number) =>
+  from === to || (from < to ? hour >= from && hour < to : hour >= from || hour < to);
+
 /** "a, b ,c" -> ['a', 'b', 'c'] */
 export const splitList = (text: string) =>
   text

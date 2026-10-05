@@ -3,8 +3,10 @@
 // in between skip them. A run you start yourself takes them anyway (and counts: the next scheduled one waits
 // from it). Shared by the server (lib/listings/pipeline/fetch.ts) and Settings (when it runs next).
 import type { Scraper } from '../db/repos/scrapers';
+import type { Zone } from '../dates';
 import { kindOf } from './kinds';
 import { expandUrl } from './match';
+import { inHours, type ScrapeSettings } from './settings';
 
 type QuotaScraper = Pick<Scraper, 'kind' | 'enabled' | 'config' | 'lastRunAt'>;
 
@@ -42,4 +44,23 @@ export function nextRunAt(scraper: QuotaScraper, scrapers: readonly QuotaScraper
 export function isDue(scraper: QuotaScraper, scrapers: readonly QuotaScraper[], keywords: string[], now = Date.now()) {
   const next = nextRunAt(scraper, scrapers, keywords);
   return next === null || now >= next;
+}
+
+/**
+ * When the schedule runs a scraper its quota holds back, for Settings: the quota's time, moved to the next
+ * fromHour:00 when that falls outside the hours. null: not held back, or the schedule is paused.
+ */
+export function nextScheduledAt(
+  scraper: QuotaScraper,
+  scrapers: readonly QuotaScraper[],
+  settings: Pick<ScrapeSettings, 'enabled' | 'fromHour' | 'toHour' | 'keywords'>,
+  zone: Pick<Zone, 'hour'>,
+): number | null {
+  const next = nextRunAt(scraper, scrapers, settings.keywords);
+  if (next === null || !settings.enabled) return null;
+  // minute by minute (zones with half-hour offsets too), a day and a half at most
+  let at = Math.ceil(next / 60_000) * 60_000;
+  for (let step = 0; step < 36 * 60 && !inHours(zone.hour(at), settings.fromHour, settings.toHour); step++)
+    at += 60_000;
+  return at;
 }

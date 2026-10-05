@@ -8,7 +8,7 @@ import { zoneOf } from '../dates';
 import { env } from '../env';
 import { message } from '../shared/errors';
 import { cronSchedule } from './cron';
-import { effectiveTimeZone, type ScrapeSettings } from './settings';
+import { effectiveTimeZone, inHours, type ScrapeSettings } from './settings';
 
 // Who may call /api/cron/scrape, and whether a run is due when it's called. Supabase Cron just
 // knocks every few minutes; interval, hours and the pause live in Settings.
@@ -26,10 +26,6 @@ export async function isCronRequest(req: Request) {
   if (!secret) return env.NODE_ENV !== 'production';
   return sameString(req.headers.get('authorization') ?? '', `Bearer ${secret}`);
 }
-
-/** from..to in whole hours; 22..6 runs over night; equal = all day */
-export const inHours = (hour: number, from: number, to: number) =>
-  from === to || (from < to ? hour >= from && hour < to : hour >= from || hour < to);
 
 export async function checkDue(now = new Date()): Promise<{ due: boolean; reason?: string }> {
   const [settings, state] = await Promise.all([settingsRepo.get(), stateRepo.get(), stateRepo.markCall()]);

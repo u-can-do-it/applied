@@ -3,6 +3,7 @@
 import { useOptimistic, useState } from 'react';
 import { PlusIcon } from 'lucide-react';
 import { PanelHeading } from '@/components/help';
+import { useZone } from '@/components/time-zone';
 import { ActionError, useAction } from '@/components/use-action';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/shared/cn';
 import { kindOf } from '@/lib/listings/kinds';
-import { nextRunAt } from '@/lib/listings/quota';
+import { nextScheduledAt } from '@/lib/listings/quota';
+import type { ScrapeSettings } from '@/lib/listings/settings';
 import type { Scraper } from '@/lib/db/repos/scrapers';
 import { toggleScraperAction } from './actions';
 import { PANEL } from './panel-styles';
@@ -42,11 +44,15 @@ export function ScrapersPanel({
   scrapers,
   counts,
   keywords,
+  schedule,
 }: {
   scrapers: Scraper[];
   counts: Partial<Record<string, { offers: number }>>;
   keywords: string[];
+  /** when the schedule runs: a scraper its board's quota holds back says when it runs again */
+  schedule: Pick<ScrapeSettings, 'enabled' | 'fromHour' | 'toHour'>;
 }) {
+  const zone = useZone();
   const [open, setOpen] = useState<{ draft: Draft; test: boolean; n: number } | null>(null);
   const act = useAction();
   const edit = (draft: Draft, test = false) => setOpen((previous) => ({ draft, test, n: (previous?.n ?? 0) + 1 }));
@@ -96,7 +102,10 @@ export function ScrapersPanel({
                     {saved(counts[scraper.src]?.offers)}
                   </span>
                 </div>
-                <ScraperBrief scraper={scraper} nextAt={nextRunAt(scraper, list, keywords)} />
+                <ScraperBrief
+                  scraper={scraper}
+                  nextAt={nextScheduledAt(scraper, list, { ...schedule, keywords }, zone)}
+                />
               </div>
               <div className="flex flex-wrap justify-end gap-1.5 max-[560px]:col-start-2 max-[560px]:justify-start">
                 <Button type="button" variant="outline" size="sm" onClick={() => edit(toDraft(scraper), true)}>
