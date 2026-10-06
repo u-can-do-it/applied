@@ -119,7 +119,8 @@ scrape). The scrape's own AI filter (pipeline step 6) uses the same `assessJobs`
 
 The offers list shows the active profile version's verdict on every job it judged (the fit badge), and
 `?fit=match` / `?fit=rejected` narrows it to those (with the count of what's checked in the date range). `/ai`,
-the AI filter tab that was, redirects there.
+the AI filter tab that was, redirects there. The Applied list has it too (`listApplications` joins it), with the
+verdict's line under the title; "Check fit" in an application's window refreshes the list.
 
 ### Notification channels
 

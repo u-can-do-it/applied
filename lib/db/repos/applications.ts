@@ -4,19 +4,52 @@ import type { SavedDetails } from '../../applications';
 import type { OutcomeId, StageId } from '../../stages';
 import { db } from '../client';
 import { first } from '../rows';
-import { applications, type ApplicationRow, type NewApplicationRow } from '../schema';
+import { aiVerdicts, applications, type ApplicationRow, type NewApplicationRow } from '../schema';
+import type { Fit } from './ai-verdicts';
 
 // Jobs you applied to: one row per job (its id in dup_key), with a snapshot of the ad.
 
 /** An application as the list has it: everything but the ad text. */
 export type Application = Omit<ApplicationRow, 'content'>;
 export type ApplicationWithContent = ApplicationRow;
+/** …and a profile version's verdict on the job (null: it hasn't judged it). */
+export type ListedApplication = Application & { fit: Fit | null };
 
 const { content: _content, ...listColumns } = getTableColumns(applications);
 
-/** Newest first. */
-export function list(): Promise<Application[]> {
-  return db().select(listColumns).from(applications).orderBy(desc(applications.appliedAt));
+/** Newest first, each with the verdict of `judgedBy` (a profile version), when it has one. */
+export async function list(judgedBy?: { id: string; version: number }): Promise<ListedApplication[]> {
+  if (!judgedBy) {
+    const rows = await db().select(listColumns).from(applications).orderBy(desc(applications.appliedAt));
+    return rows.map((app) => ({ ...app, fit: null }));
+  }
+  const rows = await db()
+    .select({
+      ...listColumns,
+      match: aiVerdicts.match,
+      score: aiVerdicts.score,
+      summary: aiVerdicts.summary,
+      checks: aiVerdicts.checks,
+      hadDescription: aiVerdicts.hadDescription,
+    })
+    .from(applications)
+    .leftJoin(
+      aiVerdicts,
+      and(
+        eq(aiVerdicts.jobId, applications.jobId),
+        eq(aiVerdicts.profileId, judgedBy.id),
+        eq(aiVerdicts.version, judgedBy.version),
+      ),
+    )
+    .orderBy(desc(applications.appliedAt));
+  // a job it hasn't judged: the left join's nulls
+  return rows.map(({ match, score, summary, checks, hadDescription, ...app }) => ({
+    ...app,
+    fit:
+      match === null || score === null
+        ? null
+        : { match, score, summary, checks: checks ?? [], hadDescription: Boolean(hadDescription) },
+  }));
 }
 
 export async function get(jobId: string): Promise<ApplicationWithContent | null> {

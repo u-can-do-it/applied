@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CheckIcon, InfoIcon, XIcon } from 'lucide-react';
+import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -11,6 +12,8 @@ type Check = { item: string; met: boolean };
  * "82%" and an info icon, with the requirement checklist on hover, focus or tap (the Tooltip places it
  * where there's room: below the badge, or above it for the last offers on the screen). A job your
  * criteria rule out (`match` false: office only, the wrong city…) is grey with a cross, whatever its score.
+ * `inButton`: in a row that is a button itself (an application): the checklist on hover only, and a click
+ * is the row's.
  */
 export function FitScore({
   match = true,
@@ -18,41 +21,56 @@ export function FitScore({
   summary,
   checks,
   hadDescription,
+  inButton = false,
 }: {
   match?: boolean;
   score: number;
   summary: string | null;
   checks: Check[];
   hadDescription: boolean;
+  inButton?: boolean;
 }) {
   // controlled only so a tap opens it: Radix's tooltip opens on hover and keyboard focus, not on a touch
   const [open, setOpen] = useState(false);
   const tier = !match ? 'muted' : score >= 70 ? 'success-soft' : score >= 40 ? 'warning-soft' : 'muted';
   const met = checks.filter((check) => check.met).length;
+  const label = (
+    <>
+      {!match && (
+        <>
+          <XIcon />
+          <span className="sr-only">Ruled out by your criteria: </span>
+        </>
+      )}
+      {score}%
+      <InfoIcon className="font-normal opacity-80" />
+    </>
+  );
 
   return (
     <Tooltip open={open} onOpenChange={setOpen}>
       <TooltipTrigger asChild>
-        <Badge variant={tier} asChild className="cursor-help gap-[3px] text-[13px] font-semibold tabular-nums">
-          {/* a button: Tab reaches it, Enter and Space work on it */}
-          <button
-            type="button"
-            // Radix closes an open tooltip on pointer down, and the click would open it again
-            onPointerDown={(event) => open && event.preventDefault()}
-            onClick={(event) => {
-              event.preventDefault(); // Radix would close it: a click (a tap) opens it instead
-              setOpen(true);
-            }}
-          >
-            {!match && (
-              <>
-                <XIcon />
-                <span className="sr-only">Ruled out by your criteria: </span>
-              </>
-            )}
-            {score}%
-            <InfoIcon className="font-normal opacity-80" />
-          </button>
+        <Badge
+          variant={tier}
+          asChild
+          className={cn('gap-[3px] text-[13px] font-semibold tabular-nums', !inButton && 'cursor-help')}
+        >
+          {inButton ? (
+            <span>{label}</span>
+          ) : (
+            // a button: Tab reaches it, Enter and Space work on it
+            <button
+              type="button"
+              // Radix closes an open tooltip on pointer down, and the click would open it again
+              onPointerDown={(event) => open && event.preventDefault()}
+              onClick={(event) => {
+                event.preventDefault(); // Radix would close it: a click (a tap) opens it instead
+                setOpen(true);
+              }}
+            >
+              {label}
+            </button>
+          )}
         </Badge>
       </TooltipTrigger>
       <TooltipContent

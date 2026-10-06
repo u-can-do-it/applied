@@ -138,7 +138,9 @@ describeDb('applications', () => {
     const added = await addApplication(typed('Designer', { content: ad, details: { workMode: 'remote' } }), utc);
     const jobId = added.jobId ?? '';
     await expect(assessFit(jobId)).rejects.toThrow(/^No AI profile/);
+    expect((await listApplications())[0].fit).toBeNull(); // no profile
     await saveProfile({ name: 'P', prompt: 'Design roles', file: 'keep' });
+    expect((await listApplications())[0].fit).toBeNull(); // not judged yet
     assess.mockResolvedValueOnce([
       { n: 1, match: true, score: 77, summary: 'fits', checks: [{ item: 'Figma', met: true }] },
     ]);
@@ -154,6 +156,7 @@ describeDb('applications', () => {
       { n: 1, title: 'Designer', company: 'Hand Made', seniority: null, remote: true, description: ad.trim() },
     ]);
     expect(await fitOf(jobId)).toEqual(fit); // kept: the window and the AI tab have it from now on
+    expect((await listApplications())[0].fit).toEqual(fit); // the list's badge
     assess.mockResolvedValueOnce([]);
     await expect(assessFit(jobId)).rejects.toThrow('The AI gave no answer: try again.');
   });

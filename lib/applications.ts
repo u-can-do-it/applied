@@ -30,6 +30,7 @@ import { GHOST_AFTER_DAYS, type HistoryEntry, type OutcomeId, type StageId } fro
 
 export type Application = applicationsRepo.Application;
 export type ApplicationWithContent = applicationsRepo.ApplicationWithContent;
+export type ListedApplication = applicationsRepo.ListedApplication;
 export {
   editedDetails,
   mergeDetails,
@@ -42,7 +43,10 @@ export {
   type TypedField,
 } from './application-details';
 
-export const listApplications = () => applicationsRepo.list();
+/** Newest first, each with the active AI profile's verdict on the job, as the window has it (fitOf). */
+export async function listApplications() {
+  return applicationsRepo.list((await listProfiles()).at(0));
+}
 export const getApplication = (jobId: string) => applicationsRepo.get(jobId);
 
 /** The job as the list shows it: its id, title, company and every board's offer. */

@@ -1,10 +1,11 @@
 'use client';
 
-import { FileTextIcon, NotebookPenIcon } from 'lucide-react';
-import type { Application } from '@/lib/applications';
+import { FileTextIcon, NotebookPenIcon, SparklesIcon } from 'lucide-react';
+import type { Application, ListedApplication } from '@/lib/applications';
 import { workModeOf, workModeText } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
+import { FitScore } from '@/features/offers/fit-score';
 import { StatusChip } from './status-chip';
 import { Check } from 'lucide-react';
 
@@ -29,14 +30,17 @@ const CONTENT_COLOUR: Record<Application['contentStatus'], string> = {
 const META =
   "mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']";
 
-/** One application in the list (under the day you applied: no date of its own); a click opens its window. */
+/**
+ * One application in the list (under the day you applied: no date of its own); a click opens its window.
+ * A job the active AI profile judged has its fit badge, and the verdict's line under the title.
+ */
 export function ApplicationRow({
   app,
   labels,
   active = false,
   onOpen,
 }: {
-  app: Application;
+  app: ListedApplication;
   labels: Record<string, string>;
   /** its window is open */
   active?: boolean;
@@ -64,6 +68,11 @@ export function ApplicationRow({
             </span>
           ))}
         </span>
+        {app.fit?.summary && (
+          <span className="mt-1 text-xs text-brand">
+            <SparklesIcon /> {app.fit.summary}
+          </span>
+        )}
         {app.note?.trim() && (
           <span className="mt-[3px] truncate text-[13px] text-muted-foreground">
             <NotebookPenIcon /> {app.note.trim().split('\n')[0]}
@@ -72,9 +81,21 @@ export function ApplicationRow({
       </span>
       <span className="flex flex-col items-end gap-1 max-[560px]:max-w-[42vw]">
         <StatusChip stage={app.stage} outcome={app.outcome} />
-        <Badge variant="quiet" className="rounded-md">
-          {labels[app.src] ?? app.src}
-        </Badge>
+        <span className="flex flex-wrap items-center justify-end gap-1">
+          {app.fit && (
+            <FitScore
+              match={app.fit.match}
+              score={app.fit.score}
+              summary={app.fit.summary}
+              checks={app.fit.checks}
+              hadDescription={app.fit.hadDescription}
+              inButton
+            />
+          )}
+          <Badge variant="quiet" className="rounded-md">
+            {labels[app.src] ?? app.src}
+          </Badge>
+        </span>
         <span className={cn('text-xs whitespace-nowrap', CONTENT_COLOUR[app.contentStatus])}>
           {app.contentStatus === 'ok' && <FileTextIcon />} <Check size="8px" />
         </span>

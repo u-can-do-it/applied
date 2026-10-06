@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
-import type { Application } from '@/lib/applications';
+import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
 import { DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { searchBox, searchInput } from '@/components/search-field';
@@ -25,7 +25,14 @@ const newer = (database: string | null, saved: string | null | undefined) =>
   Boolean(database && saved && Date.parse(database) > Date.parse(saved));
 
 /** tz: the app's time zone, for every day shown here and in the windows */
-export function AppliedList({ tz, ...props }: { apps: Application[]; labels: Record<string, string>; tz: string }) {
+export function AppliedList({
+  tz,
+  ...props
+}: {
+  apps: ListedApplication[];
+  labels: Record<string, string>;
+  tz: string;
+}) {
   return (
     <TimeZone tz={tz}>
       <List {...props} />
@@ -33,7 +40,7 @@ export function AppliedList({ tz, ...props }: { apps: Application[]; labels: Rec
   );
 }
 
-function List({ apps: fromServer, labels }: { apps: Application[]; labels: Record<string, string> }) {
+function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels: Record<string, string> }) {
   const zone = useZone();
   const { search, setSearch, filter, setFilter } = useAppliedQuery(); // in the URL
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
