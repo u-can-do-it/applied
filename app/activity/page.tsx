@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
+import type { SearchParams } from '@/lib/shared/search-params';
 import { Header } from '@/features/shell/header';
 import { Tabs, TabsFallback } from '@/features/shell/tabs';
 import { Activity } from '@/features/activity/activity';
@@ -7,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export const metadata: Metadata = { title: 'Jobwatch · Activity' };
 
-export default function ActivityPage() {
+export default function ActivityPage({ searchParams }: { searchParams: SearchParams }) {
   return (
     <main className="wrap">
       <Header />
@@ -15,7 +16,7 @@ export default function ActivityPage() {
         <Tabs />
       </Suspense>
       <Suspense fallback={<ActivitySkeleton />}>
-        <Activity />
+        <Activity searchParams={searchParams} />
       </Suspense>
     </main>
   );

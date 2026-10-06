@@ -39,6 +39,40 @@ export function list(limit = 12): Promise<ScrapeRun[]> {
   return db().select().from(scrapeRuns).orderBy(desc(scrapeRuns.startedAt)).limit(limit);
 }
 
+/** Which runs the log shows: the ones a trigger started, or the ones where something failed. */
+export type RunsOf = { trigger?: string; failed?: boolean };
+
+// something failed: an error that isn't a warning (a warning went through all the same)
+const failed = sql<boolean>`exists (select 1 from jsonb_array_elements(${scrapeRuns.errors}) as failure where (failure->>'warning') is distinct from 'true')`;
+
+/** One page of the log's runs (`index` from 0), the newest first. */
+export function page(of: RunsOf, index: number, size: number): Promise<ScrapeRun[]> {
+  return db()
+    .select()
+    .from(scrapeRuns)
+    .where(and(of.trigger ? eq(scrapeRuns.trigger, of.trigger) : undefined, of.failed ? failed : undefined))
+    .orderBy(desc(scrapeRuns.startedAt), desc(scrapeRuns.id))
+    .limit(size)
+    .offset(index * size);
+}
+
+/** How many runs the log has: in all, per trigger, and with errors. */
+export async function counts(): Promise<{ all: number; failed: number; byTrigger: Record<string, number> }> {
+  const rows = await db()
+    .select({
+      trigger: scrapeRuns.trigger,
+      all: count(),
+      failed: sql<number>`(count(*) filter (where ${failed}))::int`,
+    })
+    .from(scrapeRuns)
+    .groupBy(scrapeRuns.trigger);
+  return {
+    all: rows.reduce((sum, row) => sum + row.all, 0),
+    failed: rows.reduce((sum, row) => sum + row.failed, 0),
+    byTrigger: Object.fromEntries(rows.map((row) => [row.trigger, row.all])),
+  };
+}
+
 /**
  * The offers each finished run added, per board. Not stored with the run: an offer's first_seen is
  * when the run that found it saved it, so a run's are the ones first seen while it ran (one run at

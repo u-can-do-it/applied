@@ -1,7 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronRightIcon, CircleSmallIcon, SparklesIcon, TriangleAlertIcon } from 'lucide-react';
+import { useOptimistic, useRef, useTransition } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ChevronRightIcon,
+  CircleSmallIcon,
+  SparklesIcon,
+  TriangleAlertIcon,
+} from 'lucide-react';
 import { useZone } from '@/components/time-zone';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -9,26 +18,51 @@ import type { ScrapeRun } from '@/lib/db/repos/scrape-runs';
 import { cn } from '@/lib/shared/cn';
 import { seconds } from '@/lib/shared/format';
 import { triggerLabel } from '@/lib/listings/triggers';
-import { filterCounts, filterRuns, isRunFilter, RUN_FILTERS, type RunFilter } from './run-filter';
+import { isRunFilter, RUN_FILTERS, runsHref, type RunFilter } from './run-filter';
 
 export type BoardAdded = { board: string; label: string; added: number };
 
-/** The scrape runs, newest first: filtered by what started them, each opening to what it added where. */
+/**
+ * The scrape runs, newest first, a page at a time: filtered by what started them, each opening to what it
+ * added where. The filter and the page are the URL's (/activity?runs=failed&page=1); the server sends
+ * that page's runs only.
+ */
 export function RunsLog({
   runs,
   added,
+  counts,
+  filter,
+  page,
+  pages,
   running,
 }: {
+  /** this page's */
   runs: ScrapeRun[];
   /** by run id: the offers it added, per board */
   added: Record<number, BoardAdded[]>;
+  /** how many runs each filter shows, in the whole log */
+  counts: Record<RunFilter, number>;
+  filter: RunFilter;
+  /** from 0, the newest runs */
+  page: number;
+  pages: number;
   running: boolean;
 }) {
-  const [filter, setFilter] = useState<RunFilter>('all');
-  const counts = filterCounts(runs);
-  const shown = filterRuns(runs, filter);
+  const router = useRouter();
+  const top = useRef<HTMLDivElement>(null);
+  const [pending, startTransition] = useTransition();
+  // the chip is picked on the click; the list follows when the server has the page
+  const [picked, setPicked] = useOptimistic(filter);
+  const go = (href: string, next: RunFilter = filter) => {
+    // a page starts at the log's top: back there if it's scrolled away
+    if (top.current && top.current.getBoundingClientRect().top < 0) top.current.scrollIntoView({ block: 'start' });
+    startTransition(() => {
+      setPicked(next);
+      router.push(href, { scroll: false });
+    });
+  };
   return (
-    <>
+    <div ref={top} className="scroll-mt-2">
       {running && (
         <p className="my-1.5 text-xs text-muted-foreground">
           <CircleSmallIcon fill="currentColor" className="text-success" /> A run is going right now.
@@ -39,8 +73,8 @@ export function RunsLog({
         variant="outline"
         size="sm"
         spacing={0}
-        value={filter}
-        onValueChange={(value) => isRunFilter(value) && setFilter(value)}
+        value={picked}
+        onValueChange={(value) => isRunFilter(value) && go(runsHref(value), value)}
         aria-label="Show runs"
         className="mb-2 flex-wrap"
       >
@@ -50,18 +84,61 @@ export function RunsLog({
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-      {shown.length ? (
-        <ol className="m-0 list-none border-t p-0 text-[13px]">
-          {shown.map((run) => (
-            <RunRow key={run.id} run={run} added={added[run.id] ?? []} />
-          ))}
-        </ol>
-      ) : (
-        <p className="my-1.5 text-xs text-muted-foreground">
-          {runs.length ? 'No run of this kind in the last two weeks.' : 'No runs yet. Use “Scrape now” at the top.'}
-        </p>
-      )}
-    </>
+      <div aria-busy={pending} className={cn('transition-opacity', pending && 'opacity-60')}>
+        {runs.length ? (
+          <ol className="m-0 list-none border-t p-0 text-[13px]">
+            {runs.map((run) => (
+              <RunRow key={run.id} run={run} added={added[run.id] ?? []} />
+            ))}
+          </ol>
+        ) : (
+          <p className="my-1.5 text-xs text-muted-foreground">
+            {counts.all ? 'No run of this kind in the last two weeks.' : 'No runs yet. Use “Scrape now” at the top.'}
+          </p>
+        )}
+        {pages > 1 && (
+          <nav
+            className="mt-2 flex items-center justify-between text-xs text-muted-foreground [&_a]:text-brand [&_a]:no-underline"
+            aria-label="Pages of runs"
+          >
+            {page > 0 ? (
+              <PageLink href={runsHref(filter, page - 1)} go={go}>
+                <ArrowLeftIcon /> Newer
+              </PageLink>
+            ) : (
+              <span />
+            )}
+            <span className="tabular-nums">
+              Page {page + 1} of {pages}
+            </span>
+            {page + 1 < pages ? (
+              <PageLink href={runsHref(filter, page + 1)} go={go}>
+                Older <ArrowRightIcon />
+              </PageLink>
+            ) : (
+              <span />
+            )}
+          </nav>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A link to another page of the log, through go(): a real link for a new tab, the log's own navigation on a click. */
+function PageLink({ href, go, children }: { href: string; go: (href: string) => void; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      onNavigate={(event) => {
+        // only plain clicks reach onNavigate (not Ctrl/Cmd+click, which opens a new tab)
+        event.preventDefault();
+        go(href);
+      }}
+    >
+      {children}
+    </Link>
   );
 }
 
