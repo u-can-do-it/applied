@@ -9,7 +9,7 @@ Telegram. One user, one password; a Next.js app on Vercel with a Supabase Postgr
 Supabase Cron ─(schedule from Settings)─→ /api/cron/scrape ─┐
 "Scrape now" ───────────────────────────→ /api/scrape ──────┼─→ scrape pipeline ─→ Postgres (offers)
 Telegram /scrape ───────────────────────→ /api/telegram ────┘   (boards → filters)  └→ AI filter ─→ Telegram, push
-AI tab ─→ AI runs (duplicates → assessment, OpenAI) ─→ verdicts      Applied tab ─→ applications + ad text
+Settings → AI filter ─→ AI runs (duplicates → assessment, OpenAI) ─→ verdicts (the offers' fit)      Applied tab ─→ applications + ad text
 ```
 
 ## Quick start

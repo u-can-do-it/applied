@@ -165,13 +165,13 @@ export async function saveContent(jobId: string) {
 /**
  * Asks the AI how well the job fits the active profile (a job no run judged: one added by hand,
  * or applied to before the profile changed), from the saved ad text, or the title alone without
- * one. The verdict is kept like a run's, so the AI tab has it too.
+ * one. The verdict is kept like a run's, so the offers have it too.
  */
 export async function assessFit(jobId: string): Promise<Fit> {
   const [app, profiles] = await Promise.all([getApplication(jobId), listProfiles()]);
   if (!app) throw new Error('This application no longer exists.');
   const active = profiles.at(0);
-  if (!isUsable(active)) throw new Error('No AI profile to check it with: set one up on the AI tab.');
+  if (!isUsable(active)) throw new Error('No AI profile to check it with: set one up in Settings → AI filter.');
   const [profile, job] = await Promise.all([getProfile(active.id), findJob(jobId).catch(() => null)]);
   if (!profile) throw new Error('That AI profile no longer exists.');
   const mode = workModeOf(app.details);

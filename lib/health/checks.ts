@@ -190,13 +190,13 @@ export function profileCheck(profiles: readonly ProfileInfo[]): HealthResult {
     return {
       level: 'warn',
       reason: 'No profile yet: the AI has nothing to judge offers against.',
-      fix: { type: 'link', href: '/ai', label: 'Create one' },
+      fix: { type: 'link', href: '/settings#ai-filter', label: 'Create one' },
     };
   if (!active.prompt.trim() && !active.fileName)
     return {
       level: 'warn',
       reason: `“${active.name}” has neither criteria nor a CV.`,
-      fix: { type: 'link', href: '/ai', label: 'Edit it' },
+      fix: { type: 'link', href: '/settings#ai-filter', label: 'Edit it' },
     };
   return { level: 'ok', reason: `“${active.name}”, version ${active.version}.` };
 }

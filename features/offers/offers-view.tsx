@@ -4,7 +4,6 @@ import type { SearchParams } from '@/lib/shared/search-params';
 import { DEFAULT_TZ } from '@/lib/dates';
 import { filterBoards, boardOptions } from '@/lib/listings/board-filter';
 import { appTimeZone } from '@/lib/time-zone';
-import { AiFilterBar } from '@/features/ai/ai-filter-bar';
 import { Controls, ControlsFallback } from './controls';
 import { Header } from '@/features/shell/header';
 import { NavProvider } from './nav';
@@ -16,9 +15,9 @@ import { Tabs, TabsFallback } from '@/features/shell/tabs';
 // chips) stays put when the rows are replaced by the skeleton
 const RESULTS = 'min-h-screen';
 
-// Shared by "/" (all offers) and "/ai" (the same list, narrowed by the AI filter).
+// The offers ("/"): every job, or (?fit=) the AI's matches or rejected ones.
 // Nothing here awaits, so everything outside the <Suspense> boundaries is static shell.
-export function OffersView({ searchParams, mode }: { searchParams: SearchParams; mode: 'all' | 'ai' }) {
+export function OffersView({ searchParams }: { searchParams: SearchParams }) {
   return (
     <main className="wrap">
       <Header />
@@ -27,13 +26,6 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
       <Suspense fallback={<TabsFallback />}>
         <Tabs />
       </Suspense>
-
-      {mode === 'ai' && (
-        // profiles, runs and "N new" counts; reads the date filter from the URL
-        <Suspense fallback={<div className="mb-3 min-h-9" aria-busy="true" />}>
-          <AiFilterBar searchParams={searchParams} />
-        </Suspense>
-      )}
 
       {/* NavProvider reads the URL on the client, so the first HTML shows the fallback */}
       <Suspense
@@ -46,7 +38,7 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
           </>
         }
       >
-        <OffersBody searchParams={searchParams} mode={mode} />
+        <OffersBody searchParams={searchParams} />
       </Suspense>
     </main>
   );
@@ -55,7 +47,7 @@ export function OffersView({ searchParams, mode }: { searchParams: SearchParams;
 // The board chips include your own scrapers' boards: their list is fetched alongside the offers (not
 // before them), and the chips render once it's in. Not while prerendering the shell at build time
 // (connection()): the build has no database to ask, or must not ask the one in .env.
-async function OffersBody({ searchParams, mode }: { searchParams: SearchParams; mode: 'all' | 'ai' }) {
+async function OffersBody({ searchParams }: { searchParams: SearchParams }) {
   await connection();
   // without the database (it's down) the chips are the built-in boards; the list says what's wrong
   const boards = boardOptions().catch(() => filterBoards());
@@ -65,9 +57,9 @@ async function OffersBody({ searchParams, mode }: { searchParams: SearchParams; 
     <NavProvider>
       <Controls boards={boards} tz={tz} />
       <div className={RESULTS}>
-        {/* the only part that waits for Supabase (and, on /ai, the verdicts) */}
+        {/* the only part that waits for Supabase */}
         <ResultsBoundary fallback={<ResultsSkeleton />}>
-          <Results searchParams={searchParams} mode={mode} boards={boards} />
+          <Results searchParams={searchParams} boards={boards} />
         </ResultsBoundary>
       </div>
     </NavProvider>

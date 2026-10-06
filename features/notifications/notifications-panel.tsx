@@ -147,7 +147,7 @@ export function NotificationsPanel({
             : !ai.keySet
               ? 'OPENAI_API_KEY isn’t set: until it is, every new offer is sent.'
               : !ai.profile
-                ? 'No AI profile yet (AI filter tab → Profile): until then, every new offer is sent.'
+                ? 'No AI profile yet (AI filter → Profile): until then, every new offer is sent.'
                 : 'On: only the matches are sent, with their fit.'}
         </p>
         <ActionError error={act.error} />

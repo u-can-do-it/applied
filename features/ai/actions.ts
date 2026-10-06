@@ -5,9 +5,11 @@ import { after } from 'next/server';
 import { action, formAction } from '@/server/action';
 import { continueRun, startRun } from '@/lib/ai/runs';
 import { describeRange } from '@/lib/dates';
-import { activateProfile, deleteProfile, getProfile, isUsable, saveProfile } from '@/lib/ai/profiles';
+import { activateProfile, deleteProfile, getProfile, isUsable, listProfiles, saveProfile } from '@/lib/ai/profiles';
 import { profileIdSchema, profileSchema, startRunSchema } from '@/lib/shared/schemas/ai';
+import { noInput } from '@/lib/shared/schemas/common';
 import { appZone } from '@/lib/time-zone';
+import { activeRun } from './run-info';
 
 // ---- profiles ------------------------------------------------------------------------
 
@@ -79,4 +81,13 @@ export const startRunAction = action(startRunSchema, async ({ profileId, days, f
   return run.status === 'running'
     ? { started: true, message: `Checking ${run.total - run.done} offer(s) from ${label}…` }
     : { started: false, message: `Nothing new to check in ${label}.` };
+});
+
+/**
+ * The active profile's latest run, asked every few seconds while one is open (Settings → AI filter),
+ * instead of refreshing the whole Settings page; a paused one is continued after the answer.
+ */
+export const activeRunAction = action(noInput, async () => {
+  const active = (await listProfiles()).at(0);
+  return active ? activeRun(active) : null;
 });

@@ -12,12 +12,20 @@ export const DAY_PRESETS = [
   { days: '30', label: '30 days' },
 ] as const;
 
-export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'rejected' | 'new' | 'archived';
+/** The AI fit filter, as ?fit=: every offer (''), the active profile's matches, or the ones it rejected. */
+export const FITS = [
+  { fit: '', label: 'Any' },
+  { fit: 'match', label: 'Matches' },
+  { fit: 'rejected', label: 'Rejected' },
+] as const;
+export type Fit = (typeof FITS)[number]['fit'];
+const isFit = (value: string): value is Fit => FITS.some((option) => option.fit === value);
+
+export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'fit' | 'new' | 'archived';
 type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
 
 // Builds a link from the current query, changing only the given keys
 // (empty value = remove). Any filter change goes back to the first page.
-// `path` keeps you on the tab you're on ("/" or "/ai").
 export function withParams(current: URLSearchParams | string, changes: Changes, path = '/') {
   const sp = new URLSearchParams(current);
   if (!('page' in changes)) sp.delete('page');
@@ -42,6 +50,7 @@ export function parseOfferQuery(params: Params) {
   const days = one(params.days);
   const preset = DAY_PRESETS.some((option) => option.days && option.days === days) ? days : '';
   const src = one(params.src);
+  const fit = one(params.fit);
   return {
     q: one(params.q).slice(0, 200),
     src: BOARD_RE.test(src) ? src : '', // an unknown board just finds nothing
@@ -50,7 +59,7 @@ export function parseOfferQuery(params: Params) {
     // a preset wins over a date range
     from: preset ? '' : validDay(one(params.from)),
     to: preset ? '' : validDay(one(params.to)),
-    rejected: one(params.rejected) === '1',
+    fit: isFit(fit) ? fit : '', // the AI's verdict: matches, or the rejected ones
     // only what the latest scrape run that brought new jobs brought (a push notification links here)
     latest: one(params.new) === '1',
     // the jobs you archived, instead of the others

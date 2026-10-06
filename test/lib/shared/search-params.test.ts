@@ -13,7 +13,7 @@ describe('one', () => {
 describe('parseOfferQuery', () => {
   it('keeps the filters that make sense', () => {
     expect(
-      parseOfferQuery({ q: 'react', src: 'justjoin', page: '2', days: '7', rejected: '1', new: '1', archived: '1' }),
+      parseOfferQuery({ q: 'react', src: 'justjoin', page: '2', days: '7', fit: 'rejected', new: '1', archived: '1' }),
     ).toEqual({
       q: 'react',
       src: 'justjoin',
@@ -21,7 +21,7 @@ describe('parseOfferQuery', () => {
       days: '7',
       from: '',
       to: '',
-      rejected: true,
+      fit: 'rejected',
       latest: true,
       archived: true,
     });
@@ -29,7 +29,15 @@ describe('parseOfferQuery', () => {
 
   it('drops what does not', () => {
     expect(
-      parseOfferQuery({ q: 'x'.repeat(300), src: 'Not a board', page: '-3', days: '12', from: '2026-02-30', new: 'y' }),
+      parseOfferQuery({
+        q: 'x'.repeat(300),
+        src: 'Not a board',
+        page: '-3',
+        days: '12',
+        from: '2026-02-30',
+        new: 'y',
+        fit: 'yes',
+      }),
     ).toEqual({
       q: 'x'.repeat(200),
       src: '',
@@ -37,7 +45,7 @@ describe('parseOfferQuery', () => {
       days: '',
       from: '',
       to: '',
-      rejected: false,
+      fit: '',
       latest: false,
       archived: false,
     });

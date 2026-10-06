@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { ArrowLeftIcon, ArrowRightIcon } from 'lucide-react';
 import { rangeStats } from '@/lib/ai/runs';
 import { DEFAULT_TZ, describeRange, zoneOf } from '@/lib/dates';
@@ -24,17 +25,13 @@ const EMPTY = 'mt-8 mb-4 text-center text-muted-foreground';
 
 export async function Results({
   searchParams,
-  mode = 'all',
   boards,
 }: {
   searchParams: SearchParams;
-  mode?: 'all' | 'ai';
   boards: Promise<BoardOption[]>;
 }) {
-  const path = mode === 'ai' ? '/ai' : '/';
-  const query = parseOfferQuery(await searchParams);
-  const { q, src, page, days, from, to, latest, archived } = query;
-  const rejected = mode === 'ai' && query.rejected;
+  const path = '/';
+  const { q, src, page, days, from, to, latest, archived, fit } = parseOfferQuery(await searchParams);
   const filtered = Boolean(q || src || days || from || to || latest);
   const range = describeRange({ days, from, to });
   // the app's time zone is a setting, so it's read with the rest: a database that's down shows the notice below
@@ -42,49 +39,31 @@ export async function Results({
 
   // the URL as the list understands it, for the pager links
   const current = new URLSearchParams();
-  const params = {
-    q,
-    src,
-    days,
-    from,
-    to,
-    rejected: rejected ? '1' : '',
-    new: latest ? '1' : '',
-    archived: archived ? '1' : '',
-  };
+  const params = { q, src, days, from, to, fit, new: latest ? '1' : '', archived: archived ? '1' : '' };
   for (const [param, value] of Object.entries(params)) if (value) current.set(param, value);
 
-  let data: Awaited<ReturnType<typeof getJobs>> | null = null; // stays null only on the AI tab without a profile
+  let data: Awaited<ReturnType<typeof getJobs>> | null = null; // stays null only with ?fit= and no profile
   let all: number | null = null; // whole table, only needed when something is filtered
-  let stats: { total: number; checked: number; matched: number } | null = null; // AI: this date range
+  let stats: { total: number; checked: number; matched: number } | null = null; // ?fit=: this date range
   try {
     let profiles: Awaited<ReturnType<typeof listProfiles>>;
-    [zone, profiles] = await Promise.all([appZone(), listProfiles()]); // both lists need the active profile
-    if (mode === 'ai') {
-      const profile = profiles[0];
+    [zone, profiles] = await Promise.all([appZone(), listProfiles()]); // the fit badges are the active profile's
+    const profile = profiles.at(0);
+    const query = { q, src, page, days, from, to, latest, archived };
+    if (fit) {
+      // only the jobs the active profile judged, matches or rejected
       if (isUsable(profile)) {
+        const ai = { profileId: profile.id, version: profile.version, rejected: fit === 'rejected' };
         [data, stats] = await Promise.all([
-          getJobs({
-            q,
-            src,
-            page,
-            days,
-            from,
-            to,
-            latest,
-            archived,
-            ai: { profileId: profile.id, version: profile.version, rejected },
-          }),
+          getJobs({ ...query, ai }),
           rangeStats(profile, zone.resolveRange({ days, from, to })),
         ]);
       }
     } else {
-      // the active profile's verdicts, as the fit badge: the scrape's AI filter judges every new job
-      const profile = profiles.at(0);
+      // every job, the judged ones with their fit badge; in parallel, (if filtered) the unfiltered count
       const verdictsOf = profile && { profileId: profile.id, version: profile.version };
-      // in parallel: the filtered page and (if filtered) the unfiltered count
       [data, all] = await Promise.all([
-        getJobs({ q, src, page, days, from, to, latest, archived, verdictsOf }),
+        getJobs({ ...query, verdictsOf }),
         filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
       ]);
     }
@@ -94,7 +73,7 @@ export async function Results({
   if (!data) {
     return (
       <p className={EMPTY}>
-        No profile yet. Click <strong>Profile</strong> above, describe what you&apos;re looking for and add your CV.
+        No AI profile yet. Set one up in <SettingsLink />: describe what you&apos;re looking for and add your CV.
       </p>
     );
   }
@@ -119,19 +98,16 @@ export async function Results({
           {newLine}
           {archivedLine}
         </p>
-      ) : mode === 'ai' && stats ? (
+      ) : stats ? (
         <p className={COUNT}>
-          {/* "9 match of 14 checked · 6 not checked yet · today · show 5 rejected" */}
-          <strong>{fmt(stats.matched)}</strong> match of {fmt(stats.checked)} checked
+          {/* "9 match of 14 checked · 6 not checked yet · today" */}
+          <strong>{fmt(fit === 'rejected' ? stats.checked - stats.matched : stats.matched)}</strong>{' '}
+          {fit === 'rejected' ? 'rejected' : 'match'} of {fmt(stats.checked)} checked
           {unchecked > 0 && <span className="text-warning"> · {fmt(unchecked)} not checked yet</span>}
           {range && ` · ${range}`}
           {(q || src || latest) && <> · {fmt(data.total)} shown</>}
           {newLine}
           {archivedLine}
-          {' · '}
-          <NavLink href={withParams(current, { rejected: rejected ? null : '1' }, path)}>
-            {rejected ? 'show matches' : `show ${fmt(stats.checked - stats.matched)} rejected`}
-          </NavLink>
         </p>
       ) : (
         <p className={COUNT}>
@@ -146,21 +122,30 @@ export async function Results({
 
       {data.jobs.length === 0 && (
         <p className={EMPTY}>
-          {archived
-            ? filtered
-              ? 'No archived offers match these filters.'
-              : 'Nothing archived. The archive button on an offer moves it here.'
-            : mode === 'ai'
-              ? stats && stats.checked === 0
-                ? `Nothing ${range ? `from ${range} ` : ''}has been checked with this profile yet. Use the buttons above.`
-                : rejected
-                  ? 'Nothing was rejected here.'
-                  : 'No matches here. Check the rejected ones, or loosen the profile.'
-              : latest && !data.latest
-                ? 'No scrape run has brought new offers lately.'
-                : filtered
-                  ? 'Nothing matches these filters.'
-                  : 'No offers yet. Use “Scrape now” at the top, or wait for the next scheduled run.'}
+          {archived ? (
+            filtered ? (
+              'No archived offers match these filters.'
+            ) : (
+              'Nothing archived. The archive button on an offer moves it here.'
+            )
+          ) : stats ? (
+            stats.checked === 0 ? (
+              <>
+                Nothing {range ? `from ${range} ` : ''}has been checked with this profile yet: <SettingsLink /> checks
+                them.
+              </>
+            ) : fit === 'rejected' ? (
+              'Nothing was rejected here.'
+            ) : (
+              'No matches here. See the rejected ones, or loosen the profile in Settings.'
+            )
+          ) : latest && !data.latest ? (
+            'No scrape run has brought new offers lately.'
+          ) : filtered ? (
+            'Nothing matches these filters.'
+          ) : (
+            'No offers yet. Use “Scrape now” at the top, or wait for the next scheduled run.'
+          )}
         </p>
       )}
 
@@ -169,13 +154,7 @@ export async function Results({
           <h2 className={DAY_HEADING}>{group.label}</h2>
           <ol className={DAY_LIST}>
             {group.items.map((job) => (
-              <OfferRow
-                key={job.src + ':' + job.id}
-                job={job}
-                zone={zone}
-                labels={labels}
-                withSummary={mode === 'ai'}
-              />
+              <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
             ))}
           </ol>
         </section>
@@ -206,6 +185,15 @@ export async function Results({
         </nav>
       )}
     </>
+  );
+}
+
+/** Where the AI profile and its runs are. */
+function SettingsLink() {
+  return (
+    <Link href="/settings#ai-filter" className="text-brand no-underline hover:underline">
+      Settings → AI filter
+    </Link>
   );
 }
 

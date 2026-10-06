@@ -28,8 +28,8 @@ import { message } from '../shared/errors';
 //
 // The work happens in after() on the server, in slices of a few minutes (a platform limit),
 // under a lock. The next slice is started by whatever comes first: Supabase Cron's next call
-// (/api/cron/scrape, after its scrape: continueWaitingRuns) or the AI tab, which starts one on
-// every load and refresh while a run is open. The lock makes sure only one of them works on a run.
+// (/api/cron/scrape, after its scrape: continueWaitingRuns) or Settings → AI filter, which starts
+// one on every load, and every 4 s while a run is open. The lock makes sure only one of them works on a run.
 // What a slice does next is decided by the state machine in lib/ai/run-state.ts.
 
 export type AiRun = runsRepo.Run;
@@ -344,7 +344,7 @@ async function runSlice(runId: string, deadline: number): Promise<boolean> {
 
 /**
  * Every open run that no slice is working on, one after the other, until `deadline` (Supabase
- * Cron's call: a run goes on without the AI tab open). A run another worker holds is left to it;
+ * Cron's call: a run goes on without Settings open). A run another worker holds is left to it;
  * one whose profile changed is cancelled by its slice without asking the AI. Answers how many it
  * worked on (got the lock of).
  */

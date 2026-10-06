@@ -41,7 +41,7 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 | Supabase Cron (`pg_cron` + `pg_net`) | `GET /api/cron/scrape` | Checks the secret, then whether a run is due (`checkDue`: not paused, within the hours, the interval passed). Takes the lock, answers 202 at once, runs the scrape in `after()`, then continues waiting AI runs in the time left. `?force=1`, `?wait=1` by hand. |
 | "Scrape now" (header, Notifications) | `POST /api/scrape`     | Same-origin and login checks, then a full run whatever the schedule; the AI check and the notifications go on in `after()`.                                                                                                                                      |
 | `/scrape` in Telegram                | `POST /api/telegram`   | A full run in `after()`; the bot replies with the counts. The other commands mute, unmute, send the queue and report status.                                                                                                                                     |
-| Opening the AI tab / "Check …"       | server render, action  | Starts an AI run, and on every render continues a paused one in `after()`.                                                                                                                                                                                       |
+| Settings → AI filter / "Check …"     | server render, action  | Starts an AI run, and on every render (and every 4 s while a run is open) continues a paused one in `after()`.                                                                                                                                                   |
 | "Mark applied", "Add", "Fetch again" | server actions         | Save the application, then fetch its ad text in `after()`.                                                                                                                                                                                                       |
 | Opening the Applied tab              | server render          | Marks applications with no news for 30 days as ghosted.                                                                                                                                                                                                          |
 | Any page, once a minute              | `GET /api/changes`     | `AutoRefresh` compares a fingerprint (last run, newest offer, queue size, lock, mute) and refreshes the page only when it changed.                                                                                                                               |
@@ -113,9 +113,13 @@ A run checks a date range against one profile version ([`lib/ai/runs.ts`](../lib
    what's new, and editing a profile's text or file (a new version) has its jobs checked again.
 
 The work runs in slices of `SLICE_MS` under the run's lock, each in `after()`
-([ADR 0003](decisions/0003-ai-runs-in-after-slices.md)). A slice is started by the AI tab (on every render
-while a run is open, and right after "Check") or by Supabase Cron's next call (`continueWaitingRuns`, after the
+([ADR 0003](decisions/0003-ai-runs-in-after-slices.md)). A slice is started by Settings → AI filter (on every
+render, every 4 s while a run is open, and right after "Check") or by Supabase Cron's next call (`continueWaitingRuns`, after the
 scrape). The scrape's own AI filter (pipeline step 6) uses the same `assessJobs` without a run.
+
+The offers list shows the active profile version's verdict on every job it judged (the fit badge), and
+`?fit=match` / `?fit=rejected` narrows it to those (with the count of what's checked in the date range). `/ai`,
+the AI filter tab that was, redirects there.
 
 ### Notification channels
 
@@ -149,7 +153,7 @@ latest finished scrape run that brought at least one such job (`runsRepo.latestW
 `started_at`…`finished_at`, the window Activity's `addedPerBoard` counts a run's offers in), compared in SQL to
 the microsecond. A run that only added another board's offer of a known job brought no new job, so it isn't the
 one. The count line says how many ("3 new in the
-last run"), and `?new=1` lists only those, on the offers and the AI tabs alike.
+last run"), and `?new=1` lists only those, with any other filter.
 
 ### Telegram
 
@@ -255,7 +259,7 @@ stateDiagram-v2
   dedup --> paused: outOfTime or crashed
   recount --> paused: crashed
   assess --> paused: outOfTime or crashed
-  paused --> checkProfile: next slice (AI tab or Supabase Cron)
+  paused --> checkProfile: next slice (Settings → AI filter or Supabase Cron)
   done --> [*]
   failed --> [*]
   cancelled --> [*]
@@ -291,27 +295,27 @@ Outside `ok` the text is always what you typed, so a fetch that fails or finds n
 
 ## Module map
 
-| Where                                      | What                                                                                                                                                                                                                                           |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`app/`](../app)                           | Routes only: pages (`/` offers, `/ai`, `/applied`, `/activity`, `/settings`, `/login`), layout, `manifest.ts`, `error.tsx`, `globals.css` (tokens), and `api/` (`application`, `changes`, `cron/scrape`, `health`, `scrape`, `telegram`).      |
-| [`public/`](../public)                     | `sw.js` (the service worker: push notifications, no cache) and `icons/` (made by `scripts/icons.ts`); served without the login.                                                                                                                |
-| [`features/`](../features)                 | One folder per area, with its components and its `actions.ts`: `offers`, `ai`, `applications`, `scraping`, `notifications`, `telegram`, `health`, `activity`, `login`, `shell` (header, tabs, auto-refresh, service worker).                   |
-| [`components/`](../components)             | Pieces more than one feature uses (forms, confirm, date input, time zone, hooks); `components/ui/` holds the shadcn/ui components.                                                                                                             |
-| [`server/`](../server)                     | The request's gate: the login cookie (`auth.ts`), `requireLogin()` (`session.ts`), the action wrapper (`action.ts`).                                                                                                                           |
-| [`proxy.ts`](../proxy.ts)                  | Every request but the login page, `/api/cron/`, `/api/telegram`, the manifest, the icons and `sw.js` needs the cookie; production without `APP_PASSWORD` answers 503.                                                                          |
-| [`lib/boards/`](../lib/boards)             | The board registry: one file per board (hosts, link ids, listing defaults, seeds); `index.ts` lists them.                                                                                                                                      |
-| [`lib/listings/`](../lib/listings)         | Scraping: `run.ts` and `pipeline/` (the steps), `parsers/` (one per board, plus generic JSON / HTML / RSS), `registry.ts`, `kinds.ts`, `match.ts` (filters), `settings.ts`, `schedule.ts` (cron secret, `checkDue`), `cron.ts` (the schedule). |
-| [`lib/ads/`](../lib/ads)                   | An offer's full ad text and details, one reader per board that needs one.                                                                                                                                                                      |
-| [`lib/ai/`](../lib/ai)                     | OpenAI calls (`openai.ts`), profiles, runs and their state machine, the run card's view, merging duplicates.                                                                                                                                   |
-| [`lib/db/`](../lib/db)                     | `schema.ts`, `client.ts` (the connection), `connection.ts`, `health.ts` (pending migrations), `seed.ts` (board seeds), `repos/` (one per table).                                                                                               |
-| [`lib/health/`](../lib/health)             | The Health card's checks (pure) and the reads they need.                                                                                                                                                                                       |
-| [`lib/shared/`](../lib/shared)             | What client components may import: `Result`, errors, formatting, URL filters, `cn()`, the Zod schemas (`schemas/`).                                                                                                                            |
-| [`lib/channels/`](../lib/channels)         | The notification channels (Telegram, push) and `deliver()`, which hands each the batch.                                                                                                                                                        |
-| `lib/*.ts`                                 | Services and helpers: `applications.ts`, `ad-content-state.ts`, `stages.ts`, `jobs.ts`, `dates.ts`, `time-zone.ts`, `telegram.ts`, `push.ts`, `changes.ts`, `budgets.ts`, `env.ts`, `log.ts`, `outbound.ts`, `dom.ts`, `hmac.ts`.              |
-| [`drizzle/`](../drizzle)                   | The migrations (written by `npm run db:generate`, custom ones by hand) and drizzle-kit's snapshots.                                                                                                                                            |
-| [`scripts/`](../scripts)                   | `db-migrate.ts` (`npm run db:migrate`), `db-preflight.sql`, `db-verify-migrations.sh`, `test-db.sh`, `db-reset-local.sh`, `lib-local-db.sh` (the localhost guard), `icons.ts` (the app's icons).                                               |
-| [`test/`](../test)                         | Vitest: unit tests mirroring the source tree, `test/db/` against a real database, `test/fixtures/` (recorded board pages).                                                                                                                     |
-| [`supabase/scripts/`](../supabase/scripts) | `remove-duplicates.sql`, a one-off cleanup of duplicate offers, run once by hand; kept for reference, not to be run.                                                                                                                           |
+| Where                                      | What                                                                                                                                                                                                                                                       |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`app/`](../app)                           | Routes only: pages (`/` offers, `/ai` its old redirect, `/applied`, `/activity`, `/settings`, `/login`), layout, `manifest.ts`, `error.tsx`, `globals.css` (tokens), and `api/` (`application`, `changes`, `cron/scrape`, `health`, `scrape`, `telegram`). |
+| [`public/`](../public)                     | `sw.js` (the service worker: push notifications, no cache) and `icons/` (made by `scripts/icons.ts`); served without the login.                                                                                                                            |
+| [`features/`](../features)                 | One folder per area, with its components and its `actions.ts`: `offers`, `ai`, `applications`, `scraping`, `notifications`, `telegram`, `health`, `activity`, `login`, `shell` (header, tabs, auto-refresh, service worker).                               |
+| [`components/`](../components)             | Pieces more than one feature uses (forms, confirm, date input, time zone, hooks); `components/ui/` holds the shadcn/ui components.                                                                                                                         |
+| [`server/`](../server)                     | The request's gate: the login cookie (`auth.ts`), `requireLogin()` (`session.ts`), the action wrapper (`action.ts`).                                                                                                                                       |
+| [`proxy.ts`](../proxy.ts)                  | Every request but the login page, `/api/cron/`, `/api/telegram`, the manifest, the icons and `sw.js` needs the cookie; production without `APP_PASSWORD` answers 503.                                                                                      |
+| [`lib/boards/`](../lib/boards)             | The board registry: one file per board (hosts, link ids, listing defaults, seeds); `index.ts` lists them.                                                                                                                                                  |
+| [`lib/listings/`](../lib/listings)         | Scraping: `run.ts` and `pipeline/` (the steps), `parsers/` (one per board, plus generic JSON / HTML / RSS), `registry.ts`, `kinds.ts`, `match.ts` (filters), `settings.ts`, `schedule.ts` (cron secret, `checkDue`), `cron.ts` (the schedule).             |
+| [`lib/ads/`](../lib/ads)                   | An offer's full ad text and details, one reader per board that needs one.                                                                                                                                                                                  |
+| [`lib/ai/`](../lib/ai)                     | OpenAI calls (`openai.ts`), profiles, runs and their state machine, the run card's view, merging duplicates.                                                                                                                                               |
+| [`lib/db/`](../lib/db)                     | `schema.ts`, `client.ts` (the connection), `connection.ts`, `health.ts` (pending migrations), `seed.ts` (board seeds), `repos/` (one per table).                                                                                                           |
+| [`lib/health/`](../lib/health)             | The Health card's checks (pure) and the reads they need.                                                                                                                                                                                                   |
+| [`lib/shared/`](../lib/shared)             | What client components may import: `Result`, errors, formatting, URL filters, `cn()`, the Zod schemas (`schemas/`).                                                                                                                                        |
+| [`lib/channels/`](../lib/channels)         | The notification channels (Telegram, push) and `deliver()`, which hands each the batch.                                                                                                                                                                    |
+| `lib/*.ts`                                 | Services and helpers: `applications.ts`, `ad-content-state.ts`, `stages.ts`, `jobs.ts`, `dates.ts`, `time-zone.ts`, `telegram.ts`, `push.ts`, `changes.ts`, `budgets.ts`, `env.ts`, `log.ts`, `outbound.ts`, `dom.ts`, `hmac.ts`.                          |
+| [`drizzle/`](../drizzle)                   | The migrations (written by `npm run db:generate`, custom ones by hand) and drizzle-kit's snapshots.                                                                                                                                                        |
+| [`scripts/`](../scripts)                   | `db-migrate.ts` (`npm run db:migrate`), `db-preflight.sql`, `db-verify-migrations.sh`, `test-db.sh`, `db-reset-local.sh`, `lib-local-db.sh` (the localhost guard), `icons.ts` (the app's icons).                                                           |
+| [`test/`](../test)                         | Vitest: unit tests mirroring the source tree, `test/db/` against a real database, `test/fixtures/` (recorded board pages).                                                                                                                                 |
+| [`supabase/scripts/`](../supabase/scripts) | `remove-duplicates.sql`, a one-off cleanup of duplicate offers, run once by hand; kept for reference, not to be run.                                                                                                                                       |
 
 ## Glossary
 
@@ -354,7 +358,7 @@ the entry says so (_stored as_): those names stay (production data and applied m
 - **seen**: A job whose offer you opened from a list (its title or a board's link): a check mark after its title,
   on every device. An AI merge doesn't move it. _Stored as:_ `seen_jobs`.
 - **archived**: A job you took out of the lists with its archive button (a repost you already decided on, say):
-  left out of the offers and the AI tab and their counts, listed by `?archived=1` (the count line's "3 archived"),
+  left out of the offers and their counts, listed by `?archived=1` (the count line's "3 archived"),
   where the same button restores it. The job's later offers stay archived with it; an AI merge doesn't move it.
   _Stored as:_ `archived_jobs`.
 - **channel**: Where new offers are sent: Telegram or push (`lib/channels/`, `Channel`). A **device** is one

@@ -11,7 +11,7 @@ import { assessFitAction } from './actions';
 import { applicationKey, type Shown } from './use-application';
 
 /**
- * The active AI profile's match score, as on the AI tab. A job it hasn't judged gets a button that
+ * The active AI profile's match score, as on the offers. A job it hasn't judged gets a button that
  * asks it: its own transition, as the AI can take a minute and the rest of the window stays in use
  * meanwhile. The verdict goes onto whatever the window has by then (the ad text may have come in).
  */

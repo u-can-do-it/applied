@@ -4,7 +4,7 @@ import { z } from 'zod';
 // Every environment variable the app reads, with its default; .env.example says what each is for.
 // Checked on first use, not at import: `next build` loads this module without any of them set.
 // A missing or malformed variable fails where it's read, with its name, so the parts that don't
-// need it keep working (no database URL: the login page still answers; no OpenAI key: no AI tab).
+// need it keep working (no database URL: the login page still answers; no OpenAI key: no AI filter).
 
 /** `VAR=` with nothing after it, as .env.example has them, counts as not set */
 const unset = (value: unknown) => (value === '' ? undefined : value);

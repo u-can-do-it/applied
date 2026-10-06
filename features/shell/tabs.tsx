@@ -4,8 +4,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 const TABS = [
-  { path: '/', label: 'All offers' },
-  { path: '/ai', label: 'AI filter' },
+  { path: '/', label: 'Offers' },
   { path: '/applied', label: 'Applied' },
   { path: '/activity', label: 'Activity' },
   { path: '/settings', label: 'Settings' },
@@ -29,7 +28,7 @@ export function Tabs() {
       {TABS.map((tab) => (
         <Link
           key={tab.path}
-          href={queryString && (tab.path === '/' || tab.path === '/ai') ? `${tab.path}?${queryString}` : tab.path}
+          href={queryString && tab.path === '/' ? `/?${queryString}` : tab.path}
           aria-current={pathname === tab.path ? 'page' : undefined}
           className={TAB}
         >

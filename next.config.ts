@@ -20,8 +20,21 @@ const nextConfig: NextConfig = {
         ],
       },
     ]),
+  // the AI filter tab is gone: its list is the offers' ?fit=, its profile and runs are in Settings. Old
+  // links (bookmarks, Telegram messages sent before) land on the same list; the rest of their query
+  // (the dates, the search) comes along
+  redirects: () =>
+    Promise.resolve([
+      {
+        source: '/ai',
+        has: [{ type: 'query', key: 'rejected', value: '1' }],
+        destination: '/?fit=rejected',
+        permanent: false,
+      },
+      { source: '/ai', destination: '/?fit=match', permanent: false },
+    ]),
   experimental: {
-    // the AI filter's file upload (5 MB max) goes through a server action; default is 1 MB
+    // the AI profile's file upload (5 MB max) goes through a server action; default is 1 MB
     serverActions: { bodySizeLimit: '6mb' },
     // a page you've been on shows at once when you come back to it (for 30 min). AutoRefresh
     // refreshes the page you're on when the data changed, and so does anything you change there

@@ -64,7 +64,7 @@ async function load() {
   for (const row of await runsRepo.addedPerBoard(runs.map((run) => run.id))) {
     (added[row.runId] ??= []).push({ board: row.board, label: byId(row.board)?.label ?? row.board, added: row.added });
   }
-  // the active profile's open run is the one the AI tab continues
+  // the active profile's open run is the one Settings → AI filter continues
   const activeId = profiles.at(0)?.id ?? null;
   return { settings, runs, added, scrapers, state, queue, queued, cron, aiRuns, activeId };
 }
@@ -140,7 +140,7 @@ export async function Activity() {
           <p>
             An AI run checks a date range against a profile version in two steps: Duplicates (the AI merges offers of
             the same job) then Assessment (a verdict for every job). It works in slices of a few minutes. Between slices
-            it waits, paused, until Supabase Cron’s next call (the scraping schedule) or the AI filter page continues
+            it waits, paused, until Supabase Cron’s next call (the scraping schedule) or Settings → AI filter continues
             it, whichever comes first; no tab needs to stay open.
           </p>
         }

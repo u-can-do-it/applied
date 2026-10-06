@@ -50,7 +50,7 @@ describe('time budgets', () => {
     const mentioning = files.filter((file) => readFileSync(join(app, file), 'utf8').includes('maxDuration'));
     // the routes that scrape or call OpenAI ("Scrape now" is one), and the pages whose server actions
     // or after() do (AI runs, reading an ad, "+ Add application", testing a scraper)
-    expect(mentioning.length).toBeGreaterThanOrEqual(7);
+    expect(mentioning.length).toBeGreaterThanOrEqual(6);
     expect(mentioning).toEqual(
       expect.arrayContaining([join('api', 'scrape', 'route.ts'), join('api', 'cron', 'scrape', 'route.ts')]),
     );

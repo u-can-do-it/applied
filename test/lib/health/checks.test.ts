@@ -154,7 +154,7 @@ describe('the checks', () => {
   it('OpenAI and the AI profile', () => {
     expect(openAiCheck(true).level).toBe('ok');
     expect(openAiCheck(false)).toMatchObject({ level: 'warn', fix: { code: 'OPENAI_API_KEY' } });
-    expect(profileCheck([])).toMatchObject({ level: 'warn', fix: { href: '/ai' } });
+    expect(profileCheck([])).toMatchObject({ level: 'warn', fix: { href: '/settings#ai-filter' } });
     expect(profileCheck([{ name: 'Me', version: 2, prompt: ' ', fileName: null }]).level).toBe('warn');
     expect(profileCheck([{ name: 'Me', version: 2, prompt: '', fileName: 'cv.pdf' }])).toEqual({
       level: 'ok',

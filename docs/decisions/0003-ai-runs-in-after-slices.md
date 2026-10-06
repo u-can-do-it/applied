@@ -2,6 +2,8 @@
 
 - Status: accepted (2026-10-03)
 - Context: [ARCHITECTURE.md → AI run](../ARCHITECTURE.md#ai-run)
+- Update (2026-10-06): the AI tab is gone; its part here (starting and continuing runs) is Settings → AI filter's,
+  which asks for the run's state every 4 s instead of refreshing the page.
 
 ## Context
 

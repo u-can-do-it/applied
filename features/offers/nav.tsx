@@ -12,7 +12,7 @@ import { createContext, use, useOptimistic, useTransition } from 'react';
 // the UI reacts instantly even before the server has answered (or anything was prefetched).
 
 type Nav = {
-  /** current tab: "/" or "/ai" - links built with withParams(..., path) stay on it */
+  /** the page the list is on - links built with withParams(..., path) stay on it */
   path: string;
   query: URLSearchParams;
   pending: boolean;

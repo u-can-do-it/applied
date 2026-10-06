@@ -13,7 +13,7 @@ import { log } from '@/lib/log';
 // Every answer has "jobwatch" in it: Settings finds Supabase Cron's last call by that.
 //
 // After the scrape (or instead of it, when none is due), the same call continues the open AI runs
-// no slice is working on, in what's left of this function's time: a run goes on without the AI tab.
+// no slice is working on, in what's left of this function's time: a run goes on without Settings open.
 export const maxDuration = 300;
 
 const ROUTE = '/api/cron/scrape';

@@ -286,9 +286,9 @@ allowed"; a scraper shows it as its error.
   (280 s), before the next knock. If it doesn't, and no run is going (Activity, and the logs), clear it in the
   Supabase SQL Editor: `update public.scrape_state set locked_until = null;`. A run whose function died stays
   "didn't finish" in the run log; the next run is unaffected.
-- **An AI run that doesn't move:** between slices a run is paused, and the AI tab or Supabase Cron's next call
+- **An AI run that doesn't move:** between slices a run is paused, and Settings → AI filter or Supabase Cron's next call
   continues it; a dead worker's lock runs out after `AI_RUN_LOCK_MS` (3 min). With scraping paused or the cron
-  not connected, only the AI tab continues it: open it. A run whose OpenAI calls keep failing ends as `failed`
+  not connected, only Settings → AI filter continues it: open it. A run whose OpenAI calls keep failing ends as `failed`
   after three rounds (the logs say why). To stop one, edit the profile's text or file (a new version: the next
   slice cancels the run), or in the SQL Editor:
   `update public.ai_runs set status = 'cancelled', finished_at = now(), lock_until = null where status = 'running';`

@@ -83,7 +83,7 @@ export function formatNotification(notification: {
   unchecked: Queued[];
   profile: string | null; // the AI profile's name when the AI filter decided
   held: boolean; // sent by hand after a mute
-  link: string | null; // the app's AI tab, to look at what didn't match
+  link: string | null; // the app's rejected offers, to look at what didn't match
   more?: string | null; // the app's new offers, for what didn't fit
 }): Message | null {
   const { matched, unmatched, unchecked, profile } = notification;

@@ -6,5 +6,5 @@ import { OffersView } from '@/features/offers/offers-view';
 export const maxDuration = 300;
 
 export default function Page({ searchParams }: { searchParams: SearchParams }) {
-  return <OffersView searchParams={searchParams} mode="all" />;
+  return <OffersView searchParams={searchParams} />;
 }

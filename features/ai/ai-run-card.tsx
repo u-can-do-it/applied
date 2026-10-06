@@ -47,16 +47,16 @@ const BADGE: Record<RunBadge, 'brand' | 'warning-soft' | 'success' | 'danger' | 
 };
 
 /**
- * Why a paused run waits, and what continues it (Activity; the AI tab continues it itself): Supabase
- * Cron's next call, or opening the AI tab now; selecting its profile there first (the AI tab only
- * continues the active profile's run); or nothing, since its profile changed and the next slice
+ * Why a paused run waits, and what continues it (Activity; Settings → AI filter continues it itself):
+ * Supabase Cron's next call, or opening Settings → AI filter now; selecting its profile there first (it
+ * only continues the active profile's run); or nothing, since its profile changed and the next slice
  * cancels it.
  */
 export type PausedHint = 'open' | 'select' | 'cancel';
 
 /**
  * The two steps of an AI run (Duplicates → Assessment) with their counts, the profile version it
- * belongs to, and its state. `continuesHere`: the AI tab, which continues an open run (a paused one
+ * belongs to, and its state. `continuesHere`: Settings → AI filter, which continues an open run (a paused one
  * shows as continuing); elsewhere a paused run says what continues it (`pausedHint`).
  */
 export function AiRunCard({
@@ -128,8 +128,8 @@ export function AiRunCard({
               <>
                 Paused — continues at the next scheduled run, or now if you{' '}
                 {pausedHint === 'select' ? `select “${run.profile.name}” on the ` : 'open the '}
-                <Link href="/ai" className="text-brand underline-offset-4 hover:underline">
-                  AI filter page
+                <Link href="/settings#ai-filter" className="text-brand underline-offset-4 hover:underline">
+                  AI filter in Settings
                 </Link>
                 .
               </>

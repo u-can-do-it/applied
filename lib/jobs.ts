@@ -37,7 +37,7 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
     latest?: boolean;
     /** the archived jobs instead of the others (?archived=1) */
     archived?: boolean;
-    /** AI tab: results of this profile version */
+    /** ?fit=: the jobs this profile version judged, its matches or the rejected ones */
     ai?: { profileId: string; version: number; rejected: boolean };
     /** every job, each with this profile version's verdict when it has one */
     verdictsOf?: { profileId: string; version: number };

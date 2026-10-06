@@ -1,9 +1,9 @@
 import type { Run } from '../db/repos/ai-runs';
 
-// An AI run as its card shows it (the AI tab, Activity): the run state machine's steps
+// An AI run as its card shows it (Settings → AI filter, Activity): the run state machine's steps
 // (lib/ai/run-state.ts) as the user sees them. Between slices a run is stored as `running` with its
 // phase; it is working while a slice holds its lock, and paused when none does (the slice ran out
-// of time or crashed, and nothing has continued it yet: Supabase Cron's next call or the AI tab will).
+// of time or crashed, and nothing has continued it yet: Supabase Cron's next call or the AI filter panel will).
 //
 //   Duplicates (dedup) ──→ Assessment (assess) ──→ finished: done | failed | cancelled
 //         └──────── paused (no worker) ────────┘
@@ -53,8 +53,8 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 
 /**
  * `paused`: isPaused(run, now), worked out where "now" is known (the server, as it renders).
- * `continuesHere`: the page showing it starts the next slice of a paused run (the AI tab, on every
- * load and refresh, and right after Start): there it's "continuing", not paused.
+ * `continuesHere`: the panel showing it starts the next slice of a paused run (Settings → AI filter,
+ * on every load and every 4 s while a run is open, and right after Start): there it's "continuing", not paused.
  */
 export function runCard(run: RunFields, paused: boolean, continuesHere = false): RunCardView {
   const continuing = paused && continuesHere && run.status === 'running';

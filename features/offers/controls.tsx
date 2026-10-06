@@ -1,7 +1,7 @@
 'use client';
 
 import { use } from 'react';
-import { CalendarIcon, SearchIcon, XIcon } from 'lucide-react';
+import { CalendarIcon, SearchIcon, SparklesIcon, XIcon } from 'lucide-react';
 import { DateInput } from '@/components/date-input';
 import { searchBox, searchInput } from '@/components/search-field';
 import { TimeZone } from '@/components/time-zone';
@@ -10,7 +10,7 @@ import { toggleVariants } from '@/components/ui/toggle';
 import { validDay } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
 import type { BoardOption } from '@/lib/listings/board-filter';
-import { DAY_PRESETS, withParams } from '@/lib/shared/search-params';
+import { DAY_PRESETS, FITS, withParams } from '@/lib/shared/search-params';
 import { NavLink, useNav } from './nav';
 import { SearchBox } from './search-box';
 
@@ -40,6 +40,33 @@ function BoardChips({ query, path, boards }: { query: URLSearchParams; path: str
           href={withParams(query, { src: board }, path)}
         >
           {name}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
+const FIT_LABEL = (
+  <span className="flex items-center gap-1 pr-0.5 text-[13px] text-muted-foreground">
+    <SparklesIcon className="text-brand" /> AI fit
+  </span>
+);
+
+/** The AI's verdict (the active profile's): every offer, its matches or the ones it rejected. */
+function FitChips({ query, path }: { query: URLSearchParams; path: string }) {
+  const raw = query.get('fit') ?? '';
+  const fit = FITS.some((option) => option.fit === raw) ? raw : '';
+  return (
+    <nav className={cn(CHIPS, 'mb-2 items-center')} aria-label="Filter by AI fit">
+      {FIT_LABEL}
+      {FITS.map((option) => (
+        <NavLink
+          key={option.fit}
+          className={CHIP}
+          aria-current={fit === option.fit ? 'true' : undefined}
+          href={withParams(query, { fit: option.fit }, path)}
+        >
+          {option.label}
         </NavLink>
       ))}
     </nav>
@@ -107,6 +134,7 @@ export function Controls({ boards, tz }: { boards: Promise<BoardOption[]>; tz: P
       <TimeZone tz={use(tz)}>
         <DateFilter query={query} path={path} />
       </TimeZone>
+      <FitChips query={query} path={path} />
     </>
   );
 }
@@ -150,6 +178,14 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
             </span>
           ))}
         </div>
+      </div>
+      <div className={cn(CHIPS, 'mb-2 items-center')} aria-hidden="true">
+        {FIT_LABEL}
+        {FITS.map((option) => (
+          <span key={option.fit} className={CHIP}>
+            {option.label}
+          </span>
+        ))}
       </div>
     </>
   );

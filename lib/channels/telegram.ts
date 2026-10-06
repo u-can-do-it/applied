@@ -20,7 +20,7 @@ export const telegramChannel: Channel = {
   async send(batch) {
     const notification = formatNotification({
       ...batch,
-      link: appUrl('/ai?days=1&rejected=1'), // the AI tab, to look at what didn't match (only counted here)
+      link: appUrl('/?days=1&fit=rejected'), // the offers the AI rejected, to look at what didn't match (only counted here)
       more: appUrl(NEW_OFFERS_PATH),
     });
     if (!notification) return { unsent: [] };

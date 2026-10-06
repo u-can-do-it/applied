@@ -20,6 +20,7 @@ import { Tabs, TabsFallback } from '@/features/shell/tabs';
 import { LoadError } from '@/components/load-error';
 import { TimeZone } from '@/components/time-zone';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AiPanel } from '@/features/ai/ai-panel';
 import { HealthCard, HealthCardFallback } from '@/features/health/health-card';
 import { NotificationsPanel } from '@/features/notifications/notifications-panel';
 import { FiltersPanel } from '@/features/scraping/filters-panel';
@@ -28,7 +29,8 @@ import { ScrapersPanel } from '@/features/scraping/scrapers-panel';
 import { TelegramPanel } from '@/features/telegram/telegram-panel';
 
 export const metadata: Metadata = { title: 'Jobwatch · Settings' };
-// Testing a scraper fetches its pages; unmuting and "Send the N now" run the AI check first.
+// Testing a scraper fetches its pages; unmuting and "Send the N now" run the AI check first; an AI
+// run's slices work in after() (the AI filter panel and its "Check …").
 // ("Scrape now" in the header is POST /api/scrape, with a limit of its own.)
 export const maxDuration = 300;
 
@@ -89,6 +91,10 @@ async function Settings() {
     <TimeZone tz={timeZone}>
       <SchedulePanel settings={settings} timeZone={timeZone} cron={cron} endpoint={`${origin}/api/cron/scrape`} />
       <FiltersPanel settings={settings} />
+      {/* profiles and runs: OpenAI's counts and the latest run hold up only this panel */}
+      <Suspense fallback={<Skeleton className="mb-3.5 h-40 rounded-xl" />}>
+        <AiPanel />
+      </Suspense>
       <NotificationsPanel
         notify={settings.notify}
         muted={state.muted}
