@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe as group, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
-import { describe, SLOW_MS, watchSlow } from '@/components/slow-requests';
+import { describe, SLOW_AI_MS, SLOW_MS, slowAfter, watchSlow } from '@/components/slow-requests';
 
 vi.mock('sonner', () => ({ toast: { warning: vi.fn(() => 't1'), dismiss: vi.fn() } }));
 const warning = vi.mocked(toast.warning);
@@ -51,6 +51,31 @@ group('watchSlow', () => {
       'Slow response: GET /api/changes',
       expect.objectContaining({ id: 't1', description: 'HTTP 200 after 4.2 s' }),
     );
+  });
+
+  it('waits longer for a server action given its own limit', async () => {
+    slowAfter(['ai1'], SLOW_AI_MS);
+    const fetch = watchSlow(() => later(SLOW_AI_MS + 500, new Response('ok')));
+    const pending = fetch('/applied', { method: 'POST', headers: { 'Next-Action': 'ai1' } });
+    await vi.advanceTimersByTimeAsync(SLOW_AI_MS - 1);
+    expect(warning).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(warning).toHaveBeenLastCalledWith(
+      'Slow response: POST /applied (server action)',
+      expect.objectContaining({ description: 'Still waiting…' }),
+    );
+    await vi.advanceTimersByTimeAsync(500);
+    await pending;
+  });
+
+  it('keeps the usual limit for the other server actions', async () => {
+    slowAfter(['ai1'], SLOW_AI_MS);
+    const fetch = watchSlow(() => later(SLOW_MS + 500, new Response('ok')));
+    const pending = fetch('/applied', { method: 'POST', headers: { 'Next-Action': 'other' } });
+    await vi.advanceTimersByTimeAsync(SLOW_MS);
+    expect(warning).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(500);
+    await pending;
   });
 
   it("doesn't watch prefetches", async () => {

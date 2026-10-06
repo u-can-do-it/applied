@@ -3,7 +3,10 @@ import { ConfirmProvider } from '@/components/confirm';
 import { QueryProvider } from '@/components/query-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { assessFitAction, fillFromLinkAction } from '@/features/applications/actions';
 import { ServiceWorker } from '@/features/shell/service-worker';
+import { SlowAiActions } from '@/features/shell/slow-ai-actions';
+import { actionId } from '@/server/action';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -22,6 +25,9 @@ export const viewport: Viewport = {
   ],
 };
 
+// the server actions you wait on while OpenAI answers (the AI runs and "Scrape now"'s AI check go on after the answer)
+const AI_ACTIONS = [assessFitAction, fillFromLinkAction].map(actionId);
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -34,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* at the top: an open Sheet keeps its buttons at the bottom */}
         <Toaster position="top-center" />
         <ServiceWorker />
+        <SlowAiActions ids={AI_ACTIONS} />
       </body>
     </html>
   );

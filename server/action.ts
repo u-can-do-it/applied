@@ -52,3 +52,13 @@ export const formAction =
   <S extends z.core.$ZodType, O>(schema: S, fn: (input: z.output<S>) => Promise<O>, options: Options = {}) =>
   async (_previous: Result<O> | null, form: FormData): Promise<Result<O>> =>
     run(schema, form, fn, { ...options, form: true });
+
+/**
+ * The id the browser sends a server action's call with (its Next-Action header). The compiler
+ * registers every export of a 'use server' file with React, which puts it there as `$$id`.
+ */
+export function actionId(serverAction: unknown): string {
+  const id = (serverAction as { $$id?: unknown }).$$id;
+  if (typeof id !== 'string') throw new Error('Not a server action (no $$id)');
+  return id;
+}

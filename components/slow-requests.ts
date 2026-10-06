@@ -1,10 +1,23 @@
 import { toast } from 'sonner';
+import { OPENAI_TIMEOUT_MS } from '@/lib/budgets';
 
 // A toast when a request the browser makes takes over 3 s: server actions, page navigations (the RSC
 // payload) and the /api endpoints all go through window.fetch. It shows while the request still waits
 // and then says how long it took. Prefetches aren't watched: nobody is waiting for them.
+// The server actions that answer only after OpenAI does get SLOW_AI_MS instead (slowAfter()).
 
 export const SLOW_MS = 3000;
+
+/** An AI answer often takes tens of seconds; past half its timeout it's slow. */
+export const SLOW_AI_MS = OPENAI_TIMEOUT_MS / 2;
+
+/** server action id (its Next-Action header) -> its own SLOW_MS */
+const limits = new Map<string, number>();
+
+/** These server actions (by id) are slow only after `ms`. */
+export function slowAfter(actionIds: string[], ms: number) {
+  for (const id of actionIds) limits.set(id, ms);
+}
 
 type Fetch = typeof fetch;
 
@@ -25,16 +38,18 @@ export function describe(input: RequestInfo | URL, init?: RequestInit): string {
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
-/** window.fetch, timed: a warning toast for each request over SLOW_MS. */
+/** window.fetch, timed: a warning toast for each request over SLOW_MS (or its slowAfter()). */
 export function watchSlow(original: Fetch): Fetch {
   return (input, init) => {
-    if (headersOf(input, init).has('next-router-prefetch')) return original(input, init);
+    const headers = headersOf(input, init);
+    if (headers.has('next-router-prefetch')) return original(input, init);
     const what = describe(input, init);
+    const limit = limits.get(headers.get('next-action') ?? '') ?? SLOW_MS;
     const started = performance.now();
     let id: string | number | undefined;
     const timer = setTimeout(() => {
       id = toast.warning(`Slow response: ${what}`, { description: 'Still waiting…', duration: Infinity });
-    }, SLOW_MS);
+    }, limit);
     const done = (outcome: string) => {
       clearTimeout(timer);
       if (id === undefined) return;
