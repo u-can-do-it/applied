@@ -42,6 +42,16 @@ export const fillFromLinkSchema = z.object({
   link: z.string({ error: LINK_NEEDED }).check(z.refine(isLink, LINK_NEEDED)),
 });
 
+const TEXT_NEEDED = 'Paste the ad text first.';
+/** The ad text pasted into the form, and its link if there is one (it tells the AI a little more). */
+export const fillFromTextSchema = z.object({
+  text: z.string({ error: TEXT_NEEDED }).check(z.refine((text) => text.trim() !== '', TEXT_NEEDED)),
+  link: z.pipe(
+    string(),
+    z.transform((link: string) => (isLink(link) ? link.trim() : '')),
+  ),
+});
+
 // in the order the form is checked: the first problem is the one shown
 /** The application's fields, as the add/edit form has them (Edit checks these; Add, the status and the note too). */
 export const applicationFieldsSchema = z.object({

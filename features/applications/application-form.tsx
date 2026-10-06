@@ -7,7 +7,14 @@ import type { ApplicationWithContent } from '@/lib/applications';
 import { WORK_MODE_LABELS, WORK_MODES } from '@/lib/ads/details';
 import { BOARD_SUGGESTIONS, boardOf, isLink } from '@/lib/boards';
 import { addApplicationSchema, applicationFieldsSchema } from '@/lib/shared/schemas/applications';
-import { addApplicationAction, fillFromLinkAction, updateApplicationAction } from './actions';
+import type { Result } from '@/lib/shared/result';
+import {
+  addApplicationAction,
+  fillFromLinkAction,
+  fillFromTextAction,
+  updateApplicationAction,
+  type JobDraft,
+} from './actions';
 import { DateInput } from '@/components/date-input';
 import { FieldError } from '@/components/field';
 import { answered, checkOnSubmit, FormError, formSchema, noImplicitSubmit, useAppForm } from '@/components/form';
@@ -33,7 +40,9 @@ export function ApplicationForm(props: FormProps) {
   const editing = props.app !== undefined;
   const zone = useZone();
   const [initial] = useState<Draft>(() => (props.app ? draftOf(props.app, zone) : empty(zone)));
-  const [filling, startFill] = useTransition();
+  const [readingLink, startReadingLink] = useTransition();
+  const [readingText, startReadingText] = useTransition();
+  const filling = readingLink || readingText;
   const [saving, startSave] = useTransition();
   const [info, setInfo] = useState<{ warning?: string; known?: string | null } | null>(null);
   const dayError = useId();
@@ -67,28 +76,35 @@ export function ApplicationForm(props: FormProps) {
   const noContent = useSelector(form.store, (state) => !state.values.content.trim());
   const hybrid = useSelector(form.store, (state) => state.values.workMode === 'hybrid');
 
-  const fill = () => {
-    setInfo(null);
-    startFill(async () => {
-      const answer = await answered(form, fillFromLinkAction({ link: url }));
-      if (!answer.ok) return;
-      const filled = answer.data;
-      startTransition(() => {
-        const current = form.state.values;
-        // what you typed in stays (the link is what's read: it doesn't count); what's filled in can be filled in again
-        const fields = Object.keys(current) as DraftField[];
-        const typed = new Set(fields.filter((field) => field !== 'url' && form.getFieldMeta(field)?.isDirty));
-        const next = withFilled(current, filled, typed, editing);
-        for (const field of fields)
-          if (next[field] !== current[field])
-            form.setFieldValue(field, next[field], { dontUpdateMeta: true, dontRunListeners: true });
-        // editing one that's this scraped offer already: nothing to say
-        setInfo({
-          warning: filled.warning,
-          known: filled.knownJobId && filled.knownJobId === props.app?.jobId ? null : filled.known,
-        });
+  // what the link's page or the pasted ad text says, into the form
+  const fillWith = async (call: Promise<Result<JobDraft>>) => {
+    const answer = await answered(form, call);
+    if (!answer.ok) return;
+    const filled = answer.data;
+    startTransition(() => {
+      const current = form.state.values;
+      // what you typed in stays (the link is what's read: it doesn't count); what's filled in can be filled in again
+      const fields = Object.keys(current) as DraftField[];
+      const typed = new Set(fields.filter((field) => field !== 'url' && form.getFieldMeta(field)?.isDirty));
+      const next = withFilled(current, filled, typed, editing);
+      for (const field of fields)
+        if (next[field] !== current[field])
+          form.setFieldValue(field, next[field], { dontUpdateMeta: true, dontRunListeners: true });
+      // editing one that's this scraped offer already: nothing to say
+      setInfo({
+        warning: filled.warning,
+        known: filled.knownJobId && filled.knownJobId === props.app?.jobId ? null : filled.known,
       });
     });
+  };
+  const fill = () => {
+    setInfo(null);
+    startReadingLink(() => fillWith(fillFromLinkAction({ link: url })));
+  };
+  // for a page that can't be read: the ad text you pasted, which stays as it is
+  const fillFromText = () => {
+    setInfo(null);
+    startReadingText(() => fillWith(fillFromTextAction({ text: form.state.values.content, link: url })));
   };
 
   return (
@@ -132,8 +148,8 @@ export function ApplicationForm(props: FormProps) {
               />
             )}
           </form.AppField>
-          <Button type="button" onClick={fill} disabled={!isLink(url) || filling} aria-busy={filling || undefined}>
-            {filling ? (
+          <Button type="button" onClick={fill} disabled={!isLink(url) || filling} aria-busy={readingLink || undefined}>
+            {readingLink ? (
               'Reading the page…'
             ) : (
               <>
@@ -242,6 +258,24 @@ export function ApplicationForm(props: FormProps) {
             />
           )}
         </form.AppField>
+        {/* when the link's page can't be read (a login wall): paste the ad and fill in from it */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-end"
+          onClick={fillFromText}
+          disabled={noContent || filling}
+          aria-busy={readingText || undefined}
+        >
+          {readingText ? (
+            'Reading the text…'
+          ) : (
+            <>
+              <SparklesIcon /> Fill in from the ad text
+            </>
+          )}
+        </Button>
         {!editing && (
           <form.AppField name="note">
             {(field) => (

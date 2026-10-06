@@ -98,7 +98,8 @@ through their APIs (Himalayas' job pages turn servers away), Built In and Linked
   were skills) is read when the Applied page has rendered, 40 per visit.
 
 "Fill in from the link" (Add application) reads the page the same way and lets OpenAI
-(`OPENAI_EXTRACT_MODEL`) fill in the form.
+(`OPENAI_EXTRACT_MODEL`) fill in the form. A page that can't be read (a login wall, one drawn by scripts):
+"Fill in from the ad text" gives OpenAI the text pasted into the form instead.
 
 ### AI runs
 

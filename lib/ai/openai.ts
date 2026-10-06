@@ -262,7 +262,7 @@ export async function extractJob(page: { url: string; pageTitle: string; text: s
     model,
     effort,
     system: EXTRACT_SYSTEM,
-    user: `URL: ${page.url}\nPAGE TITLE: ${page.pageTitle || '(none)'}\n\nPAGE TEXT:\n${page.text.slice(0, 14_000) || '(empty)'}`,
+    user: `URL: ${page.url || '(none)'}\nPAGE TITLE: ${page.pageTitle || '(none)'}\n\nPAGE TEXT:\n${page.text.slice(0, 14_000) || '(empty)'}`,
     schemaName: 'job',
     schema: EXTRACT_SCHEMA,
   });

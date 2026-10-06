@@ -10,7 +10,7 @@ export function ApplicationFormHeader({ editing }: { editing: boolean }) {
       <SheetDescription className="text-[13px]">
         {editing
           ? 'Its status and note stay as they are: they’re set in the window itself.'
-          : 'One you sent outside the lists here. Paste its link to fill in the rest.'}
+          : 'One you sent outside the lists here. Paste its link, or its ad text, to fill in the rest.'}
       </SheetDescription>
     </SheetHeader>
   );

@@ -29,6 +29,7 @@ import {
   applySchema,
   DAY_ERROR,
   fillFromLinkSchema,
+  fillFromTextSchema,
   jobIdSchema,
   removeStepSchema,
   setNoteSchema,
@@ -126,7 +127,9 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
   ]);
   const read = 'text' in page ? page : null;
   if (!read?.text && !read?.pageTitle && !offer)
-    throw new Error(`Couldn’t read the page: ${'error' in page ? page.error : 'it has no text (a login wall?)'}`);
+    throw new Error(
+      `Couldn’t read the page (${'error' in page ? page.error : 'it has no text: a login wall?'}). Paste the ad text and fill in from it.`,
+    );
 
   let ai: ExtractedJob | null = null;
   let warning: string | undefined;
@@ -156,6 +159,27 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
     known: offer ? `${offer.title}${offer.company ? ` · ${offer.company}` : ''} (scraped from ${offer.src})` : null,
     knownJobId,
     warning,
+  };
+});
+
+/** For a page that can't be read (a login wall, a page drawn by scripts): the AI fills in the form from the ad text you pasted. */
+export const fillFromTextAction = action(fillFromTextSchema, async ({ text, link }): Promise<JobDraft> => {
+  if (!env.OPENAI_API_KEY) throw new Error('Filling in from the text needs the AI, and OPENAI_API_KEY isn’t set.');
+  const ai = await extractJob({ url: link, pageTitle: '', text: text.trim() });
+  return {
+    // the link and the text stay as they are in the form
+    url: '',
+    board: '',
+    title: ai.title,
+    company: ai.company,
+    location: ai.location,
+    workMode: ai.workMode === 'unknown' ? '' : ai.workMode,
+    officeDays: ai.officeDays,
+    salary: ai.salary,
+    contract: ai.contract,
+    content: '',
+    known: null,
+    knownJobId: null,
   };
 });
 

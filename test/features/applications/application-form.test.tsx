@@ -5,6 +5,7 @@ import { ApplicationForm, type FormProps } from '@/features/applications/applica
 import {
   addApplicationAction,
   fillFromLinkAction,
+  fillFromTextAction,
   updateApplicationAction,
   type JobDraft,
 } from '@/features/applications/actions';
@@ -15,11 +16,13 @@ import { zoneOf, DEFAULT_TZ } from '@/lib/dates';
 vi.mock('@/features/applications/actions', () => ({
   addApplicationAction: vi.fn(),
   fillFromLinkAction: vi.fn(),
+  fillFromTextAction: vi.fn(),
   updateApplicationAction: vi.fn(),
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }));
 const add = vi.mocked(addApplicationAction);
 const fillFromLink = vi.mocked(fillFromLinkAction);
+const fillFromText = vi.mocked(fillFromTextAction);
 const update = vi.mocked(updateApplicationAction);
 
 const LINK = 'https://justjoin.it/job-offer/acme-react-dev';
@@ -84,6 +87,24 @@ describe('ApplicationForm', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Fill in from the link' }));
     await waitFor(() => expect(box('Company').value).toBe('Globex'));
     expect(box('Title *').value).toBe('My own title');
+  });
+
+  it('"Fill in from the ad text" reads what you pasted, which stays as it is', async () => {
+    open();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Fill in from the ad text' }).disabled).toBe(true);
+    type('Title *', 'My own title');
+    type('Link to the offer', LINK);
+    type('Ad text', 'The pasted ad');
+    fillFromText.mockResolvedValue({ ok: true, data: { ...page, url: '', board: '', content: '' } });
+    click('Fill in from the ad text');
+    await waitFor(() => expect(box('Company').value).toBe('Acme'));
+    expect(fillFromText).toHaveBeenCalledWith({ text: 'The pasted ad', link: LINK });
+    expect(fillFromLink).not.toHaveBeenCalled();
+    expect(box('Title *').value).toBe('My own title');
+    expect(box('Salary').value).toBe('20k');
+    expect(box('Ad text').value).toBe('The pasted ad');
+    expect(box('Link to the offer').value).toBe(LINK);
+    expect(box('Board').value).toBe('justjoin');
   });
 
   it('editing, "Fill in" fills only the empty fields', async () => {
