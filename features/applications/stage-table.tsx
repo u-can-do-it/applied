@@ -1,18 +1,18 @@
-import type { Application } from '@/lib/applications';
 import { STAGES, OUTCOMES, outcomeHeading, outcomeLabel, outcomesFor, type Stats } from '@/lib/stages';
 import { cn } from '@/lib/shared/cn';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cellId } from './status-filter';
 
-/** Where they are now: stage × outcome, each count a filter. */
+/** Where they are now: stage × outcome, each count a filter (its id: cellId). */
 export function StageTable({
   byStage,
   isOn,
   onPick,
 }: {
   byStage: Stats['byStage'];
-  isOn: (label: string) => 'true' | undefined;
-  onPick: (label: string, test: (app: Application) => boolean) => void;
+  isOn: (id: string) => 'true' | undefined;
+  onPick: (id: string) => void;
 }) {
   return (
     <details className="overflow-x-auto">
@@ -45,7 +45,7 @@ export function StageTable({
               </TableHead>
               {OUTCOMES.map((outcome) => {
                 const count = byStage[stage.id][outcome.id];
-                const label = `${stage.short} · ${outcomeLabel(stage.id, outcome.id)}`;
+                const id = cellId(stage.id, outcome.id);
                 const cell = 'px-2 py-1.5 text-right max-[480px]:px-1';
                 // an offer has its own outcomes (Received / Accepted / Rejected) and is never ghosted
                 if (!outcomesFor(stage.id).some((possible) => possible.id === outcome.id))
@@ -62,8 +62,8 @@ export function StageTable({
                         variant="link"
                         size="xs"
                         className="h-auto p-0 text-[13px] aria-pressed:underline"
-                        aria-pressed={isOn(label)}
-                        onClick={() => onPick(label, (app) => app.stage === stage.id && app.outcome === outcome.id)}
+                        aria-pressed={isOn(id)}
+                        onClick={() => onPick(id)}
                       >
                         {count}
                       </Button>

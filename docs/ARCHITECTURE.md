@@ -421,6 +421,7 @@ Values that live outside the code keep their names, so nothing breaks across a d
   `sources`, `jw_dup_key`…), mapped in `lib/db/schema.ts`;
 - an application's history entries (`{ stage, state, at, auto }`, jsonb);
 - note drafts in the browser: `localStorage` key `jobwatch:note:<job id>`, value `{ text, base }`;
-- the URL's filters (`?q=`, `?src=`, `?days=`…);
+- the URL's filters (`?q=`, `?src=`, `?days=`…; the Applied tab's `?q=` and `?status=`, its ids in
+  `features/applications/status-filter.ts`);
 - `/api/application` takes `?jobId=` (or `?key=`, the same);
 - what the prompts send OpenAI and read back (a job's `board`, `first_seen`; a pair's `p`; an offer's `n`).

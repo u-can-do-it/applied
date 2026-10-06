@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isActive,
+  isPositive,
   isRejected,
   isStage,
   isOutcome,
@@ -79,6 +80,17 @@ describe('isActive / isRejected', () => {
     expect(isActive(app('offer', 'failed'))).toBe(false);
   });
 
+  it('positive = past Submitted and still good, by the last status only', () => {
+    expect(isPositive(app('invited', 'pending'))).toBe(true);
+    expect(isPositive(app('technical', 'passed'))).toBe(true);
+    expect(isPositive(app('submitted', 'passed'))).toBe(false);
+    expect(isPositive(app('hr', 'failed', [step('hr', 'passed')]))).toBe(false);
+    expect(isPositive(app('technical', 'ghosted'))).toBe(false);
+    expect(isPositive(app('screening', 'pool'))).toBe(false);
+    for (const outcome of ['pending', 'passed', 'failed'] as const)
+      expect(isPositive(app('offer', outcome))).toBe(true);
+  });
+
   it('rejected = they said no; an offer you turned down is not that', () => {
     expect(isRejected(app('hr', 'failed'))).toBe(true);
     expect(isRejected(app('submitted', 'failed'))).toBe(true);
@@ -128,7 +140,7 @@ describe('stats', () => {
     ];
     const totals = stats(apps);
     expect(totals.sent).toBe(11);
-    expect(totals.positive).toBe(8); // everything past Submitted
+    expect(totals.positive).toBe(5); // invited/pending, technical/passed and the offers
     expect(totals.offers).toBe(3);
     expect(totals.active).toBe(4); // submitted/pending, invited/pending, technical/passed, offer/pending
     expect(totals.rejected).toBe(2);

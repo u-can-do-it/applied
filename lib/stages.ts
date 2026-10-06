@@ -79,6 +79,12 @@ export const isActive = (app: { stage: StageId; outcome: OutcomeId }) =>
 /** They said no (an offer you turned down isn't that). */
 export const isRejected = (app: { stage: StageId; outcome: OutcomeId }) =>
   app.outcome === 'failed' && app.stage !== 'offer';
+/**
+ * They got back to you and it's still good: past Submitted and going on, or an offer (taken or not).
+ * By the last status only: rejected, ghosted or "in the talent pool" after an interview isn't.
+ */
+export const isPositive = (app: { stage: StageId; outcome: OutcomeId }) =>
+  app.stage !== 'submitted' && (app.stage === 'offer' || isActive(app));
 
 export const isStage = (value: unknown): value is StageId => STAGES.some((stage) => stage.id === value);
 export const isOutcome = (value: unknown): value is OutcomeId => OUTCOMES.some((outcome) => outcome.id === value);
@@ -99,7 +105,7 @@ export function reached(app: WithStatus): Set<StageId> {
 
 export type Stats = {
   sent: number;
-  positive: number; // the last status is past Submitted: they got back to you
+  positive: number; // the last status is past Submitted and still good (isPositive)
   offers: number; // the last status is at the Offer
   active: number; // current stage in progress, or passed and waiting for the next step (isActive)
   rejected: number; // they said no (isRejected)
@@ -115,13 +121,15 @@ export function stats(apps: WithStatus[]): Stats {
     STAGES.map((stage) => [stage.id, Object.fromEntries(OUTCOMES.map((outcome) => [outcome.id, 0]))]),
   ) as Stats['byStage'];
   const now = Object.fromEntries(STAGES.map((stage) => [stage.id, 0])) as Record<StageId, number>;
-  let active = 0,
+  let positive = 0,
+    active = 0,
     rejected = 0,
     ghosted = 0,
     pool = 0;
   for (const app of apps) {
     byStage[app.stage][app.outcome]++;
     now[app.stage]++;
+    if (isPositive(app)) positive++;
     if (isActive(app)) active++;
     else if (isRejected(app)) rejected++;
     else if (app.outcome === 'ghosted') ghosted++;
@@ -129,7 +137,7 @@ export function stats(apps: WithStatus[]): Stats {
   }
   return {
     sent: apps.length,
-    positive: apps.length - now.submitted,
+    positive,
     offers: now.offer,
     active,
     rejected,

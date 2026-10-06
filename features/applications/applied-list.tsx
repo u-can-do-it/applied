@@ -10,9 +10,10 @@ import { TimeZone, useZone } from '@/components/time-zone';
 import { useRefreshWhile } from '@/components/use-refresh-while';
 import { Button } from '@/components/ui/button';
 import { AddApplication } from './add-application';
-import { AppliedStats, type Filter } from './applied-stats';
+import { AppliedStats } from './applied-stats';
 import { ApplicationRow } from './application-row';
 import { ApplicationSheet, type SheetHandle } from './application-sheet';
+import { useAppliedQuery } from './use-applied-query';
 
 // The Applied tab: statistics, the list (by the day you applied, like the offer lists), and one
 // application's window.
@@ -34,8 +35,7 @@ export function AppliedList({ tz, ...props }: { apps: Application[]; labels: Rec
 
 function List({ apps: fromServer, labels }: { apps: Application[]; labels: Record<string, string> }) {
   const zone = useZone();
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>(null);
+  const { search, setSearch, filter, setFilter } = useAppliedQuery(); // in the URL
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
   const [switched, setSwitched] = useState(false); // …in place of another one
   const sheet = useRef<SheetHandle>(null);
@@ -117,7 +117,7 @@ function List({ apps: fromServer, labels }: { apps: Application[]; labels: Recor
 
   return (
     <>
-      <AppliedStats apps={apps} filter={filter} setFilter={setFilter} />
+      <AppliedStats apps={apps} filter={filter?.id ?? null} setFilter={setFilter} />
 
       <div className="flex items-stretch gap-2 max-[560px]:flex-col">
         <div className={cn(searchBox, 'flex-1')}>

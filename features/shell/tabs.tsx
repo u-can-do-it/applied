@@ -17,7 +17,8 @@ const NAV = 'mb-3.5 -mt-1 flex gap-1 border-b';
 const TAB =
   '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground no-underline transition-colors hover:text-foreground aria-[current=page]:border-foreground aria-[current=page]:font-semibold aria-[current=page]:text-foreground';
 
-// Switching tabs keeps search / board / dates, only the page number resets.
+// The Offers tab keeps the offers' search / board / dates, only the page number resets. Another page's
+// query (the Applied tab's ?q=, ?status=) is that page's own: it doesn't go along.
 export function Tabs() {
   const pathname = usePathname();
   const params = new URLSearchParams(useSearchParams());
@@ -28,7 +29,7 @@ export function Tabs() {
       {TABS.map((tab) => (
         <Link
           key={tab.path}
-          href={queryString && tab.path === '/' ? `/?${queryString}` : tab.path}
+          href={queryString && tab.path === '/' && pathname === '/' ? `/?${queryString}` : tab.path}
           aria-current={pathname === tab.path ? 'page' : undefined}
           className={TAB}
         >

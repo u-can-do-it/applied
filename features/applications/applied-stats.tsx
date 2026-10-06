@@ -2,68 +2,38 @@
 
 import { useMemo } from 'react';
 import type { Application } from '@/lib/applications';
-import { isActive, isRejected, stageOf, outcomeHeading, stats } from '@/lib/stages';
+import { stageOf, stats } from '@/lib/stages';
 import { cn } from '@/lib/shared/cn';
 import { percentOf } from '@/lib/shared/format';
 import { Card } from '@/components/ui/card';
 import { Funnel } from './funnel';
 import { StageTable } from './stage-table';
+import { TILES, type TileId } from './status-filter';
 
-/** what a click on a statistic shows: the applications it counts */
-export type Filter = { label: string; test: (app: Application) => boolean } | null;
-
+/** filter: the id of the statistic whose applications the list shows (?status=), null for all */
 export function AppliedStats({
   apps,
   filter,
   setFilter,
 }: {
   apps: Application[];
-  filter: Filter;
-  setFilter: (filter: Filter) => void;
+  filter: string | null;
+  setFilter: (filter: string | null) => void;
 }) {
   const counts = useMemo(() => stats(apps), [apps]);
-  const pick = (label: string, test: (app: Application) => boolean) => () =>
-    setFilter(filter?.label === label ? null : { label, test });
-  const on = (label: string) => (filter?.label === label ? 'true' : undefined);
+  // a second click on the one that's on shows them all again
+  const pick = (id: string) => setFilter(filter === id ? null : id);
+  const on = (id: string) => (filter === id ? 'true' : undefined);
 
-  const tiles = [
-    { label: 'Sent', value: counts.sent, sub: '', test: () => true, tone: '' },
-    {
-      label: 'Positive replies',
-      value: counts.positive,
-      sub: percentOf(counts.positive, counts.sent),
-      test: (app: Application) => app.stage !== 'submitted',
-      tone: 'good',
-    },
-    {
-      label: 'Offers',
-      value: counts.offers,
-      sub: percentOf(counts.offers, counts.sent),
-      test: (app: Application) => app.stage === 'offer',
-      tone: 'good',
-    },
-    { label: 'In progress', value: counts.active, sub: '', test: (app: Application) => isActive(app), tone: '' },
-    {
-      label: 'Rejected',
-      value: counts.rejected,
-      sub: percentOf(counts.rejected, counts.sent),
-      test: (app: Application) => isRejected(app),
-      tone: 'bad',
-    },
-    {
-      label: 'Ghosted',
-      value: counts.ghosted,
-      sub: percentOf(counts.ghosted, counts.sent),
-      test: (app: Application) => app.outcome === 'ghosted',
-      tone: 'bad',
-    },
-    {
-      label: outcomeHeading('pool'),
-      value: counts.pool,
-      sub: percentOf(counts.pool, counts.sent),
-      test: (app: Application) => app.outcome === 'pool',
-      tone: 'bad',
-    },
+  const share = (count: number) => percentOf(count, counts.sent);
+  const tiles: { id: TileId | null; value: number; sub: string; tone: '' | 'good' | 'bad' }[] = [
+    { id: null, value: counts.sent, sub: '', tone: '' }, // Sent: all of them
+    { id: 'positive', value: counts.positive, sub: share(counts.positive), tone: 'good' },
+    { id: 'offers', value: counts.offers, sub: share(counts.offers), tone: 'good' },
+    { id: 'active', value: counts.active, sub: '', tone: '' },
+    { id: 'rejected', value: counts.rejected, sub: share(counts.rejected), tone: 'bad' },
+    { id: 'ghosted', value: counts.ghosted, sub: share(counts.ghosted), tone: 'bad' },
+    { id: 'pool', value: counts.pool, sub: share(counts.pool), tone: 'bad' },
   ];
 
   return (
@@ -71,18 +41,18 @@ export function AppliedStats({
       <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2">
         {tiles.map((tile) => (
           <Card
-            key={tile.label}
+            key={tile.id ?? 'sent'}
             size="sm"
             className="py-0 transition-shadow hover:ring-muted-foreground has-aria-pressed:ring-2 has-aria-pressed:ring-brand"
           >
             <button
               type="button"
               className="flex flex-col items-start px-3 py-2.5 text-left focus-visible:outline-offset-[-2px]"
-              aria-pressed={on(tile.label)}
-              onClick={tile.label === 'Sent' ? () => setFilter(null) : pick(tile.label, tile.test)}
+              aria-pressed={tile.id ? on(tile.id) : undefined}
+              onClick={() => (tile.id ? pick(tile.id) : setFilter(null))}
             >
               <span className="text-[22px] leading-[1.2] font-bold tabular-nums">{tile.value}</span>
-              <span className="text-xs text-muted-foreground">{tile.label}</span>
+              <span className="text-xs text-muted-foreground">{tile.id ? TILES[tile.id].label : 'Sent'}</span>
               {tile.sub && (
                 <span
                   className={cn(
@@ -104,11 +74,11 @@ export function AppliedStats({
       <Funnel
         stages={counts.now.map((atStage) => ({ ...atStage, label: stageOf(atStage.stage).label }))}
         sent={counts.sent}
-        isOn={(label) => Boolean(on(label))}
-        onPick={(label, stage) => pick(label, (app) => app.stage === stage)()}
+        isOn={(stage) => Boolean(on(stage))}
+        onPick={pick}
       />
 
-      <StageTable byStage={counts.byStage} isOn={on} onPick={(label, test) => pick(label, test)()} />
+      <StageTable byStage={counts.byStage} isOn={on} onPick={pick} />
     </section>
   );
 }

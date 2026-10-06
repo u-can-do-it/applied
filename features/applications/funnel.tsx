@@ -10,8 +10,8 @@ export function Funnel({
 }: {
   stages: { stage: StageId; label: string; count: number }[];
   sent: number;
-  isOn: (label: string) => boolean;
-  onPick: (label: string, stage: StageId) => void;
+  isOn: (stage: StageId) => boolean;
+  onPick: (stage: StageId) => void;
 }) {
   return (
     <ol
@@ -23,8 +23,8 @@ export function Funnel({
           <button
             type="button"
             className="relative block w-full overflow-hidden rounded-md px-2 py-1 text-left text-[13px] aria-pressed:outline-2 aria-pressed:outline-brand"
-            aria-pressed={isOn(label) || undefined}
-            onClick={() => onPick(label, stage)}
+            aria-pressed={isOn(stage) || undefined}
+            onClick={() => onPick(stage)}
           >
             <span
               className="absolute inset-y-0 left-0 rounded-md bg-accent"
