@@ -1,9 +1,10 @@
 import 'server-only';
+import { STATUS_CODES } from 'node:http';
 import type { Scraper } from '../../db/repos/scrapers';
 import { BROWSER_UA, fetchOutbound, readText } from '../../outbound';
 import { message } from '../../shared/errors';
 import { withApiParams } from '../api-params';
-import { isObj, str } from '../extract';
+import { isObj, str, strip } from '../extract';
 import { areaTest, expandUrl, keywordTest, titleTest } from '../match';
 import { parseBody } from '../parse';
 import { isDue } from '../quota';
@@ -32,21 +33,39 @@ export async function fetchPage(url: string, headers: Record<string, string> = {
   });
   if (!res.ok) {
     const reason = await reasonOf(res);
+    // "HTTP 503, message: Service Temporarily Unavailable"; without its own words, the status's: "HTTP 503 Service Unavailable"
+    const words = reason ? `, message: ${reason}` : STATUS_CODES[res.status] ? ` ${STATUS_CODES[res.status]}` : '';
     throw new Error(
-      `HTTP ${res.status}${reason ? `: ${reason}` : ''}${res.status === 403 || res.status === 429 ? ' (the site blocks this server?)' : ''}`,
+      `HTTP ${res.status}${words}${res.status === 403 || res.status === 429 ? ' (the site blocks this server?)' : ''}`,
     );
   }
   return readText(res);
 }
 
-/** An API's own words for a refusal, when it answers JSON ({"display": "Authorisation failed"}, {"message": …}). */
+/**
+ * The site's own words for a refusal: an API's JSON ({"display": "Authorisation failed"}, {"message": …}),
+ * an error page's title or heading ("503 Service Temporarily Unavailable", its code left out), or a
+ * plain-text answer.
+ */
 async function reasonOf(res: Response): Promise<string> {
-  if (!res.headers.get('content-type')?.includes('json')) return '';
+  const type = res.headers.get('content-type') ?? '';
   try {
-    const answer: unknown = JSON.parse(await readText(res));
-    if (!isObj(answer)) return '';
-    const error = isObj(answer.error) ? answer.error.message : answer.error;
-    return str(answer.display ?? answer.message ?? error).slice(0, 200);
+    const body = await readText(res);
+    let reason = '';
+    if (type.includes('json')) {
+      const answer: unknown = JSON.parse(body);
+      if (!isObj(answer)) return '';
+      const error = isObj(answer.error) ? answer.error.message : answer.error;
+      reason = str(answer.display ?? answer.message ?? error);
+    } else if (type.includes('html')) {
+      // not the page's text: a board's own error page is its whole site
+      reason = strip(
+        /<title[^>]*>([\s\S]*?)<\/title>/i.exec(body)?.[1] || /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(body)?.[1] || '',
+      );
+    } else if (type.startsWith('text/')) {
+      reason = strip(body);
+    }
+    return reason.replace(new RegExp(`^${res.status}\\b\\s*[-:–]?\\s*`), '').slice(0, 200);
   } catch {
     return '';
   }

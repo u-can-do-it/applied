@@ -107,27 +107,29 @@ function RunRow({ run, added }: { run: ScrapeRun; added: BoardAdded[] }) {
           )}
         </CollapsibleTrigger>
         <CollapsibleContent className="pb-2 pl-6 text-xs">
-          {added.length ? (
+          {!added.length && (
+            <p className="m-0 text-muted-foreground">
+              {run.finishedAt ? 'No new offers.' : 'Still going, or it stopped.'}
+            </p>
+          )}
+          {/* per board what it added, then per scraper what failed: its status and the site's message */}
+          {added.length + run.errors.length > 0 && (
             <ul className="m-0 list-none p-0">
               {added.map((board) => (
                 <li key={board.board}>
                   {board.label}: <strong>{board.added} new</strong>
                 </li>
               ))}
+              {run.errors.map((failure, i) => (
+                <li
+                  key={i}
+                  className={cn('[overflow-wrap:anywhere]', failure.warning ? 'text-warning' : 'text-destructive')}
+                >
+                  {failure.scraper}: {failure.error}
+                </li>
+              ))}
             </ul>
-          ) : (
-            <p className="m-0 text-muted-foreground">
-              {run.finishedAt ? 'No new offers.' : 'Still going, or it stopped.'}
-            </p>
           )}
-          {run.errors.map((failure, i) => (
-            <p
-              key={i}
-              className={cn('m-0 mt-1 [overflow-wrap:anywhere]', failure.warning ? 'text-warning' : 'text-destructive')}
-            >
-              {failure.scraper}: {failure.error}
-            </p>
-          ))}
         </CollapsibleContent>
       </Collapsible>
     </li>

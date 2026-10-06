@@ -325,16 +325,33 @@ describe('fetchPage: a refused request', () => {
 
   it("says the API's own reason when it answers JSON", async () => {
     answer(401, '{"exception":"AUTH_FAIL","display":"Authorisation failed"}', 'application/json; charset=utf8');
-    await expect(fetchPage('https://board.test/api')).rejects.toThrow(/^HTTP 401: Authorisation failed$/);
+    await expect(fetchPage('https://board.test/api')).rejects.toThrow(/^HTTP 401, message: Authorisation failed$/);
     answer(429, '{"error":{"message":"Too many requests"}}', 'application/json');
     await expect(fetchPage('https://board.test/api')).rejects.toThrow(
-      'HTTP 429: Too many requests (the site blocks this server?)',
+      'HTTP 429, message: Too many requests (the site blocks this server?)',
     );
   });
 
-  it('just the status for a page', async () => {
+  it("an error page's title or heading, without its code, and a plain-text answer", async () => {
+    answer(
+      503,
+      '<html><head><title>503 Service Temporarily Unavailable</title></head><body><h1>503 Service Temporarily Unavailable</h1><hr>nginx</body></html>',
+      'text/html',
+    );
+    await expect(fetchPage('https://board.test/api')).rejects.toThrow(
+      /^HTTP 503, message: Service Temporarily Unavailable$/,
+    );
+    answer(502, '<body><h1>Bad &amp; gone</h1><p>Lots of text</p></body>', 'text/html');
+    await expect(fetchPage('https://board.test/api')).rejects.toThrow(/^HTTP 502, message: Bad & gone$/);
+    answer(503, '  upstream connect error\n', 'text/plain');
+    await expect(fetchPage('https://board.test/api')).rejects.toThrow(/^HTTP 503, message: upstream connect error$/);
+  });
+
+  it("the status's own words when the site says nothing", async () => {
     answer(500, '<html>Oops</html>', 'text/html');
-    await expect(fetchPage('https://board.test/jobs')).rejects.toThrow(/^HTTP 500$/);
+    await expect(fetchPage('https://board.test/jobs')).rejects.toThrow(/^HTTP 500 Internal Server Error$/);
+    answer(503, '', 'application/octet-stream');
+    await expect(fetchPage('https://board.test/api')).rejects.toThrow(/^HTTP 503 Service Unavailable$/);
   });
 });
 

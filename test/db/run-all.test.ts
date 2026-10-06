@@ -101,7 +101,7 @@ describeDb('a scrape run (runAll)', () => {
     // first run: every scraper's first, so it only saves
     const first = await runAll('manual');
     expect(first).toMatchObject({ found: 4, kept: 2, added: 2, fresh: 0, notified: 0 });
-    expect(first.errors).toEqual([{ scraper: 'Broken', error: 'HTTP 500' }]);
+    expect(first.errors).toEqual([{ scraper: 'Broken', error: 'HTTP 500, message: down' }]);
     expect(sent).toEqual([]);
     expect(await queueRepo.size()).toBe(0);
     expect(await scrapersRepo.get(city)).toMatchObject({ lastStatus: 'ok', lastFound: 2, lastKept: 1, lastNew: 1 });
@@ -109,7 +109,11 @@ describeDb('a scrape run (runAll)', () => {
     // the newest offer on the page, kept or not
     expect((await scrapersRepo.get(city))?.mark).toBe(Date.parse('2026-09-02T10:00:00Z'));
     expect((await scrapersRepo.get(remote))?.mark).toBe(Date.parse('2026-09-03T10:00:00Z'));
-    expect(await scrapersRepo.get(broken)).toMatchObject({ lastStatus: 'error', lastError: 'HTTP 500', mark: null });
+    expect(await scrapersRepo.get(broken)).toMatchObject({
+      lastStatus: 'error',
+      lastError: 'HTTP 500, message: down',
+      mark: null,
+    });
     expect(await exec(sql`select id, title, remote from public.offers order by id`)).toEqual([
       { id: '1', title: 'React Developer', remote: true },
       { id: '3', title: 'Senior React Engineer', remote: false },
