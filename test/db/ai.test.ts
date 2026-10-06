@@ -105,7 +105,12 @@ describeDb('AI verdicts and runs', () => {
     const ai = { profileId: id, version: 1 };
     const matches = await getJobs({ q: '', src: '', page: 0, ai: { ...ai, rejected: false } });
     expect(matches.total).toBe(1);
-    expect(matches.jobs[0]).toMatchObject({ jobId: first, ai: { match: true, score: 90, summary: 'fits' } });
+    // the day's count is the list's: the one match, not the day's three jobs
+    expect(matches.jobs[0]).toMatchObject({
+      jobId: first,
+      dayCount: 1,
+      ai: { match: true, score: 90, summary: 'fits' },
+    });
     const rejected = await getJobs({ q: '', src: '', page: 0, ai: { ...ai, rejected: true } });
     expect(rejected.jobs.map((row) => [row.jobId, row.ai?.score])).toEqual([[second, 20]]);
     const [json] = await exec(sql`select distinct jsonb_typeof(checks) as checks from public.ai_verdicts`);
@@ -118,6 +123,7 @@ describeDb('AI verdicts and runs', () => {
     // all offers: every job, the judged ones with their verdict (the fit badge), the others without
     const all = await getJobs({ q: '', src: '', page: 0, verdictsOf: ai });
     expect(all.total).toBe(3);
+    expect(all.jobs.map((job) => job.dayCount)).toEqual([3, 3, 3]);
     const verdicts = Object.fromEntries(all.jobs.map((job) => [job.jobId, job.ai && [job.ai.match, job.ai.score]]));
     expect(verdicts).toEqual({ [first]: [true, 90], [second]: [false, 20], [third]: undefined });
     expect(all.jobs.find((job) => job.jobId === third)).not.toHaveProperty('ai');

@@ -9,7 +9,7 @@ import { message } from '@/lib/shared/errors';
 import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { withParams } from '@/lib/shared/search-params';
 import { appZone } from '@/lib/time-zone';
-import { DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
+import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { LoadError } from '@/components/load-error';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavLink } from './nav';
@@ -151,7 +151,14 @@ export async function Results({
 
       {groupByDay(data.jobs, (job) => job.firstSeen, zone).map((group) => (
         <section key={group.day}>
-          <h2 className={DAY_HEADING}>{group.label}</h2>
+          <h2 className={DAY_HEADING}>
+            {group.label}
+            {/* the day's offers on every page: a day can go on over the next one */}
+            <span className={DAY_COUNT}>
+              {fmt(group.items[0].dayCount)}
+              <span className="sr-only"> {group.items[0].dayCount === 1 ? 'offer' : 'offers'}</span>
+            </span>
+          </h2>
           <ol className={DAY_LIST}>
             {group.items.map((job) => (
               <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />

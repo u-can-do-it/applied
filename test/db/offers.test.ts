@@ -128,6 +128,32 @@ describeDb('offers', () => {
     expect(ids).toEqual([...ids].sort());
   });
 
+  it("counts each day's jobs on every page, the days in the app's time zone", async () => {
+    const many = Array.from({ length: PAGE_SIZE + 5 }, (_, index) =>
+      offer('justjoin', `o${index}`, `Job ${index}`, `Company ${index}`),
+    );
+    await offersRepo.ingest([
+      ...many,
+      offer('nofluff', 'late', 'Late Job', 'Owl'),
+      offer('nofluff', 'early', 'Job', 'Lark'),
+    ]);
+    await exec(sql`update public.offers set first_seen = '2026-10-05T10:00:00Z' where src = 'justjoin'`);
+    await seenAt('nofluff', 'late', '2026-10-04T22:30:00Z'); // already the 5th in Warsaw (no setting: the default)
+    await seenAt('nofluff', 'early', '2026-10-04T21:30:00Z'); // still the 4th there
+
+    const one = await page('', '', { page: 0 });
+    const two = await page('', '', { page: 1 });
+    expect(one.jobs.every((job) => job.dayCount === PAGE_SIZE + 6)).toBe(true);
+    // the 5th goes on over the next page, with the same count
+    expect(two.jobs.map((job) => [job.id, job.dayCount])).toEqual([
+      ...two.jobs.slice(0, 5).map((job) => [job.id, PAGE_SIZE + 6]),
+      ['late', PAGE_SIZE + 6],
+      ['early', 1],
+    ]);
+    // the filters count too
+    expect((await page('Owl')).jobs.map((job) => job.dayCount)).toEqual([1]);
+  });
+
   it('shows merged jobs as one, and counts them once', async () => {
     const added = await offersRepo.ingest([
       offer('justjoin', '1', 'Frontend Engineer', 'Acme'),

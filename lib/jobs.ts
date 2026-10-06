@@ -8,12 +8,14 @@ import { appZone } from './time-zone';
 /**
  * A job as the lists show it: its earliest offer, every board's offer, when you applied, whether it
  * came in with the latest scrape run that brought new jobs (`isNew`), whether you opened it before
- * (`seen`), whether you archived it (`archived`); the active profile's verdict, if it judged it.
+ * (`seen`), whether you archived it (`archived`), how many the list has on its day, every page's
+ * (`dayCount`, in the app's time zone); the active profile's verdict, if it judged it.
  */
 export type ListedJob = offersRepo.Job & {
   isNew: boolean;
   seen: boolean;
   archived: boolean;
+  dayCount: number;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription'>;
 };
 
@@ -57,7 +59,8 @@ export type JobPage = {
 };
 
 export async function getJobs(opts: Query): Promise<JobPage> {
-  const [zone, latest] = await Promise.all([appZone(), runsRepo.latestWithNewJobs()]); // "today", "last 7 days": days there
+  // "today", "last 7 days", the day counts: days there
+  const [zone, latest] = await Promise.all([appZone(), runsRepo.latestWithNewJobs()]);
   if (opts.latest && !latest) return { jobs: [], total: 0, newCount: 0, archivedCount: 0, latest };
   const filter = {
     words: searchWords(opts.q),
@@ -67,12 +70,26 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     archived: opts.archived,
   };
   if (!opts.ai) {
-    const { rows, ...numbers } = await offersRepo.pageOfJobs(filter, opts.page, PAGE_SIZE, latest, opts.verdictsOf);
+    const { rows, ...numbers } = await offersRepo.pageOfJobs(
+      filter,
+      opts.page,
+      PAGE_SIZE,
+      zone.tz,
+      latest,
+      opts.verdictsOf,
+    );
     return { jobs: rows.map(withVerdict), ...numbers, latest };
   }
   const { profileId, version, rejected } = opts.ai;
   const verdicts = { profileId, version, match: !rejected };
-  const { rows, ...numbers } = await offersRepo.pageOfJudgedJobs(filter, opts.page, PAGE_SIZE, verdicts, latest);
+  const { rows, ...numbers } = await offersRepo.pageOfJudgedJobs(
+    filter,
+    opts.page,
+    PAGE_SIZE,
+    zone.tz,
+    verdicts,
+    latest,
+  );
   return { jobs: rows.map(withVerdict), ...numbers, latest };
 }
 

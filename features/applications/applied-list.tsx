@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
-import { DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
+import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { searchBox, searchInput } from '@/components/search-field';
 import { TimeZone, useZone } from '@/components/time-zone';
 import { useRefreshWhile } from '@/components/use-refresh-while';
@@ -164,7 +164,13 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
       <div data-application-list>
         {groupByDay(shown, (app) => app.appliedAt, zone).map((group) => (
           <section key={group.day}>
-            <h2 className={DAY_HEADING}>{group.label}</h2>
+            <h2 className={DAY_HEADING}>
+              {group.label}
+              <span className={DAY_COUNT}>
+                {group.items.length}
+                <span className="sr-only"> applied</span>
+              </span>
+            </h2>
             <ol className={DAY_LIST}>
               {group.items.map((app) => (
                 <li key={app.jobId}>

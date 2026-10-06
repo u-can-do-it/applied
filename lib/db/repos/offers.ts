@@ -83,6 +83,13 @@ const firstSeenIn = (window: RunWindow) =>
 /** Per job: was it first seen in the latest run that brought new jobs (`latest`)? */
 const newness = (latest: RunWindow | null) => (latest ? sql<boolean>`(${firstSeenIn(latest)})` : sql<boolean>`false`);
 
+/**
+ * Per job: how many of the jobs the list shows were first seen on its day, in time zone `tz`, on
+ * every page (a window counts before the limit), for the list's day headings.
+ */
+const sameDay = (tz: string) =>
+  sql<number>`(count(*) over (partition by (${offersUnique.firstSeen} at time zone ${tz})::date))::int`;
+
 /** case-insensitively, `word` anywhere in it; `%` and `_` in the word are just characters */
 const contains = (column: typeof offersUnique.title | typeof offersUnique.company, word: string) =>
   sql`${column} ilike ${`%${word.replace(/[\\%_]/g, '\\$&')}%`} escape '\\'`;
@@ -135,7 +142,8 @@ const verdictColumns = {
 
 /**
  * One page of jobs, and how many match in all (the pager needs the exact number), each marked new if
- * first seen in `latest`, the latest run that brought a new job; `newCount`: how many of all were;
+ * first seen in `latest`, the latest run that brought a new job, and with how many match on its day
+ * in time zone `tz` (`dayCount`); `newCount`: how many of all were;
  * `archivedCount`: how many jobs these filters find among the archived ones. With `verdictsOf`, each
  * with that profile version's verdict, when it has one (its fields null when not).
  */
@@ -143,11 +151,18 @@ export async function pageOfJobs(
   filter: JobFilter,
   page: number,
   size: number,
+  tz: string,
   latest: RunWindow | null = null,
   verdictsOf?: JudgedBy,
 ) {
   const where = matching(filter);
-  const columns = { ...jobColumns, isNew: newness(latest), seen: isSeen(), archived: isArchived() };
+  const columns = {
+    ...jobColumns,
+    isNew: newness(latest),
+    seen: isSeen(),
+    archived: isArchived(),
+    dayCount: sameDay(tz),
+  };
   const rows = verdictsOf
     ? db()
         .select({ ...columns, ...verdictColumns })
@@ -176,6 +191,7 @@ export async function pageOfJudgedJobs(
   filter: JobFilter,
   page: number,
   size: number,
+  tz: string,
   verdicts: JudgedBy & { match: boolean },
   latest: RunWindow | null = null,
 ) {
@@ -183,7 +199,14 @@ export async function pageOfJudgedJobs(
   const where = and(matching(filter), eq(aiVerdicts.match, verdicts.match));
   const [rows, [numbers]] = await Promise.all([
     db()
-      .select({ ...jobColumns, isNew: newness(latest), seen: isSeen(), archived: isArchived(), ...verdictColumns })
+      .select({
+        ...jobColumns,
+        isNew: newness(latest),
+        seen: isSeen(),
+        archived: isArchived(),
+        dayCount: sameDay(tz),
+        ...verdictColumns,
+      })
       .from(offersUnique)
       .innerJoin(aiVerdicts, judged)
       .where(and(where, shown(filter)))

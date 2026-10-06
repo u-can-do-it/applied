@@ -1,10 +1,13 @@
 import { addDays, type Zone } from '@/lib/dates';
 
 // The lists grouped by day (offers by first seen, applications by the day you applied): a sticky
-// heading per day, "Today", "Yesterday", then "Thu 02.10.2026", in the app's time zone.
+// heading per day, "Today", "Yesterday", then "Thu 02.10.2026", in the app's time zone, with how
+// many the list has that day ("Yesterday 15").
 
 export const DAY_HEADING =
   'sticky top-0 z-1 mt-6 mb-0 bg-background py-2 text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase';
+/** the day's count after the heading's label */
+export const DAY_COUNT = 'ml-1.5 font-normal tabular-nums';
 // no overflow-hidden: it would clip the fit tooltip; the rows have no background of their own
 export const DAY_LIST = 'm-0 list-none divide-y rounded-[10px] border bg-card p-0';
 
