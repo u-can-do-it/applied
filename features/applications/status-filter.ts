@@ -22,10 +22,10 @@ export type Filter = { id: string; label: string; test: (app: Application) => bo
 
 /** the tiles (Sent shows them all) */
 export const TILES = {
-  positive: { label: 'Positive replies', test: isPositive },
-  offers: { label: 'Offers', test: (app) => app.stage === 'offer' },
-  process: { label: 'In progress', test: isInProcess },
   unanswered: { label: 'No answer yet', test: isUnanswered },
+  process: { label: 'In progress', test: isInProcess },
+  offers: { label: 'Offers', test: (app) => app.stage === 'offer' },
+  positive: { label: 'Positive replies', test: isPositive },
   rejected: { label: 'Rejected', test: isRejected },
   ghosted: { label: 'Ghosted', test: (app) => app.outcome === 'ghosted' },
   pool: { label: outcomeHeading('pool'), test: (app) => app.outcome === 'pool' },

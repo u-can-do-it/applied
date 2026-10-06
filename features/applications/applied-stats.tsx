@@ -27,11 +27,11 @@ export function AppliedStats({
 
   const share = (count: number) => percentOf(count, counts.sent);
   const tiles: { id: TileId | null; value: number; sub: string; tone: '' | 'good' | 'bad' }[] = [
-    { id: null, value: counts.sent, sub: '', tone: '' }, // Sent: all of them
-    { id: 'positive', value: counts.positive, sub: share(counts.positive), tone: 'good' },
-    { id: 'offers', value: counts.offers, sub: share(counts.offers), tone: 'good' },
-    { id: 'process', value: counts.inProcess, sub: '', tone: '' },
     { id: 'unanswered', value: counts.unanswered, sub: '', tone: '' },
+    { id: 'process', value: counts.inProcess, sub: '', tone: '' },
+    { id: null, value: counts.sent, sub: '', tone: '' }, // Sent: all of them
+    { id: 'offers', value: counts.offers, sub: share(counts.offers), tone: 'good' },
+    { id: 'positive', value: counts.positive, sub: share(counts.positive), tone: 'good' },
     { id: 'rejected', value: counts.rejected, sub: share(counts.rejected), tone: 'bad' },
     { id: 'ghosted', value: counts.ghosted, sub: share(counts.ghosted), tone: 'bad' },
     { id: 'pool', value: counts.pool, sub: share(counts.pool), tone: 'bad' },
