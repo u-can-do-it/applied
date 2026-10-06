@@ -1,6 +1,7 @@
 // A board whose API has a quota of calls (its listing's minutesPerCall): the schedule runs its scrapers as
 // often as their calls allow, on average one call per that many minutes over all of them; the scheduled runs
-// in between skip them. A run you start yourself takes them anyway (and counts: the next scheduled one waits
+// in between skip them, as do the ones in the first minutes of an hour when its API turns calls away then
+// (skipHourStart). A run you start yourself takes them anyway (and counts: the next scheduled one waits
 // from it). Shared by the server (lib/listings/pipeline/fetch.ts) and Settings (when it runs next).
 import type { Scraper } from '../db/repos/scrapers';
 import type { Zone } from '../dates';
@@ -41,14 +42,22 @@ export function nextRunAt(scraper: QuotaScraper, scrapers: readonly QuotaScraper
   return Date.parse(scraper.lastRunAt) + every * 60_000 - EARLY_MS;
 }
 
+/** In the first minutes of an hour (UTC), when the board's API turns calls away (Adzuna answers 503 at :00). */
+function atHourStart(scraper: Pick<QuotaScraper, 'kind'>, at: number) {
+  const skip = kindOf(scraper.kind).skipHourStart;
+  return skip !== undefined && new Date(at).getUTCMinutes() < skip;
+}
+
 export function isDue(scraper: QuotaScraper, scrapers: readonly QuotaScraper[], keywords: string[], now = Date.now()) {
+  if (atHourStart(scraper, now)) return false;
   const next = nextRunAt(scraper, scrapers, keywords);
   return next === null || now >= next;
 }
 
 /**
  * When the schedule runs a scraper its quota holds back, for Settings: the quota's time, moved to the next
- * fromHour:00 when that falls outside the hours. null: not held back, or the schedule is paused.
+ * fromHour:00 when that falls outside the hours, then past the first minutes of an hour its API skips.
+ * null: not held back, or the schedule is paused.
  */
 export function nextScheduledAt(
   scraper: QuotaScraper,
@@ -60,7 +69,11 @@ export function nextScheduledAt(
   if (next === null || !settings.enabled) return null;
   // minute by minute (zones with half-hour offsets too), a day and a half at most
   let at = Math.ceil(next / 60_000) * 60_000;
-  for (let step = 0; step < 36 * 60 && !inHours(zone.hour(at), settings.fromHour, settings.toHour); step++)
+  for (
+    let step = 0;
+    step < 36 * 60 && (!inHours(zone.hour(at), settings.fromHour, settings.toHour) || atHourStart(scraper, at));
+    step++
+  )
     at += 60_000;
   return at;
 }

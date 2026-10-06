@@ -30,6 +30,8 @@ export type Kind = {
   defaults?: SearchDefaults;
   /** its API's quota: one call per this many minutes (the board's listing.minutesPerCall) */
   minutesPerCall?: number;
+  /** the first minutes of every hour, when its API turns calls away (the board's listing.skipHourStart) */
+  skipHourStart?: number;
 };
 
 const KINDS: Kind[] = [
@@ -40,6 +42,7 @@ const KINDS: Kind[] = [
     hint: listing.hint,
     defaults: listing.defaults,
     minutesPerCall: listing.minutesPerCall,
+    skipHourStart: listing.skipHourStart,
   })),
   ...GENERIC_KINDS,
 ];

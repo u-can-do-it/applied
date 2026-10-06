@@ -4,9 +4,10 @@ import { scrapersToRun } from '@/lib/listings/pipeline/fetch';
 import { zoneOf } from '@/lib/dates';
 import { intervalOf, isDue, nextRunAt, nextScheduledAt } from '@/lib/listings/quota';
 
-// A board with a quota of calls (Adzuna: one every 20 minutes) runs as often as its scrapers' calls allow.
+// A board with a quota of calls (Adzuna: one every 20 minutes) runs as often as its scrapers' calls allow,
+// never in the first 5 minutes of an hour.
 
-const now = Date.parse('2026-10-05T12:00:00Z');
+const now = Date.parse('2026-10-05T12:10:00Z');
 const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
 const URL = 'https://api.adzuna.com/v1/api/jobs/pl/search/{page}?what_or={keywords}';
 
@@ -44,6 +45,21 @@ describe('the quota of calls', () => {
     expect(intervalOf(paged, [paged, perKeyword, off, other], keywords)).toBe(100);
   });
 
+  it('not in the first 5 minutes of an hour, when Adzuna answers 503: a 10-minute schedule calls at :10, :30, :50', () => {
+    let one = [scraper({ lastRunAt: '2026-10-05T20:50:00Z' })]; // yesterday's last
+    const calls: string[] = [];
+    // the schedule from 7:00 in Warsaw (5:00 UTC), each scraper recorded a few seconds after its run starts
+    for (let at = Date.parse('2026-10-06T05:00:01Z'); at < Date.parse('2026-10-06T07:00:00Z'); at += 10 * 60_000) {
+      if (!isDue(one[0], one, keywords, at)) continue;
+      calls.push(new Date(at).toISOString().slice(11, 16));
+      one = [scraper({ lastRunAt: new Date(at + 3000).toISOString() })];
+    }
+    expect(calls).toEqual(['05:10', '05:30', '05:50', '06:10', '06:30', '06:50']);
+    // a board without it: due at the full hour
+    const justjoin = scraper({ kind: 'justjoin', lastRunAt: null });
+    expect(isDue(justjoin, [justjoin], keywords, Date.parse('2026-10-06T06:00:01Z'))).toBe(true);
+  });
+
   it('never run, or a board without a quota: due on every run', () => {
     expect(nextRunAt(scraper({ lastRunAt: null }), [], keywords)).toBeNull();
     const justjoin = scraper({ kind: 'justjoin', lastRunAt: ago(0) });
@@ -72,10 +88,12 @@ describe('the quota of calls', () => {
     };
     // 12:00 in Warsaw (summer, UTC+2): 20 minutes later, a few to spare
     expect(next('2026-10-05T10:00:00.000Z')).toBe('2026-10-05T10:15:00.000Z');
-    // a Scrape now at 00:28 there: not 00:43 but 7:00
-    expect(next('2026-10-05T22:28:00.000Z')).toBe('2026-10-06T05:00:00.000Z');
+    // a Scrape now at 00:28 there: not 00:43 but 7:00, and past the hour's first minutes: 7:05
+    expect(next('2026-10-05T22:28:00.000Z')).toBe('2026-10-06T05:05:00.000Z');
     // 21:50 there: 22:05 is outside too
-    expect(next('2026-10-05T19:50:00.000Z')).toBe('2026-10-06T05:00:00.000Z');
+    expect(next('2026-10-05T19:50:00.000Z')).toBe('2026-10-06T05:05:00.000Z');
+    // 12:45 there: 13:00 is the hour's start
+    expect(next('2026-10-05T10:45:00.000Z')).toBe('2026-10-05T11:05:00.000Z');
     expect(next('2026-10-05T10:00:00.000Z', { ...schedule, enabled: false })).toBeNull();
     expect(next('2026-10-05T10:00:00.000Z', { ...schedule, fromHour: 0, toHour: 0 })).toBe('2026-10-05T10:15:00.000Z');
   });

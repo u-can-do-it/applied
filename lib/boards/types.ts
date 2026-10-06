@@ -38,6 +38,11 @@ export type Listing = {
    */
   minutesPerCall?: number;
   /**
+   * The first this many minutes of every hour (UTC), when its API turns calls away: the schedule leaves its
+   * scrapers out then, so a quota's calls fall between the full hours (lib/listings/quota.ts)
+   */
+  skipHourStart?: number;
+  /**
    * The scrapers the board comes with: the defaults, under this name, with another link if given.
    * `npm run db:migrate` adds them once per database (lib/db/seed.ts), so deleting them is for good.
    */
