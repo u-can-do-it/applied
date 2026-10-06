@@ -4,8 +4,8 @@ import { withParams } from '@/lib/shared/search-params';
 import { NavLink } from './nav';
 
 /**
- * The count line's " · 5 new in the last run", which shows only those (?new=1, where a push
- * notification leads), and with them on, when that run was and a way back to the whole list.
+ * The count line's " · 5 new in the last run", which shows only those (?new=1, where Telegram's
+ * "+ 12 more" leads), and with them on, when that run was and a way back to the whole list.
  */
 export function NewCount({
   newCount,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatPush, NEW_OFFERS_PATH, pushChannel } from '@/lib/channels/push';
+import { formatPush, OFFERS_PATH, pushChannel } from '@/lib/channels/push';
 import type { Batch, Outgoing } from '@/lib/channels/types';
 import { sendPush } from '@/lib/push';
 
@@ -44,7 +44,7 @@ describe('formatPush: one notification per batch', () => {
     expect(formatPush(batch({ matched: offers }))).toEqual({
       title: '6 new offers',
       body: 'React Senior @ Acme, Vue Dev, Go Dev @ Acme, Rust Dev @ Acme, +2 more',
-      url: NEW_OFFERS_PATH,
+      url: OFFERS_PATH,
     });
     expect(formatPush(batch({ matched: [offer('React Senior')] }))?.title).toBe('1 new offer');
   });

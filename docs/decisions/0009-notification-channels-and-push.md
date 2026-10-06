@@ -25,7 +25,7 @@ check already decide what is worth sending and when; they shouldn't be repeated 
 - **Push is a PWA with Web Push and VAPID** (`web-push`), no third-party service: `app/manifest.ts`,
   `public/sw.js` (no fetch handler, no cache: the app needs the server anyway), subscriptions in
   `push_subscriptions`, removed when the push service answers 404 / 410. One notification per batch, linking to
-  `/?new=1`.
+  `/`: the whole offers list, as the app opens, the new ones marked.
 - **Push endpoints are outside input, so the SSRF policy applies.** The browser sends the endpoint, so a
   logged-in request could name any URL. It must be https, on the default port, on a known push service's host
   (`fcm.googleapis.com`, `updates.push.services.mozilla.com`, `*.notify.windows.com`, `web.push.apple.com`;
@@ -48,6 +48,6 @@ check already decide what is worth sending and when; they shouldn't be repeated 
   for nobody.
 - A new channel is a `Channel` (`name`, `ready`, `send`) added to `CHANNELS`.
 - A notification and the list's "new" can differ: the notification is the batch that was sent (it may hold
-  offers a mute kept from earlier runs, or leave out ones the AI filter rejected), while `/?new=1` shows the
-  jobs of the latest run that brought any, which may be a later run than the one notified. Left as it is: the
-  link shows what came in last, which is what you open the app for.
+  offers a mute kept from earlier runs, or leave out ones the AI filter rejected), while the list marks **new**
+  (and `?new=1` shows) the jobs of the latest run that brought any, which may be a later run than the one
+  notified. Left as it is: "new" is what came in last.

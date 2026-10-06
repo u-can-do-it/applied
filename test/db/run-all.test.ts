@@ -229,7 +229,7 @@ describeDb('a scrape run (runAll)', () => {
     const run = await runAll('cron');
     expect(run).toMatchObject({ added: 1, fresh: 1, notified: 1, errors: [] });
     expect(sent).toHaveLength(1);
-    expect(pushedPayloads()).toEqual([{ title: '1 new offer', body: 'Frontend React Developer', url: '/?new=1' }]);
+    expect(pushedPayloads()).toEqual([{ title: '1 new offer', body: 'Frontend React Developer', url: '/' }]);
     expect(await queueRepo.size()).toBe(0);
   });
 

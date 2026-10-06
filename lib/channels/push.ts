@@ -3,8 +3,8 @@ import * as pushRepo from '../db/repos/push-subscriptions';
 import { pushConfigured, sendPush, type PushPayload } from '../push';
 import { offersOf, type Batch, type Channel, type Outgoing } from './types';
 
-/** where tapping a notification leads: the offers list, only what the latest run brought */
-export const NEW_OFFERS_PATH = '/?new=1';
+/** where tapping a notification leads: the offers list, all of it, as the app opens (the new ones marked) */
+export const OFFERS_PATH = '/';
 const LISTED = 4; // offers named in the text; Android shows about that many lines expanded
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -36,7 +36,7 @@ export function formatPush(batch: Batch): PushPayload | null {
     if (batch.unchecked.length) lines.push(`Not checked by the AI: ${list(batch.unchecked)}`);
   }
   if (batch.held) lines.push('Held while muted.');
-  return { title, body: lines.join('\n'), url: NEW_OFFERS_PATH };
+  return { title, body: lines.join('\n'), url: OFFERS_PATH };
 }
 
 /** Web Push: one notification per batch, on every subscribed device. */

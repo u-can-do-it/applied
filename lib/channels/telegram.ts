@@ -3,8 +3,10 @@ import * as settingsRepo from '../db/repos/scrape-settings';
 import { env } from '../env';
 import { message } from '../shared/errors';
 import { formatNotification, sendMessage, telegramReady } from '../telegram';
-import { NEW_OFFERS_PATH } from './push';
 import type { Channel } from './types';
+
+/** "+ 12 more": only what the latest run brought */
+const NEW_OFFERS_PATH = '/?new=1';
 
 /** a page of the app, for the links in the message */
 const appUrl = (path: string) =>
