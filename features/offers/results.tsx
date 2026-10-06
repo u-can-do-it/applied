@@ -58,9 +58,10 @@ export async function Results({
   let all: number | null = null; // whole table, only needed when something is filtered
   let stats: { total: number; checked: number; matched: number } | null = null; // AI: this date range
   try {
-    zone = await appZone();
+    let profiles: Awaited<ReturnType<typeof listProfiles>>;
+    [zone, profiles] = await Promise.all([appZone(), listProfiles()]); // both lists need the active profile
     if (mode === 'ai') {
-      const profile = (await listProfiles())[0];
+      const profile = profiles[0];
       if (isUsable(profile)) {
         [data, stats] = await Promise.all([
           getJobs({
@@ -78,9 +79,12 @@ export async function Results({
         ]);
       }
     } else {
+      // the active profile's verdicts, as the fit badge: the scrape's AI filter judges every new job
+      const profile = profiles.at(0);
+      const verdictsOf = profile && { profileId: profile.id, version: profile.version };
       // in parallel: the filtered page and (if filtered) the unfiltered count
       [data, all] = await Promise.all([
-        getJobs({ q, src, page, days, from, to, latest, archived }),
+        getJobs({ q, src, page, days, from, to, latest, archived, verdictsOf }),
         filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
       ]);
     }
@@ -165,7 +169,13 @@ export async function Results({
           <h2 className={DAY_HEADING}>{group.label}</h2>
           <ol className={DAY_LIST}>
             {group.items.map((job) => (
-              <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
+              <OfferRow
+                key={job.src + ':' + job.id}
+                job={job}
+                zone={zone}
+                labels={labels}
+                withSummary={mode === 'ai'}
+              />
             ))}
           </ol>
         </section>

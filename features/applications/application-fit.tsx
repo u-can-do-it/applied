@@ -29,6 +29,7 @@ export function ApplicationFit({
   if (app.fit)
     return (
       <FitScore
+        match={app.fit.match}
         score={app.fit.score}
         summary={app.fit.summary}
         checks={app.fit.checks}

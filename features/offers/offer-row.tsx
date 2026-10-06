@@ -40,9 +40,20 @@ function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, st
  * One job in the list. A job the latest scrape run that brought new jobs brought is marked "new", with a
  * faint tint, so what came in last time stands out; one you opened before has a check mark after its title.
  * The archive button takes it out of the list (or, in the archived list, back into the others). With a
- * mouse, the archive and "Mark applied" buttons show on the row's hover (or keyboard focus) only.
+ * mouse, the archive and "Mark applied" buttons show on the row's hover (or keyboard focus) only. A job
+ * the active profile judged has its fit badge; the AI tab (`withSummary`) has the verdict's line too.
  */
-export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; labels: Record<string, string> }) {
+export function OfferRow({
+  job,
+  zone,
+  labels,
+  withSummary = false,
+}: {
+  job: ListedJob;
+  zone: Zone;
+  labels: Record<string, string>;
+  withSummary?: boolean;
+}) {
   return (
     <ArchiveRow jobId={job.jobId} title={job.title} archived={job.archived}>
       <SeenItem
@@ -82,7 +93,7 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
             {job.seniority && job.seniority !== 'unknown' && <span>{job.seniority}</span>}
             <span className={job.remote ? 'text-success' : undefined}>{job.remote ? 'Remote' : 'Office / hybrid'}</span>
           </div>
-          {job.ai?.summary && (
+          {withSummary && job.ai?.summary && (
             <p className="mt-1 mb-0 text-xs text-brand">
               <SparklesIcon /> {job.ai.summary}
             </p>
@@ -91,6 +102,7 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
         <div className="flex flex-col items-end gap-1.5">
           {job.ai && (
             <FitScore
+              match={job.ai.match}
               score={job.ai.score}
               summary={job.ai.summary}
               checks={job.ai.checks}

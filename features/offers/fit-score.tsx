@@ -9,14 +9,17 @@ type Check = { item: string; met: boolean };
 
 /**
  * "82%" and an info icon, with the requirement checklist on hover, focus or tap (the Tooltip places it
- * where there's room: below the badge, or above it for the last offers on the screen).
+ * where there's room: below the badge, or above it for the last offers on the screen). A job your
+ * criteria rule out (`match` false: office only, the wrong city…) is grey with a cross, whatever its score.
  */
 export function FitScore({
+  match = true,
   score,
   summary,
   checks,
   hadDescription,
 }: {
+  match?: boolean;
   score: number;
   summary: string | null;
   checks: Check[];
@@ -24,7 +27,7 @@ export function FitScore({
 }) {
   // controlled only so a tap opens it: Radix's tooltip opens on hover and keyboard focus, not on a touch
   const [open, setOpen] = useState(false);
-  const tier = score >= 70 ? 'success-soft' : score >= 40 ? 'warning-soft' : 'muted';
+  const tier = !match ? 'muted' : score >= 70 ? 'success-soft' : score >= 40 ? 'warning-soft' : 'muted';
   const met = checks.filter((check) => check.met).length;
 
   return (
@@ -41,6 +44,12 @@ export function FitScore({
               setOpen(true);
             }}
           >
+            {!match && (
+              <>
+                <XIcon />
+                <span className="sr-only">Ruled out by your criteria: </span>
+              </>
+            )}
             {score}%
             <InfoIcon className="font-normal opacity-80" />
           </button>
@@ -55,6 +64,7 @@ export function FitScore({
         // the app's card colours rather than the inverted ones of a one-line tooltip
         className="flex max-h-[min(60vh,440px)] w-[min(300px,80vw)] max-w-none flex-col items-stretch gap-1.5 overflow-y-auto rounded-[10px] border bg-card px-3 py-2.5 text-[13px] text-foreground shadow-[0_8px_24px_rgb(0_0_0/0.18)]"
       >
+        {!match && <strong className="text-destructive">Ruled out by your criteria</strong>}
         <strong>
           {score}% fit{checks.length > 0 && ` · ${met}/${checks.length} requirements met`}
         </strong>

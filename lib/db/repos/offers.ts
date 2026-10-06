@@ -117,24 +117,58 @@ const counts = (filter: JobFilter, latest: RunWindow | null) => ({
 // newest first; the board and id make the order total, so pages don't overlap
 const newestFirst = [desc(offersUnique.firstSeen), asc(offersUnique.src), asc(offersUnique.id)];
 
+/** A profile version: whose verdicts the list shows. */
+type JudgedBy = { profileId: string; version: number };
+const judgedBy = (by: JudgedBy) =>
+  and(
+    eq(aiVerdicts.jobId, offersUnique.jobId),
+    eq(aiVerdicts.profileId, by.profileId),
+    eq(aiVerdicts.version, by.version),
+  );
+const verdictColumns = {
+  match: aiVerdicts.match,
+  score: aiVerdicts.score,
+  summary: aiVerdicts.summary,
+  checks: aiVerdicts.checks,
+  hadDescription: aiVerdicts.hadDescription,
+};
+
 /**
  * One page of jobs, and how many match in all (the pager needs the exact number), each marked new if
  * first seen in `latest`, the latest run that brought a new job; `newCount`: how many of all were;
- * `archivedCount`: how many jobs these filters find among the archived ones.
+ * `archivedCount`: how many jobs these filters find among the archived ones. With `verdictsOf`, each
+ * with that profile version's verdict, when it has one (its fields null when not).
  */
-export async function pageOfJobs(filter: JobFilter, page: number, size: number, latest: RunWindow | null = null) {
+export async function pageOfJobs(
+  filter: JobFilter,
+  page: number,
+  size: number,
+  latest: RunWindow | null = null,
+  verdictsOf?: JudgedBy,
+) {
   const where = matching(filter);
-  const [rows, [numbers]] = await Promise.all([
-    db()
-      .select({ ...jobColumns, isNew: newness(latest), seen: isSeen(), archived: isArchived() })
-      .from(offersUnique)
-      .where(and(where, shown(filter)))
-      .orderBy(...newestFirst)
-      .limit(size)
-      .offset(page * size),
+  const columns = { ...jobColumns, isNew: newness(latest), seen: isSeen(), archived: isArchived() };
+  const rows = verdictsOf
+    ? db()
+        .select({ ...columns, ...verdictColumns })
+        .from(offersUnique)
+        .leftJoin(aiVerdicts, judgedBy(verdictsOf))
+        .where(and(where, shown(filter)))
+        .orderBy(...newestFirst)
+        .limit(size)
+        .offset(page * size)
+    : db()
+        .select(columns)
+        .from(offersUnique)
+        .where(and(where, shown(filter)))
+        .orderBy(...newestFirst)
+        .limit(size)
+        .offset(page * size);
+  const [found, [numbers]] = await Promise.all([
+    rows,
     db().select(counts(filter, latest)).from(offersUnique).where(where),
   ]);
-  return { rows, ...numbers };
+  return { rows: found, ...numbers };
 }
 
 /** The same, for the jobs a profile version judged (matches, or the rejected ones), with the verdict. */
@@ -142,28 +176,14 @@ export async function pageOfJudgedJobs(
   filter: JobFilter,
   page: number,
   size: number,
-  verdicts: { profileId: string; version: number; match: boolean },
+  verdicts: JudgedBy & { match: boolean },
   latest: RunWindow | null = null,
 ) {
-  const judged = and(
-    eq(aiVerdicts.jobId, offersUnique.jobId),
-    eq(aiVerdicts.profileId, verdicts.profileId),
-    eq(aiVerdicts.version, verdicts.version),
-  );
+  const judged = judgedBy(verdicts);
   const where = and(matching(filter), eq(aiVerdicts.match, verdicts.match));
   const [rows, [numbers]] = await Promise.all([
     db()
-      .select({
-        ...jobColumns,
-        isNew: newness(latest),
-        seen: isSeen(),
-        archived: isArchived(),
-        match: aiVerdicts.match,
-        score: aiVerdicts.score,
-        summary: aiVerdicts.summary,
-        checks: aiVerdicts.checks,
-        hadDescription: aiVerdicts.hadDescription,
-      })
+      .select({ ...jobColumns, isNew: newness(latest), seen: isSeen(), archived: isArchived(), ...verdictColumns })
       .from(offersUnique)
       .innerJoin(aiVerdicts, judged)
       .where(and(where, shown(filter)))

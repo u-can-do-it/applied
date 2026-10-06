@@ -114,6 +114,14 @@ describeDb('AI verdicts and runs', () => {
     expect((await getJobs({ q: '', src: '', page: 0, ai: { profileId: id, version: 2, rejected: false } })).total).toBe(
       0,
     );
+
+    // all offers: every job, the judged ones with their verdict (the fit badge), the others without
+    const all = await getJobs({ q: '', src: '', page: 0, verdictsOf: ai });
+    expect(all.total).toBe(3);
+    const verdicts = Object.fromEntries(all.jobs.map((job) => [job.jobId, job.ai && [job.ai.match, job.ai.score]]));
+    expect(verdicts).toEqual({ [first]: [true, 90], [second]: [false, 20], [third]: undefined });
+    expect(all.jobs.find((job) => job.jobId === third)).not.toHaveProperty('ai');
+    expect((await getJobs({ q: '', src: '', page: 0 })).jobs.every((job) => !job.ai)).toBe(true);
   });
 
   it('starts one run per profile version, and gives its lock to one worker at a time', async () => {

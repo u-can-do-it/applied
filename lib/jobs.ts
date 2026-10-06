@@ -8,7 +8,7 @@ import { appZone } from './time-zone';
 /**
  * A job as the lists show it: its earliest offer, every board's offer, when you applied, whether it
  * came in with the latest scrape run that brought new jobs (`isNew`), whether you opened it before
- * (`seen`), whether you archived it (`archived`); on the AI tab, the verdict.
+ * (`seen`), whether you archived it (`archived`); the active profile's verdict, if it judged it.
  */
 export type ListedJob = offersRepo.Job & {
   isNew: boolean;
@@ -39,6 +39,8 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
     archived?: boolean;
     /** AI tab: results of this profile version */
     ai?: { profileId: string; version: number; rejected: boolean };
+    /** every job, each with this profile version's verdict when it has one */
+    verdictsOf?: { profileId: string; version: number };
   };
 
 /**
@@ -65,19 +67,26 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     archived: opts.archived,
   };
   if (!opts.ai) {
-    const { rows, ...numbers } = await offersRepo.pageOfJobs(filter, opts.page, PAGE_SIZE, latest);
-    return { jobs: rows, ...numbers, latest };
+    const { rows, ...numbers } = await offersRepo.pageOfJobs(filter, opts.page, PAGE_SIZE, latest, opts.verdictsOf);
+    return { jobs: rows.map(withVerdict), ...numbers, latest };
   }
   const { profileId, version, rejected } = opts.ai;
   const verdicts = { profileId, version, match: !rejected };
   const { rows, ...numbers } = await offersRepo.pageOfJudgedJobs(filter, opts.page, PAGE_SIZE, verdicts, latest);
+  return { jobs: rows.map(withVerdict), ...numbers, latest };
+}
+
+type Verdict = NonNullable<ListedJob['ai']>;
+type Nullable<T> = { [K in keyof T]: T[K] | null };
+/** A row's verdict fields as `ai`; a job not judged (a left join's nulls, or none asked for) has none. */
+function withVerdict<Row extends Omit<ListedJob, 'ai'>>(
+  row: Row & Partial<Nullable<Verdict>>,
+): Omit<Row, keyof Verdict> & Pick<ListedJob, 'ai'> {
+  const { match, score, summary, checks, hadDescription, ...job } = row;
+  if (match == null || score == null) return job;
   return {
-    jobs: rows.map(({ match, score, summary, checks, hadDescription, ...job }) => ({
-      ...job,
-      ai: { match, score, summary, checks, hadDescription },
-    })),
-    ...numbers,
-    latest,
+    ...job,
+    ai: { match, score, summary: summary ?? null, checks: checks ?? [], hadDescription: Boolean(hadDescription) },
   };
 }
 
