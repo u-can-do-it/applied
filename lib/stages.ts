@@ -32,7 +32,7 @@ export const OUTCOMES = [
   // The hint keeps the Polish joke ("your CV into the database, you out the door"); the id is what's stored.
   {
     id: 'pool',
-    label: 'Talent pool',
+    label: 'Talent shit pool',
     hint: '“CV do bazy, ty do dupy”: they keep your CV, there’s no job',
   },
 ] as const;
