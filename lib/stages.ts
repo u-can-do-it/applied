@@ -49,7 +49,7 @@ export type WithStatus = { stage: StageId; outcome: OutcomeId; history: HistoryE
 
 // The Offer stage has outcomes of its own: received (still deciding), accepted, rejected. It's
 // never "ghosted": the decision is yours. Same ids underneath (pending / passed / failed).
-const OFFER_LABELS: Partial<Record<OutcomeId, string>> = {
+export const OFFER_LABELS: Partial<Record<OutcomeId, string>> = {
   pending: 'Received',
   passed: 'Accepted',
   failed: 'Rejected',
@@ -76,6 +76,10 @@ export const outcomeLabel = (stage: StageId, outcome: OutcomeId) =>
 /** Still going somewhere: in progress, or passed and waiting for the next step; an offer not decided yet. */
 export const isActive = (app: { stage: StageId; outcome: OutcomeId }) =>
   app.stage === 'offer' ? app.outcome === 'pending' : app.outcome === 'pending' || app.outcome === 'passed';
+/** In a recruitment process: past Submitted and still going (an offer not decided yet too). */
+export const isInProcess = (app: { stage: StageId; outcome: OutcomeId }) => app.stage !== 'submitted' && isActive(app);
+/** Sent, no answer yet (ghosted after GHOST_AFTER_DAYS). With isInProcess, that's all of isActive. */
+export const isUnanswered = (app: { stage: StageId; outcome: OutcomeId }) => app.stage === 'submitted' && isActive(app);
 /** They said no (an offer you turned down isn't that). */
 export const isRejected = (app: { stage: StageId; outcome: OutcomeId }) =>
   app.outcome === 'failed' && app.stage !== 'offer';
@@ -83,8 +87,7 @@ export const isRejected = (app: { stage: StageId; outcome: OutcomeId }) =>
  * They got back to you and it's still good: past Submitted and going on, or an offer (taken or not).
  * By the last status only: rejected, ghosted or "in the talent pool" after an interview isn't.
  */
-export const isPositive = (app: { stage: StageId; outcome: OutcomeId }) =>
-  app.stage !== 'submitted' && (app.stage === 'offer' || isActive(app));
+export const isPositive = (app: { stage: StageId; outcome: OutcomeId }) => app.stage === 'offer' || isInProcess(app);
 
 export const isStage = (value: unknown): value is StageId => STAGES.some((stage) => stage.id === value);
 export const isOutcome = (value: unknown): value is OutcomeId => OUTCOMES.some((outcome) => outcome.id === value);
@@ -107,7 +110,8 @@ export type Stats = {
   sent: number;
   positive: number; // the last status is past Submitted and still good (isPositive)
   offers: number; // the last status is at the Offer
-  active: number; // current stage in progress, or passed and waiting for the next step (isActive)
+  inProcess: number; // past Submitted and still going (isInProcess)
+  unanswered: number; // sent, no answer yet (isUnanswered)
   rejected: number; // they said no (isRejected)
   ghosted: number;
   pool: number; // kept "in the talent pool"
@@ -122,7 +126,8 @@ export function stats(apps: WithStatus[]): Stats {
   ) as Stats['byStage'];
   const now = Object.fromEntries(STAGES.map((stage) => [stage.id, 0])) as Record<StageId, number>;
   let positive = 0,
-    active = 0,
+    inProcess = 0,
+    unanswered = 0,
     rejected = 0,
     ghosted = 0,
     pool = 0;
@@ -130,7 +135,8 @@ export function stats(apps: WithStatus[]): Stats {
     byStage[app.stage][app.outcome]++;
     now[app.stage]++;
     if (isPositive(app)) positive++;
-    if (isActive(app)) active++;
+    if (isInProcess(app)) inProcess++;
+    else if (isUnanswered(app)) unanswered++;
     else if (isRejected(app)) rejected++;
     else if (app.outcome === 'ghosted') ghosted++;
     else if (app.outcome === 'pool') pool++;
@@ -139,7 +145,8 @@ export function stats(apps: WithStatus[]): Stats {
     sent: apps.length,
     positive,
     offers: now.offer,
-    active,
+    inProcess,
+    unanswered,
     rejected,
     ghosted,
     pool,

@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   isActive,
+  isInProcess,
   isPositive,
   isRejected,
   isStage,
+  isUnanswered,
   isOutcome,
   reached,
   STAGES,
   OUTCOMES,
+  OFFER_LABELS,
+  outcomeOf,
   outcomeHeading,
   outcomeLabel,
   outcomesFor,
@@ -32,9 +36,9 @@ const step = (stage: StageId, state: OutcomeId = 'passed'): HistoryEntry => ({
 describe('stage and state names', () => {
   it('an offer has its own outcomes, and no ghosted or talent pool', () => {
     expect(outcomesFor('offer')).toEqual([
-      { id: 'pending', label: 'Received' },
-      { id: 'passed', label: 'Accepted' },
-      { id: 'failed', label: 'Rejected' },
+      { id: 'pending', label: OFFER_LABELS.pending },
+      { id: 'passed', label: OFFER_LABELS.passed },
+      { id: 'failed', label: OFFER_LABELS.failed },
     ]);
   });
 
@@ -46,13 +50,13 @@ describe('stage and state names', () => {
   });
 
   it('outcomeLabel names the outcome at that stage; outcomeHeading is its name as a heading', () => {
-    expect(outcomeLabel('offer', 'passed')).toBe('Accepted');
-    expect(outcomeLabel('offer', 'pending')).toBe('Received');
-    expect(outcomeLabel('offer', 'ghosted')).toBe('Ghosted'); // not an offer outcome: the general name
-    expect(outcomeLabel('hr', 'passed')).toBe('Passed');
-    expect(outcomeLabel('hr', 'failed')).toBe('Rejected');
-    expect(outcomeHeading('pool')).toBe('Talent pool');
-    expect(outcomeHeading('pending')).toBe('In progress');
+    expect(outcomeLabel('offer', 'passed')).toBe(OFFER_LABELS.passed);
+    expect(outcomeLabel('offer', 'pending')).toBe(OFFER_LABELS.pending);
+    expect(outcomeLabel('offer', 'ghosted')).toBe(outcomeOf('ghosted').label); // not an offer outcome: the general name
+    expect(outcomeLabel('hr', 'passed')).toBe(outcomeOf('passed').label);
+    expect(outcomeLabel('hr', 'failed')).toBe(outcomeOf('failed').label);
+    expect(outcomeHeading('pool')).toBe(outcomeOf('pool').label);
+    expect(outcomeHeading('pending')).toBe(outcomeOf('pending').label);
   });
 
   it('isStage / isOutcome guard the stored values', () => {
@@ -65,7 +69,7 @@ describe('stage and state names', () => {
   });
 });
 
-describe('isActive / isRejected', () => {
+describe('isActive / isInProcess / isUnanswered / isRejected', () => {
   it('in progress, or passed and waiting for the next step', () => {
     expect(isActive(app('submitted', 'pending'))).toBe(true);
     expect(isActive(app('technical', 'passed'))).toBe(true);
@@ -78,6 +82,18 @@ describe('isActive / isRejected', () => {
     expect(isActive(app('offer', 'pending'))).toBe(true);
     expect(isActive(app('offer', 'passed'))).toBe(false);
     expect(isActive(app('offer', 'failed'))).toBe(false);
+  });
+
+  it('active = in a recruitment process (past Submitted) or no answer yet (at Submitted)', () => {
+    expect(isInProcess(app('invited', 'pending'))).toBe(true);
+    expect(isInProcess(app('technical', 'passed'))).toBe(true);
+    expect(isInProcess(app('offer', 'pending'))).toBe(true);
+    expect(isInProcess(app('submitted', 'pending'))).toBe(false);
+    expect(isInProcess(app('hr', 'failed'))).toBe(false);
+    expect(isInProcess(app('offer', 'passed'))).toBe(false);
+    expect(isUnanswered(app('submitted', 'pending'))).toBe(true);
+    expect(isUnanswered(app('submitted', 'ghosted'))).toBe(false);
+    expect(isUnanswered(app('invited', 'pending'))).toBe(false);
   });
 
   it('positive = past Submitted and still good, by the last status only', () => {
@@ -119,7 +135,16 @@ describe('reached', () => {
 describe('stats', () => {
   it('nothing yet: all zeros', () => {
     const totals = stats([]);
-    expect(totals).toMatchObject({ sent: 0, positive: 0, offers: 0, active: 0, rejected: 0, ghosted: 0, pool: 0 });
+    expect(totals).toMatchObject({
+      sent: 0,
+      positive: 0,
+      offers: 0,
+      inProcess: 0,
+      unanswered: 0,
+      rejected: 0,
+      ghosted: 0,
+      pool: 0,
+    });
     expect(totals.now).toEqual(STAGES.map((stage) => ({ stage: stage.id, count: 0 })));
     for (const stage of STAGES) for (const state of OUTCOMES) expect(totals.byStage[stage.id][state.id]).toBe(0);
   });
@@ -142,12 +167,13 @@ describe('stats', () => {
     expect(totals.sent).toBe(11);
     expect(totals.positive).toBe(5); // invited/pending, technical/passed and the offers
     expect(totals.offers).toBe(3);
-    expect(totals.active).toBe(4); // submitted/pending, invited/pending, technical/passed, offer/pending
+    expect(totals.inProcess).toBe(3); // invited/pending, technical/passed, offer/pending
+    expect(totals.unanswered).toBe(1); // submitted/pending
     expect(totals.rejected).toBe(2);
     expect(totals.ghosted).toBe(2);
     expect(totals.pool).toBe(1);
     // a decided offer is in none of the buckets
-    expect(totals.active + totals.rejected + totals.ghosted + totals.pool).toBe(totals.sent - 2);
+    expect(totals.inProcess + totals.unanswered + totals.rejected + totals.ghosted + totals.pool).toBe(totals.sent - 2);
     expect(totals.now).toEqual([
       { stage: 'submitted', count: 3 },
       { stage: 'invited', count: 1 },

@@ -2,7 +2,9 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { useSyncExternalStore } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { TILES } from '@/features/applications/status-filter';
 import { useAppliedQuery } from '@/features/applications/use-applied-query';
+import { outcomeLabel, stageOf } from '@/lib/stages';
 
 // Next's router follows pushState / replaceState and Back (useSearchParams); here, a stand-in that does the same
 const listeners = new Set<() => void>();
@@ -44,7 +46,10 @@ it('starts from the URL: the search and the status filter', () => {
   window.history.replaceState(null, '', '/applied?q=react&status=hr-failed');
   const { result } = renderHook(() => useAppliedQuery());
   expect(result.current.search).toBe('react');
-  expect(result.current.filter).toMatchObject({ id: 'hr-failed', label: 'HR · Rejected' });
+  expect(result.current.filter).toMatchObject({
+    id: 'hr-failed',
+    label: `${stageOf('hr').short} · ${outcomeLabel('hr', 'failed')}`,
+  });
 });
 
 it('a filter is a new history entry; clearing it takes ?status= away', () => {
@@ -53,7 +58,7 @@ it('a filter is a new history entry; clearing it takes ?status= away', () => {
   act(() => result.current.setFilter('rejected'));
   expect(window.location.search).toBe('?status=rejected');
   expect(window.history.length).toBe(entries + 1);
-  expect(result.current.filter?.label).toBe('Rejected');
+  expect(result.current.filter?.label).toBe(TILES.rejected.label);
   act(() => result.current.setFilter(null));
   expect(window.location.pathname + window.location.search).toBe('/applied');
   expect(result.current.filter).toBeNull();

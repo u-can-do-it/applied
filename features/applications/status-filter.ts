@@ -1,10 +1,11 @@
 import type { Application } from '@/lib/applications';
 import {
-  isActive,
+  isInProcess,
   isOutcome,
   isPositive,
   isRejected,
   isStage,
+  isUnanswered,
   outcomeHeading,
   outcomeLabel,
   outcomesFor,
@@ -23,7 +24,8 @@ export type Filter = { id: string; label: string; test: (app: Application) => bo
 export const TILES = {
   positive: { label: 'Positive replies', test: isPositive },
   offers: { label: 'Offers', test: (app) => app.stage === 'offer' },
-  active: { label: 'In progress', test: isActive },
+  process: { label: 'In progress', test: isInProcess },
+  unanswered: { label: 'No answer yet', test: isUnanswered },
   rejected: { label: 'Rejected', test: isRejected },
   ghosted: { label: 'Ghosted', test: (app) => app.outcome === 'ghosted' },
   pool: { label: outcomeHeading('pool'), test: (app) => app.outcome === 'pool' },
