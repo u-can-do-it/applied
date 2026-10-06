@@ -136,7 +136,7 @@ run log (`AI / Notify`); when one failed and another delivered, it's a warning t
 - **Push** (`channels/push.ts`, [`lib/push.ts`](../lib/push.ts)): one notification per batch ("5 new
   offers", the first ones named) to every device in `push_subscriptions`, through `web-push` (encrypted per
   device, signed with the VAPID keys; only to a known push service's https endpoint, through the SSRF guard's address check in production, 10 s
-  each). Ready with the three `VAPID_*` variables
+  each; urgency high, which Android doesn't hold while the phone dozes). Ready with the three `VAPID_*` variables
   and at least one subscribed device. A device the push service answers 404 / 410 for is removed. Tapping the
   notification opens `/?new=1` (`public/sw.js`).
 

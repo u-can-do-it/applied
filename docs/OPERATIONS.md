@@ -188,7 +188,8 @@ set up, new offers are saved but not queued.
 
 One notification per scrape run ("5 new offers", the first offers named); tapping it opens the offers list on
 `/?new=1`: only what the latest run that brought new jobs brought. The lists mark those offers **new** anyway.
-A device whose subscription expired (the app uninstalled, the site's data cleared) is removed the next time the
+It's sent with high urgency, so it arrives at once even on a phone lying idle (Android holds a normal one until the
+phone wakes). A device whose subscription expired (the app uninstalled, the site's data cleared) is removed the next time the
 push service says so (404 / 410). Enable each device you want on its own; **Disable on this device** removes it.
 The Health card's **Push** row says whether the keys are set and how many devices are subscribed.
 

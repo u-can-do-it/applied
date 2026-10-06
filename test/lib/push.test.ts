@@ -56,6 +56,7 @@ describe('sendPush', () => {
     expect(options).toMatchObject({
       vapidDetails: { subject: 'mailto:me@example.com', publicKey: PUBLIC_KEY, privateKey: PRIVATE_KEY },
       timeout: 10_000,
+      urgency: 'high', // not held while an Android phone dozes
     });
   });
 

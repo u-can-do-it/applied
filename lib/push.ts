@@ -111,7 +111,10 @@ async function sendOne(
         {
           vapidDetails: keys,
           TTL: TTL_SECONDS,
-          urgency: 'normal',
+          // Android's push service (FCM) holds a 'normal' message while the phone dozes (screen off, lying
+          // still) and hands it over when it wakes: the notification came when you picked the phone up. 'high'
+          // is delivered at once, waking it
+          urgency: 'high',
           timeout: PUSH_TIMEOUT_MS, // web-push's own: the socket's idle time
           ...(agent && { agent }),
         },
