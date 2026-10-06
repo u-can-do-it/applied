@@ -16,11 +16,12 @@ import {
   type JobDraft,
 } from './actions';
 import { DateInput } from '@/components/date-input';
-import { FieldError } from '@/components/field';
+import { CheckField, FieldError } from '@/components/field';
 import { answered, checkOnSubmit, FormError, formSchema, noImplicitSubmit, useAppForm } from '@/components/form';
 import { firstError } from '@/components/form-fields';
 import { useZone } from '@/components/time-zone';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { SheetFooter } from '@/components/ui/sheet';
 import { draftOf, empty, withFilled, type Draft, type Field as DraftField } from './application-draft';
@@ -33,7 +34,12 @@ import { StatusFields } from './status-fields';
 
 export type FormProps =
   | { app?: undefined; onCancel: () => void; onSaved: () => void }
-  | { app: ApplicationWithContent; onCancel: () => void; onSaved: (saved: ApplicationWithContent) => void };
+  | {
+      app: ApplicationWithContent;
+      onCancel: () => void;
+      /** `checkFit`: "Check the fit again" was ticked */
+      onSaved: (saved: ApplicationWithContent, checkFit: boolean) => void;
+    };
 
 /** The form without a window around it: a new application, or `app` to edit. */
 export function ApplicationForm(props: FormProps) {
@@ -45,6 +51,7 @@ export function ApplicationForm(props: FormProps) {
   const filling = readingLink || readingText;
   const [saving, startSave] = useTransition();
   const [info, setInfo] = useState<{ warning?: string; known?: string | null } | null>(null);
+  const [checkFit, setCheckFit] = useState(false); // editing: the AI judges the job again once it's saved
   const dayError = useId();
 
   // Edit checks only the fields it shows: an old application's status (the window's) doesn't stop its edit
@@ -64,7 +71,7 @@ export function ApplicationForm(props: FormProps) {
           const input = { url, title, company, board, day, salary, contract, location, workMode, officeDays, content };
           const answer = await answered(formApi, updateApplicationAction({ jobId: props.app.jobId, input }));
           const onSaved = props.onSaved;
-          if (answer.ok) startTransition(() => onSaved(answer.data));
+          if (answer.ok) startTransition(() => onSaved(answer.data, checkFit));
         } else {
           const answer = await answered(formApi, addApplicationAction(value));
           const onSaved = props.onSaved;
@@ -294,6 +301,13 @@ export function ApplicationForm(props: FormProps) {
       <SheetFooter className="mt-0 gap-2 border-t px-3.5 py-2.5 sm:px-5 sm:py-3">
         <FormError form={form} className="mt-0" />
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* e.g. the ad text changed, or the fit was judged on the title alone */}
+          {editing && (
+            <CheckField className="mr-auto">
+              <Checkbox checked={checkFit} onCheckedChange={(checked) => setCheckFit(checked === true)} />
+              Check the fit again
+            </CheckField>
+          )}
           <Button type="button" variant="outline" onClick={props.onCancel}>
             Cancel
           </Button>

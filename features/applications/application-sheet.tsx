@@ -14,7 +14,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { refetchContentAction, removeStatusStepAction, setApplicationStatusAction, unapplyAction } from './actions';
 import { AdDetails } from './ad-details';
 import { AdText } from './ad-text';
-import { ApplicationFit, FitSummary } from './application-fit';
+import { ApplicationFit, FitSummary, useFitCheck } from './application-fit';
 import { ApplicationFooter } from './application-footer';
 import { moveDraft, writeDraft } from './note-drafts';
 import { LazyApplicationForm, loadApplicationForm } from './lazy-application-form';
@@ -74,6 +74,7 @@ export function ApplicationSheet({
   const [busy, start] = useTransition();
   const loaded = useApplication(jobId, { acting: busy });
   const app: Shown = loaded.data ?? initial;
+  const fit = useFitCheck(jobId, setActionError);
   const gone = useRef(false); // unmarked: there's no note to save any more
 
   // shown at once; a load already on its way would bring the old state back, so it's dropped
@@ -137,7 +138,7 @@ export function ApplicationSheet({
   };
 
   // saved in the form: back to the window with it (under its new job, if it's another job's now)
-  const saved = (fresh: ApplicationWithContent) => {
+  const saved = (fresh: ApplicationWithContent, checkFit: boolean) => {
     const moved = fresh.jobId !== jobId;
     if (moved) {
       moveDraft(jobId, fresh.jobId);
@@ -146,6 +147,7 @@ export function ApplicationSheet({
     // the AI's verdict is the job's: the same job keeps it, another one loads its own
     show(moved ? fresh : { ...fresh, fit: app.fit }, fresh.jobId);
     setEditing(false);
+    if (checkFit) fit.checkAgain(fresh.jobId);
     // the ad text is fetched again (the link changed): look for it now, then every 3 s
     if (moved || fresh.contentStatus === 'pending')
       void queryClient.refetchQueries({ queryKey: applicationKey(fresh.jobId), type: 'all' });
@@ -250,7 +252,7 @@ export function ApplicationSheet({
                   <SheetDescription className="text-[13px]">{subtitle}</SheetDescription>
                 )}
               </div>
-              <ApplicationFit app={app} jobId={jobId} onError={setActionError} />
+              <ApplicationFit app={app} checking={fit.checking} onCheck={fit.check} />
             </div>
             <FitSummary app={app} />
           </SheetHeader>

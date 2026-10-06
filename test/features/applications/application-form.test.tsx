@@ -129,6 +129,30 @@ describe('ApplicationForm', () => {
     expect(box('Location').value).toBe('Warszawa');
   });
 
+  it('editing, "Check the fit again" goes to the window with what was saved; adding has no such box', async () => {
+    const app = {
+      jobId: 'acme|reactdev',
+      url: LINK,
+      title: 'Saved title',
+      company: 'Acme',
+      src: 'justjoin',
+      appliedAt: '2026-10-01T10:00:00.000Z',
+      stage: 'submitted',
+      outcome: 'pending',
+      details: null,
+      content: 'The ad text',
+    } as unknown as ApplicationWithContent;
+    open({ app });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Check the fit again' }));
+    update.mockResolvedValueOnce({ ok: true, data: app });
+    click('Save changes');
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(app, true));
+    cleanup();
+
+    open();
+    expect(screen.queryByRole('checkbox', { name: 'Check the fit again' })).toBeNull();
+  });
+
   it('says what is wrong under each field, with the schema’s words, and sends nothing', async () => {
     open();
     type('Link to the offer', 'jobs.example.com');
