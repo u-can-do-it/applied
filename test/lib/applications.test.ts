@@ -189,6 +189,12 @@ describe('withTextDetails', () => {
     salary: '',
     contract: 'Permanent (UoP)',
     seniority: 'mid',
+    skills: [
+      { name: 'English', level: 0, note: 'C1' },
+      { name: 'React', level: 4, note: '' },
+      { name: 'Docker', level: 1, note: '' },
+      { name: ' ', level: 3, note: '' },
+    ],
   };
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -204,9 +210,22 @@ describe('withTextDetails', () => {
       location: 'Warszawa',
       workMode: 'hybrid',
       officeDays: '2 office / 3 home',
+      skills: [
+        { name: 'English', note: 'C1' },
+        { name: 'React', level: 4 },
+        { name: 'Docker', level: 1 },
+      ],
       typed: ['contract'],
     });
     expect(textRead).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("the board's skills stay; an ad naming none marks them read with []", async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    extract.mockResolvedValueOnce(read).mockResolvedValueOnce({ ...read, skills: [] });
+    const board = [{ name: 'Vue', level: 3 }];
+    expect((await withTextDetails({ skills: board }, app))?.skills).toEqual(board);
+    expect((await withTextDetails({}, app))?.skills).toEqual([]);
   });
 
   it('a remote row stays remote, without days in the office', async () => {

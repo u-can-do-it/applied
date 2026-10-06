@@ -222,6 +222,7 @@ export type ExtractedJob = {
   salary: string;
   contract: string;
   seniority: string;
+  skills: { name: string; level: number; note: string }[]; // level 0: not given
 };
 
 const EXTRACT_SCHEMA = strictObject({
@@ -233,6 +234,14 @@ const EXTRACT_SCHEMA = strictObject({
   salary: { type: 'string' },
   contract: { type: 'string' },
   seniority: { type: 'string' },
+  skills: {
+    type: 'array',
+    items: strictObject({
+      name: { type: 'string' },
+      level: { type: 'integer', enum: [0, 1, 2, 3, 4, 5] },
+      note: { type: 'string' },
+    }),
+  },
 });
 
 const EXTRACT_SYSTEM = `You read the web page of one job offer and fill in a form about it. Use only what the page says; leave a field empty ("") when it doesn't say.
@@ -243,7 +252,9 @@ workMode: "remote" for fully remote work, "hybrid" for part office / part home, 
 officeDays: for hybrid work, the days a week in the office and at home when the ad says them, e.g. "2 office / 3 home" (a 5-day week when only one is given; a range as "1–2 office"); else "".
 salary: as written, with the currency, the period and the contract when given, e.g. "20 000–25 000 PLN / month (B2B)"; several on separate parts joined with "; ".
 contract: e.g. "B2B", "Permanent (UoP)", "B2B, Permanent".
-seniority: junior, mid, senior or lead, or "".`;
+seniority: junior, mid, senior or lead, or "".
+skills: the tech stack the ad asks for, at most 20: technologies, programming languages, frameworks, tools, platforms and methods (e.g. "React", "Node.js", "REST APIs", "Unit testing", "Git", "Docker", "GCP BigQuery", "Figma", "Scrum"), not soft skills or years of experience. Short canonical names. Spoken languages first, then the required skills, then the nice-to-haves, each in the ad's order.
+  level (JustJoin's scale): 1 nice to have (every nice-to-have / plus / bonus skill), 2 junior (basic knowledge, familiarity), 3 regular (experience, good knowledge, hands-on), 4 advanced (strong, excellent, extensive, in-depth), 5 master (expert); 3 when a required skill's level isn't worded. A spoken language: level 0, with note its level as written ("C1", "B2", "Fluent", "Native"); note is "" for the others.`;
 
 export async function extractJob(page: { url: string; pageTitle: string; text: string }): Promise<ExtractedJob> {
   const { model, effort } = aiConfig().extract;

@@ -1,5 +1,5 @@
 import 'server-only';
-import { workModeOf, type JobDetails } from './ads/details';
+import { asString, isSkillLevel, workModeOf, type JobDetails, type Skill } from './ads/details';
 import { extractJob } from './ai/openai';
 import * as applicationsRepo from './db/repos/applications';
 import { env } from './env';
@@ -103,9 +103,24 @@ export function mergeDetails(
 const TEXT_FIELDS = ['salary', 'contract', 'location', 'workMode', 'officeDays'] as const;
 
 /**
+ * The AI's skills as saved: named ones, a level only on the 1–5 scale, a note only when there's one.
+ * Its JSON is only typed, not checked: asString guards against a field it left out.
+ */
+const skillsOf = (ai: Awaited<ReturnType<typeof extractJob>>['skills'] | undefined): Skill[] =>
+  (ai ?? [])
+    .map((skill) => ({
+      name: asString(skill.name).trim().slice(0, 40),
+      level: isSkillLevel(skill.level) ? skill.level : undefined,
+      note: asString(skill.note).trim().slice(0, 20) || undefined,
+    }))
+    .filter((skill) => skill.name)
+    .slice(0, 20);
+
+/**
  * Fills the details nobody gave (not the board, not you) from the ad text, by the AI, and marks the
- * text read (`textRead`), so it isn't read again. What's there stays. Without OPENAI_API_KEY, or
- * when the AI fails, the details stay as they are (unmarked: read next time).
+ * text read (`textRead`), so it isn't read again; the skills ([] if it names none) mark it read for
+ * them, so a text read before there were skills is read once more. What's there stays. Without
+ * OPENAI_API_KEY, or when the AI fails, the details stay as they are (unmarked: read next time).
  */
 export async function withTextDetails(
   saved: SavedDetails | null,
@@ -133,6 +148,7 @@ export async function withTextDetails(
   if (details.workMode === 'remote') details.remote = true;
   // the days in the office are a hybrid job's
   if (details.workMode !== 'hybrid') delete details.officeDays;
+  details.skills ??= skillsOf(ai.skills);
   details.textRead = new Date().toISOString();
   return details;
 }
@@ -142,7 +158,7 @@ let reading: Promise<number> | null = null; // one pass at a time in this server
 
 /**
  * The applications whose saved ad text wasn't read for its details yet (saved before this was done,
- * or the AI failed then): read now, `max` at most per call. Returns how many got read.
+ * or before there were skills, or the AI failed then): read now, `max` at most per call. Returns how many got read.
  */
 export function readDetailsFromText(max = 40): Promise<number> {
   if (!env.OPENAI_API_KEY) return Promise.resolve(0);

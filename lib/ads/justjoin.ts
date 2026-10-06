@@ -6,7 +6,9 @@ import {
   languages,
   money,
   asString,
+  isSkillLevel,
   isWorkMode,
+  languageName,
   unique,
   unit,
   type AdReader,
@@ -46,6 +48,8 @@ type JustjoinOffer = {
   expiredAt?: string;
   companyName?: string;
 };
+
+const nonEmpty = <T>(xs: T[]) => (xs.length ? xs : undefined);
 
 async function fromApi(slug: string) {
   const offer = (await (
@@ -97,6 +101,20 @@ async function fromApi(slug: string) {
     posted: day(offer.publishedAt),
     validUntil: day(offer.expiredAt),
     company: offer.companyName || undefined,
+    // none listed: the AI reads them from the text (lib/application-details.ts)
+    skills: nonEmpty(
+      [
+        ...(offer.languages ?? [])
+          .filter((language) => language.code)
+          .map((language) => ({ name: languageName(language.code ?? ''), note: language.level || undefined })),
+        ...(offer.requiredSkills ?? []).map((skill) => ({
+          name: asString(skill.name),
+          level: isSkillLevel(skill.level) ? skill.level : undefined,
+        })),
+        // JustJoin's level 1 is "nice to have"
+        ...(offer.niceToHaveSkills ?? []).map((skill) => ({ name: asString(skill.name), level: 1 })),
+      ].filter((skill) => skill.name),
+    ),
   };
   return { text, details };
 }

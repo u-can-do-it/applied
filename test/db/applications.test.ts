@@ -290,6 +290,7 @@ describeDb('applications', () => {
       salary: '',
       contract: 'Permanent (UoP)',
       seniority: '',
+      skills: [{ name: 'React', level: 4, note: '' }],
     });
     const ad = 'A complete ad text: what you would do, what they ask for, the hybrid work in Warszawa.';
     const one = await addApplication(typed('One', { content: ad, details: { salary: '20k' } }), utc);
@@ -302,10 +303,23 @@ describeDb('applications', () => {
       location: 'Warszawa',
       workMode: 'hybrid',
       officeDays: '2 office / 3 home',
+      skills: [{ name: 'React', level: 4 }],
       typed: ['salary'],
     });
     expect(read?.details?.textRead).toBeTruthy();
     expect(await readDetailsFromText()).toBe(0); // read already
     expect(extract).toHaveBeenCalledTimes(1);
+
+    // a text read before there were skills is read once more, for them
+    const { skills: _, ...before } = read?.details ?? {};
+    await exec(
+      sql`update public.applications set details = ${JSON.stringify(before)}::jsonb where dup_key = ${one.jobId}`,
+    );
+    expect(await readDetailsFromText()).toBe(1);
+    expect((await getApplication(one.jobId ?? ''))?.details).toMatchObject({
+      salary: '20k',
+      location: 'Warszawa',
+      skills: [{ name: 'React', level: 4 }],
+    });
   });
 });

@@ -91,9 +91,11 @@ their APIs, Built In and LinkedIn from their pages, the other scraped boards fro
   no offer has a text.
 - **Applications** (`scrapeOfferFull`, plus salary, contract, location, work mode, dates) save it in the
   application, trying the job's other boards if the clicked one fails. The state machine is
-  [below](#application-ad-content). What the board didn't give (salary, location, remote / hybrid / on-site and
-  a hybrid job's office and home days) OpenAI reads from the saved text (`lib/application-details.ts`,
-  `details.textRead`); a saved text not read yet is read when the Applied page has rendered, 40 per visit.
+  [below](#application-ad-content). What the board didn't give (salary, location, remote / hybrid / on-site,
+  a hybrid job's office and home days, and the tech stack: each skill on JustJoin's 1–5 scale, the languages
+  with their level) OpenAI reads from the saved text (`lib/application-details.ts`, `details.textRead`,
+  `details.skills`); JustJoin's API gives the skills itself. A saved text not read yet (or read before there
+  were skills) is read when the Applied page has rendered, 40 per visit.
 
 "Fill in from the link" (Add application) reads the page the same way and lets OpenAI
 (`OPENAI_EXTRACT_MODEL`) fill in the form.

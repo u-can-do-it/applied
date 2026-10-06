@@ -12,7 +12,18 @@ export type JobDetails = {
   posted?: string; // YYYY-MM-DD
   validUntil?: string; // YYYY-MM-DD
   company?: string;
+  skills?: Skill[]; // the tech stack, JustJoin's way; [] when the ad was read and names none
 };
+
+/** JustJoin's scale: 1 nice to have … 5 master. */
+export const SKILL_LEVELS = ['Nice to have', 'Junior', 'Regular', 'Advanced', 'Master'] as const;
+/** One skill the ad asks for: "React" at 4 (Advanced); a language with its level as a note ("C1"). */
+export type Skill = { name: string; level?: number; note?: string };
+export const isSkillLevel = (value: unknown): value is number =>
+  Number.isInteger(value) && (value as number) >= 1 && (value as number) <= SKILL_LEVELS.length;
+/** "Advanced", "C1"; undefined when the ad gives no level. */
+export const skillLevelText = (skill: Skill) =>
+  skill.note || (isSkillLevel(skill.level) ? SKILL_LEVELS[skill.level - 1] : undefined);
 
 export const WORK_MODES = ['remote', 'hybrid', 'onsite'] as const;
 export type WorkMode = (typeof WORK_MODES)[number];
@@ -76,6 +87,15 @@ export const unique = (xs: (string | undefined)[]) => [
 export type Language = { code?: string; level?: string };
 export const languages = (xs: Language[]) =>
   xs.map((language) => [language.code, language.level].filter(Boolean).join(' ')).join(', ');
+const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+/** "en" → "English"; a code Intl doesn't know stays as it is. */
+export function languageName(code: string) {
+  try {
+    return languageNames.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
 
 /** An offer: its board, its id there, its link. A job has one per board it was posted on. */
 export type OfferLink = { src: string; id: string; url: string };

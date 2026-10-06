@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, desc, eq, getTableColumns, inArray, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { SavedDetails } from '../../applications';
 import type { OutcomeId, StageId } from '../../stages';
 import { db } from '../client';
@@ -104,7 +104,7 @@ export async function setNoteIfUnchanged(jobId: string, note: string | null, see
   return first(saved)?.noteUpdatedAt ?? null;
 }
 
-/** Applications with an ad text not yet read for its details (details.textRead), newest first. */
+/** Applications with an ad text not yet read for its details (details.textRead, details.skills), newest first. */
 export function withUnreadText(limit: number) {
   return db()
     .select({
@@ -119,7 +119,7 @@ export function withUnreadText(limit: number) {
       and(
         eq(applications.contentStatus, 'ok'),
         sql`${applications.content} is not null`,
-        sql`${applications.details}->>'textRead' is null`,
+        or(sql`${applications.details}->>'textRead' is null`, sql`${applications.details}->'skills' is null`),
       ),
     )
     .orderBy(desc(applications.appliedAt))
