@@ -5,6 +5,7 @@ import { parseBuiltin } from './parsers/builtin';
 import { parseBulldog } from './parsers/bulldog';
 import { parseEldorado } from './parsers/eldorado';
 import { parseHtmlListing, parseJson } from './parsers/generic';
+import { parseHimalayas } from './parsers/himalayas';
 import { parseJustjoin } from './parsers/justjoin';
 import { parseLinkedin } from './parsers/linkedin';
 import { parseNofluff } from './parsers/nofluff';
@@ -22,6 +23,7 @@ export const PARSERS = {
   builtin: parseBuiltin,
   linkedin: parseLinkedin,
   adzuna: parseAdzuna,
+  himalayas: parseHimalayas,
   json: parseJson,
   html: parseHtmlListing,
   rss: parseRss,

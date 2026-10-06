@@ -107,6 +107,25 @@ describe('built-in board parsers', () => {
     expect(result.items).toMatchSnapshot();
   });
 
+  it('himalayas: the search API, every job remote, where you may work from', () => {
+    const result = parse('himalayas', fixture('himalayas.json'));
+    expect(result.total).toBe(3);
+    expect(result.items).toHaveLength(3);
+    for (const offer of result.items) {
+      expect(offer.url).toBe(`https://himalayas.app/companies/${offer.id.replace('/', '/jobs/')}`);
+      expect(offer.remote).toBe(true);
+      expect(offer.sort).toBeUndefined();
+      expect(offer.seniority).toBe('senior');
+    }
+    const [europe, anywhere, poland] = result.items;
+    // open to Poland among others: Poland; open anywhere: Anywhere
+    expect([europe.locations, anywhere.locations, poland.locations]).toEqual([['Poland'], ['Anywhere'], ['Poland']]);
+    // its categories come from the description: the keyword check reads the title only
+    expect(anywhere.skills).toEqual([]);
+    expect(result.sample).not.toContain('</p><p>'.repeat(50));
+    expect(result.items).toMatchSnapshot();
+  });
+
   it('adzuna: the search API', () => {
     const result = parse('adzuna', fixture('adzuna.json'));
     expect(result.total).toBe(3);
@@ -156,6 +175,7 @@ describe('board parser edge cases', () => {
     expect(() => parse('eldorado', '<html></html>')).toThrow(/no jobs/);
     expect(() => parse('builtin', '<html></html>')).toThrow(/no job cards/);
     expect(() => parse('adzuna', '{"count":0}')).toThrow('Adzuna: no results list (got count)');
+    expect(() => parse('himalayas', '{"totalCount":0}')).toThrow('Himalayas: no jobs list (got totalCount)');
     // what it answers a browser's Accept without content-type=application/json (lib/listings/api-params.ts)
     expect(() => parse('adzuna', '<!DOCTYPE html><title>Adzuna API</title>')).toThrow(/is not JSON/);
   });

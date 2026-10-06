@@ -23,6 +23,7 @@ describe('boardOf', () => {
       ['https://builtin.com/job/react-dev/123', 'builtin'],
       ['https://www.linkedin.com/jobs/view/4123456789', 'linkedin'],
       ['https://pl.linkedin.com/jobs/view/4123456789', 'linkedin'],
+      ['https://himalayas.app/companies/oversee/jobs/senior-react-dev', 'himalayas'],
       ['https://theprotocol.it/szczegoly/praca/react', 'theprotocol'],
       ['https://www.pracuj.pl/praca/react,oferta,1004', 'pracuj'],
       ['https://rocketjobs.pl/oferta/x', 'rocketjobs'],
@@ -149,6 +150,9 @@ describe('boardIdOf', () => {
       '257103-web-architect',
     );
     expect(boardIdOf('eldorado', 'https://czyjesteldorado.pl/praca/449389-scrum-master')).toBe('449389');
+    expect(
+      boardIdOf('himalayas', 'https://himalayas.app/companies/lemon-io/jobs/senior-full-stack-developer-4016266853'),
+    ).toBe('lemon-io/senior-full-stack-developer-4016266853');
     expect(boardIdOf('linkedin', 'https://www.linkedin.com/jobs/view/4123456789/')).toBe('4123456789');
     expect(boardIdOf('linkedin', 'https://pl.linkedin.com/jobs/view/senior-dev-at-acme-4123456789')).toBe('4123456789');
     expect(

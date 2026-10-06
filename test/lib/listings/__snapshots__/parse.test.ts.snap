@@ -222,6 +222,50 @@ exports[`built-in board parsers > eldorado: the app router flight data, split ov
 ]
 `;
 
+exports[`built-in board parsers > himalayas: the search API, every job remote, where you may work from 1`] = `
+[
+  {
+    "company": "lemon.io",
+    "id": "lemon-io/senior-full-stack-developer-4016266853",
+    "locations": [
+      "Poland",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [],
+    "src": "himalayas",
+    "title": "Senior React Full-stack Developer",
+    "url": "https://himalayas.app/companies/lemon-io/jobs/senior-full-stack-developer-4016266853",
+  },
+  {
+    "company": "Novakid School",
+    "id": "novakid-school/fullstack-developer-frontend-focus",
+    "locations": [
+      "Anywhere",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [],
+    "src": "himalayas",
+    "title": "FullStack Developer Frontend Focus",
+    "url": "https://himalayas.app/companies/novakid-school/jobs/fullstack-developer-frontend-focus",
+  },
+  {
+    "company": "Oversee",
+    "id": "oversee/senior-software-engineer-applied-ai-remote-from-poland",
+    "locations": [
+      "Poland",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [],
+    "src": "himalayas",
+    "title": "Senior Software Engineer, Applied AI (Remote from Poland)",
+    "url": "https://himalayas.app/companies/oversee/jobs/senior-software-engineer-applied-ai-remote-from-poland",
+  },
+]
+`;
+
 exports[`built-in board parsers > justjoin: the candidate API 1`] = `
 [
   {

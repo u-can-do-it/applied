@@ -6,6 +6,7 @@ import { adzuna } from './adzuna.ts';
 import { builtin } from './builtin.ts';
 import { bulldog } from './bulldog.ts';
 import { eldorado } from './eldorado.ts';
+import { himalayas } from './himalayas.ts';
 import { indeed } from './indeed.ts';
 import { justjoin } from './justjoin.ts';
 import { linkedin } from './linkedin.ts';
@@ -23,7 +24,17 @@ export { BOARD_RE, isLink };
  * The boards Jobwatch scrapes, each a scraper kind too. A new one goes at the end: this order is the
  * Settings list's, and the database's list of kinds (scrapers_kind_check in lib/db/schema.ts).
  */
-export const SCRAPED_BOARDS = [justjoin, nofluff, solidjobs, bulldog, eldorado, builtin, linkedin, adzuna] as const;
+export const SCRAPED_BOARDS = [
+  justjoin,
+  nofluff,
+  solidjobs,
+  bulldog,
+  eldorado,
+  builtin,
+  linkedin,
+  adzuna,
+  himalayas,
+] as const;
 export type ScrapedBoardId = (typeof SCRAPED_BOARDS)[number]['id'];
 
 /** Every board: the scraped ones, then the ones known by their links only (an application's link). */

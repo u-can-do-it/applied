@@ -71,6 +71,13 @@
       "when": 1791231794835,
       "tag": "0009_adzuna_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791286239127,
+      "tag": "0010_himalayas_kind",
+      "breakpoints": true
     }
   ]
 }

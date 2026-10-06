@@ -108,10 +108,10 @@ DROPPED_FUNCTIONS='jw_set_application_status|jw_ghost_stale_applications|jw_scra
 # tables a later migration adds (0006_push_subscriptions, 0007_seen_jobs, 0008_archived_jobs): new in (a), so
 # their entries are left out of the comparison too, and checked to be there
 ADDED_TABLES='push_subscriptions|seen_jobs|archived_jobs'
-# boards added since (0009_adzuna_kind): a migration lets their kind into scrapers_kind_check, and
+# boards added since (0009_adzuna_kind, 0010_himalayas_kind): a migration lets their kind into scrapers_kind_check, and
 # lib/db/seed.ts adds their scrapers after the migrations. Taken out of the kinds for the comparison,
 # and their seeded scrapers out of the rows, and checked to be there
-ADDED_BOARDS='adzuna'
+ADDED_BOARDS='adzuna|himalayas'
 entries_without_dropped_functions() {
   awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v boards="$ADDED_BOARDS" '
     function flush() { if (entry != "" && !skip) print entry; entry = "" }

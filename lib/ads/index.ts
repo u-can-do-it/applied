@@ -8,6 +8,7 @@ import { htmlToText } from '../shared/html';
 import { readBuiltin } from './builtin';
 import type { Ad, AdReader, JobDetails, OfferLink } from './details';
 import { get } from './fetch';
+import { readHimalayas } from './himalayas';
 import { findJobPosting, fromJobPosting } from './job-posting';
 import { readJustjoin } from './justjoin';
 import { readLinkedin } from './linkedin';
@@ -24,6 +25,7 @@ const READERS: Partial<Record<BoardId, AdReader>> = {
   nofluff: readNofluff,
   builtin: readBuiltin,
   linkedin: readLinkedin,
+  himalayas: readHimalayas,
 };
 
 function readAd(offer: OfferLink): Promise<Ad> {

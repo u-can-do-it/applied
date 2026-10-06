@@ -16,6 +16,7 @@ describe('scraper kinds', () => {
 
   it('a board with a quota of calls says how many minutes a call; the others have none', () => {
     expect(kindOf('adzuna').minutesPerCall).toBe(20);
+    expect(kindOf('himalayas').minutesPerCall).toBe(20); // the same pace
     expect(kindOf('justjoin').minutesPerCall).toBeUndefined();
     expect(kindOf('json').minutesPerCall).toBeUndefined();
   });
@@ -41,6 +42,7 @@ describe('scraper kinds', () => {
       ['LinkedIn – Warszawa', 'linkedin'],
       ['LinkedIn – remote', 'linkedin'],
       ['Adzuna', 'adzuna'],
+      ['Himalayas', 'himalayas'],
     ]);
     for (const seed of SEED_SCRAPERS) expect(seed.src).toBe(seed.kind);
     expect(SEED_SCRAPERS[0].config).toEqual(kindOf('justjoin').defaults);
