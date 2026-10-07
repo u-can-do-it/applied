@@ -111,7 +111,8 @@ A run checks a date range against one profile version ([`lib/ai/runs.ts`](../lib
    verdicts and application move to the kept job, the earliest).
 2. **Assessment** (phase `assess`): each job this profile version hasn't judged, 4 per OpenAI call, 3 calls at
    once, with its ad text. Verdicts are stored per profile version and job, so a second run sends only
-   what's new, and editing a profile's text or file (a new version) has its jobs checked again.
+   what's new, and editing a profile's text or file (a new version) has its jobs checked again – unless it's
+   saved keeping its verdicts (same version: only the jobs it hasn't judged get the new criteria).
 
 The work runs in slices of `SLICE_MS` under the run's lock, each in `after()`
 ([ADR 0003](decisions/0003-ai-runs-in-after-slices.md)). A slice is started by Settings → AI filter (on every
@@ -194,7 +195,7 @@ live in [`lib/db/repos/`](../lib/db/repos), one file per table; the rules on top
 | `ai_dup_pairs`       | every pair the AI was asked about, and its answer                             | `lib/ai/merge-duplicates.ts`                                                                                                                                 |
 | `applications`       | yours, per job: snapshot, ad text, status, history, note                      | `lib/applications.ts` (mark, add, edit, status, note, ghosting, ad text); `jw_merge_jobs` moves them                                                         |
 | `ai_profiles`        | criteria, CV text, version                                                    | `lib/ai/profiles.ts`                                                                                                                                         |
-| `ai_verdicts`        | one per profile version and job                                               | `lib/ai/runs.ts` (`assessBatch`); `lib/ai/profiles.ts` drops older versions' on edit; `jw_merge_jobs` moves them                                             |
+| `ai_verdicts`        | one per profile version and job                                               | `lib/ai/runs.ts` (`assessBatch`); `lib/ai/profiles.ts` drops older versions' on edit (unless kept); `jw_merge_jobs` moves them                               |
 | `ai_runs`            | manual AI runs: range, phase, progress, lock                                  | `lib/ai/runs.ts` (`startRun`, and each slice writes its state's `save`, `lib/ai/run-state.ts`)                                                               |
 | `offer_details`      | an offer's ad text for the AI (`ok` / `empty`)                                | `lib/ai/runs.ts` (`descriptions`)                                                                                                                            |
 | `scrapers`           | saved searches, their config, mark and last result                            | `features/scraping/actions.ts` (Settings), `lib/listings/pipeline/persist.ts` (`recordOutcomes`), `lib/db/seed.ts`                                           |
@@ -384,8 +385,9 @@ the entry says so (_stored as_): those names stay (production data and applied m
   (`GHOST_AFTER_DAYS`), marked "(auto)" in its history.
 - **profile**: What the AI judges jobs against: a prompt and, optionally, your CV as text. The most recently
   used one is active. _Stored as:_ `ai_profiles`.
-- **version**: A profile's version number, bumped when its prompt or file changes. Verdicts belong to one
-  profile version. _Stored as:_ `ai_profiles.version`, `ai_verdicts.version`, `ai_runs.version`.
+- **version**: A profile's version number, bumped when its prompt or file changes (unless saved keeping its
+  verdicts). Verdicts belong to one profile version. _Stored as:_ `ai_profiles.version`, `ai_verdicts.version`,
+  `ai_runs.version`.
 - **verdict**: The AI's judgement of one job for one profile version: match or not, a score, a summary and the
   checks behind it. _Stored as:_ `ai_verdicts`.
 - **run**: Say which. A _scrape run_ is one pass over the enabled scrapers (`scrape_runs`,

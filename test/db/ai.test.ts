@@ -59,6 +59,16 @@ describeDb('AI profiles', () => {
     expect((await verdictsRepo.forJobs({ id, version: 1 }, [key])).size).toBe(0);
   });
 
+  it('saves new criteria keeping the verdicts so far, when asked to', async () => {
+    const id = await saveProfile({ name: 'P', prompt: 'React, remote', file: 'keep' });
+    const [key] = await threeJobs();
+    await verdictsRepo.save([verdict({ id, version: 1 }, key, true)]);
+
+    await saveProfile({ id, name: 'P', prompt: 'React, remote or Warsaw', file: 'keep', keepVerdicts: true });
+    expect(await getProfile(id)).toMatchObject({ prompt: 'React, remote or Warsaw', version: 1 });
+    expect((await verdictsRepo.forJobs({ id, version: 1 }, [key])).size).toBe(1);
+  });
+
   it('lists the most recently used first, without the file text', async () => {
     const older = await saveProfile({ name: 'Older', prompt: 'a', file: 'keep' });
     await saveProfile({ name: 'Newer', prompt: 'b', file: 'keep' });

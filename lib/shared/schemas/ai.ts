@@ -32,6 +32,11 @@ export const profileSchema = z.object({
     z.optional(z.string()),
     z.transform((value: string | undefined) => value === 'on'),
   ),
+  // a changed text or file keeps what the profile has judged so far, instead of re-checking it all
+  keepVerdicts: z.pipe(
+    z.optional(z.string()),
+    z.transform((value: string | undefined) => value === 'on'),
+  ),
 });
 
 export const profileIdSchema = z.object({ id: z.string().check(z.minLength(1)) });

@@ -142,7 +142,7 @@ export const aiProfiles = pgTable('ai_profiles', {
   prompt: text('prompt').notNull().default(''),
   fileName: text('file_name'),
   fileText: text('file_text'), // text extracted from the uploaded PDF / TXT / MD
-  version: integer('version').notNull().default(1), // bumped when prompt or file change
+  version: integer('version').notNull().default(1), // bumped when prompt or file change (unless saved keeping the verdicts)
   lastUsedAt: timestamptz('last_used_at').notNull().defaultNow(), // the most recently used profile is the active one
   createdAt: createdAt(),
   updatedAt: timestamptz('updated_at').notNull().defaultNow(),

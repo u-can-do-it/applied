@@ -13,7 +13,7 @@ export const NEW = '__new__';
 
 /** Under the form (profile-form.tsx), and for screen readers while it loads. */
 export const PROFILE_NOTE =
-  'Changing the text or the file re-checks this profile’s offers on the next run. Renaming or switching profiles keeps what’s already been checked.';
+  'Changing the text or the file re-checks this profile’s offers on the next run, unless you keep what it has checked. Renaming or switching profiles keeps what’s already been checked.';
 
 // The form loads when it's first wanted: it brings the form library and the action's schema (zod), which
 // the offers page doesn't need until then. Pointing at the profile button starts the download.

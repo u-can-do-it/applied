@@ -6,18 +6,29 @@ import { PaperclipIcon } from 'lucide-react';
 import { useConfirm } from '@/components/confirm';
 import { answered, checkOnSubmit, FormError, formSchema, useAppForm } from '@/components/form';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-import { FieldError } from '@/components/field';
+import { CheckField, FieldError } from '@/components/field';
 import { firstError } from '@/components/form-fields';
 import type { Result } from '@/lib/shared/result';
 import { profileSchema } from '@/lib/shared/schemas/ai';
 import { deleteProfileAction, saveProfileAction, selectProfileAction } from './actions';
 import { NEW, PROFILE_NOTE, type ProfileOption } from './profile-dialog';
 
-/** What the form holds: the action's FormData fields (removeFile: 'on' to remove the saved file). */
-type ProfileValues = { profileId: string; name: string; prompt: string; file: File | undefined; removeFile: string };
+/**
+ * What the form holds: the action's FormData fields (removeFile: 'on' to remove the saved file,
+ * keepVerdicts: 'on' to save a changed text or file without re-checking what was already checked).
+ */
+type ProfileValues = {
+  profileId: string;
+  name: string;
+  prompt: string;
+  file: File | undefined;
+  removeFile: string;
+  keepVerdicts: string;
+};
 
 /** The profile picked in the dialog, to edit (or a new one): saved, it becomes the active profile. */
 export function ProfileForm({
@@ -44,6 +55,7 @@ export function ProfileForm({
     prompt: profile?.prompt ?? '',
     file: undefined,
     removeFile: '',
+    keepVerdicts: '',
   };
   const form = useAppForm({
     defaultValues: initial,
@@ -57,6 +69,7 @@ export function ProfileForm({
       data.set('prompt', value.prompt);
       if (value.file) data.set('file', value.file);
       else if (value.removeFile) data.set('removeFile', 'on');
+      if (value.keepVerdicts) data.set('keepVerdicts', 'on');
       const answer = await answered(formApi, saveProfileAction(null, data));
       // lands with the refreshed page (the action refreshes it with the new active profile)
       if (answer.ok) startTransition(onClose);
@@ -65,6 +78,9 @@ export function ProfileForm({
   const picked = useSelector(form.store, (state) => state.values.file);
   const removing = useSelector(form.store, (state) => state.values.removeFile === 'on');
   const saving = useSelector(form.store, (state) => state.isSubmitting);
+  // a saved profile whose criteria change: what it has checked so far is re-checked, unless kept
+  const promptChanged = useSelector(form.store, (state) => Boolean(profile && state.values.prompt !== profile.prompt));
+  const criteriaChange = Boolean(profile) && (promptChanged || Boolean(picked) || removing);
 
   // Delete / Use without changes: the dialog closes once done, or says what went wrong
   const runAndClose = (fn: () => Promise<Result<unknown>>) =>
@@ -164,6 +180,22 @@ export function ProfileForm({
           );
         }}
       </form.Field>
+
+      {criteriaChange && (
+        <form.Field name="keepVerdicts">
+          {(field) => (
+            <CheckField>
+              <Checkbox
+                name={field.name}
+                checked={field.state.value === 'on'}
+                onCheckedChange={(checked) => field.handleChange(checked === true ? 'on' : '')}
+                onBlur={field.handleBlur}
+              />
+              Keep what it has checked so far – the change applies to the offers it hasn’t checked yet
+            </CheckField>
+          )}
+        </form.Field>
+      )}
 
       <DialogDescription className="text-xs">{PROFILE_NOTE}</DialogDescription>
 

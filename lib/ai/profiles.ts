@@ -27,13 +27,15 @@ type FileChange = { name: string; text: string } | 'keep' | 'remove';
 /**
  * Creates or updates a profile and makes it the active one. The version only goes up when the
  * criteria or the file change: earlier verdicts then no longer count, so offers get re-checked.
- * Renaming or just picking a profile keeps its verdicts.
+ * `keepVerdicts` saves a change without that (a small tweak): the verdicts so far stay, and only
+ * jobs not judged yet get the new criteria. Renaming or just picking a profile keeps its verdicts.
  */
 export async function saveProfile(input: {
   id?: string;
   name: string;
   prompt: string;
   file: FileChange;
+  keepVerdicts?: boolean;
 }): Promise<string> {
   const now = new Date().toISOString();
   const name = input.name.trim() || 'Profile';
@@ -54,7 +56,8 @@ export async function saveProfile(input: {
   const fileName = input.file === 'keep' ? current.fileName : input.file === 'remove' ? null : input.file.name;
   const fileText = input.file === 'keep' ? current.fileText : input.file === 'remove' ? null : input.file.text;
   const changed = input.prompt !== current.prompt || fileText !== current.fileText;
-  const version = changed ? current.version + 1 : current.version;
+  const recheck = changed && !input.keepVerdicts;
+  const version = recheck ? current.version + 1 : current.version;
 
   await profilesRepo.patch(input.id, {
     name,
@@ -66,7 +69,7 @@ export async function saveProfile(input: {
     lastUsedAt: now,
   });
 
-  if (changed) {
+  if (recheck) {
     // verdicts of older versions are never shown again
     await verdictsRepo.removeOlderThan({ id: input.id, version }).catch(() => {});
   }

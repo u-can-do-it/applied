@@ -30,7 +30,7 @@ async function fileToText(file: File): Promise<string> {
 /** Saves the profile and makes it the active one; answers with its id. */
 export const saveProfileAction = formAction(
   profileSchema,
-  async ({ profileId, name, prompt, file: upload, removeFile }) => {
+  async ({ profileId, name, prompt, file: upload, removeFile, keepVerdicts }) => {
     let file: Parameters<typeof saveProfile>[0]['file'] = removeFile ? 'remove' : 'keep';
     if (upload) {
       let text: string;
@@ -48,7 +48,7 @@ export const saveProfileAction = formAction(
       file === 'keep' && profileId ? Boolean((await getProfile(profileId))?.fileName) : typeof file === 'object';
     if (!prompt.trim() && !keepsFile) throw new Error('Describe what to look for, or add a file.');
 
-    const id = await saveProfile({ id: profileId, name, prompt, file });
+    const id = await saveProfile({ id: profileId, name, prompt, file, keepVerdicts });
     refresh();
     return { id };
   },
