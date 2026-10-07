@@ -233,7 +233,8 @@ refuses. `OPENAI_BASE_URL` points it at another compatible endpoint.
 
 ## Health
 
-- **The Health card** at the top of Settings has one row per dependency, green, amber or red, with the reason and
+- **The Health card** at the top of Settings says in one line whether everything works (green), needs a look
+  (amber) or is broken (red); a click on it opens one row per dependency, green, amber or red, with the reason and
   the fix (a button, a page, or a command): **Database** (reachable, every migration applied), **Scraping**
   (on with its schedule, or paused), **Supabase Cron** (connected, following the settings, its last answer),
   **Last run** (finished, which scrapers failed), **Telegram** (configured, reachable, commands connected, or off in Settings),

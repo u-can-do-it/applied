@@ -1,5 +1,5 @@
 import { connection } from 'next/server';
-import { CircleAlertIcon, CircleCheckIcon, CircleXIcon } from 'lucide-react';
+import { ChevronRightIcon, CircleAlertIcon, CircleCheckIcon, CircleXIcon } from 'lucide-react';
 import { checkDbHealth } from '@/lib/db/health';
 import { DEFAULT_TZ, zoneOf, type Zone } from '@/lib/dates';
 import { env } from '@/lib/env';
@@ -26,11 +26,13 @@ import { pushConfigured, pushProblem } from '@/lib/push';
 import { telegramReady } from '@/lib/telegram';
 import { appSettings } from '@/lib/time-zone';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/shared/cn';
 import { HealthFix } from './health-fix';
 
 // Settings' first card: is everything connected and working? Each row is checked on its own: one
-// that fails to check is a red row, and the card still shows.
+// that fails to check is a red row, and the card still shows. Closed, it's its heading and the summary
+// line; the rows open underneath.
 
 const LEVEL: Record<HealthLevel, { icon: typeof CircleCheckIcon; text: string; className: string }> = {
   ok: { icon: CircleCheckIcon, text: 'OK', className: 'text-success' },
@@ -129,47 +131,69 @@ export async function HealthCard() {
   const level = overall(rows);
 
   return (
-    <Card className="mb-3.5 gap-2 py-3.5" role="region" aria-labelledby="health-h">
-      <CardHeader className="flex flex-wrap items-baseline gap-x-3 px-4">
-        <h2 id="health-h" className="m-0 text-base font-semibold">
-          Health
-        </h2>
-        <p className={cn('m-0 text-xs', LEVEL[level].className)}>{SUMMARY[level]}</p>
-      </CardHeader>
-      <CardContent className="px-4">
-        <ul className="m-0 list-none border-t p-0">
-          {rows.map((row) => {
-            const { icon: Icon, text, className } = LEVEL[row.level];
-            return (
-              <li
-                key={row.id}
-                data-level={row.level}
-                className="grid grid-cols-[auto_9rem_1fr_auto] items-center gap-x-2.5 gap-y-1 border-b py-2 text-sm max-[640px]:grid-cols-[auto_1fr]"
-              >
-                <Icon className={cn('size-4', className)} role="img" aria-label={text} />
-                <span className="font-medium">{row.label}</span>
-                <span className="text-[13px] text-muted-foreground [overflow-wrap:anywhere] max-[640px]:col-start-2">
-                  {row.reason}
-                </span>
-                <span className="flex flex-wrap items-center justify-end gap-2 max-[640px]:col-start-2 max-[640px]:justify-start">
-                  {row.fix && <HealthFix fix={row.fix} />}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </CardContent>
+    <Card className="mb-3.5 py-3.5" role="region" aria-labelledby="health-h">
+      <Collapsible className="flex flex-col gap-2">
+        <CardHeader className="px-4">
+          <h2 className="m-0 text-base font-semibold">
+            <CollapsibleTrigger className="group flex w-full cursor-pointer flex-wrap items-baseline gap-x-3 text-left">
+              <HealthHeading />
+              <span className={cn('text-xs font-normal', LEVEL[level].className)}>{SUMMARY[level]}</span>
+            </CollapsibleTrigger>
+          </h2>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="px-4">
+            <ul className="m-0 list-none border-t p-0">
+              {rows.map((row) => {
+                const { icon: Icon, text, className } = LEVEL[row.level];
+                return (
+                  <li
+                    key={row.id}
+                    data-level={row.level}
+                    className="grid grid-cols-[auto_9rem_1fr_auto] items-center gap-x-2.5 gap-y-1 border-b py-2 text-sm max-[640px]:grid-cols-[auto_1fr]"
+                  >
+                    <Icon className={cn('size-4', className)} role="img" aria-label={text} />
+                    <span className="font-medium">{row.label}</span>
+                    <span className="text-[13px] text-muted-foreground [overflow-wrap:anywhere] max-[640px]:col-start-2">
+                      {row.reason}
+                    </span>
+                    <span className="flex flex-wrap items-center justify-end gap-2 max-[640px]:col-start-2 max-[640px]:justify-start">
+                      {row.fix && <HealthFix fix={row.fix} />}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
 
-export function HealthCardFallback() {
+/** The chevron (turned down while open) and the name, which labels the card's region. */
+function HealthHeading() {
   return (
-    <Card className="mb-3.5 gap-2 py-3.5" aria-busy="true" aria-label="Checking health">
+    <span className="flex items-center gap-1.5 self-center">
+      <ChevronRightIcon
+        aria-hidden="true"
+        className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
+      />
+      <span id="health-h">Health</span>
+    </span>
+  );
+}
+
+export function HealthCardFallback() {
+  // the closed card's height, so the rows coming in don't move the panels below
+  return (
+    <Card className="mb-3.5 py-3.5" aria-busy="true" aria-label="Checking health">
       <CardHeader className="px-4">
-        <h2 className="m-0 text-base font-semibold">Health</h2>
+        <h2 className="m-0 flex flex-wrap items-baseline gap-x-3 text-base font-semibold">
+          <HealthHeading />
+          <span className="text-xs font-normal text-muted-foreground">Checking…</span>
+        </h2>
       </CardHeader>
-      <CardContent className="px-4 text-xs text-muted-foreground">Checking…</CardContent>
     </Card>
   );
 }
