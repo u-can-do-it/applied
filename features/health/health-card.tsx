@@ -135,7 +135,7 @@ export async function HealthCard() {
       <Collapsible className="flex flex-col gap-2">
         <CardHeader className="px-4">
           <h2 className="m-0 text-base font-semibold">
-            <CollapsibleTrigger className="group flex w-full cursor-pointer flex-wrap items-baseline gap-x-3 text-left">
+            <CollapsibleTrigger className="group flex w-full cursor-pointer flex-wrap items-center gap-x-3 text-left">
               <HealthHeading />
               <span className={cn('text-xs font-normal', LEVEL[level].className)}>{SUMMARY[level]}</span>
             </CollapsibleTrigger>
@@ -174,7 +174,7 @@ export async function HealthCard() {
 /** The chevron (turned down while open) and the name, which labels the card's region. */
 function HealthHeading() {
   return (
-    <span className="flex items-center gap-1.5 self-center">
+    <span className="flex items-center gap-1.5">
       <ChevronRightIcon
         aria-hidden="true"
         className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
@@ -189,7 +189,7 @@ export function HealthCardFallback() {
   return (
     <Card className="mb-3.5 py-3.5" aria-busy="true" aria-label="Checking health">
       <CardHeader className="px-4">
-        <h2 className="m-0 flex flex-wrap items-baseline gap-x-3 text-base font-semibold">
+        <h2 className="m-0 flex flex-wrap items-center gap-x-3 text-base font-semibold">
           <HealthHeading />
           <span className="text-xs font-normal text-muted-foreground">Checking…</span>
         </h2>
