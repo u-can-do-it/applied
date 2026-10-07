@@ -32,11 +32,12 @@ const EMPTY = { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] a
 /**
  * Runs every enabled scraper. `locked`: the caller already took the lock (the endpoint does,
  * so it can answer "busy" right away). `background`: the AI check and the notifications go on
- * after the answer (the "Scrape now" button doesn't wait for OpenAI).
+ * after the answer (the "Scrape now" button doesn't wait for OpenAI). `scraper`: that one only
+ * (its run button in Settings), switched on or not.
  */
 export async function runAll(
   trigger: Trigger,
-  opts: { locked?: boolean; background?: boolean } = {},
+  opts: { locked?: boolean; background?: boolean; scraper?: string } = {},
 ): Promise<RunSummary> {
   if (!opts.locked && !(await stateRepo.lock(SCRAPE_LOCK_SECONDS)))
     return { ...EMPTY, skipped: 'Another run is still going.' };
@@ -45,9 +46,13 @@ export async function runAll(
   let unlockLater = false;
   try {
     const [settings, scrapers] = await Promise.all([settingsRepo.get(), scrapersRepo.list()]);
+    const chosen = opts.scraper
+      ? scrapers.filter((scraper) => scraper.id === opts.scraper)
+      : scrapersToRun(scrapers, settings, trigger === 'cron');
+    if (opts.scraper && !chosen.length) return { ...EMPTY, skipped: 'This scraper no longer exists.' };
     runId = await runsRepo.start(trigger);
 
-    const fetched = await fetchListings(scrapersToRun(scrapers, settings, trigger === 'cron'), settings);
+    const fetched = await fetchListings(chosen, settings);
     const owners = pickOwners(fetched);
     const added = await ingest(owners);
     const fresh = selectAnnouncable(added, owners, settings);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useOptimistic, useState } from 'react';
-import { PlusIcon } from 'lucide-react';
+import { PlayIcon, PlusIcon, RotateCwIcon } from 'lucide-react';
 import { PanelHeading } from '@/components/help';
 import { useZone } from '@/components/time-zone';
 import { ActionError, useAction } from '@/components/use-action';
@@ -16,6 +16,7 @@ import type { ScrapeSettings } from '@/lib/listings/settings';
 import type { Scraper } from '@/lib/db/repos/scrapers';
 import { toggleScraperAction } from './actions';
 import { PANEL } from './panel-styles';
+import { useScrapeNow } from './scrape-button';
 import { blank, toDraft, type Draft } from './scraper-draft';
 import { LazyScraperEditor, loadEditor } from './lazy-scraper-editor';
 import { ScraperBrief } from './scraper-status';
@@ -33,8 +34,9 @@ const HELP = (
     </p>
     <p>
       Test fetches the pages with the scraper’s values without saving anything. Copy starts a new scraper from this one,
-      e.g. for another search on the same board. A new scraper’s first run (or the first after its search changed) only
-      saves its offers, so the notifications aren’t flooded with old ones.
+      e.g. for another search on the same board. The ▶ on the row under the pointer runs just that scraper now (even one
+      switched off): what Scrape now does for all of them. A new scraper’s first run (or the first after its search
+      changed) only saves its offers, so the notifications aren’t flooded with old ones.
     </p>
     <p>What each scraper’s last run found is on the Activity tab.</p>
   </>
@@ -55,6 +57,7 @@ export function ScrapersPanel({
   const zone = useZone();
   const [open, setOpen] = useState<{ draft: Draft; test: boolean; n: number } | null>(null);
   const act = useAction();
+  const scrape = useScrapeNow();
   const edit = (draft: Draft, test = false) => setOpen((previous) => ({ draft, test, n: (previous?.n ?? 0) + 1 }));
   // a switched checkbox shows at once; the refreshed page brings the real list
   const [list, toggle] = useOptimistic(scrapers, (cur, change: { id: string; enabled: boolean }) =>
@@ -81,7 +84,7 @@ export function ScrapersPanel({
           {list.map((scraper) => (
             <li
               key={scraper.id}
-              className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 border-b py-2.5 max-[560px]:grid-cols-[auto_1fr]"
+              className="group/scraper grid grid-cols-[auto_1fr_auto] items-start gap-2.5 border-b py-2.5 max-[560px]:grid-cols-[auto_1fr]"
             >
               <Switch
                 className="mt-0.5"
@@ -108,6 +111,25 @@ export function ScrapersPanel({
                 />
               </div>
               <div className="flex flex-wrap justify-end gap-1.5 max-[560px]:col-start-2 max-[560px]:justify-start">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  // shown on the row under the pointer (or with the keyboard, or while it runs); a touch screen
+                  // can't hover: always there
+                  className={cn(
+                    'text-muted-foreground transition-opacity hover:text-foreground',
+                    scrape.running !== scraper.id &&
+                      'pointer-fine:opacity-0 pointer-fine:group-hover/scraper:opacity-100 pointer-fine:focus-visible:opacity-100',
+                  )}
+                  title="Run now"
+                  aria-label={`Run ${scraper.name} now`}
+                  disabled={scrape.busy}
+                  aria-busy={scrape.running === scraper.id || undefined}
+                  onClick={() => scrape.run(scraper)}
+                >
+                  {scrape.running === scraper.id ? <RotateCwIcon className="animate-spin" /> : <PlayIcon />}
+                </Button>
                 <Button type="button" variant="outline" size="sm" onClick={() => edit(toDraft(scraper), true)}>
                   Test
                 </Button>
@@ -127,7 +149,7 @@ export function ScrapersPanel({
             </li>
           ))}
         </ul>
-        <ActionError error={act.error} />
+        <ActionError error={act.error ?? scrape.failure} />
       </CardContent>
       {open && (
         <LazyScraperEditor

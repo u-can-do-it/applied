@@ -9,33 +9,41 @@ import type { RunSummary } from '@/lib/listings/pipeline/model';
 import { message } from '@/lib/shared/errors';
 import { fail, type Result } from '@/lib/shared/result';
 
-/** POST /api/scrape (app/api/scrape/route.ts). */
-async function scrapeNow(): Promise<Result<RunSummary>> {
+/** POST /api/scrape (app/api/scrape/route.ts): every scraper, or the one with this id. */
+async function scrapeNow(id?: string): Promise<Result<RunSummary>> {
   // a lapsed login gets proxy.ts's redirect to /login: not followed, it would answer with that page
-  const response = await fetch('/api/scrape', { method: 'POST', redirect: 'manual' });
+  const response = await fetch('/api/scrape', {
+    method: 'POST',
+    redirect: 'manual',
+    ...(id && { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
+  });
   if (response.type === 'opaqueredirect') return fail('Not logged in: reload the page.');
   const answer = (await response.json().catch(() => null)) as Result<RunSummary> | null;
   return answer ?? fail(`The server answered ${response.status}.`);
 }
 
-// "Scrape now" in the header: a full run, like the scheduled one (new offers also go to
-// Telegram and push). The page refreshes with the new offers when it's done; the result is a toast, a run that
-// failed says so next to the button until the next try.
-export function ScrapeButton() {
+/**
+ * A run you start yourself, like the scheduled one (new offers also go to Telegram and push): `run()` for
+ * every scraper, `run(scraper)` for that one. The page refreshes with the new offers when it's done; the
+ * result is a toast, a run that failed is `failure` until the next try.
+ */
+export function useScrapeNow() {
   const router = useRouter();
   const [busy, start] = useTransition();
+  const [running, setRunning] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const run = () => {
+  const run = (scraper?: { id: string; name: string }) => {
     setFailure(null);
+    setRunning(scraper?.id ?? null);
     start(async () => {
-      const answer = await scrapeNow().catch((failure: unknown) => fail(message(failure)));
+      const answer = await scrapeNow(scraper?.id).catch((failure: unknown) => fail(message(failure)));
       // with the refreshed list, not a frame before it
       startTransition(() => {
         if (answer.ok) router.refresh();
       });
       if (!answer.ok) {
-        startTransition(() => setFailure(answer.error));
+        startTransition(() => setFailure(scraper ? `${scraper.name}: ${answer.error}` : answer.error));
         return;
       }
       const report = answer.data;
@@ -43,7 +51,9 @@ export function ScrapeButton() {
         toast.info(report.skipped);
         return;
       }
-      const title = report.added ? `${report.added} new offer${report.added === 1 ? '' : 's'}` : 'Nothing new';
+      const title = `${scraper ? `${scraper.name}: ` : ''}${
+        report.added ? `${report.added} new offer${report.added === 1 ? '' : 's'}` : 'Nothing new'
+      }`;
       const summary = `${report.found} on the pages, ${report.kept} after filters, ${report.added} new${
         report.notifyLater ? ' · the AI check and the notifications run in the background' : `, ${report.notified} sent`
       }`;
@@ -68,6 +78,14 @@ export function ScrapeButton() {
     });
   };
 
+  /** `running`: the one scraper being run (null: all of them, or none) */
+  return { busy, running: busy ? running : null, failure, run };
+}
+
+// "Scrape now" in the header: a full run; a run that failed says so next to the button until the next try.
+export function ScrapeButton() {
+  const { busy, failure, run } = useScrapeNow();
+
   return (
     <span className="inline-flex items-center gap-2">
       {failure && (
@@ -75,7 +93,14 @@ export function ScrapeButton() {
           <TriangleAlertIcon /> Scraping failed: {failure}
         </span>
       )}
-      <Button type="button" variant="outline" size="sm" onClick={run} disabled={busy} aria-busy={busy || undefined}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => run()}
+        disabled={busy}
+        aria-busy={busy || undefined}
+      >
         {busy ? (
           'Scraping…'
         ) : (

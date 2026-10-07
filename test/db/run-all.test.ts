@@ -146,6 +146,23 @@ describeDb('a scrape run (runAll)', () => {
     expect(log).toMatchObject({ trigger: 'cron', added: 3, fresh: 1, notified: 1, matched: null });
   });
 
+  it('runs only the scraper asked for, even one switched off', async () => {
+    await settingsRepo.save({ ...DEFAULT_SETTINGS, keywords: ['React'] });
+    const city = await search('Warszawa', '/warszawa', 1);
+    const remote = await search('Remote', '/remote', 2);
+    await scrapersRepo.update(remote, { enabled: false });
+    pages = { '/warszawa': [listing('1', 'React Developer', 1)], '/remote': [listing('2', 'React Engineer', 2)] };
+
+    expect(await runAll('manual', { scraper: remote })).toMatchObject({ found: 1, kept: 1, added: 1, errors: [] });
+    expect(await scrapersRepo.get(remote)).toMatchObject({ lastStatus: 'ok', lastNew: 1 });
+    expect((await scrapersRepo.get(city))?.lastRunAt).toBeNull();
+    expect(await exec(sql`select id from public.offers`)).toEqual([{ id: '2' }]);
+    expect(await runAll('manual', { scraper: 'gone' })).toMatchObject({ skipped: 'This scraper no longer exists.' });
+    expect(await runsRepo.list()).toHaveLength(1);
+    expect(await stateRepo.lock(1)).toBe(true); // freed either way
+    await stateRepo.unlock();
+  });
+
   it('does nothing while another run holds the lock', async () => {
     pages = {};
     expect(await stateRepo.lock(60)).toBe(true);

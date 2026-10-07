@@ -12,8 +12,8 @@ const run = vi.mocked(runAll);
 
 const SUMMARY = { found: 3, kept: 2, added: 1, fresh: 1, notified: 0, notifyLater: true, errors: [], ms: 5 };
 
-const post = (headers: Record<string, string> = { 'sec-fetch-site': 'same-origin' }) =>
-  POST(new NextRequest('https://jobwatch.test/api/scrape', { method: 'POST', headers }));
+const post = (headers: Record<string, string> = { 'sec-fetch-site': 'same-origin' }, body?: string) =>
+  POST(new NextRequest('https://jobwatch.test/api/scrape', { method: 'POST', headers, body }));
 
 describe('POST /api/scrape', () => {
   beforeEach(() => {
@@ -27,6 +27,18 @@ describe('POST /api/scrape', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, data: SUMMARY });
     expect(run).toHaveBeenCalledWith('manual', { background: true });
+  });
+
+  it('runs one scraper, by its id', async () => {
+    const response = await post({ 'sec-fetch-site': 'same-origin' }, JSON.stringify({ id: 'abc' }));
+    expect(response.status).toBe(200);
+    expect(run).toHaveBeenCalledWith('manual', { background: true, scraper: 'abc' });
+  });
+
+  it('refuses a body without an id', async () => {
+    const response = await post({ 'sec-fetch-site': 'same-origin' }, JSON.stringify({ id: '' }));
+    expect(response.status).toBe(400);
+    expect(run).not.toHaveBeenCalled();
   });
 
   it('refuses without the login cookie', async () => {

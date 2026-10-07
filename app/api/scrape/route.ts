@@ -4,12 +4,13 @@ import { runAll } from '@/lib/listings/run';
 import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import { fail, ok } from '@/lib/shared/result';
+import { scraperIdSchema } from '@/lib/shared/schemas/scrapers';
 import { AUTH_COOKIE, isValidToken } from '@/server/auth';
 
 // POST /api/scrape -> Result<RunSummary>: the "Scrape now" button. A full run, whatever the schedule
-// says; the AI check and Telegram continue after the answer (after()), so the button doesn't wait
-// for OpenAI. A route of its own, so the time a run may take is this operation's, not the page's
-// that shows the button.
+// says; with {"id": …}, that scraper's only (its run button in Settings). The AI check and Telegram
+// continue after the answer (after()), so the button doesn't wait for OpenAI. A route of its own, so
+// the time a run may take is this operation's, not the page's that shows the button.
 export const maxDuration = 300;
 
 /**
@@ -36,8 +37,12 @@ export async function POST(request: NextRequest) {
   if (!(await isValidToken((await cookies()).get(AUTH_COOKIE)?.value))) {
     return NextResponse.json(fail('Not logged in'), { status: 401 });
   }
+  // no body: every scraper
+  const body: unknown = await request.json().catch(() => null);
+  const one = body === null ? null : scraperIdSchema.safeParse(body);
+  if (one && !one.success) return NextResponse.json(fail('Bad request'), { status: 400 });
   try {
-    const summary = await runAll('manual', { background: true });
+    const summary = await runAll('manual', { background: true, ...(one && { scraper: one.data.id }) });
     return NextResponse.json(ok(summary), { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     // e.g. the database is down before the run starts (the lock): the button shows why
