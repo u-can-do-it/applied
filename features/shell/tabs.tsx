@@ -21,8 +21,8 @@ const NAV =
   'mb-3.5 -mt-1 flex gap-1 border-b ' +
   'max-[560px]:fixed max-[560px]:inset-x-0 max-[560px]:bottom-0 max-[560px]:z-40 max-[560px]:m-0 max-[560px]:gap-0 max-[560px]:border-t max-[560px]:border-b-0 max-[560px]:bg-background';
 const TAB =
-  'relative -mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground no-underline transition-colors hover:text-foreground aria-[current=page]:font-semibold aria-[current=page]:text-foreground ' +
-  'max-[560px]:-mt-px max-[560px]:mb-0 max-[560px]:flex-1 max-[560px]:border-t-2 max-[560px]:border-b-0 max-[560px]:py-3 max-[560px]:text-center';
+  'relative -mb-px border-b-2 border-transparent px-3 py-2 text-center text-sm text-muted-foreground no-underline transition-colors hover:text-foreground aria-[current=page]:font-semibold aria-[current=page]:text-foreground ' +
+  'max-[560px]:-mt-px max-[560px]:mb-0 max-[560px]:flex-1 max-[560px]:border-t-2 max-[560px]:border-b-0 max-[560px]:py-3';
 // the line marking the page you're on, drawn over the tab's (transparent) border
 const MARKER = 'absolute inset-x-0 -bottom-0.5 h-0.5 bg-foreground max-[560px]:-top-0.5 max-[560px]:bottom-auto';
 
@@ -42,11 +42,24 @@ export function Tabs() {
           aria-current={pathname === tab.path ? 'page' : undefined}
           className={TAB}
         >
-          {tab.label}
+          <Label text={tab.label} />
           {pathname === tab.path && <Marker />}
         </Link>
       ))}
     </nav>
+  );
+}
+
+// The label, and a hidden copy of it in bold (no height): a tab is always as wide as when it's the
+// current one, so going to another page (or the fallback's swap for the tabs) doesn't shift the others
+function Label({ text }: { text: string }) {
+  return (
+    <>
+      {text}
+      <span aria-hidden="true" className="invisible block h-0 overflow-hidden font-semibold">
+        {text}
+      </span>
+    </>
   );
 }
 
@@ -66,7 +79,7 @@ export function TabsFallback() {
     <nav className={NAV} aria-hidden="true">
       {TABS.map((tab) => (
         <span key={tab.path} className={TAB}>
-          {tab.label}
+          <Label text={tab.label} />
         </span>
       ))}
     </nav>
