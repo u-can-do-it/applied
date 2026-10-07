@@ -188,6 +188,8 @@
   @media (max-width: 560px) {
     .wrap {
       padding-top: 20px;
+      /* the 64px, plus the tab bar fixed to the bottom of the screen (features/shell/tabs.tsx, 46px high) */
+      padding-bottom: 110px;
     }
   }
 }
