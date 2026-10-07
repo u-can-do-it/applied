@@ -193,3 +193,14 @@
     }
   }
 }
+
+/* the tabs' line sliding from the page you left to the one you clicked (features/shell/tabs.tsx) */
+::view-transition-group(.tab-marker) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(.tab-marker) {
+    animation: none;
+  }
+}
