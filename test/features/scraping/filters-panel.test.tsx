@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FiltersPanel } from '@/features/scraping/filters-panel';
 import { saveFiltersAction } from '@/features/scraping/actions';
+import { loadSettingsSchemas } from '@/features/scraping/settings-schemas';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 
 vi.mock('@/features/scraping/actions', () => ({ saveFiltersAction: vi.fn() }));
@@ -21,6 +22,9 @@ const settings = { ...DEFAULT_SETTINGS, keywords: ['React'], cities: [], ignore:
 const box = (label: string) => screen.getByLabelText<HTMLInputElement>(label);
 const saveButton = () => screen.getByRole<HTMLButtonElement>('button', { name: /Save filters|Saving/ });
 
+// Save checks with the action's schema, whose code loads with the form's first focus (as on the page) or Save: in
+// before the tests, so they wait for the save, not for the chunk (most of waitFor's second under the whole suite)
+beforeAll(() => loadSettingsSchemas());
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 

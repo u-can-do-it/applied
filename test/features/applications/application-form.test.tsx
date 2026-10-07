@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApplicationForm, type FormProps } from '@/features/applications/application-form';
 import {
   addApplicationAction,
@@ -53,7 +53,12 @@ function open(props: Partial<FormProps> = {}) {
 }
 const box = (label: string) => screen.getByLabelText<HTMLInputElement>(label);
 const type = (label: string, text: string) => fireEvent.change(box(label), { target: { value: text } });
-const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+const button = (name: string) => screen.getByRole<HTMLButtonElement>('button', { name });
+const click = (name: string) => fireEvent.click(button(name));
+// "Reading the page…", "Saving…": the button is disabled until React renders the end of its transition, in 5 ms
+// slices. Waiting on the button itself leaves those slices the CPU; findByRole reads the page's accessibility tree
+// between every two, and under the whole suite's load the render doesn't finish within its second.
+const enabled = (button: HTMLButtonElement) => waitFor(() => expect(button.disabled).toBe(false));
 
 // Radix's checkbox measures itself; jsdom has no ResizeObserver
 class NoResize {
@@ -63,6 +68,12 @@ class NoResize {
 }
 vi.stubGlobal('ResizeObserver', NoResize);
 
+// The first render in a fresh worker runs jsdom's CSS and selector engines and React for the first time: ~0.4 s alone,
+// 2–3 s under the whole suite's load. Rendered once here, so that isn't spent from the first test's 5 s.
+beforeAll(() => {
+  open();
+  cleanup();
+});
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
@@ -73,7 +84,8 @@ describe('ApplicationForm', () => {
     type('Link to the offer', LINK);
     expect(box('Board').value).toBe('justjoin'); // follows the link
     fillFromLink.mockResolvedValue({ ok: true, data: page });
-    click('Fill in from the link');
+    const fill = button('Fill in from the link');
+    fireEvent.click(fill);
     await waitFor(() => expect(box('Company').value).toBe('Acme'));
     expect(fillFromLink).toHaveBeenCalledWith({ link: LINK });
     expect(box('Title *').value).toBe('My own title');
@@ -84,7 +96,8 @@ describe('ApplicationForm', () => {
 
     // filled in, not typed: another page fills it again
     fillFromLink.mockResolvedValue({ ok: true, data: { ...page, company: 'Globex', title: 'Other' } });
-    fireEvent.click(await screen.findByRole('button', { name: 'Fill in from the link' }));
+    await enabled(fill);
+    fireEvent.click(fill);
     await waitFor(() => expect(box('Company').value).toBe('Globex'));
     expect(box('Title *').value).toBe('My own title');
   });
@@ -174,7 +187,8 @@ describe('ApplicationForm', () => {
     type('Title *', 'React Developer');
     type('Company', 'Acme');
     add.mockResolvedValueOnce({ ok: false, error: 'Pick the day you applied (not in the future).' });
-    click('Save');
+    const save = button('Save');
+    fireEvent.click(save);
     expect(await screen.findByText('Pick the day you applied (not in the future).')).toBeTruthy();
     expect(add).toHaveBeenCalledWith({
       url: '',
@@ -195,7 +209,8 @@ describe('ApplicationForm', () => {
     expect(onSaved).not.toHaveBeenCalled();
 
     add.mockResolvedValueOnce({ ok: true, data: { jobId: 'acme|reactdeveloper' } });
-    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+    await enabled(save);
+    fireEvent.click(save);
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     expect(screen.queryByText('Pick the day you applied (not in the future).')).toBeNull();
     expect(update).not.toHaveBeenCalled();

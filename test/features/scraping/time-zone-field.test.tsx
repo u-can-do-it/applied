@@ -41,7 +41,8 @@ describe('TimeZoneField', () => {
 
   it('with none picked yet (an older install), shows the zone in use and still saves nothing by itself', async () => {
     render(<TimeZoneField value="" effective="Europe/Berlin" />);
-    expect(screen.getByRole('option', { name: 'Not picked yet (Europe/Berlin for now)' })).toBeTruthy();
+    // what the select shows (getByRole('option') would read ~420 zones' accessibility: seconds under the whole suite)
+    expect(screen.getByDisplayValue('Not picked yet (Europe/Berlin for now)')).toBe(screen.getByLabelText('Time zone'));
     expect(await screen.findByRole('button', { name: 'Use Asia/Tokyo' })).toBeTruthy();
     expect(save).not.toHaveBeenCalled();
   });

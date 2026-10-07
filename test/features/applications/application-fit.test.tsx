@@ -43,7 +43,8 @@ describe('useFitCheck', () => {
     // the application's own call on body leasing follows the check
     expect(queryClient.getQueryData<Shown>(applicationKey(JOB))?.bodyLeasing).toBe(false);
     expect(assess).toHaveBeenCalledExactlyOnceWith({ jobId: JOB });
-    expect(hook.result.current.checking).toBe(false);
+    // the verdict is in the cache at once; the transition ends with a later render (later still under load)
+    await waitFor(() => expect(hook.result.current.checking).toBe(false));
   });
 
   it('says what went wrong', async () => {

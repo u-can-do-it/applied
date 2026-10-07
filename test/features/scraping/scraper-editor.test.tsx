@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '@/components/confirm';
 import { ScraperEditor } from '@/features/scraping/scraper-editor';
 import { saveScraperAction, testScraperAction, type TestResult } from '@/features/scraping/actions';
@@ -43,6 +43,16 @@ const box = (label: string) => screen.getByLabelText<HTMLInputElement>(label);
 const pickType = (kind: string) => fireEvent.change(screen.getByLabelText('Type'), { target: { value: kind } });
 const answer = async (name: 'Change' | 'Cancel') =>
   fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name }));
+
+// The dialog's code loads with the first question (React.lazy), and React shows it no sooner than 300 ms after its
+// fallback (~0.9 s under the whole suite's load): asked once before the tests, so in them a question opens the
+// dialog at once and their one-second waits aren't spent on the chunk. 8 s: well within the hook's 10.
+beforeAll(async () => {
+  open();
+  pickType('justjoin');
+  await screen.findByRole('alertdialog', {}, { timeout: 8_000 });
+  cleanup();
+});
 
 afterEach(() => {
   cleanup();
@@ -119,10 +129,14 @@ describe('ScraperEditor', () => {
       ms: 120,
     };
     vi.mocked(testScraperAction).mockResolvedValueOnce({ ok: true, data: result });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    const testButton = screen.getByRole<HTMLButtonElement>('button', { name: 'Test' });
+    fireEvent.click(testButton);
     expect(await screen.findByRole('region', { name: 'Test result' })).toBeTruthy();
     fireEvent.change(box('Name'), { target: { value: ' ' } });
-    fireEvent.click(await screen.findByRole('button', { name: 'Test' }));
+    // "Testing…" until React renders the end of the transition: waited on the button, not with findByRole, whose
+    // every try takes the CPU that render needs
+    await waitFor(() => expect(testButton.disabled).toBe(false));
+    fireEvent.click(testButton);
     await waitFor(() => expect(box('Name').getAttribute('aria-invalid')).toBe('true'));
     expect(screen.queryByRole('region', { name: 'Test result' })).toBeNull();
     expect(testScraperAction).toHaveBeenCalledOnce();
