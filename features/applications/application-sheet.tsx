@@ -204,10 +204,15 @@ export function ApplicationSheet({
     <Sheet open={open} onOpenChange={(next) => !next && close()} modal={false}>
       <SheetContent
         className={cn(
-          'gap-0 shadow-2xl data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]',
+          'gap-0 shadow-2xl outline-none data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]',
           switched && 'data-open:animate-none',
         )}
         showCloseButton={!editing}
+        // the window itself takes the focus, not its first button: on the fit badge, its checklist would open
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          if (event.target instanceof HTMLElement) event.target.focus();
+        }}
         // editing: Esc goes back to the window, and a click outside does nothing (the form would be lost)
         onEscapeKeyDown={(event) => {
           if (!editing) return;
