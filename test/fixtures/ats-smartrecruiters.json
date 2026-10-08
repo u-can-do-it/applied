@@ -1,0 +1,160 @@
+{
+  "offset": 0,
+  "limit": 100,
+  "totalFound": 47,
+  "content": [
+    {
+      "id": "744000154435119",
+      "name": "IT Intern - Cybersecurity & AI (f/m)",
+      "uuid": "dea68801-12d3-47d3-8dd2-3cf438dda90a",
+      "jobAdId": "c3722104-5ce5-4753-bbae-34cfef829bba",
+      "defaultJobAd": true,
+      "refNumber": "REF298058R",
+      "company": {
+        "identifier": "BoschGroup",
+        "name": "Bosch Group"
+      },
+      "releasedDate": "2026-10-08T13:09:19.623Z",
+      "location": {
+        "city": "Warszawa",
+        "region": "Województwo mazowieckie",
+        "country": "pl",
+        "address": "Jutrzenki",
+        "remote": false,
+        "hybrid": true,
+        "latitude": "52.1917872",
+        "longitude": "20.9312393",
+        "fullLocation": "Warszawa, Województwo mazowieckie, Poland"
+      },
+      "industry": {
+        "id": "mechanical_engineering",
+        "label": "Mechanical Or Industrial Engineering"
+      },
+      "department": {},
+      "function": {
+        "id": "information_technology",
+        "label": "Information Technology"
+      },
+      "typeOfEmployment": {
+        "id": "intern",
+        "label": "Intern"
+      },
+      "experienceLevel": {
+        "id": "internship",
+        "label": "Internship"
+      },
+      "visibility": "PUBLIC",
+      "ref": "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/744000154435119",
+      "creator": {
+        "name": "Kinga Pietruszka (HRL1-PL)"
+      },
+      "language": {
+        "code": "en",
+        "label": "English",
+        "labelNative": "English (US)"
+      }
+    },
+    {
+      "id": "744000154431979",
+      "name": "Legal Intern - Data Protection & Technology (f/m)",
+      "uuid": "8723bf43-4d6f-4196-8c3a-b5938668c0ea",
+      "jobAdId": "50ceaf0d-c341-4c05-b58c-5756ab47e41d",
+      "defaultJobAd": true,
+      "refNumber": "REF298055G",
+      "company": {
+        "identifier": "BoschGroup",
+        "name": "Bosch Group"
+      },
+      "releasedDate": "2026-10-08T12:56:26.600Z",
+      "location": {
+        "city": "Warszawa",
+        "region": "Województwo mazowieckie",
+        "country": "pl",
+        "address": "Jutrzenki",
+        "remote": false,
+        "hybrid": true,
+        "latitude": "52.1917872",
+        "longitude": "20.9312393",
+        "fullLocation": "Warszawa, Województwo mazowieckie, Poland"
+      },
+      "industry": {
+        "id": "mechanical_engineering",
+        "label": "Mechanical Or Industrial Engineering"
+      },
+      "department": {},
+      "function": {
+        "id": "information_technology",
+        "label": "Information Technology"
+      },
+      "typeOfEmployment": {
+        "id": "intern",
+        "label": "Intern"
+      },
+      "experienceLevel": {
+        "id": "internship",
+        "label": "Internship"
+      },
+      "visibility": "PUBLIC",
+      "ref": "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/744000154431979",
+      "creator": {
+        "name": "Kinga Pietruszka (HRL1-PL)"
+      },
+      "language": {
+        "code": "en",
+        "label": "English",
+        "labelNative": "English (US)"
+      }
+    },
+    {
+      "id": "744000154416467",
+      "name": "IT Systems & Automation Engineer (f/m)",
+      "uuid": "afce6f80-8d6c-4d36-a6e4-439c9fdb436c",
+      "jobAdId": "b9686663-8894-4085-9509-7911697420ef",
+      "defaultJobAd": true,
+      "refNumber": "REF298029R",
+      "company": {
+        "identifier": "BoschGroup",
+        "name": "Bosch Group"
+      },
+      "releasedDate": "2026-10-08T11:50:42.127Z",
+      "location": {
+        "city": "Warszawa",
+        "region": "Województwo mazowieckie",
+        "country": "pl",
+        "address": "Jutrzenki",
+        "remote": false,
+        "hybrid": true,
+        "latitude": "52.1917872",
+        "longitude": "20.9312393",
+        "fullLocation": "Warszawa, Województwo mazowieckie, Poland"
+      },
+      "industry": {
+        "id": "mechanical_engineering",
+        "label": "Mechanical Or Industrial Engineering"
+      },
+      "department": {},
+      "function": {
+        "id": "information_technology",
+        "label": "Information Technology"
+      },
+      "typeOfEmployment": {
+        "id": "permanent",
+        "label": "Full-time"
+      },
+      "experienceLevel": {
+        "id": "mid_senior_level",
+        "label": "Mid-Senior Level"
+      },
+      "visibility": "PUBLIC",
+      "ref": "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/744000154416467",
+      "creator": {
+        "name": "Kinga Pietruszka (HRL1-PL)"
+      },
+      "language": {
+        "code": "en",
+        "label": "English",
+        "labelNative": "English (US)"
+      }
+    }
+  ]
+}

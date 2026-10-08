@@ -1,5 +1,6 @@
 import 'server-only';
 import { env } from '../env';
+import { atsApiUrl } from './ats';
 import type { KindId } from './kinds';
 
 // What a board's API wants in every request's link: its keys, from the environment, and what makes it answer
@@ -22,8 +23,12 @@ function value(name: KeyName): string {
   return set;
 }
 
-/** The link as it is requested: with what the kind's API needs that the link doesn't have; the rest as written. */
+/**
+ * The link as it is requested: with what the kind's API needs that the link doesn't have, the rest as
+ * written; an ATS's careers page is read from its API.
+ */
 export function withApiParams(kind: KindId, link: string): string {
+  if (kind === 'ats') return atsApiUrl(link);
   const params = PARAMS[kind];
   if (!params) return link;
   const url = new URL(link);

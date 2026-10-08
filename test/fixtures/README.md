@@ -19,6 +19,19 @@ the same URLs and headers as the seeds in `drizzle/0003_seed.sql` / `listing.def
 | `adzuna.json` | written by hand on **2026-10-05** in the shape of `https://api.adzuna.com/v1/api/jobs/pl/search/1?what_or=React&sort_by=date&max_days_old=3&results_per_page=50` (the API needs a key: `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`), from Adzuna's documented `Job` fields | 3 results, links as the live API gives them (`/details/<id>?…`); re-record it with a key, the keys and `adref` / `redirect_url` tracking values replaced with `REDACTED` |
 | `himalayas.json` | `https://himalayas.app/jobs/api/search?q=react&country=PL&sort=recent` (recorded **2026-10-06**) | the top-level fields but `comments`, and 3 of `jobs`: one open to Poland among many countries (a promoted one), one open anywhere (`[]`), one open to Poland only; each `description` cut to 400 characters and `excerpt` to 160 |
 
+The ATS fixtures (`ats-<ats>.json`, for `test/lib/listings/ats.test.ts`) were recorded on **2026-10-08**,
+one real company each, and trimmed by `node test/fixtures/trim-ats.cjs "$DIR"` (the raw files named
+`greenhouse.json`, `lever.json`, `ashby.json`, `workable.json`, `smartrecruiters.json`) to 3 jobs that show the
+cases the parser handles; long texts cut to 200 characters:
+
+| Fixture | Request | Kept |
+| --- | --- | --- |
+| `ats-greenhouse.json` | `https://boards-api.greenhouse.io/v1/boards/gitlab/jobs` | remote from Poland among other countries, remote from France only, an office in India |
+| `ats-lever.json` | `https://api.lever.co/v0/postings/spotify?mode=json` | a remote, a hybrid and an on-site job |
+| `ats-ashbyhq.json` | `https://api.ashbyhq.com/posting-api/job-board/elevenlabs` | remote in Europe, remote from India, on site; descriptions dropped |
+| `ats-workable.json` | `https://apply.workable.com/api/v1/widget/accounts/huggingface` | the account's fields and its first 3 jobs |
+| `ats-smartrecruiters.json` | `https://api.smartrecruiters.com/v1/companies/BoschGroup/postings?limit=100&country=pl` | the paging fields and the first 3 postings, without their custom fields |
+
 The other requests used a desktop Chrome `User-Agent`. LinkedIn was asked for the last 24 hours
 (`f_TPR=r86400`) instead of the seed's last hour, to get a full page.
 

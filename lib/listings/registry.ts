@@ -1,6 +1,7 @@
 import 'server-only';
 import type { KindId } from './kinds';
 import { parseAdzuna } from './parsers/adzuna';
+import { parseAts } from './parsers/ats';
 import { parseBuiltin } from './parsers/builtin';
 import { parseBulldog } from './parsers/bulldog';
 import { parseEldorado } from './parsers/eldorado';
@@ -27,4 +28,5 @@ export const PARSERS = {
   json: parseJson,
   html: parseHtmlListing,
   rss: parseRss,
+  ats: parseAts,
 } satisfies Record<KindId, ListingParser>;

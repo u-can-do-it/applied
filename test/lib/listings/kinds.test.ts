@@ -9,9 +9,10 @@ import { PARSERS } from '@/lib/listings/registry';
 
 describe('scraper kinds', () => {
   it('each scraped board is a kind with its own src, then the generic ones', () => {
-    expect(KIND_IDS).toEqual([...SCRAPED_BOARDS.map((board) => board.id), 'json', 'html', 'rss']);
+    expect(KIND_IDS).toEqual([...SCRAPED_BOARDS.map((board) => board.id), 'json', 'html', 'rss', 'ats']);
     for (const board of SCRAPED_BOARDS) expect(kindOf(board.id).src).toBe(board.id);
-    expect(KIND_IDS.filter(isGeneric)).toEqual(['json', 'html', 'rss']);
+    // an ATS scraper's board id comes from its link (lib/shared/schemas/scrapers.ts)
+    expect(KIND_IDS.filter(isGeneric)).toEqual(['json', 'html', 'rss', 'ats']);
   });
 
   it('a board with a quota of calls says how many minutes a call; the others have none', () => {

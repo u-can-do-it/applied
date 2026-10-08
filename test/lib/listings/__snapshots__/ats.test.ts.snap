@@ -1,0 +1,227 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ATS parsers > ashby: the main place with its country and the secondary ones; the workplace type says remote 1`] = `
+[
+  {
+    "company": "Elevenlabs",
+    "id": "8998a48c-6bc4-42fc-b4b5-e779d810f930",
+    "locations": [
+      "Europe, European Union",
+      "Germany",
+      "United Kingdom",
+      "France",
+    ],
+    "remote": true,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "ashbyhq",
+    "title": "Customer Success - Strategic - EMEA",
+    "url": "https://jobs.ashbyhq.com/elevenlabs/8998a48c-6bc4-42fc-b4b5-e779d810f930",
+  },
+  {
+    "company": "Elevenlabs",
+    "id": "a571b8e4-8176-4e31-aab6-2287ee810236",
+    "locations": [
+      "India",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "ashbyhq",
+    "title": "Account Manager - India",
+    "url": "https://jobs.ashbyhq.com/elevenlabs/a571b8e4-8176-4e31-aab6-2287ee810236",
+  },
+  {
+    "company": "Elevenlabs",
+    "id": "f0d1e869-4874-45af-9bc3-81479d88565b",
+    "locations": [
+      "Singapore",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "ashbyhq",
+    "title": "Account Executive  - Southeast Asia",
+    "url": "https://jobs.ashbyhq.com/elevenlabs/f0d1e869-4874-45af-9bc3-81479d88565b",
+  },
+]
+`;
+
+exports[`ATS parsers > greenhouse: its places one by one; remote from Poland among others, from France only, an office 1`] = `
+[
+  {
+    "company": "GitLab",
+    "id": "8704363002",
+    "locations": [
+      "Remote, Canada",
+      "Remote, Poland",
+      "Remote, United Kingdom",
+    ],
+    "remote": true,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "greenhouse",
+    "title": "Backend Engineer (Python),AI Engineering: Agent Foundations",
+    "url": "https://job-boards.greenhouse.io/gitlab/jobs/8704363002",
+  },
+  {
+    "company": "GitLab",
+    "id": "8860302002",
+    "locations": [
+      "Remote, France",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "greenhouse",
+    "title": "Account Executive - France",
+    "url": "https://job-boards.greenhouse.io/gitlab/jobs/8860302002",
+  },
+  {
+    "company": "GitLab",
+    "id": "8626772002",
+    "locations": [
+      "Bangalore, India",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "greenhouse",
+    "title": "Director, Engineering, Platform Operations & Productivity",
+    "url": "https://job-boards.greenhouse.io/gitlab/jobs/8626772002",
+  },
+]
+`;
+
+exports[`ATS parsers > lever: no company name in the API, so the one in the link 1`] = `
+[
+  {
+    "company": "Spotify",
+    "id": "4310f31c-90e1-4e8d-bdcf-dce39c145b8c",
+    "locations": [
+      "New York, NY",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "lever",
+    "title": "Associate – Audiobook Licensing & Author Partnerships",
+    "url": "https://jobs.lever.co/spotify/4310f31c-90e1-4e8d-bdcf-dce39c145b8c",
+  },
+  {
+    "company": "Spotify",
+    "id": "2193db3f-77c5-43b8-b030-8f92c9882bf1",
+    "locations": [
+      "London",
+      "Stockholm",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "lever",
+    "title": "Android Engineer - Experience",
+    "url": "https://jobs.lever.co/spotify/2193db3f-77c5-43b8-b030-8f92c9882bf1",
+  },
+  {
+    "company": "Spotify",
+    "id": "77526d53-3811-4336-9c0d-72f6ac0242c7",
+    "locations": [
+      "Taiwan (Home Mix)",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "lever",
+    "title": "Artist Label Partnerships Manager, Taiwan",
+    "url": "https://jobs.lever.co/spotify/77526d53-3811-4336-9c0d-72f6ac0242c7",
+  },
+]
+`;
+
+exports[`ATS parsers > smartrecruiters: the job's page, not the API's link 1`] = `
+[
+  {
+    "company": "Bosch Group",
+    "id": "744000154435119",
+    "locations": [
+      "Warszawa, Województwo mazowieckie, Poland",
+    ],
+    "remote": false,
+    "seniority": "junior",
+    "skills": [],
+    "src": "smartrecruiters",
+    "title": "IT Intern - Cybersecurity & AI (f/m)",
+    "url": "https://jobs.smartrecruiters.com/BoschGroup/744000154435119",
+  },
+  {
+    "company": "Bosch Group",
+    "id": "744000154431979",
+    "locations": [
+      "Warszawa, Województwo mazowieckie, Poland",
+    ],
+    "remote": false,
+    "seniority": "junior",
+    "skills": [],
+    "src": "smartrecruiters",
+    "title": "Legal Intern - Data Protection & Technology (f/m)",
+    "url": "https://jobs.smartrecruiters.com/BoschGroup/744000154431979",
+  },
+  {
+    "company": "Bosch Group",
+    "id": "744000154416467",
+    "locations": [
+      "Warszawa, Województwo mazowieckie, Poland",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "smartrecruiters",
+    "title": "IT Systems & Automation Engineer (f/m)",
+    "url": "https://jobs.smartrecruiters.com/BoschGroup/744000154416467",
+  },
+]
+`;
+
+exports[`ATS parsers > workable: the account's name, each place with its country 1`] = `
+[
+  {
+    "company": "Hugging Face",
+    "id": "81B46579FE",
+    "locations": [
+      "Paris, France",
+    ],
+    "remote": true,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "workable",
+    "title": "Open-Source Machine Learning Engineer - EMEA Remote",
+    "url": "https://apply.workable.com/j/81B46579FE",
+  },
+  {
+    "company": "Hugging Face",
+    "id": "19A136F8E2",
+    "locations": [
+      "New York, United States",
+    ],
+    "remote": false,
+    "seniority": "unknown",
+    "skills": [],
+    "src": "workable",
+    "title": "Open-Source Machine Learning Engineer - US Remote",
+    "url": "https://apply.workable.com/j/19A136F8E2",
+  },
+  {
+    "company": "Hugging Face",
+    "id": "9E2A4C02C7",
+    "locations": [
+      "Paris, France",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [],
+    "src": "workable",
+    "title": "Senior Machine Learning Engineer, Voice Agents - EMEA Remote",
+    "url": "https://apply.workable.com/j/9E2A4C02C7",
+  },
+]
+`;

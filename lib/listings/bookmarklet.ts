@@ -43,16 +43,18 @@ function pagesOf(scraper: Pick<Scraper, 'config'>, settings: Pick<ScrapeSettings
 
 /**
  * The scrapers whose links are on `host` (switched on or not: a click is asking for them) and the
- * pages they read; a scraper whose link can't be expanded is left out.
+ * pages they read; a scraper whose link can't be expanded is left out, and so is an ATS's: its link is a
+ * careers page, but what it reads is the ATS's API, on another host.
  */
 export function importPlan(
-  scrapers: readonly Pick<Scraper, 'id' | 'name' | 'config'>[],
+  scrapers: readonly Pick<Scraper, 'id' | 'name' | 'kind' | 'config'>[],
   settings: Pick<ScrapeSettings, 'keywords'>,
   host: string,
 ): { scrapers: { id: string; name: string }[]; urls: string[] } {
   const chosen: { id: string; name: string }[] = [];
   const urls = new Set<string>();
   for (const scraper of scrapers) {
+    if (scraper.kind === 'ats') continue;
     const pages = pagesOf(scraper, settings);
     if (!pages?.length || pages.some((url) => hostOf(url) !== host)) continue;
     chosen.push({ id: scraper.id, name: scraper.name });

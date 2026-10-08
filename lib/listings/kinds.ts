@@ -1,7 +1,8 @@
 // What a scraper can be: a board's own listing (lib/boards/, a fixed parser and src), or a generic
-// JSON / HTML / RSS one you set up. Shared by the server and the Settings page (no parsers here: those
+// JSON / HTML / RSS one you set up, or a company's careers page on an ATS. Shared by the server and the Settings page (no parsers here: those
 // are in lib/listings/registry.ts, server-only). The `.ts` in the imports: lib/db/seed.ts runs in plain Node.
 import { SCRAPED_BOARDS, type ScrapedBoardId } from '../boards/index.ts';
+import { ATS_NAMES } from './ats.ts';
 import type { ScraperConfig, SearchDefaults } from './config.ts';
 
 const GENERIC_KINDS = [
@@ -16,6 +17,11 @@ const GENERIC_KINDS = [
     hint: 'Give a CSS selector for one offer card and, for each field, a selector inside the card.',
   },
   { id: 'rss', label: 'RSS / Atom feed', hint: 'Title, link, date, author and categories of each item.' },
+  {
+    id: 'ats',
+    label: 'ATS – a company’s careers page',
+    hint: `All of one company’s open jobs, from its careers page on ${ATS_NAMES}.`,
+  },
 ] as const;
 
 export type KindId = ScrapedBoardId | (typeof GENERIC_KINDS)[number]['id'];

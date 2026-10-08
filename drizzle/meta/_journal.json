@@ -78,6 +78,13 @@
       "when": 1791286239127,
       "tag": "0010_himalayas_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791466811405,
+      "tag": "0011_ats_kind",
+      "breakpoints": true
     }
   ]
 }

@@ -282,6 +282,27 @@ describe('scraperSchema', () => {
     ).toBe('Give the id of the <script> with the JSON.');
   });
 
+  it("an ATS scraper's board id is the ATS's, from its link; no other link will do", () => {
+    const config = scraper.config;
+    const ats = {
+      ...scraper,
+      kind: 'ats' as const,
+      src: 'whatever',
+      config: { ...config, url: ' https://jobs.lever.co/spotify ' },
+    };
+    const parsed = scraperSchema.parse(ats);
+    expect(parsed.scraper.src).toBe('lever');
+    expect(parsed.scraper.config).toEqual({
+      url: 'https://jobs.lever.co/spotify',
+      headers: { 'X-Api-Version': '1.0' },
+      checkKeyword: true,
+      checkLocation: false,
+    });
+    expect(problem(scraperSchema, { ...ats, config: { ...config, url: 'https://example.com/careers' } })).toBe(
+      'A company’s careers page on Greenhouse, Lever, Ashby, Workable or SmartRecruiters.',
+    );
+  });
+
   it('reads JSON from the body unless told otherwise', () => {
     const json = { ...scraper, kind: 'json' as const, config: { ...scraper.config, from: 'nonsense' as 'body' } };
     expect(scraperSchema.parse(json).scraper.config.from).toBe('body');

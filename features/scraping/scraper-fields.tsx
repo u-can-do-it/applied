@@ -1,9 +1,11 @@
 'use client';
 
 import { useSelector } from '@tanstack/react-form';
-import { Code } from '@/components/field';
+import { Code, Field } from '@/components/field';
 import { withForm } from '@/components/form';
+import { Input } from '@/components/ui/input';
 import { NativeSelectOption } from '@/components/ui/native-select';
+import { ATS_NAMES, atsOf } from '@/lib/listings/ats';
 import { KIND_IDS, isGeneric, kindOf, type KindId } from '@/lib/listings/kinds';
 import type { Draft } from './scraper-draft';
 
@@ -21,7 +23,8 @@ export const ScraperFields = withForm({
   render: function ScraperFields({ form, keywords, onKind }) {
     const kind = useSelector(form.store, (state) => state.values.kind);
     const url = useSelector(form.store, (state) => state.values.url);
-    const generic = isGeneric(kind);
+    const ats = kind === 'ats';
+    const generic = isGeneric(kind) && !ats;
     const usesKeyword = /\{keyword(_slug|s)?\}/.test(url);
     const paged = /\{(start|page)\}/.test(url);
     return (
@@ -39,11 +42,25 @@ export const ScraperFields = withForm({
             )}
           </form.AppField>
           <form.AppField name="name">
-            {(field) => <field.TextField label="Name" placeholder="LinkedIn – React" />}
+            {(field) => <field.TextField label="Name" placeholder={ats ? 'GitLab' : 'LinkedIn – React'} />}
           </form.AppField>
           <form.AppField name="src">
             {(field) =>
-              generic ? (
+              ats ? (
+                // the ATS's name, from the link (the schema sets it on Save)
+                <Field label="Board id">
+                  {(control) => (
+                    <Input
+                      {...control}
+                      value={atsOf(url)?.id ?? ''}
+                      placeholder="from the link"
+                      readOnly
+                      aria-readonly="true"
+                      className="text-muted-foreground"
+                    />
+                  )}
+                </Field>
+              ) : generic ? (
                 <field.TextField label="Board id" placeholder="linkedin" normalize={(src) => src.toLowerCase()} />
               ) : (
                 <field.TextField
@@ -57,9 +74,11 @@ export const ScraperFields = withForm({
           </form.AppField>
         </div>
         <p className="-mt-1.5 mb-0 text-xs text-muted-foreground">
-          {generic
-            ? 'The board every offer it finds is saved under (lowercase, e.g. linkedin). Searches on one site share it.'
-            : 'Fixed for this board, so its offers keep matching the ones already saved.'}
+          {ats
+            ? 'The ATS’s name: its offers are saved under it, like the links to its jobs.'
+            : generic
+              ? 'The board every offer it finds is saved under (lowercase, e.g. linkedin). Searches on one site share it.'
+              : 'Fixed for this board, so its offers keep matching the ones already saved.'}
         </p>
 
         <form.AppField name="url">
@@ -67,17 +86,25 @@ export const ScraperFields = withForm({
             <field.TextareaField
               label="Link"
               hint={
-                <>
-                  <Code>{'{keyword}'}</Code> and <Code>{'{keyword_slug}'}</Code> become each keyword from Filters (
-                  {keywords.join(', ') || 'none set'}): one search per keyword; <Code>{'{keywords}'}</Code> is all of
-                  them in one.
-                  {!usesKeyword && ' Without them the link is fetched as it is.'} <Code>{'{start}'}</Code> (0, 10, 20…)
-                  or <Code>{'{page}'}</Code> (1, 2, 3…) fetch several pages.
-                </>
+                ats ? (
+                  <>
+                    The company’s careers page on {ATS_NAMES}, or the link to one of its jobs, e.g.{' '}
+                    <Code>https://job-boards.greenhouse.io/gitlab</Code>. Its API lists all the open jobs, but
+                    SmartRecruiters only the first 100: add <Code>?country=pl</Code> to narrow them.
+                  </>
+                ) : (
+                  <>
+                    <Code>{'{keyword}'}</Code> and <Code>{'{keyword_slug}'}</Code> become each keyword from Filters (
+                    {keywords.join(', ') || 'none set'}): one search per keyword; <Code>{'{keywords}'}</Code> is all of
+                    them in one.
+                    {!usesKeyword && ' Without them the link is fetched as it is.'} <Code>{'{start}'}</Code> (0, 10,
+                    20…) or <Code>{'{page}'}</Code> (1, 2, 3…) fetch several pages.
+                  </>
+                )
               }
               rows={2}
               controlClassName={TEXTAREA}
-              placeholder="https://…"
+              placeholder={ats ? 'https://jobs.lever.co/acme' : 'https://…'}
               spellCheck={false}
             />
           )}

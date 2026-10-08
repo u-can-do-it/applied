@@ -1,0 +1,92 @@
+{
+  "jobs": [
+    {
+      "id": "8998a48c-6bc4-42fc-b4b5-e779d810f930",
+      "title": "Customer Success - Strategic - EMEA",
+      "department": "Revenue",
+      "team": "Revenue - Europe",
+      "employmentType": "FullTime",
+      "location": "Europe",
+      "secondaryLocations": [
+        {
+          "location": "Germany",
+          "address": {
+            "postalAddress": {
+              "addressCountry": "Germany"
+            }
+          }
+        },
+        {
+          "location": "United Kingdom",
+          "address": {
+            "postalAddress": {
+              "addressCountry": "United Kingdom"
+            }
+          }
+        },
+        {
+          "location": "France",
+          "address": {
+            "postalAddress": {
+              "addressCountry": "France"
+            }
+          }
+        }
+      ],
+      "publishedAt": "2026-09-30T13:28:34.657+00:00",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "address": {
+        "postalAddress": {
+          "addressCountry": "European Union"
+        }
+      },
+      "jobUrl": "https://jobs.ashbyhq.com/elevenlabs/8998a48c-6bc4-42fc-b4b5-e779d810f930",
+      "applyUrl": "https://jobs.ashbyhq.com/elevenlabs/8998a48c-6bc4-42fc-b4b5-e779d810f930/application"
+    },
+    {
+      "id": "a571b8e4-8176-4e31-aab6-2287ee810236",
+      "title": "Account Manager - India ",
+      "department": "Revenue",
+      "team": "Revenue - India",
+      "employmentType": "FullTime",
+      "location": "India",
+      "secondaryLocations": [],
+      "publishedAt": "2026-07-21T16:03:51.100+00:00",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "address": {
+        "postalAddress": {
+          "addressCountry": "India",
+          "addressLocality": ""
+        }
+      },
+      "jobUrl": "https://jobs.ashbyhq.com/elevenlabs/a571b8e4-8176-4e31-aab6-2287ee810236",
+      "applyUrl": "https://jobs.ashbyhq.com/elevenlabs/a571b8e4-8176-4e31-aab6-2287ee810236/application"
+    },
+    {
+      "id": "f0d1e869-4874-45af-9bc3-81479d88565b",
+      "title": "Account Executive  - Southeast Asia ",
+      "department": "Revenue",
+      "team": "Revenue - North Asia & Singapore",
+      "employmentType": "FullTime",
+      "location": "Singapore",
+      "secondaryLocations": [],
+      "publishedAt": "2026-01-14T11:28:54.131+00:00",
+      "isListed": true,
+      "isRemote": false,
+      "workplaceType": "OnSite",
+      "address": {
+        "postalAddress": {
+          "addressCountry": "Singapore",
+          "addressLocality": "Singapore"
+        }
+      },
+      "jobUrl": "https://jobs.ashbyhq.com/elevenlabs/f0d1e869-4874-45af-9bc3-81479d88565b",
+      "applyUrl": "https://jobs.ashbyhq.com/elevenlabs/f0d1e869-4874-45af-9bc3-81479d88565b/application"
+    }
+  ],
+  "apiVersion": "1"
+}

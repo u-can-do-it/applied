@@ -112,8 +112,11 @@ ADDED_TABLES='push_subscriptions|seen_jobs|archived_jobs'
 # lib/db/seed.ts adds their scrapers after the migrations. Taken out of the kinds for the comparison,
 # and their seeded scrapers out of the rows, and checked to be there
 ADDED_BOARDS='adzuna|himalayas'
+# generic kinds added since (0011_ats_kind): after the others in scrapers_kind_check, so taken out with the
+# comma before them; no scrapers are seeded for them
+ADDED_KINDS='ats'
 entries_without_dropped_functions() {
-  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v boards="$ADDED_BOARDS" '
+  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v boards="$ADDED_BOARDS" -v kinds="$ADDED_KINDS" '
     function flush() { if (entry != "" && !skip) print entry; entry = "" }
     /^-- Name: / {
       flush()
@@ -122,7 +125,7 @@ entries_without_dropped_functions() {
     }
     # comments, blank lines, and the SETs pg_dump puts before whichever entry comes before the first table
     /^--/ || /^$/ || /^SET default_table/ { next }
-    { gsub("\047(" boards ")\047::text, ", ""); entry = entry $0 " ↵ " }
+    { gsub("\047(" boards ")\047::text, ", ""); gsub(", \047(" kinds ")\047::text", ""); entry = entry $0 " ↵ " }
     END { flush() }' "$1" | LC_ALL=C sort >"$2"
 }
 # the scrapers lib/db/seed.ts adds for the boards added since: src and kind are the board, in the COPY
@@ -236,6 +239,11 @@ for board in ${ADDED_BOARDS//|/ }; do
     { echo "   FAILED: db:migrate didn't seed $board's scrapers" >&2 && exit 1; }
 done
 echo "   ok: the new boards are there, seeded (${ADDED_BOARDS//|/, })"
+for kind in ${ADDED_KINDS//|/ }; do
+  grep -q "^CONSTRAINT scrapers_kind_check .*'$kind'::text" <(grep -o "CONSTRAINT scrapers_kind_check.*" "$work/a-after.sql") ||
+    { echo "   FAILED: db:migrate didn't let the $kind kind into scrapers" >&2 && exit 1; }
+done
+echo "   ok: the new kinds are allowed (${ADDED_KINDS//|/, })"
 grep -v '^board:' "$work/a-after-data.sql" | without_added_boards /dev/stdin "$work/a-after-rows.sql"
 same "rows unchanged but for the board seed markers and the new boards' scrapers ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
   "$work/a-before-data.sql" "$work/a-after-rows.sql"

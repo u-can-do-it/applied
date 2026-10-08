@@ -1,6 +1,7 @@
 // Shared by the server and client components.
 import * as z from 'zod/mini';
 import { BOARD_RE, SCRAPED_BOARDS } from '../../boards';
+import { ATS_NAMES, atsOf } from '../../listings/ats';
 import { FIELDS, JSON_SOURCES, type FieldId, type JsonSource, type ScraperConfig } from '../../listings/config';
 import { KIND_IDS, isGeneric, kindOf } from '../../listings/kinds';
 import { MAX_PAGES } from '../../listings/match';
@@ -59,8 +60,11 @@ export const scraperSchema = z.pipe(
     config: configSchema,
   }),
   z.transform(({ id, kind, name, enabled, ...input }, ctx) => {
+    // an ATS's offers are saved under its name (greenhouse, lever…), what boardOf() calls its links
+    const ats = kind === 'ats' ? atsOf(input.config.url) : null;
+    if (kind === 'ats' && !ats) return problem(ctx, `A company’s careers page on ${ATS_NAMES}.`, ['config', 'url']);
     // a built-in board's id is fixed, so its offers keep matching the ones already saved
-    const src = kindOf(kind).src ?? input.src.trim().toLowerCase();
+    const src = ats?.id ?? kindOf(kind).src ?? input.src.trim().toLowerCase();
     if (!BOARD_RE.test(src))
       return problem(ctx, 'Board id: lowercase letters, digits, - or _, e.g. "linkedin".', ['src']);
     if (isGeneric(kind) && SCRAPED_SRCS.has(src))

@@ -53,6 +53,14 @@ describe('importPlan', () => {
     expect(importPlan([scraper('a', ELDORADO)], { keywords: [] }, 'czyjesteldorado.pl').scrapers).toEqual([]);
     expect(importPlan([scraper('a', ELDORADO)], { keywords: ['React'] }, 'www.czyjesteldorado.pl').urls).toEqual([]);
   });
+
+  it("leaves out an ATS's scraper: its careers page is on the site, but it reads the ATS's API", () => {
+    const gitlab = scraper('a', 'https://job-boards.greenhouse.io/gitlab', { kind: 'ats', src: 'greenhouse' });
+    expect(importPlan([gitlab], { keywords: ['React'] }, 'job-boards.greenhouse.io')).toEqual({
+      scrapers: [],
+      urls: [],
+    });
+  });
 });
 
 describe('blockedPage', () => {

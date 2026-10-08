@@ -31,6 +31,13 @@ describe('withApiParams', () => {
     expect(() => withApiParams('adzuna', LINK)).toThrow(/^ADZUNA_APP_KEY is not set/);
   });
 
+  it("asks an ATS's API for the company its careers link names", () => {
+    expect(withApiParams('ats', 'https://job-boards.greenhouse.io/gitlab')).toBe(
+      'https://boards-api.greenhouse.io/v1/boards/gitlab/jobs',
+    );
+    expect(() => withApiParams('ats', 'https://example.com/careers')).toThrow(/^Not a careers page on Greenhouse/);
+  });
+
   it('leaves the other kinds alone', () => {
     const link = 'https://justjoin.it/api/candidate-api/offers?keywords=React';
     expect(withApiParams('justjoin', link)).toBe(link);

@@ -173,6 +173,20 @@ Tailwind v4 and shadcn/ui ([ADR 0007](docs/decisions/0007-shadcn-ui-and-tailwind
    have none, or its API gives a better text, add a reader in `lib/ads/<id>.ts` and list it in `READERS` in
    `lib/ads/index.ts`.
 
+## How to add an ATS
+
+An `ats` scraper reads one company's careers page on an ATS from the ATS's public API (no key).
+
+1. **The ATS:** an entry in `ATSES` in `lib/listings/ats.ts`: its `id` is what `boardOf()` calls the links to
+   its jobs (`jobs.ashbyhq.com` -> `ashbyhq`), `company` reads the company from a careers or job link, `api`
+   is the link that lists the company's open jobs. Add it to the `AtsId` type.
+2. **Its reader:** an entry in `READERS` in `lib/listings/parsers/ats.ts` (`npm run typecheck` says if it's
+   missing): where the list of jobs is, and each job's id, title, link, company, places and whether it is
+   remote. No sort value (the file says why) and no skills.
+3. **A fixture and a test:** record a real company's answer, add it to `test/fixtures/trim-ats.cjs` and a case
+   to `test/lib/listings/ats.test.ts` (how: [test/fixtures/README.md](test/fixtures/README.md)). No migration:
+   the kind is the same.
+
 ## Tests
 
 Vitest; the tests are in `test/`, mirroring the source tree (`test/lib/…`, `test/features/…`). `server-only`

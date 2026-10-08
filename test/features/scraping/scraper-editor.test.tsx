@@ -79,6 +79,22 @@ describe('ScraperEditor', () => {
     expect(box('Link').value).toBe(saved.url);
   });
 
+  it('an ATS takes its board id from the link, and needs a careers page on one', async () => {
+    open();
+    pickType('ats');
+    await answer('Change');
+    await waitFor(() => expect(box('Type').value).toBe('ats'));
+    expect(box('Board id').readOnly).toBe(true);
+    fireEvent.change(box('Link'), { target: { value: 'https://jobs.ashbyhq.com/elevenlabs' } });
+    expect(box('Board id').value).toBe('ashbyhq');
+
+    fireEvent.change(box('Link'), { target: { value: 'https://example.com/careers' } });
+    expect(box('Board id').value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(box('Link').getAttribute('aria-invalid')).toBe('true'));
+    expect(saveScraperAction).not.toHaveBeenCalled();
+  });
+
   it('saves without a toast (the action answers with the id), and Enter in a box doesn’t save', async () => {
     open();
     const name = box('Name');

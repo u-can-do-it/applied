@@ -1,0 +1,106 @@
+{
+  "jobs": [
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/gitlab/jobs/8704363002",
+      "data_compliance": [
+        {
+          "type": "gdpr",
+          "requires_consent": false,
+          "requires_processing_consent": false,
+          "requires_retention_consent": false,
+          "retention_period": null,
+          "demographic_data_consent_applies": false
+        }
+      ],
+      "internal_job_id": 6478405002,
+      "location": {
+        "name": "Remote, Canada; Remote, Poland; Remote, United Kingdom"
+      },
+      "metadata": [
+        {
+          "id": 4595831002,
+          "name": "Quota Coverage Type",
+          "value": "n/a",
+          "value_type": "single_select"
+        }
+      ],
+      "id": 8704363002,
+      "updated_at": "2026-10-01T05:29:34-04:00",
+      "requisition_id": "6808",
+      "title": "Backend Engineer (Python),AI Engineering: Agent Foundations",
+      "company_name": "GitLab",
+      "first_published": "2026-08-19T09:38:27-04:00",
+      "language": "en",
+      "application_deadline": null
+    },
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/gitlab/jobs/8860302002",
+      "data_compliance": [
+        {
+          "type": "gdpr",
+          "requires_consent": false,
+          "requires_processing_consent": false,
+          "requires_retention_consent": false,
+          "retention_period": null,
+          "demographic_data_consent_applies": false
+        }
+      ],
+      "internal_job_id": 6547054002,
+      "location": {
+        "name": "Remote, France"
+      },
+      "metadata": [
+        {
+          "id": 4595831002,
+          "name": "Quota Coverage Type",
+          "value": "Account Executive",
+          "value_type": "single_select"
+        }
+      ],
+      "id": 8860302002,
+      "updated_at": "2026-10-02T11:31:50-04:00",
+      "requisition_id": "7109",
+      "title": "Account Executive - France",
+      "company_name": "GitLab",
+      "first_published": "2026-10-02T11:31:50-04:00",
+      "language": "en",
+      "application_deadline": null
+    },
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/gitlab/jobs/8626772002",
+      "data_compliance": [
+        {
+          "type": "gdpr",
+          "requires_consent": false,
+          "requires_processing_consent": false,
+          "requires_retention_consent": false,
+          "retention_period": null,
+          "demographic_data_consent_applies": false
+        }
+      ],
+      "internal_job_id": 6445355002,
+      "location": {
+        "name": "Bangalore, India"
+      },
+      "metadata": [
+        {
+          "id": 4595831002,
+          "name": "Quota Coverage Type",
+          "value": "n/a",
+          "value_type": "single_select"
+        }
+      ],
+      "id": 8626772002,
+      "updated_at": "2026-09-29T10:38:50-04:00",
+      "requisition_id": "6633",
+      "title": "Director, Engineering, Platform Operations & Productivity",
+      "company_name": "GitLab",
+      "first_published": "2026-07-13T12:57:20-04:00",
+      "language": "en",
+      "application_deadline": null
+    }
+  ],
+  "meta": {
+    "total": 216
+  }
+}
