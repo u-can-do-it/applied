@@ -8,8 +8,9 @@ export function ScrapingHelp({ cron }: { cron: CronStatus }) {
     <>
       <p>
         A run goes through every scraper that’s on: it reads their pages, keeps the offers that pass the filters, saves
-        the new ones and sends them to Telegram and push. A scheduled run comes every interval, within the hours;
-        “Scrape now” at the top starts one at any time, paused or not.
+        the new ones and sends them to Telegram and push. A scheduled run comes every interval, within the hours; on
+        Saturday and Sunday the weekend one (30 min or longer) takes its place. “Scrape now” at the top starts one at
+        any time, paused or not.
       </p>
       <p>
         The time zone is the one for these hours and for every day and time the app shows (lists, date filters,

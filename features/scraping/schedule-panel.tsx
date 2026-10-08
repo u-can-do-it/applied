@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { cn } from '@/lib/shared/cn';
 import { zoneName } from '@/lib/dates';
-import { INTERVALS, type ScrapeSettings } from '@/lib/listings/settings';
+import { describeInterval, INTERVALS, WEEKEND_INTERVALS, type ScrapeSettings } from '@/lib/listings/settings';
 import type { CronInfo } from '@/lib/db/repos/cron';
 import { saveScheduleAction, setScrapingPausedAction } from './actions';
 import { loadSettingsSchemas } from './settings-schemas';
@@ -74,9 +74,9 @@ export function SchedulePanel({
                 <strong className="text-success">
                   <CircleSmallIcon fill="currentColor" /> Running
                 </strong>
-                : every{' '}
-                {settings.everyMinutes < 60 ? `${settings.everyMinutes} min` : `${settings.everyMinutes / 60} h`},{' '}
-                {settings.fromHour}:00–{settings.toHour}:00 ({zoneName(zone.tz)}).
+                : every {describeInterval(settings.everyMinutes)} (weekends{' '}
+                {describeInterval(settings.weekendEveryMinutes)}), {settings.fromHour}:00–{settings.toHour}:00 (
+                {zoneName(zone.tz)}).
               </>
             )}
           </p>
@@ -118,7 +118,18 @@ export function SchedulePanel({
               <field.SelectField label="every" toValue={Number} className={INLINE}>
                 {INTERVALS.map((minutes) => (
                   <NativeSelectOption key={minutes} value={minutes}>
-                    {minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}
+                    {describeInterval(minutes)}
+                  </NativeSelectOption>
+                ))}
+              </field.SelectField>
+            )}
+          </form.AppField>
+          <form.AppField name="weekendEveryMinutes">
+            {(field) => (
+              <field.SelectField label="weekends every" toValue={Number} className={INLINE}>
+                {WEEKEND_INTERVALS.map((minutes) => (
+                  <NativeSelectOption key={minutes} value={minutes}>
+                    {describeInterval(minutes)}
                   </NativeSelectOption>
                 ))}
               </field.SelectField>
@@ -149,13 +160,18 @@ export function SchedulePanel({
   );
 }
 
-// a label beside its control, the three in a row
+// a label beside its control, the four in a row
 const INLINE =
   'grid grid-cols-[auto_auto] items-center gap-x-1.5 gap-y-1 text-sm text-foreground [&>label]:text-sm [&>label]:text-foreground [&>[aria-live]]:col-span-2';
 
 /** The schedule as a form: what you type stays; a refreshed page brings its values while the form still shows the old ones. */
 function useScheduleForm(settings: ScrapeSettings) {
-  const server = { everyMinutes: settings.everyMinutes, fromHour: settings.fromHour, toHour: settings.toHour };
+  const server = {
+    everyMinutes: settings.everyMinutes,
+    weekendEveryMinutes: settings.weekendEveryMinutes,
+    fromHour: settings.fromHour,
+    toHour: settings.toHour,
+  };
   const form = useAppForm({
     defaultValues: server,
     validationLogic: checkOnSubmit,

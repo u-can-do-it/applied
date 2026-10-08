@@ -1,13 +1,16 @@
 import { zoneOf } from '../dates';
 import type { CronStatus } from '../db/repos/cron';
-import { effectiveTimeZone, type ScrapeSettings } from './settings';
+import { describeInterval, effectiveTimeZone, type ScrapeSettings } from './settings';
 
 // Supabase Cron's schedule, made from the settings: the interval, only within the hours, and off
 // while scraping is paused. pg_cron runs in UTC, so the hours are the app's time zone's turned
 // into UTC for every offset the zone has in a year (summer and winter time): an hour wider than the
 // window where clocks change. The app still keeps to the exact hours (checkDue).
 
-type Schedule = Pick<ScrapeSettings, 'everyMinutes' | 'fromHour' | 'toHour' | 'timeZone' | 'browserTimeZone'>;
+type Schedule = Pick<
+  ScrapeSettings,
+  'everyMinutes' | 'weekendEveryMinutes' | 'fromHour' | 'toHour' | 'timeZone' | 'browserTimeZone'
+>;
 
 /** UTC hours ("5-20", "0-2,11-23", "*") covering from:00–to:00 in the zone, all year round. */
 export function utcHours(from: number, to: number, tz: string, year = new Date().getUTCFullYear()): string {
@@ -35,17 +38,23 @@ export function utcHours(from: number, to: number, tz: string, year = new Date()
 }
 
 // The cron line, e.g. every 10th minute of 5:00–20:59 UTC. The 1 h and 2 h intervals call hourly
-// (that a run comes every 2 h is checkDue's part).
+// (that a run comes every 2 h is checkDue's part). It calls as often as the shorter of the weekday and
+// weekend intervals every day (pg_cron's days are UTC's): checkDue keeps to the day's own.
 export function cronSchedule(schedule: Schedule): string {
-  const minute = schedule.everyMinutes < 60 ? `*/${schedule.everyMinutes}` : '0';
+  const every = Math.min(schedule.everyMinutes, schedule.weekendEveryMinutes);
+  const minute = every < 60 ? `*/${every}` : '0';
   return `${minute} ${utcHours(schedule.fromHour, schedule.toHour, effectiveTimeZone(schedule))} * * *`;
 }
 
-/** "every 10 min, 7:00–22:00 (Europe/Warsaw)" */
+/** "every 10 min (weekends 30 min), 7:00–22:00 (Europe/Warsaw)" */
 export function describeSchedule(schedule: Schedule): string {
-  const every = schedule.everyMinutes < 60 ? `${schedule.everyMinutes} min` : `${schedule.everyMinutes / 60} h`;
+  const every = describeInterval(schedule.everyMinutes);
+  const weekend =
+    schedule.weekendEveryMinutes === schedule.everyMinutes
+      ? ''
+      : ` (weekends ${describeInterval(schedule.weekendEveryMinutes)})`;
   const hours = schedule.fromHour === schedule.toHour ? 'all day' : `${schedule.fromHour}:00–${schedule.toHour}:00`;
-  return `every ${every}, ${hours} (${effectiveTimeZone(schedule).replaceAll('_', ' ')})`;
+  return `every ${every}${weekend}, ${hours} (${effectiveTimeZone(schedule).replaceAll('_', ' ')})`;
 }
 
 // ---- the connected job, checked against the settings (Settings' cron box, the Health card) ----

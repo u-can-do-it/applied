@@ -4,7 +4,7 @@ import { LOAD_FAILED } from '@/components/lazy-form';
 import { scheduleSchema } from '@/lib/shared/schemas/settings';
 
 describe('lazySchema', () => {
-  const values = { everyMinutes: 15, fromHour: 25, toHour: 22 };
+  const values = { everyMinutes: 15, weekendEveryMinutes: 30, fromHour: 25, toHour: 22 };
 
   it('checks with the schema once it is loaded, each problem at its field', async () => {
     const check = lazySchema(() => Promise.resolve(formSchema(scheduleSchema)));

@@ -150,16 +150,30 @@ describe('status schemas', () => {
 
 describe('scheduleSchema', () => {
   it('takes an interval from the list and whole hours 0–24', () => {
-    expect(scheduleSchema.parse({ everyMinutes: 15, fromHour: 0, toHour: 24 })).toEqual({
+    const weekend = { weekendEveryMinutes: 60 };
+    expect(scheduleSchema.parse({ everyMinutes: 15, ...weekend, fromHour: 0, toHour: 24 })).toEqual({
       everyMinutes: 15,
+      weekendEveryMinutes: 60,
       fromHour: 0,
       toHour: 24,
     });
-    expect(problem(scheduleSchema, { everyMinutes: 7, fromHour: 7, toHour: 22 })).toBe(
+    expect(problem(scheduleSchema, { everyMinutes: 7, ...weekend, fromHour: 7, toHour: 22 })).toBe(
       'Pick an interval from the list.',
     );
-    expect(problem(scheduleSchema, { everyMinutes: 5, fromHour: 7.5, toHour: 22 })).toBe('Hours are 0–24.');
-    expect(problem(scheduleSchema, { everyMinutes: 5, fromHour: 7, toHour: Number.NaN })).toBe('Hours are 0–24.');
+    expect(problem(scheduleSchema, { everyMinutes: 5, ...weekend, fromHour: 7.5, toHour: 22 })).toBe('Hours are 0–24.');
+    expect(problem(scheduleSchema, { everyMinutes: 5, ...weekend, fromHour: 7, toHour: Number.NaN })).toBe(
+      'Hours are 0–24.',
+    );
+  });
+
+  it('takes 30 min or longer for weekends', () => {
+    for (const weekendEveryMinutes of [5, 15, 45])
+      expect(problem(scheduleSchema, { everyMinutes: 5, weekendEveryMinutes, fromHour: 7, toHour: 22 })).toBe(
+        'Weekends: 30 min or longer.',
+      );
+    expect(scheduleSchema.parse({ everyMinutes: 5, weekendEveryMinutes: 30, fromHour: 7, toHour: 22 })).toMatchObject({
+      weekendEveryMinutes: 30,
+    });
   });
 });
 
@@ -193,6 +207,7 @@ describe('storedSettingsSchema', () => {
     const stored = storedSettingsSchema.parse({
       enabled: false,
       everyMinutes: 7,
+      weekendEveryMinutes: 15,
       fromHour: 25,
       toHour: 20,
       keywords: [' React ', '', 42],

@@ -1,11 +1,13 @@
 // What the scraping settings hold. Shared by the server and the Settings page (no secrets here).
 
-import { DEFAULT_TZ } from '../dates';
+import { DEFAULT_TZ, zoneOf } from '../dates';
 
 export type ScrapeSettings = {
   /** scheduled runs (the endpoint skips while off); "Scrape now" works either way */
   enabled: boolean;
   everyMinutes: number;
+  /** Saturday and Sunday (in the app's time zone) instead of everyMinutes: one of WEEKEND_INTERVALS */
+  weekendEveryMinutes: number;
   /** in the app's time zone (timeZone): runs from fromHour:00 until toHour:00 */
   fromHour: number;
   toHour: number;
@@ -36,6 +38,7 @@ export type ScrapeSettings = {
 export const DEFAULT_SETTINGS: ScrapeSettings = {
   enabled: true,
   everyMinutes: 5,
+  weekendEveryMinutes: 30,
   fromHour: 7,
   toHour: 22,
   keywords: ['React'],
@@ -51,6 +54,20 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
 };
 
 export const INTERVALS = [5, 10, 15, 30, 60, 120] as const;
+/** fewer offers come at weekends: 30 min at the most often */
+export const WEEKEND_INTERVALS = [30, 60, 120] as const;
+
+/** "10 min", "2 h" */
+export const describeInterval = (minutes: number) => (minutes < 60 ? `${minutes} min` : `${minutes / 60} h`);
+
+/** The interval at that instant: the weekend one on Saturday and Sunday in the app's time zone. */
+export const intervalAt = (
+  settings: Pick<ScrapeSettings, 'everyMinutes' | 'weekendEveryMinutes' | 'timeZone' | 'browserTimeZone'>,
+  at: Date | number = Date.now(),
+) => {
+  const weekday = zoneOf(effectiveTimeZone(settings)).weekday(at);
+  return weekday === 'Sat' || weekday === 'Sun' ? settings.weekendEveryMinutes : settings.everyMinutes;
+};
 
 /** The zone the app runs in: the one picked, else the browser's as last reported before that (older installs), else DEFAULT_TZ. */
 export const effectiveTimeZone = (settings: Pick<ScrapeSettings, 'timeZone' | 'browserTimeZone'> | null | undefined) =>

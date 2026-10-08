@@ -1,10 +1,17 @@
 // Shared by the server and client components.
 import * as z from 'zod/mini';
 import { isTimeZone } from '../../dates';
-import { DEFAULT_SETTINGS, INTERVALS, normalizeList, type ScrapeSettings } from '../../listings/settings';
+import {
+  DEFAULT_SETTINGS,
+  INTERVALS,
+  normalizeList,
+  WEEKEND_INTERVALS,
+  type ScrapeSettings,
+} from '../../listings/settings';
 import { string } from './common';
 
 const isInterval = (minutes: number) => (INTERVALS as readonly number[]).includes(minutes);
+const isWeekendInterval = (minutes: number) => (WEEKEND_INTERVALS as readonly number[]).includes(minutes);
 
 // ---- as stored ------------------------------------------------------------------------------
 
@@ -32,6 +39,7 @@ export const storedSettingsSchema: z.ZodMiniType<ScrapeSettings> = z.catch(
   z.object({
     enabled: flag(defaults.enabled),
     everyMinutes: z.catch(z.number().check(z.refine(isInterval)), defaults.everyMinutes),
+    weekendEveryMinutes: z.catch(z.number().check(z.refine(isWeekendInterval)), defaults.weekendEveryMinutes),
     fromHour: hour(defaults.fromHour),
     toHour: hour(defaults.toHour),
     keywords: words(defaults.keywords),
@@ -52,10 +60,12 @@ export const storedSettingsSchema: z.ZodMiniType<ScrapeSettings> = z.catch(
 
 const HOURS = 'Hours are 0–24.';
 const INTERVAL = 'Pick an interval from the list.';
+const WEEKEND_INTERVAL = 'Weekends: 30 min or longer.';
 const hourOfDay = z.int({ error: HOURS }).check(z.minimum(0, HOURS), z.maximum(24, HOURS));
 
 export const scheduleSchema = z.object({
   everyMinutes: z.number({ error: INTERVAL }).check(z.refine(isInterval, INTERVAL)),
+  weekendEveryMinutes: z.number({ error: WEEKEND_INTERVAL }).check(z.refine(isWeekendInterval, WEEKEND_INTERVAL)),
   fromHour: hourOfDay,
   toHour: hourOfDay,
 });

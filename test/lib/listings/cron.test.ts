@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cronSchedule, describeSchedule, utcHours } from '@/lib/listings/cron';
+import { intervalAt } from '@/lib/listings/settings';
 
 const YEAR = 2026;
 
@@ -58,7 +59,14 @@ afterAll(() => {
 });
 
 describe('cronSchedule', () => {
-  const base = { everyMinutes: 10, fromHour: 7, toHour: 22, timeZone: 'Europe/Warsaw', browserTimeZone: '' };
+  const base = {
+    everyMinutes: 10,
+    weekendEveryMinutes: 30,
+    fromHour: 7,
+    toHour: 22,
+    timeZone: 'Europe/Warsaw',
+    browserTimeZone: '',
+  };
 
   it('the interval, then the hours in UTC', () => {
     expect(cronSchedule(base)).toBe('*/10 5-20 * * *');
@@ -66,8 +74,13 @@ describe('cronSchedule', () => {
   });
 
   it('1 h and 2 h intervals run hourly, on the hour', () => {
-    expect(cronSchedule({ ...base, everyMinutes: 60 })).toBe('0 5-20 * * *');
-    expect(cronSchedule({ ...base, everyMinutes: 120 })).toBe('0 5-20 * * *');
+    expect(cronSchedule({ ...base, everyMinutes: 60, weekendEveryMinutes: 60 })).toBe('0 5-20 * * *');
+    expect(cronSchedule({ ...base, everyMinutes: 120, weekendEveryMinutes: 120 })).toBe('0 5-20 * * *');
+  });
+
+  it('calls as often as the shorter of the weekday and weekend intervals', () => {
+    expect(cronSchedule({ ...base, everyMinutes: 120, weekendEveryMinutes: 30 })).toBe('*/30 5-20 * * *');
+    expect(cronSchedule({ ...base, everyMinutes: 60, weekendEveryMinutes: 120 })).toBe('0 5-20 * * *');
   });
 
   it("the picked zone, else the browser's, else the default", () => {
@@ -80,13 +93,38 @@ describe('cronSchedule', () => {
 
 describe('describeSchedule', () => {
   it('reads the settings back', () => {
-    const schedule = { everyMinutes: 10, fromHour: 7, toHour: 22, timeZone: '', browserTimeZone: 'America/New_York' };
-    expect(describeSchedule(schedule)).toBe('every 10 min, 7:00–22:00 (America/New York)');
-    expect(describeSchedule({ ...schedule, everyMinutes: 120, fromHour: 5, toHour: 5, timeZone: 'UTC' })).toBe(
-      'every 2 h, all day (UTC)',
-    );
-    expect(describeSchedule({ ...schedule, everyMinutes: 60, timeZone: '', browserTimeZone: '' })).toBe(
-      'every 1 h, 7:00–22:00 (Europe/Warsaw)',
-    );
+    const schedule = {
+      everyMinutes: 10,
+      weekendEveryMinutes: 30,
+      fromHour: 7,
+      toHour: 22,
+      timeZone: '',
+      browserTimeZone: 'America/New_York',
+    };
+    expect(describeSchedule(schedule)).toBe('every 10 min (weekends 30 min), 7:00–22:00 (America/New York)');
+    expect(
+      describeSchedule({
+        ...schedule,
+        everyMinutes: 120,
+        weekendEveryMinutes: 120,
+        fromHour: 5,
+        toHour: 5,
+        timeZone: 'UTC',
+      }),
+    ).toBe('every 2 h, all day (UTC)');
+    expect(
+      describeSchedule({ ...schedule, everyMinutes: 60, weekendEveryMinutes: 120, timeZone: '', browserTimeZone: '' }),
+    ).toBe('every 1 h (weekends 2 h), 7:00–22:00 (Europe/Warsaw)');
+  });
+});
+
+describe('intervalAt', () => {
+  const settings = { everyMinutes: 10, weekendEveryMinutes: 60, timeZone: 'Europe/Warsaw', browserTimeZone: '' };
+
+  it("the weekend interval on Saturday and Sunday in the app's zone", () => {
+    expect(intervalAt(settings, Date.UTC(2026, 9, 9, 12))).toBe(10); // Friday
+    expect(intervalAt(settings, Date.UTC(2026, 9, 10, 12))).toBe(60); // Saturday
+    expect(intervalAt(settings, Date.UTC(2026, 9, 11, 21, 30))).toBe(60); // Sunday 23:30 in Warsaw
+    expect(intervalAt(settings, Date.UTC(2026, 9, 11, 22, 30))).toBe(10); // Monday 00:30 in Warsaw, still Sunday in UTC
   });
 });

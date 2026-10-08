@@ -8,7 +8,7 @@ import { zoneOf } from '../dates';
 import { env } from '../env';
 import { message } from '../shared/errors';
 import { cronSchedule } from './cron';
-import { effectiveTimeZone, inHours, type ScrapeSettings } from './settings';
+import { effectiveTimeZone, inHours, intervalAt, type ScrapeSettings } from './settings';
 
 // Who may call /api/cron/scrape, and whether a run is due when it's called. Supabase Cron just
 // knocks every few minutes; interval, hours and the pause live in Settings.
@@ -35,9 +35,9 @@ export async function checkDue(now = new Date()): Promise<{ due: boolean; reason
     return { due: false, reason: `outside ${settings.fromHour}:00–${settings.toHour}:00 ${zone.tz} time` };
   }
   // a minute of slack: calls every N min aren't exactly N min apart
+  const every = intervalAt(settings, now); // the weekend one on Saturday and Sunday
   const since = now.getTime() - (state.lastRunAt ? Date.parse(state.lastRunAt) : 0);
-  if (since < settings.everyMinutes * 60_000 - 60_000)
-    return { due: false, reason: `the last run was less than ${settings.everyMinutes} min ago` };
+  if (since < every * 60_000 - 60_000) return { due: false, reason: `the last run was less than ${every} min ago` };
   return { due: true };
 }
 

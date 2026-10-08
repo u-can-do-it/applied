@@ -12,7 +12,7 @@ import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import { notify } from '@/lib/listings/pipeline/notify';
 import { runAll } from '@/lib/listings/run';
-import { effectiveTimeZone } from '@/lib/listings/settings';
+import { describeInterval, effectiveTimeZone } from '@/lib/listings/settings';
 import { ownerChat, sendMessage, telegramReady, webhookSecret } from '@/lib/telegram';
 
 // Telegram webhook: the bot's commands. Connected from Settings; Telegram sends the secret
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
           ? `“${profiles[0].name}”`
           : 'on, but no profile (all sent)';
     const scraping = settings.enabled
-      ? `every ${settings.everyMinutes} min, ${settings.fromHour}–${settings.toHour} (${zone.tz})`
+      ? `every ${describeInterval(settings.everyMinutes)} (weekends ${describeInterval(settings.weekendEveryMinutes)}), ${settings.fromHour}–${settings.toHour} (${zone.tz})`
       : '⏸ paused';
     await reply(
       `${state.muted ? '🔕 muted' : '🔔 active'}\n${waiting} queued\n🔎 scraping: ${scraping}\n✦ AI filter: ${ai}\n${total} offers stored\n${per.join('\n')}\n\nlast run: ${last}`,

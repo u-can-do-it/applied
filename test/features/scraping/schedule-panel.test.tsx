@@ -41,6 +41,8 @@ describe('SchedulePanel', () => {
     await waitFor(() => expect(from.getAttribute('aria-invalid')).toBeNull());
     save.mockResolvedValueOnce({ ok: true, data: 'Saved.' });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(save).toHaveBeenCalledWith({ everyMinutes: 15, fromHour: 8, toHour: 22 }));
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith({ everyMinutes: 15, weekendEveryMinutes: 30, fromHour: 8, toHour: 22 }),
+    );
   });
 });
