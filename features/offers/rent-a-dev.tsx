@@ -6,6 +6,10 @@ export const RENT_A_DEV = {
   title: "A software house or body leasing firm: you'd be hired out to its client's project",
 };
 
+/** An application's own call on it, or else its verdict's (null: neither says). */
+export const isRentADev = (app: { bodyLeasing: boolean | null; fit?: { bodyLeasing: boolean | null } | null }) =>
+  app.bodyLeasing ?? app.fit?.bodyLeasing ?? null;
+
 /**
  * A job at a software house, an outsourcing / staffing firm or an agency that would hire you out to a
  * client (body leasing): the AI says so with its verdict, an application can have its own call on it.

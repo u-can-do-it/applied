@@ -7,7 +7,7 @@ import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { Button } from '@/components/ui/button';
 import { FitScore } from '@/features/offers/fit-score';
-import { RentADev } from '@/features/offers/rent-a-dev';
+import { isRentADev, RentADev } from '@/features/offers/rent-a-dev';
 import { assessFitAction } from './actions';
 import { applicationKey, type Shown } from './use-application';
 
@@ -64,10 +64,9 @@ export function useFitCheck(jobId: string, onError: (error: string | null) => vo
  * "Rent-a-dev" before it, as in the list.
  */
 export function ApplicationFit({ app, checking, onCheck }: { app: Shown; checking: boolean; onCheck: () => void }) {
-  const bodyLeasing = app.bodyLeasing ?? app.fit?.bodyLeasing;
   return (
     <span className="flex flex-wrap items-center justify-end gap-1">
-      {bodyLeasing && <RentADev />}
+      {isRentADev(app) && <RentADev />}
       <FitBadge app={app} checking={checking} onCheck={onCheck} />
     </span>
   );

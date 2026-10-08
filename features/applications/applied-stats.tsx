@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { Application } from '@/lib/applications';
+import type { ListedApplication } from '@/lib/applications';
 import { stageOf, stats } from '@/lib/stages';
 import { cn } from '@/lib/shared/cn';
 import { percentOf } from '@/lib/shared/format';
 import { Card } from '@/components/ui/card';
+import { isRentADev, RENT_A_DEV } from '@/features/offers/rent-a-dev';
 import { Funnel } from './funnel';
 import { StageTable } from './stage-table';
 import { TILES, type TileId } from './status-filter';
@@ -16,11 +17,16 @@ export function AppliedStats({
   filter,
   setFilter,
 }: {
-  apps: Application[];
+  apps: ListedApplication[];
   filter: string | null;
   setFilter: (filter: string | null) => void;
 }) {
   const counts = useMemo(() => stats(apps), [apps]);
+  // Rent-a-dev or not; a job nothing said either way about is in neither
+  const leasing = useMemo(() => {
+    const calls = apps.map(isRentADev);
+    return { yes: calls.filter((call) => call === true).length, no: calls.filter((call) => call === false).length };
+  }, [apps]);
   // a second click on the one that's on shows them all again
   const pick = (id: string) => setFilter(filter === id ? null : id);
   const on = (id: string) => (filter === id ? 'true' : undefined);
@@ -68,6 +74,18 @@ export function AppliedStats({
             </button>
           </Card>
         ))}
+        {/* the last one only counts: not a filter */}
+        <Card size="sm" className="py-0" aria-disabled="true" title={RENT_A_DEV.title}>
+          <div className="flex flex-col items-start px-3 py-2.5 opacity-70">
+            <span className="text-[22px] leading-[1.2] font-bold tabular-nums">
+              {leasing.yes} / {leasing.no}
+            </span>
+            <span className="text-xs text-muted-foreground">{RENT_A_DEV.label} / normal</span>
+            <span className="text-xs text-warning-strong tabular-nums">
+              {percentOf(leasing.yes, leasing.yes + leasing.no)}
+            </span>
+          </div>
+        </Card>
       </div>
 
       {/* where applications are: each one at the stage of its last status (a stage it was taken back

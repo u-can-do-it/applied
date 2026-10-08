@@ -6,7 +6,7 @@ import { workModeOf, workModeText } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { FitScore } from '@/features/offers/fit-score';
-import { RentADev } from '@/features/offers/rent-a-dev';
+import { isRentADev, RentADev } from '@/features/offers/rent-a-dev';
 import { StatusChip } from './status-chip';
 import { Check } from 'lucide-react';
 
@@ -84,7 +84,7 @@ export function ApplicationRow({
       <span className="flex flex-col items-end gap-1 max-[560px]:max-w-[42vw]">
         <StatusChip stage={app.stage} outcome={app.outcome} />
         <span className="flex flex-wrap items-center justify-end gap-1">
-          {(app.bodyLeasing ?? app.fit?.bodyLeasing) && <RentADev />}
+          {isRentADev(app) && <RentADev />}
           {app.fit && (
             <FitScore
               match={app.fit.match}
