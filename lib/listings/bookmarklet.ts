@@ -72,6 +72,7 @@ const SCRIPT = `(async (APP, TOKEN) => {
     return result.data;
   };
   try {
+    if (location.origin === APP) throw new Error('this is Jobwatch: open the board’s site, then click it there');
     say('which pages…');
     const plan = await answer(await fetch(APP + '/api/import?host=' + encodeURIComponent(location.host), { headers: auth }));
     if (!plan.urls.length) throw new Error('no scraper reads ' + location.host);

@@ -79,10 +79,13 @@ describe('the key', () => {
 
 describe('the script', () => {
   /** Runs the bookmark's script on a stand-in Eldorado page, its fetch answering like the app and the board. */
-  async function click(answers: { plan: unknown; run: unknown; page?: Response }) {
+  async function click(
+    answers: { plan: unknown; run: unknown; page?: Response },
+    at = { host: 'czyjesteldorado.pl', origin: 'https://czyjesteldorado.pl' },
+  ) {
     const box = { style: {}, textContent: '', remove: vi.fn() };
     vi.stubGlobal('document', { createElement: () => box, body: { append: vi.fn() } });
-    vi.stubGlobal('location', { host: 'czyjesteldorado.pl' });
+    vi.stubGlobal('location', at);
     vi.stubGlobal('setTimeout', vi.fn());
     const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url) =>
       Promise.resolve(
@@ -134,6 +137,12 @@ describe('the script', () => {
     });
     expect(blocked.said).toBe(`Jobwatch: failed: HTTP 403 from ${PAGE}`);
     expect(blocked.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('clicked on Jobwatch itself: says to open the board first, asks nothing', async () => {
+    const here = await click({ plan: null, run: null }, { host: 'jobwatch.test', origin: 'https://jobwatch.test' });
+    expect(here.said).toBe('Jobwatch: failed: this is Jobwatch: open the board’s site, then click it there');
+    expect(here.fetch).not.toHaveBeenCalled();
   });
 });
 
