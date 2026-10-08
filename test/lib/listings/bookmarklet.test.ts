@@ -107,6 +107,25 @@ describe('the key', () => {
   });
 });
 
+type FakeElement = ReturnType<typeof fakeElement>;
+
+/** Just what the script does with an element. */
+function fakeElement(tag: string) {
+  const element = {
+    tag,
+    style: {},
+    textContent: '',
+    attributes: {} as Record<string, string>,
+    children: [] as unknown[],
+    listeners: {} as Record<string, () => void>,
+    append: (...children: unknown[]) => element.children.push(...children),
+    setAttribute: (name: string, value: string) => (element.attributes[name] = value),
+    addEventListener: (type: string, listener: () => void) => (element.listeners[type] = listener),
+    remove: vi.fn(),
+  };
+  return element;
+}
+
 describe('the script', () => {
   /** Runs the bookmark's script on a stand-in Eldorado page, its fetch answering like the app and the board. */
   async function click(
@@ -116,10 +135,14 @@ describe('the script', () => {
       origin: 'https://czyjesteldorado.pl',
     },
   ) {
-    const box = { style: {}, textContent: '', remove: vi.fn() };
-    vi.stubGlobal('document', { createElement: () => box, body: { append: vi.fn() } });
+    const made: FakeElement[] = [];
+    vi.stubGlobal('document', {
+      createElement: (tag: string) => made[made.push(fakeElement(tag)) - 1],
+      body: { append: vi.fn() },
+    });
     vi.stubGlobal('location', at);
-    vi.stubGlobal('setTimeout', vi.fn());
+    const timer = vi.fn();
+    vi.stubGlobal('setTimeout', timer);
     const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url) =>
       Promise.resolve(
         url.startsWith('https://jobwatch.test/api/import?')
@@ -135,7 +158,8 @@ describe('the script', () => {
     // the bookmark's code, without the `void 0` that keeps the browser from showing its answer
     const code = decodeURIComponent(link.slice('javascript:'.length)).replace(/;void 0$/, '');
     await (0, eval)(code);
-    return { fetch, said: box.textContent };
+    const [box, message, close] = made;
+    return { fetch, said: message.textContent, box, close, timer };
   }
 
   it('asks which pages, fetches them as you, and sends them gzipped with the key', async () => {
@@ -181,6 +205,22 @@ describe('the script', () => {
     expect(away.fetch).toHaveBeenCalledTimes(1);
     const none = await click({ plan: { ok: true, data: { scrapers: [], urls: [], open: null } }, run: null }, jobwatch);
     expect(none.said).toBe('Jobwatch: failed: no scraper reads jobwatch.test, and no board is blocking Jobwatch now');
+  });
+
+  it('its box closes on a click (its × is in it), and by itself after 10 s, the "opening" one too', async () => {
+    const opening = await click(
+      { plan: { ok: true, data: { scrapers: [], urls: [], open: PAGE } }, run: null },
+      { host: 'jobwatch.test', origin: 'https://jobwatch.test', assign: vi.fn() },
+    );
+    expect(opening.close).toMatchObject({ tag: 'button', textContent: '×', attributes: { 'aria-label': 'Close' } });
+    expect(opening.box.children).toContain(opening.close);
+    expect(opening.box.remove).not.toHaveBeenCalled();
+    opening.box.listeners.click();
+    expect(opening.box.remove).toHaveBeenCalledOnce();
+    expect(opening.timer).toHaveBeenCalledWith(expect.any(Function), 10000);
+    const [[hide]] = opening.timer.mock.calls as [[() => void]];
+    hide();
+    expect(opening.box.remove).toHaveBeenCalledTimes(2);
   });
 });
 

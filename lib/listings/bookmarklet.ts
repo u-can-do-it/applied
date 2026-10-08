@@ -87,12 +87,23 @@ export function blockedPage(
 // Runs on the board's page. Plain ES2020 in a string, not a compiled function: what's dragged to the
 // bookmarks bar must not depend on the bundler. APP and TOKEN are filled in by bookmarklet().
 const SCRIPT = `(async (APP, TOKEN) => {
+  // a click anywhere on it (or its ×) closes it; it goes by itself after 10 s at the end
   const box = document.createElement('div');
   box.style.cssText =
-    'position:fixed;z-index:2147483647;top:12px;right:12px;max-width:360px;padding:10px 14px;border-radius:8px;' +
-    'background:#18181b;color:#fafafa;font:14px/1.4 system-ui,sans-serif;white-space:pre-wrap;box-shadow:0 4px 16px #0004';
+    'position:fixed;z-index:2147483647;top:12px;right:12px;max-width:360px;padding:10px 38px 10px 14px;border-radius:8px;' +
+    'background:#18181b;color:#fafafa;font:14px/1.4 system-ui,sans-serif;white-space:pre-wrap;box-shadow:0 4px 16px #0004;cursor:pointer';
+  box.title = 'Close';
+  const message = document.createElement('span');
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Close');
+  close.style.cssText =
+    'position:absolute;top:4px;right:6px;padding:2px 8px;border:0;background:none;color:inherit;font:20px/1 system-ui,sans-serif;cursor:pointer';
+  box.append(message, close);
+  box.addEventListener('click', () => box.remove());
   document.body.append(box);
-  const say = (text) => { box.textContent = 'Jobwatch: ' + text; };
+  const say = (text) => { message.textContent = 'Jobwatch: ' + text; };
   const auth = { Authorization: 'Bearer ' + TOKEN };
   const answer = async (res) => {
     const result = await res.json().catch(() => ({ ok: false, error: 'HTTP ' + res.status }));
@@ -103,12 +114,20 @@ const SCRIPT = `(async (APP, TOKEN) => {
     say('which pages…');
     const plan = await answer(await fetch(APP + '/api/import?host=' + encodeURIComponent(location.host), { headers: auth }));
     if (!plan.urls.length) {
-      // not a scraped board's site (Jobwatch, say): off to the one that blocks the server, for the second click
+      // not a scraped board's site (Jobwatch, say): off to the one that blocks the server, for the second
+      // click. The page may stay (an installed app opens the link in the browser): the box goes as below.
       if (!plan.open) throw new Error('no scraper reads ' + location.host + ', and no board is blocking Jobwatch now');
       say('opening ' + new URL(plan.open).host + '… click Jobwatch import again there');
       location.assign(plan.open);
-      return;
+    } else {
+      await importPages(plan);
     }
+  } catch (error) {
+    say('failed: ' + error.message);
+  }
+  setTimeout(() => box.remove(), 10000);
+
+  async function importPages(plan) {
     const pages = [];
     for (const [i, url] of plan.urls.entries()) {
       say('page ' + (i + 1) + ' of ' + plan.urls.length + '…');
@@ -127,10 +146,7 @@ const SCRIPT = `(async (APP, TOKEN) => {
         run.found + ' found, ' + run.kept + ' kept, ' + run.added + ' new' +
           run.errors.map((failed) => '\\n' + failed.scraper + ': ' + failed.error).join(''),
     );
-  } catch (error) {
-    say('failed: ' + error.message);
   }
-  setTimeout(() => box.remove(), 10000);
 })`;
 
 /** The bookmark's link: SCRIPT, called with this app's address and the token. */
