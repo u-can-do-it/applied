@@ -32,7 +32,7 @@ export function formatPush(batch: Batch): PushPayload | null {
     if (batch.matched.length) {
       title = `${title}, ${batch.matched.length} matching “${batch.profile}”`;
       lines.push(list(batch.matched));
-    } else if (!batch.unchecked.length) lines.push(`No matches”.`);
+    } else if (!batch.unchecked.length) lines.push('No matches.');
     if (batch.unchecked.length) lines.push(`Not checked by the AI: ${list(batch.unchecked)}`);
   }
   if (batch.held) lines.push('Held while muted.');

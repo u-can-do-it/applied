@@ -55,7 +55,7 @@ describe('formatPush: one notification per batch', () => {
     ).toMatchObject({ title: '3 new offers, 1 matching “Me”', body: 'React Senior @ Acme' });
     expect(formatPush(batch({ profile: 'Me', unmatched: [offer('PHP'), offer('Java')] }))).toMatchObject({
       title: '2 new offers',
-      body: 'None matched “Me”.',
+      body: 'No matches.',
     });
     expect(
       formatPush(batch({ profile: 'Me', unmatched: [offer('PHP')], unchecked: [offer('Go Dev')], held: true })),
