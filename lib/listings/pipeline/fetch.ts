@@ -96,10 +96,26 @@ export type ScrapeResult = {
   ms: number;
 };
 
-/** Fetches and filters one scraper's pages; never throws (errors are part of the result). */
+/**
+ * Pages a browser fetched for the server (the bookmarklet, lib/listings/bookmarklet.ts): each page's
+ * body by the link it came from, the scraper's link as expandUrl gives it.
+ */
+export type BrowserPages = ReadonlyMap<string, string>;
+
+function fromBrowser(pages: BrowserPages, url: string) {
+  const body = pages.get(url);
+  if (body === undefined) throw new Error('The bookmarklet didn’t send this page');
+  return body;
+}
+
+/**
+ * Fetches and filters one scraper's pages; never throws (errors are part of the result). With
+ * `browserPages`, it reads them from there instead of fetching them.
+ */
 export async function scrape(
   scraper: Pick<Scraper, 'kind' | 'src' | 'config'>,
   settings: ScrapeSettings,
+  browserPages?: BrowserPages,
 ): Promise<ScrapeResult> {
   const startedAt = Date.now();
   const { config } = scraper;
@@ -122,7 +138,9 @@ export async function scrape(
   for (const target of urls) {
     const { keyword, page, url } = target;
     try {
-      const body = await fetchPage(withApiParams(scraper.kind, url), config.headers);
+      const body = browserPages
+        ? fromBrowser(browserPages, url)
+        : await fetchPage(withApiParams(scraper.kind, url), config.headers);
       const parsed = parseBody(scraper.kind, body, { src: scraper.src, url, config });
       sample ??= parsed.sample;
       found += parsed.total;
@@ -192,7 +210,11 @@ export function scrapersToRun(
 }
 
 /** Scrapes the given scrapers, a few at a time; each result stays with its scraper, in order. */
-export async function fetchListings(scrapers: readonly Scraper[], settings: ScrapeSettings): Promise<Fetched[]> {
-  const results = await mapLimit([...scrapers], PARALLEL, (scraper) => scrape(scraper, settings));
+export async function fetchListings(
+  scrapers: readonly Scraper[],
+  settings: ScrapeSettings,
+  browserPages?: BrowserPages,
+): Promise<Fetched[]> {
+  const results = await mapLimit([...scrapers], PARALLEL, (scraper) => scrape(scraper, settings, browserPages));
   return scrapers.map((scraper, i) => ({ scraper, result: results[i] }));
 }

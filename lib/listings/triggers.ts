@@ -1,7 +1,12 @@
 // What starts a scrape run (scrape_runs.trigger), and its name in the UI: the Health card, the run log
 // and its filter all say it the same way.
 
-export const TRIGGERS = { cron: 'Cron', manual: 'Scrape now', telegram: 'Telegram' } as const;
+export const TRIGGERS = {
+  cron: 'Cron',
+  manual: 'Scrape now',
+  telegram: 'Telegram',
+  bookmarklet: 'Bookmarklet',
+} as const;
 
 export type Trigger = keyof typeof TRIGGERS;
 

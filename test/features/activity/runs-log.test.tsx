@@ -39,7 +39,7 @@ const run = (id: number, errors: ScrapeRun['errors'] = []): ScrapeRun => ({
   errors,
   matched: 0,
 });
-const counts = { all: 50, cron: 40, manual: 8, telegram: 2, failed: 7 };
+const counts = { all: 50, cron: 40, manual: 8, telegram: 2, bookmarklet: 0, failed: 7 };
 
 function show(props: Partial<React.ComponentProps<typeof RunsLog>> = {}) {
   render(

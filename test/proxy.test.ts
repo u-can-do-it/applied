@@ -21,7 +21,15 @@ describe('the proxy matcher', () => {
   });
 
   it('and, as before, the login page, the machines’ endpoints and Next’s assets', () => {
-    for (const url of ['/login', '/api/cron/scrape', '/api/telegram', '/_next/static/chunks/a.js', '/favicon.ico'])
+    for (const url of [
+      '/login',
+      '/api/cron/scrape',
+      '/api/telegram',
+      '/api/import',
+      '/api/import?host=czyjesteldorado.pl',
+      '/_next/static/chunks/a.js',
+      '/favicon.ico',
+    ])
       expect(guarded(url), url).toBe(false);
   });
 
@@ -35,6 +43,8 @@ describe('the proxy matcher', () => {
       '/applied',
       '/api/scrape',
       '/api/health',
+      '/api/imports',
+      '/api/import/x',
       '/api/changes',
       '/sw.js.map',
       '/sw.jsx',

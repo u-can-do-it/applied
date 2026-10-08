@@ -22,6 +22,7 @@ describe('the runs log filter', () => {
       cron: 2,
       manual: 1,
       telegram: 1,
+      bookmarklet: 0,
       failed: 2,
     });
     expect(filterCounts({ all: 0, failed: 0, byTrigger: {} })).toEqual({
@@ -29,6 +30,7 @@ describe('the runs log filter', () => {
       cron: 0,
       manual: 0,
       telegram: 0,
+      bookmarklet: 0,
       failed: 0,
     });
   });
