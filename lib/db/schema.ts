@@ -362,8 +362,8 @@ export const archivedJobs = pgTable('archived_jobs', {
 
 // ---- views ----------------------------------------------------------------------------------------
 
-// Each job once: its earliest offer, plus every board it was posted on. Defined in
-// drizzle/0002_functions.sql (a window function); `.existing()` keeps drizzle-kit away from it.
+// Each job once: its earliest offer (a board's own over an aggregator's), plus every board it was posted
+// on, dated by its earliest. Defined in drizzle/0014_offers_unique_own_board_first.sql (a window function); `.existing()` keeps drizzle-kit away from it.
 export const offersUnique = pgView('offers_unique', {
   src: text('src').notNull(),
   id: text('id').notNull(),
@@ -375,7 +375,7 @@ export const offersUnique = pgView('offers_unique', {
   firstSeen: timestamptz('first_seen').notNull(),
   jobId: text('dup_key').notNull(), // the offer's own title key, or its job's id after an AI merge
   boards: text('sources').array().notNull(), // offers.src of every offer of the job
-  offers: jsonb('copies').$type<OfferLink[]>().notNull(), // every offer of the job, earliest first
+  offers: jsonb('copies').$type<OfferLink[]>().notNull(), // every offer of the job, earliest first (aggregators' last)
   companyKey: text('company_key').notNull(), // the title key's company part
   appliedAt: timestamptz('applied_at'),
 }).existing();

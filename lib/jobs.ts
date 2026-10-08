@@ -7,7 +7,7 @@ import { rank, type Marks } from './shared/search';
 import { appZone } from './time-zone';
 
 /**
- * A job as the lists show it: its earliest offer, every board's offer, when you applied, whether it
+ * A job as the lists show it: its earliest offer (a board's own over an aggregator's), every board's offer, when you applied, whether it
  * came in with the latest scrape run that brought new jobs (`isNew`), whether you opened it before
  * (`seen`), whether you archived it (`archived`), how many the list has on its day, every page's
  * (`dayCount`, in the app's time zone); the active profile's verdict, if it judged it; where the

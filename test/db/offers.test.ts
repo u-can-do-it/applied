@@ -79,6 +79,30 @@ describeDb('offers', () => {
     expect(jobs[0].appliedAt).toBeNull();
   });
 
+  it('takes a job’s details from a board of its own over an aggregator, from the cutoff on', async () => {
+    await offersRepo.ingest([
+      offer('eldorado', '1', 'Fullstack Engineer', 'Asana'),
+      offer('justjoin', 'asana', 'Fullstack Engineer', 'Asana'),
+      offer('eldorado', '2', 'Go Developer', 'Gopher'),
+      offer('nofluff', 'go', 'Go Developer', 'Gopher'),
+    ]);
+    await seenAt('eldorado', '1', '2026-10-09T08:00:00Z');
+    await seenAt('justjoin', 'asana', '2026-10-09T09:00:00Z');
+    // first seen before the migration: shown as it was
+    await seenAt('eldorado', '2', '2026-10-01T08:00:00Z');
+    await seenAt('nofluff', 'go', '2026-10-09T08:00:00Z');
+
+    const { jobs } = await page();
+    expect(jobs.map((job) => [job.src, job.id, job.url, job.firstSeen])).toEqual([
+      ['justjoin', 'asana', 'https://justjoin.example/asana', '2026-10-09T08:00:00+00:00'], // dated by Eldorado's
+      ['eldorado', '2', 'https://eldorado.example/2', '2026-10-01T08:00:00+00:00'],
+    ]);
+    expect(jobs.map((job) => job.offers.map((link) => link.src))).toEqual([
+      ['justjoin', 'eldorado'],
+      ['eldorado', 'nofluff'],
+    ]);
+  });
+
   it('filters by words (title or company), board and days', async () => {
     await offersRepo.ingest([
       offer('justjoin', '1', 'Senior Frontend Developer (React)', 'Acme'),

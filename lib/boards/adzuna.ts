@@ -30,6 +30,7 @@ export const adzuna: ScrapedBoard<'adzuna'> = {
   id: 'adzuna',
   label: 'Adzuna',
   hosts: DOMAINS.map((domain) => new RegExp(`(^|\\.)${domain.replace(/\./g, '\\.')}$`)),
+  aggregator: true,
   // the API's redirect_url: /details/<id>?se=…&v=…; older ones: /land/ad/<id>?…
   idFromLink: (url) => pathOf(url).match(/\/(?:land\/ad|details)\/(\d+)/)?.[1] ?? null,
   listing: {

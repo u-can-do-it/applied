@@ -31,7 +31,8 @@ import {
 } from '../schema';
 
 // The scraped offers: `offers` (every board's offer) and `offers_unique` (each job once, its
-// earliest offer with every board's link; a view, defined in drizzle/0002_functions.sql).
+// earliest offer, a board's own over an aggregator's, with every board's link; a view, defined in
+// drizzle/0014_offers_unique_own_board_first.sql).
 
 /** A scrape run's time: the offers first seen in it are the ones it added (lib/db/repos/scrape-runs.ts). */
 export type RunWindow = { startedAt: string; finishedAt: string };

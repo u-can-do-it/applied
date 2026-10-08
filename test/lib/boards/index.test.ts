@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BOARD_RE, BOARD_SUGGESTIONS, boardIdOf, boardOf, cleanLink, isLink } from '@/lib/boards';
+import journal from '@/drizzle/meta/_journal.json';
+import { BOARD_RE, BOARDS, BOARD_SUGGESTIONS, boardIdOf, boardOf, cleanLink, isLink } from '@/lib/boards';
 
 describe('isLink', () => {
   it('only http(s) URLs', () => {
@@ -193,5 +195,16 @@ describe('boardIdOf', () => {
     expect(boardIdOf('justjoin', 'https://justjoin.it/job-offer/a%C3-b')).toBe('a%C3-b');
     expect(boardIdOf('eldorado', 'https://czyjesteldorado.pl/praca/449389-100%-zdalnie')).toBe('449389');
     expect(() => cleanLink('https://www.linkedin.com/jobs/view/50%-off-4123456789')).not.toThrow();
+  });
+});
+
+describe('aggregators', () => {
+  it('are the boards the offers_unique view puts after a board of its own', () => {
+    // the view as the newest migration that defines it has it
+    const view = journal.entries
+      .map(({ tag }) => readFileSync(`drizzle/${tag}.sql`, 'utf8'))
+      .findLast((file) => file.includes('create or replace view public.offers_unique'));
+    const listed = view?.match(/o\.src in \(([^)]*)\) as aggregated/)?.[1].match(/[a-z]+/g);
+    expect(listed).toEqual(BOARDS.filter((board) => board.aggregator).map((board) => board.id));
   });
 });

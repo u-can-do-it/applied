@@ -115,12 +115,16 @@ ADDED_BOARDS='adzuna|himalayas|remotive|jobicy|remoteok'
 # generic kinds added since (0011_ats_kind): after the others in scrapers_kind_check, so taken out with the
 # comma before them; no scrapers are seeded for them
 ADDED_KINDS='ats'
+# what a later migration defines anew (0013_title_key_gender_tags: the title key, 0014_offers_unique_own_board_first:
+# the view): their entries are left out of the comparison; (b) checks them against a fresh database's
+REDEFINED='jw_dup_key[(]|offers_unique;'
 entries_without_dropped_functions() {
-  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v boards="$ADDED_BOARDS" -v kinds="$ADDED_KINDS" '
+  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v boards="$ADDED_BOARDS" -v kinds="$ADDED_KINDS" -v redefined="$REDEFINED" '
     function flush() { if (entry != "" && !skip) print entry; entry = "" }
     /^-- Name: / {
       flush()
-      skip = ($0 ~ ("^-- Name: (FUNCTION )?(" names ")\\(")) || ($0 ~ ("^-- Name: (TABLE )?(" tables ")[ ;]"))
+      skip = ($0 ~ ("^-- Name: (FUNCTION )?(" names ")\\(")) || ($0 ~ ("^-- Name: (TABLE )?(" tables ")[ ;]")) ||
+        ($0 ~ ("^-- Name: (" redefined ")"))
       next
     }
     # comments, blank lines, and the SETs pg_dump puts before whichever entry comes before the first table
@@ -220,7 +224,7 @@ schema_dump "$url_a" "$work/a-after.sql"
 data_dump "$url_a" "$work/a-after-data.sql"
 entries_without_dropped_functions "$work/a-before.sql" "$work/a-before-kept.sql"
 entries_without_dropped_functions "$work/a-after.sql" "$work/a-after-kept.sql"
-same "schema unchanged but for the unused functions 0005 drops and the new tables ($(wc -l <"$work/a-before.sql") lines of pg_dump)" \
+same "schema unchanged but for the unused functions 0005 drops, the new tables and what is defined anew ($(wc -l <"$work/a-before.sql") lines of pg_dump)" \
   "$work/a-before-kept.sql" "$work/a-after-kept.sql"
 if grep -Eq "^CREATE FUNCTION public\.($DROPPED_FUNCTIONS)\(" "$work/a-after.sql"; then
   echo "   FAILED: an unused function is still there after db:migrate" >&2

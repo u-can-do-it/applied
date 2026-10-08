@@ -8,6 +8,7 @@ export const eldorado: ScrapedBoard<'eldorado'> = {
   hosts: [/(^|\.)czyjesteldorado\.pl$/],
   // an employer's page opened from Eldorado counts as Eldorado
   tagsLinks: /czyjesteldorado/i,
+  aggregator: true,
   alwaysInFilters: true,
   idFromLink: (url) => pathOf(url).match(/\/praca\/(\d+)/)?.[1] ?? null,
   listing: {

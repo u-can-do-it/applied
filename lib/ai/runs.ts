@@ -106,7 +106,7 @@ const pendingRows = (run: AiRun, limit: number): Promise<Pending[]> =>
 
 /**
  * Ad text for each job, by job id: cached in offer_details, else scraped from its offers (earliest
- * first; a job's offers one after another, a few jobs at once).
+ * first, aggregators last; a job's offers one after another, a few jobs at once).
  */
 async function descriptions(jobs: Pending[]): Promise<Map<string, string | null>> {
   const offers = jobs.flatMap((job) => job.offers);

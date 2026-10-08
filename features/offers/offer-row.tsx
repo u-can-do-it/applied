@@ -15,7 +15,7 @@ export const OFFER = 'grid grid-cols-[44px_1fr_auto] items-start gap-3 px-3.5 py
 /** "Thu 02.10.2026, 14:05", in the app's time zone */
 const fullLabel = (zone: Zone, at: string) => `${zone.weekday(at)} ${zone.formatDayOf(at)}, ${zone.formatTime(at)}`;
 
-/** The boards this job was posted on, one link each (earliest first). */
+/** The boards this job was posted on, one link each (earliest first, aggregators last). */
 function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, string> }) {
   const seen = new Set<string>();
   const links = job.offers.filter((offer) => !seen.has(offer.src) && seen.add(offer.src));
