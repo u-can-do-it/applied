@@ -2,6 +2,7 @@ import { SparklesIcon } from 'lucide-react';
 import type { Zone } from '@/lib/dates';
 import type { ListedJob } from '@/lib/jobs';
 import { cn } from '@/lib/shared/cn';
+import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
 import { ArchiveButton, ArchiveRow } from './archive';
@@ -41,7 +42,8 @@ function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, st
  * faint tint, so what came in last time stands out; one you opened before has a check mark after its title.
  * The archive button takes it out of the list (or, in the archived list, back into the others). With a
  * mouse, the archive and "Mark applied" buttons show on the row's hover (or keyboard focus) only. A job
- * the active profile judged has its fit badge, and the verdict's line under its title.
+ * the active profile judged has its fit badge, and the verdict's line under its title. A search's
+ * words are marked in yellow in the title and the company.
  */
 export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; labels: Record<string, string> }) {
   return (
@@ -75,11 +77,15 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
             rel="noopener noreferrer"
             className="font-semibold no-underline [overflow-wrap:anywhere] visited:text-muted-foreground hover:text-brand hover:underline hover:underline-offset-2"
           >
-            {job.title}
+            <Marked text={job.title} marks={job.marks?.title} />
           </a>
           <SeenMark />
           <div className="mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']">
-            {job.company && <span>{job.company}</span>}
+            {job.company && (
+              <span>
+                <Marked text={job.company} marks={job.marks?.company} />
+              </span>
+            )}
             {job.seniority && job.seniority !== 'unknown' && <span>{job.seniority}</span>}
             <span className={job.remote ? 'text-success' : undefined}>{job.remote ? 'Remote' : 'Office / hybrid'}</span>
           </div>

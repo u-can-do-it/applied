@@ -3,36 +3,26 @@ import type { DateFilter } from './dates';
 import * as offersRepo from './db/repos/offers';
 import * as runsRepo from './db/repos/scrape-runs';
 import type { AiVerdictRow } from './db/schema';
+import { rank, type Marks } from './shared/search';
 import { appZone } from './time-zone';
 
 /**
  * A job as the lists show it: its earliest offer, every board's offer, when you applied, whether it
  * came in with the latest scrape run that brought new jobs (`isNew`), whether you opened it before
  * (`seen`), whether you archived it (`archived`), how many the list has on its day, every page's
- * (`dayCount`, in the app's time zone); the active profile's verdict, if it judged it.
+ * (`dayCount`, in the app's time zone); the active profile's verdict, if it judged it; where the
+ * search matched its title and company (`marks`), when there's a search.
  */
 export type ListedJob = offersRepo.Job & {
   isNew: boolean;
   seen: boolean;
   archived: boolean;
   dayCount: number;
+  marks?: Marks;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription'>;
 };
 
 export const PAGE_SIZE = 50;
-
-/**
- * The search, as words that must each appear in the title or the company: at most six, of at most
- * 40 characters. Quotes and `*` separate words, as they always did; `%` and `_` are matched as
- * themselves (lib/db/repos/offers.ts escapes them).
- */
-export const searchWords = (search: string) =>
-  search
-    .replace(/["*]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 6)
-    .map((word) => word.slice(0, 40));
 
 type Query = { q: string; src: string; page: number } & DateFilter & {
     /** only the jobs the latest scrape run that brought new jobs brought (?new=1) */
@@ -47,10 +37,12 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
 
 /**
  * One page of the list, how many match in all, how many of those are new (`newCount`), when the
- * run that brought them ran (`latest`; null: no run in the log added offers), and how many jobs
- * these filters find among the archived ones (`archivedCount`).
+ * run that brought them ran (`latest`; null: no run in the log added offers), how many jobs
+ * these filters find among the archived ones (`archivedCount`), and whether it's a search's, best
+ * match first (`byMatch`) rather than newest first.
  */
 export type JobPage = {
+  byMatch: boolean;
   jobs: ListedJob[];
   total: number;
   newCount: number;
@@ -61,14 +53,18 @@ export type JobPage = {
 export async function getJobs(opts: Query): Promise<JobPage> {
   // "today", "last 7 days", the day counts: days there
   const [zone, latest] = await Promise.all([appZone(), runsRepo.latestWithNewJobs()]);
-  if (opts.latest && !latest) return { jobs: [], total: 0, newCount: 0, archivedCount: 0, latest };
-  const filter = {
-    words: searchWords(opts.q),
+  if (opts.latest && !latest) return { byMatch: false, jobs: [], total: 0, newCount: 0, archivedCount: 0, latest };
+  const narrowed = {
     src: opts.src,
     ...zone.resolveRange(opts),
     ...(opts.latest && latest ? { newIn: latest } : {}),
-    archived: opts.archived,
   };
+  // a search: the jobs the rest of the filter leaves, ranked here (lib/shared/search.ts), the list
+  // then only those, in that order
+  const found = opts.q ? rank(await offersRepo.searchable(narrowed), opts.q) : null;
+  const filter = { ...narrowed, archived: opts.archived, ...(found && { ranked: found.ids }) };
+  const marked = (job: ListedJob): ListedJob => (found ? { ...job, marks: found.marks.get(job.jobId) } : job);
+  const byMatch = Boolean(found);
   if (!opts.ai) {
     const { rows, ...numbers } = await offersRepo.pageOfJobs(
       filter,
@@ -78,7 +74,7 @@ export async function getJobs(opts: Query): Promise<JobPage> {
       latest,
       opts.verdictsOf,
     );
-    return { jobs: rows.map(withVerdict), ...numbers, latest };
+    return { byMatch, jobs: rows.map(withVerdict).map(marked), ...numbers, latest };
   }
   const { profileId, version, rejected } = opts.ai;
   const verdicts = { profileId, version, match: !rejected };
@@ -90,7 +86,7 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     verdicts,
     latest,
   );
-  return { jobs: rows.map(withVerdict), ...numbers, latest };
+  return { byMatch, jobs: rows.map(withVerdict).map(marked), ...numbers, latest };
 }
 
 type Verdict = NonNullable<ListedJob['ai']>;

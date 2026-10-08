@@ -44,6 +44,8 @@
   --pool: #7d4fc4; /* the "talent pool" outcome */
   --pool-foreground: #ffffff;
   --pool-border: #c9b5ec;
+  --highlight: #ffe45c; /* the words a search found, marked in the list */
+  --highlight-foreground: var(--foreground);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -69,11 +71,13 @@
     --warning-soft: #3a2c12;
     --pool: #c3a6f5;
     --pool-border: #4f3f6e;
+    --highlight: #e8c547;
     /* the dark set's fills are light: dark text on them */
     --brand-foreground: #121211;
     --success-foreground: #121211;
     --destructive-foreground: #121211;
     --pool-foreground: #121211;
+    --highlight-foreground: #121211;
   }
 }
 
@@ -110,6 +114,8 @@
   --color-pool: var(--pool);
   --color-pool-foreground: var(--pool-foreground);
   --color-pool-border: var(--pool-border);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

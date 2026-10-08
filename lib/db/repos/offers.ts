@@ -37,12 +37,12 @@ import {
 export type RunWindow = { startedAt: string; finishedAt: string };
 
 /**
- * What narrows a list of jobs: every word in the title or the company, a board, first_seen in
- * [gte, lt), only the jobs first seen in a run (`newIn`), and the archived jobs instead of the others
- * (`archived`).
+ * What narrows a list of jobs: a board, first_seen in [gte, lt), only the jobs first seen in a run
+ * (`newIn`), the archived jobs instead of the others (`archived`), and only the jobs a search found
+ * (`ranked`: their ids, best match first, the order the list then has).
  */
 export type JobFilter = {
-  words: string[];
+  ranked?: string[];
   src: string;
   gte?: string;
   lt?: string;
@@ -90,15 +90,15 @@ const newness = (latest: RunWindow | null) => (latest ? sql<boolean>`(${firstSee
 const sameDay = (tz: string) =>
   sql<number>`(count(*) over (partition by (${offersUnique.firstSeen} at time zone ${tz})::date))::int`;
 
-/** case-insensitively, `word` anywhere in it; `%` and `_` in the word are just characters */
-const contains = (column: typeof offersUnique.title | typeof offersUnique.company, word: string) =>
-  sql`${column} ilike ${`%${word.replace(/[\\%_]/g, '\\$&')}%`} escape '\\'`;
+/** a search's jobs as {job id: its place}, one parameter however many there are */
+const placeIn = (ranked: string[]) =>
+  sql`(${JSON.stringify(Object.fromEntries(ranked.map((jobId, place) => [jobId, place])))}::jsonb ->> ${offersUnique.jobId})::int`;
 
 /** What the filter asks for, archived or not. */
 function matching(filter: JobFilter): SQL | undefined {
   return and(
     filter.src ? arrayContains(offersUnique.boards, [filter.src]) : undefined,
-    ...filter.words.map((word) => or(contains(offersUnique.title, word), contains(offersUnique.company, word))),
+    filter.ranked ? sql`${placeIn(filter.ranked)} is not null` : undefined,
     inRange(filter),
     filter.newIn ? firstSeenIn(filter.newIn) : undefined,
   );
@@ -123,6 +123,8 @@ const counts = (filter: JobFilter, latest: RunWindow | null) => ({
 
 // newest first; the board and id make the order total, so pages don't overlap
 const newestFirst = [desc(offersUnique.firstSeen), asc(offersUnique.src), asc(offersUnique.id)];
+/** a search's best match first, the others newest first */
+const order = (filter: JobFilter) => (filter.ranked ? [asc(placeIn(filter.ranked)), ...newestFirst] : newestFirst);
 
 /** A profile version: whose verdicts the list shows. */
 type JudgedBy = { profileId: string; version: number };
@@ -169,14 +171,14 @@ export async function pageOfJobs(
         .from(offersUnique)
         .leftJoin(aiVerdicts, judgedBy(verdictsOf))
         .where(and(where, shown(filter)))
-        .orderBy(...newestFirst)
+        .orderBy(...order(filter))
         .limit(size)
         .offset(page * size)
     : db()
         .select(columns)
         .from(offersUnique)
         .where(and(where, shown(filter)))
-        .orderBy(...newestFirst)
+        .orderBy(...order(filter))
         .limit(size)
         .offset(page * size);
   const [found, [numbers]] = await Promise.all([
@@ -210,12 +212,24 @@ export async function pageOfJudgedJobs(
       .from(offersUnique)
       .innerJoin(aiVerdicts, judged)
       .where(and(where, shown(filter)))
-      .orderBy(...newestFirst)
+      .orderBy(...order(filter))
       .limit(size)
       .offset(page * size),
     db().select(counts(filter, latest)).from(offersUnique).innerJoin(aiVerdicts, judged).where(where),
   ]);
   return { rows, ...numbers };
+}
+
+/**
+ * What a search looks through: every job the rest of the filter leaves (archived or not: the list
+ * counts the archived ones it finds too), its title and company, newest first.
+ */
+export function searchable(filter: Omit<JobFilter, 'ranked' | 'archived'>) {
+  return db()
+    .select({ jobId: offersUnique.jobId, title: offersUnique.title, company: offersUnique.company })
+    .from(offersUnique)
+    .where(matching(filter))
+    .orderBy(...newestFirst);
 }
 
 /**

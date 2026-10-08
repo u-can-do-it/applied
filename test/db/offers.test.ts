@@ -79,7 +79,7 @@ describeDb('offers', () => {
     expect(jobs[0].appliedAt).toBeNull();
   });
 
-  it('filters by words (title or company), board and days, like before', async () => {
+  it('filters by words (title or company), board and days', async () => {
     await offersRepo.ingest([
       offer('justjoin', '1', 'Senior Frontend Developer (React)', 'Acme'),
       offer('nofluff', '2', 'Backend Developer', 'React Labs'),
@@ -90,25 +90,39 @@ describeDb('offers', () => {
     await seenAt('bulldog', '3', '2026-09-28T10:00:00Z');
 
     expect((await page('senior react')).jobs.map((job) => job.id)).toEqual(['1']);
-    expect((await page('REACT')).jobs.map((job) => job.id)).toEqual(['2', '1']);
+    expect((await page('REACT')).jobs.map((job) => job.id).sort()).toEqual(['1', '2']);
     expect((await page('react', 'nofluff')).jobs.map((job) => job.id)).toEqual(['2']);
-    // quotes and * separate words, as they always did
-    expect((await page('"react*senior"')).jobs.map((job) => job.id)).toEqual(['1']);
+    expect((await page('"senior java"')).jobs.map((job) => job.id)).toEqual(['3']);
     expect((await page('', '', { from: '2026-09-24', to: '2026-09-25' })).jobs.map((job) => job.id)).toEqual(['2']);
     expect((await page('', '', { from: '2026-09-26' })).jobs.map((job) => job.id)).toEqual(['3']);
+    expect((await page('react', '', { from: '2026-09-24' })).jobs.map((job) => job.id)).toEqual(['2']);
   });
 
-  it('matches % and _ in the search as themselves, not as wildcards', async () => {
+  it('forgives a typo, ranks the best match first, and says where it matched', async () => {
     await offersRepo.ingest([
-      offer('justjoin', '1', 'Reactxdev', 'Acme'),
-      offer('justjoin', '2', 'react_dev', 'Acme'),
-      offer('justjoin', '3', 'Sales 100% remote', 'Beta'),
-      offer('justjoin', '4', 'Sales 1000 remote', 'Beta'),
-      offer('justjoin', '5', 'Back\\slash', 'Gamma'),
+      offer('justjoin', '1', 'Java Developer', 'Acme'),
+      offer('justjoin', '2', 'Developer Advocate', 'Devtools'),
+      offer('justjoin', '3', 'Python Engineer', 'Łódź Soft'),
+      offer('justjoin', '4', 'C# .NET Developer', 'Micro'),
     ]);
-    expect((await page('react_dev')).jobs.map((job) => job.id)).toEqual(['2']);
-    expect((await page('100%')).jobs.map((job) => job.id)).toEqual(['3']);
-    expect((await page('k\\s')).jobs.map((job) => job.id)).toEqual(['5']);
+    await seenAt('justjoin', '1', '2026-09-28T10:00:00Z');
+    await seenAt('justjoin', '2', '2026-09-20T10:00:00Z');
+
+    const typo = await page('devloper');
+    expect(typo.byMatch).toBe(true);
+    expect(typo.jobs.map((job) => job.id).sort()).toEqual(['1', '2', '4']);
+    expect((await page('pyhton lodz')).jobs.map((job) => [job.id, job.marks])).toEqual([
+      ['3', { title: [0, 6], company: [0, 4] }],
+    ]);
+    // a whole word at the start of the title before one inside a word, though older
+    expect((await page('dev')).jobs.map((job) => job.id)).toEqual(['2', '1', '4']);
+    // C#, .NET: as they are, not "c" anywhere
+    expect((await page('c#')).jobs.map((job) => job.id)).toEqual(['4']);
+    expect((await page('.net')).jobs.map((job) => job.id)).toEqual(['4']);
+    // no search: newest first, by day
+    expect((await page('')).byMatch).toBe(false);
+    // nothing to look for: not filtered
+    expect((await page('%%')).jobs).toHaveLength(4);
   });
 
   it('pages through in a stable order, with the total of all pages', async () => {

@@ -8,6 +8,7 @@ import { labelsOf, type BoardOption } from '@/lib/listings/board-filter';
 import { message } from '@/lib/shared/errors';
 import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { withParams } from '@/lib/shared/search-params';
+import { cn } from '@/lib/shared/cn';
 import { appZone } from '@/lib/time-zone';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { LoadError } from '@/components/load-error';
@@ -149,23 +150,32 @@ export async function Results({
         </p>
       )}
 
-      {groupByDay(data.jobs, (job) => job.firstSeen, zone).map((group) => (
-        <section key={group.day}>
-          <h2 className={DAY_HEADING}>
-            {group.label}
-            {/* the day's offers on every page: a day can go on over the next one */}
-            <span className={DAY_COUNT}>
-              {fmt(group.items[0].dayCount)}
-              <span className="sr-only"> {group.items[0].dayCount === 1 ? 'offer' : 'offers'}</span>
-            </span>
-          </h2>
-          <ol className={DAY_LIST}>
-            {group.items.map((job) => (
-              <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
-            ))}
-          </ol>
-        </section>
-      ))}
+      {/* a search's best match first, so not by day */}
+      {data.byMatch
+        ? data.jobs.length > 0 && (
+            <ol className={cn(DAY_LIST, 'mt-6')}>
+              {data.jobs.map((job) => (
+                <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
+              ))}
+            </ol>
+          )
+        : groupByDay(data.jobs, (job) => job.firstSeen, zone).map((group) => (
+            <section key={group.day}>
+              <h2 className={DAY_HEADING}>
+                {group.label}
+                {/* the day's offers on every page: a day can go on over the next one */}
+                <span className={DAY_COUNT}>
+                  {fmt(group.items[0].dayCount)}
+                  <span className="sr-only"> {group.items[0].dayCount === 1 ? 'offer' : 'offers'}</span>
+                </span>
+              </h2>
+              <ol className={DAY_LIST}>
+                {group.items.map((job) => (
+                  <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
+                ))}
+              </ol>
+            </section>
+          ))}
 
       {pages > 1 && (
         <nav
@@ -174,7 +184,7 @@ export async function Results({
         >
           {page > 0 ? (
             <NavLink href={withParams(current, { page: page - 1 }, path)} scrollTop>
-              <ArrowLeftIcon /> Newer
+              <ArrowLeftIcon /> {data.byMatch ? 'Better matches' : 'Newer'}
             </NavLink>
           ) : (
             <span />
@@ -184,7 +194,7 @@ export async function Results({
           </span>
           {page + 1 < pages ? (
             <NavLink href={withParams(current, { page: page + 1 }, path)} scrollTop>
-              Older <ArrowRightIcon />
+              {data.byMatch ? 'More' : 'Older'} <ArrowRightIcon />
             </NavLink>
           ) : (
             <span />
