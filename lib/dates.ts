@@ -120,6 +120,8 @@ export type Zone = {
   formatDateTime: (at: Instant) => string;
   /** "Thu" */
   weekday: (at: Instant) => string;
+  /** "Today", "Yesterday", "Tue" earlier this week there (weeks start on Monday), "02/10" before that */
+  shortDay: (at: Instant, now?: number) => string;
   /** 0–23 */
   hour: (at: Instant) => number;
   /** minutes ahead of UTC at that instant (120 for Warsaw in summer) */
@@ -169,6 +171,16 @@ function makeZone(tz: string): Zone {
     formatTime,
     formatDateTime: (at) => `${formatDayOf(at)} ${formatTime(at)}`,
     weekday: (at) => weekdayFmt.format(new Date(at)),
+    shortDay: (at, now = Date.now()) => {
+      const today = day(now);
+      const monday = addDays(today, -((new Date(today).getUTCDay() + 6) % 7));
+      const isoDay = day(at);
+      if (isoDay === today) return 'Today';
+      if (isoDay === addDays(today, -1)) return 'Yesterday';
+      if (isoDay >= monday) return weekdayFmt.format(new Date(at));
+      const [, month, dayOfMonth] = isoDay.split('-');
+      return `${dayOfMonth}/${month}`;
+    },
     hour: (at) => Number(hourFmt.format(new Date(at))) % 24,
     offset: (at) => offsetMs(new Date(at).getTime()) / 60_000,
     startOfDay,

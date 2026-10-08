@@ -137,6 +137,20 @@ describe('zoneOf()', () => {
     expect(warsaw.formatTime(at('2026-10-01T22:05:00Z'))).toBe('00:05');
   });
 
+  it('shortDay is Today, Yesterday, the weekday this week (from Monday), dd/mm before', () => {
+    const now = at('2026-10-08T10:00:00Z'); // Thu
+    expect(warsaw.shortDay(at('2026-10-07T22:00:00Z'), now)).toBe('Today'); // 00:00 there
+    expect(warsaw.shortDay(at('2026-10-07T21:59:59Z'), now)).toBe('Yesterday');
+    expect(warsaw.shortDay(at('2026-10-06T12:00:00Z'), now)).toBe('Tue');
+    expect(warsaw.shortDay(at('2026-10-04T22:00:00Z'), now)).toBe('Mon'); // 00:00 Monday there
+    expect(warsaw.shortDay(at('2026-10-04T21:59:59Z'), now)).toBe('04/10'); // Sunday before, still
+    expect(warsaw.shortDay(at('2026-09-02T12:00:00Z'), now)).toBe('02/09');
+    // on a Monday, Sunday is still Yesterday; on a Sunday the week began on the Monday before
+    expect(warsaw.shortDay(at('2026-10-04T12:00:00Z'), at('2026-10-05T12:00:00Z'))).toBe('Yesterday');
+    expect(warsaw.shortDay(at('2026-10-05T12:00:00Z'), at('2026-10-11T12:00:00Z'))).toBe('Mon');
+    expect(warsaw.shortDay(at('2026-10-04T12:00:00Z'), at('2026-10-11T12:00:00Z'))).toBe('04/10');
+  });
+
   it('offset follows summer and winter time, and odd offsets', () => {
     expect(warsaw.offset(at('2026-07-01T12:00:00Z'))).toBe(120);
     expect(warsaw.offset(at('2026-01-01T12:00:00Z'))).toBe(60);

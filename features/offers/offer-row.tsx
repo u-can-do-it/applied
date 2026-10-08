@@ -43,9 +43,21 @@ function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, st
  * The archive button takes it out of the list (or, in the archived list, back into the others). With a
  * mouse, the archive and "Mark applied" buttons show on the row's hover (or keyboard focus) only. A job
  * the active profile judged has its fit badge, and the verdict's line under its title. A search's
- * words are marked in yellow in the title and the company.
+ * words are marked in yellow in the title and the company. Under a day's heading the row shows the hour it
+ * came in; in a list not grouped by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier
+ * this week, "02/10" before, in a wider first column.
  */
-export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; labels: Record<string, string> }) {
+export function OfferRow({
+  job,
+  zone,
+  labels,
+  dated = false,
+}: {
+  job: ListedJob;
+  zone: Zone;
+  labels: Record<string, string>;
+  dated?: boolean;
+}) {
   return (
     <ArchiveRow jobId={job.jobId} title={job.title} archived={job.archived}>
       <SeenItem
@@ -53,6 +65,7 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
         seen={job.seen}
         className={cn(
           OFFER,
+          dated && 'grid-cols-[68px_1fr_auto]',
           'group/offer',
           job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]',
         )}
@@ -63,7 +76,7 @@ export function OfferRow({ job, zone, labels }: { job: ListedJob; zone: Zone; la
           title={fullLabel(zone, job.firstSeen)}
           className="pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full max-[560px]:p-0"
         >
-          {zone.formatTime(job.firstSeen)}
+          {dated ? zone.shortDay(job.firstSeen) : zone.formatTime(job.firstSeen)}
         </time>
         <div className="min-w-0">
           {job.isNew && (

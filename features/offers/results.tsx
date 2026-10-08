@@ -155,7 +155,7 @@ export async function Results({
         ? data.jobs.length > 0 && (
             <ol className={cn(DAY_LIST, 'mt-6')}>
               {data.jobs.map((job) => (
-                <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
+                <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} dated />
               ))}
             </ol>
           )
