@@ -6,6 +6,7 @@ import { workModeOf, workModeText } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { Badge } from '@/components/ui/badge';
 import { FitScore } from '@/features/offers/fit-score';
+import { RentADev } from '@/features/offers/rent-a-dev';
 import { StatusChip } from './status-chip';
 import { Check } from 'lucide-react';
 
@@ -33,6 +34,7 @@ const META =
 /**
  * One application in the list (under the day you applied: no date of its own); a click opens its window.
  * A job the active AI profile judged has its fit badge, and the verdict's line under the title.
+ * "Rent-a-dev": a software house's / body leasing firm's job, by the application's own call, or else the verdict's.
  */
 export function ApplicationRow({
   app,
@@ -82,6 +84,7 @@ export function ApplicationRow({
       <span className="flex flex-col items-end gap-1 max-[560px]:max-w-[42vw]">
         <StatusChip stage={app.stage} outcome={app.outcome} />
         <span className="flex flex-wrap items-center justify-end gap-1">
+          {(app.bodyLeasing ?? app.fit?.bodyLeasing) && <RentADev />}
           {app.fit && (
             <FitScore
               match={app.fit.match}

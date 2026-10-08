@@ -58,7 +58,14 @@ const fakeFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit
     [...user.matchAll(new RegExp(`### ${label} (\\d+)`, 'g'))].map((match) => Number(match[1]));
   const results =
     kind === 'assessments'
-      ? numbers('OFFER').map((offer) => ({ n: offer, match: offer === 1, score: 70, summary: 'ok', checks: [] }))
+      ? numbers('OFFER').map((offer) => ({
+          n: offer,
+          match: offer === 1,
+          score: 70,
+          summary: 'ok',
+          checks: [],
+          bodyLeasing: offer === 2,
+        }))
       : numbers('PAIR').map((pair) => ({ p: pair, same: false, reason: 'different roles' }));
   return Response.json({ choices: [{ message: { content: JSON.stringify({ results }) } }] });
 });
@@ -113,6 +120,11 @@ describeDb('an AI run slice (continueRun)', () => {
     expect(after?.finishedAt).toMatch(ISO);
     expect(asked).toEqual(['assessments']); // no look-alike pairs: no duplicate check
     expect((await verdictsRepo.forJobs(profile, jobIds)).size).toBe(3);
+    // each verdict says whether it's a body leasing firm's job (offers are asked in the list's order, newest first)
+    const leasing = await Promise.all(
+      jobIds.map(async (jobId) => (await verdictsRepo.ofJob(profile, jobId))?.bodyLeasing),
+    );
+    expect(leasing.filter(Boolean)).toHaveLength(1);
 
     await continueRun(run.id); // finished: nobody gets its lock
     expect(asked).toEqual(['assessments']);

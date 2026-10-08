@@ -11,8 +11,11 @@ type ProfileVersion = { id: string; version: number };
 type Range = { gte?: string | null; lt?: string | null };
 
 export type Verdict = Pick<AiVerdictRow, 'match' | 'score' | 'summary'>;
-/** A verdict with its reasons: the requirement checklist, and whether the ad text was there. */
-export type Fit = Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription'>;
+/**
+ * A verdict with its reasons: the requirement checklist, and whether the ad text was there; and
+ * whether it's a software house's / body leasing firm's job.
+ */
+export type Fit = Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription' | 'bodyLeasing'>;
 
 /** The verdicts this profile version has for these jobs, by job id. */
 export async function forJobs(profile: ProfileVersion, jobIds: string[]): Promise<Map<string, Verdict>> {
@@ -44,6 +47,7 @@ export async function ofJob(profile: ProfileVersion, jobId: string): Promise<Fit
       summary: aiVerdicts.summary,
       checks: aiVerdicts.checks,
       hadDescription: aiVerdicts.hadDescription,
+      bodyLeasing: aiVerdicts.bodyLeasing,
     })
     .from(aiVerdicts)
     .where(
@@ -66,6 +70,7 @@ export async function save(rows: Omit<AiVerdictRow, 'createdAt'>[]) {
         summary: sql`excluded.summary`,
         checks: sql`excluded.checks`,
         hadDescription: sql`excluded.had_description`,
+        bodyLeasing: sql`excluded.body_leasing`,
       },
     });
 }

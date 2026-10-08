@@ -141,6 +141,7 @@ const verdictColumns = {
   summary: aiVerdicts.summary,
   checks: aiVerdicts.checks,
   hadDescription: aiVerdicts.hadDescription,
+  bodyLeasing: aiVerdicts.bodyLeasing,
 };
 
 /**

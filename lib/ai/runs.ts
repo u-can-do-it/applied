@@ -173,6 +173,7 @@ async function assessBatch(profile: ProfileWithFile, batch: Pending[], beforeAsk
     summary: assessment.summary,
     checks: assessment.checks,
     hadDescription: Boolean(input[assessment.n - 1].description),
+    bodyLeasing: assessment.bodyLeasing,
   }));
   await verdictsRepo.save(rows);
   return { saved: rows.length, answered: new Set(rows.map((row) => row.jobId)) };
@@ -196,6 +197,7 @@ export async function assessOne(
     summary: assessment.summary,
     checks: assessment.checks,
     hadDescription: Boolean(offer.description),
+    bodyLeasing: assessment.bodyLeasing,
   };
   await verdictsRepo.save([{ profileId: profile.id, version: profile.version, jobId, ...fit }]);
   return fit;

@@ -7,6 +7,7 @@ import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { Button } from '@/components/ui/button';
 import { FitScore } from '@/features/offers/fit-score';
+import { RentADev } from '@/features/offers/rent-a-dev';
 import { assessFitAction } from './actions';
 import { applicationKey, type Shown } from './use-application';
 
@@ -46,7 +47,11 @@ export function useFitCheck(jobId: string, onError: (error: string | null) => vo
       try {
         if (afterEdit && !(await adIn(id))) return;
         const fit = unwrap(await assessFitAction({ jobId: id }));
-        queryClient.setQueryData<Shown>(applicationKey(id), (current) => current && { ...current, fit });
+        // the application's own call on body leasing follows the check (lib/applications.ts assessFit)
+        queryClient.setQueryData<Shown>(
+          applicationKey(id),
+          (current) => current && { ...current, fit, bodyLeasing: fit.bodyLeasing },
+        );
       } catch (error) {
         onError(message(error));
       }
@@ -54,8 +59,21 @@ export function useFitCheck(jobId: string, onError: (error: string | null) => vo
   return { checking, check: () => run(jobId, false), checkAgain: (id: string) => run(id, true) };
 }
 
-/** The active AI profile's match score, as on the offers; a job it hasn't judged gets a button that asks it. */
+/**
+ * The active AI profile's match score, as on the offers; a job it hasn't judged gets a button that asks it.
+ * "Rent-a-dev" before it, as in the list.
+ */
 export function ApplicationFit({ app, checking, onCheck }: { app: Shown; checking: boolean; onCheck: () => void }) {
+  const bodyLeasing = app.bodyLeasing ?? app.fit?.bodyLeasing;
+  return (
+    <span className="flex flex-wrap items-center justify-end gap-1">
+      {bodyLeasing && <RentADev />}
+      <FitBadge app={app} checking={checking} onCheck={onCheck} />
+    </span>
+  );
+}
+
+function FitBadge({ app, checking, onCheck }: { app: Shown; checking: boolean; onCheck: () => void }) {
   if (checking)
     return (
       <Button type="button" variant="outline" size="sm" disabled aria-busy>

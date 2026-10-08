@@ -123,6 +123,9 @@ export const applications = pgTable(
       .default(sql`'[]'::jsonb`),
     note: text('note'),
     noteUpdatedAt: timestamptz('note_updated_at'),
+    // a software house / body leasing firm hiring for a client's project: the latest call on it (a
+    // fit check's, or one made by hand); null: none made, the active profile's verdict says
+    bodyLeasing: boolean('body_leasing'),
   },
   (table) => [
     index('applications_applied_at_idx').on(table.appliedAt.desc().nullsFirst()),
@@ -162,6 +165,7 @@ export const aiVerdicts = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`), // [{ "item": "React 4+ yrs", "met": true }, ...]
     hadDescription: boolean('had_description').notNull().default(false), // false = judged on the title only
+    bodyLeasing: boolean('body_leasing'), // a software house / body leasing firm; null = judged before it was asked
     createdAt: createdAt(),
   },
   (table) => [

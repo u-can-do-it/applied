@@ -19,7 +19,7 @@ export type ListedJob = offersRepo.Job & {
   archived: boolean;
   dayCount: number;
   marks?: Marks;
-  ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription'>;
+  ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription' | 'bodyLeasing'>;
 };
 
 export const PAGE_SIZE = 50;
@@ -95,11 +95,18 @@ type Nullable<T> = { [K in keyof T]: T[K] | null };
 function withVerdict<Row extends Omit<ListedJob, 'ai'>>(
   row: Row & Partial<Nullable<Verdict>>,
 ): Omit<Row, keyof Verdict> & Pick<ListedJob, 'ai'> {
-  const { match, score, summary, checks, hadDescription, ...job } = row;
+  const { match, score, summary, checks, hadDescription, bodyLeasing, ...job } = row;
   if (match == null || score == null) return job;
   return {
     ...job,
-    ai: { match, score, summary: summary ?? null, checks: checks ?? [], hadDescription: Boolean(hadDescription) },
+    ai: {
+      match,
+      score,
+      summary: summary ?? null,
+      checks: checks ?? [],
+      hadDescription: Boolean(hadDescription),
+      bodyLeasing: bodyLeasing ?? null,
+    },
   };
 }
 

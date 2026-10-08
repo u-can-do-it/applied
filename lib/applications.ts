@@ -187,6 +187,8 @@ export async function assessFit(jobId: string): Promise<Fit> {
     description: app.contentStatus === 'ok' && app.content ? app.content : null,
   });
   if (!fit) throw new Error('The AI gave no answer: try again.');
+  // the application's own call follows the latest check
+  await applicationsRepo.patch(jobId, { bodyLeasing: fit.bodyLeasing });
   return fit;
 }
 

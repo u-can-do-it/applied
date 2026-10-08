@@ -142,8 +142,9 @@ describeDb('applications', () => {
     await saveProfile({ name: 'P', prompt: 'Design roles', file: 'keep' });
     expect((await listApplications())[0].fit).toBeNull(); // not judged yet
     assess.mockResolvedValueOnce([
-      { n: 1, match: true, score: 77, summary: 'fits', checks: [{ item: 'Figma', met: true }] },
+      { n: 1, match: true, score: 77, summary: 'fits', checks: [{ item: 'Figma', met: true }], bodyLeasing: true },
     ]);
+    expect((await listApplications())[0].bodyLeasing).toBeNull(); // no call on it yet
     const fit = await assessFit(jobId);
     expect(fit).toEqual({
       match: true,
@@ -151,7 +152,9 @@ describeDb('applications', () => {
       summary: 'fits',
       checks: [{ item: 'Figma', met: true }],
       hadDescription: true,
+      bodyLeasing: true,
     });
+    expect((await listApplications())[0].bodyLeasing).toBe(true); // the application's own call follows the check
     expect(assess).toHaveBeenLastCalledWith('Design roles', null, [
       { n: 1, title: 'Designer', company: 'Hand Made', seniority: null, remote: true, description: ad.trim() },
     ]);

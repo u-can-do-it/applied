@@ -16,7 +16,14 @@ export type OfferForAi = {
   description: string | null; // full ad text, null when the board couldn't be scraped
 };
 export type Check = { item: string; met: boolean };
-export type Assessment = { n: number; match: boolean; score: number; summary: string; checks: Check[] };
+export type Assessment = {
+  n: number;
+  match: boolean;
+  score: number;
+  summary: string;
+  checks: Check[];
+  bodyLeasing: boolean;
+};
 
 export type JobForAi = {
   title: string;
@@ -105,6 +112,7 @@ const ASSESS_SCHEMA = strictObject({
       score: { type: 'integer' },
       summary: { type: 'string' },
       checks: { type: 'array', items: strictObject({ item: { type: 'string' }, met: { type: 'boolean' } }) },
+      bodyLeasing: { type: 'boolean' },
     }),
   },
 });
@@ -115,6 +123,7 @@ For every offer, by its "n":
 - score: 0-100, how well the candidate's skills and experience (from the CRITERIA and the CANDIDATE FILE) cover the offer's key requirements. Must-haves weigh more than nice-to-haves. Without an ad text, judge from the title and keep the score cautious.
 - checks: the offer's 3-10 most important requirements, each { item, met }. met = true only if the candidate clearly has it. Short labels such as "React 4+ yrs", "English B2", "AWS".
 - summary: one sentence, max 20 words, on the main reason for the score.
+- bodyLeasing: true if the employer is a software house, IT outsourcing / consulting / staffing firm or recruitment agency that would hire the candidate out to its client's project (body leasing, staff augmentation, outstaffing, contracting, "for our client", "projekt dla klienta"), rather than hiring for its own product or in-house team. A known one counts even when the ad doesn't say so (e.g. Scalo, ITDS, 7N, Experis, Andersen, Billennium, Square One Resources, emagine). False for product companies, in-house IT teams and when unclear. It doesn't change match or score.
 Write summary and check labels in the language the CRITERIA are written in.`;
 
 function describeOffer(offer: OfferForAi) {
@@ -158,6 +167,7 @@ export async function assessOffers(
       checks: (result.checks ?? [])
         .slice(0, 12)
         .map((check) => ({ item: String(check.item).slice(0, 80), met: Boolean(check.met) })),
+      bodyLeasing: Boolean(result.bodyLeasing),
       /* eslint-enable @typescript-eslint/no-unnecessary-type-conversion, @typescript-eslint/no-unnecessary-condition */
     }));
 }

@@ -31,6 +31,7 @@ export async function list(judgedBy?: { id: string; version: number }): Promise<
       summary: aiVerdicts.summary,
       checks: aiVerdicts.checks,
       hadDescription: aiVerdicts.hadDescription,
+      verdictBodyLeasing: aiVerdicts.bodyLeasing,
     })
     .from(applications)
     .leftJoin(
@@ -43,12 +44,19 @@ export async function list(judgedBy?: { id: string; version: number }): Promise<
     )
     .orderBy(desc(applications.appliedAt));
   // a job it hasn't judged: the left join's nulls
-  return rows.map(({ match, score, summary, checks, hadDescription, ...app }) => ({
+  return rows.map(({ match, score, summary, checks, hadDescription, verdictBodyLeasing, ...app }) => ({
     ...app,
     fit:
       match === null || score === null
         ? null
-        : { match, score, summary, checks: checks ?? [], hadDescription: Boolean(hadDescription) },
+        : {
+            match,
+            score,
+            summary,
+            checks: checks ?? [],
+            hadDescription: Boolean(hadDescription),
+            bodyLeasing: verdictBodyLeasing,
+          },
   }));
 }
 

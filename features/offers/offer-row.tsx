@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
 import { ArchiveButton, ArchiveRow } from './archive';
 import { FitScore } from './fit-score';
+import { RentADev } from './rent-a-dev';
 import { SeenItem, SeenMark } from './seen';
 
 // shared with the skeleton, so the rows don't move when the list comes in
@@ -42,7 +43,8 @@ function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, st
  * faint tint, so what came in last time stands out; one you opened before has a check mark after its title.
  * The archive button takes it out of the list (or, in the archived list, back into the others). With a
  * mouse, the archive and "Mark applied" buttons show on the row's hover (or keyboard focus) only. A job
- * the active profile judged has its fit badge, and the verdict's line under its title. A search's
+ * the active profile judged has its fit badge, and the verdict's line under its title; "Rent-a-dev" when
+ * it says the job is a software house's / body leasing firm's. A search's
  * words are marked in yellow in the title and the company. Under a day's heading the row shows the hour it
  * came in; in a list not grouped by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier
  * this week, "02/10" before, in a wider first column.
@@ -110,13 +112,16 @@ export function OfferRow({
         </div>
         <div className="flex flex-col items-end gap-1.5">
           {job.ai && (
-            <FitScore
-              match={job.ai.match}
-              score={job.ai.score}
-              summary={job.ai.summary}
-              checks={job.ai.checks}
-              hadDescription={job.ai.hadDescription}
-            />
+            <span className="flex flex-wrap items-center justify-end gap-1">
+              {job.ai.bodyLeasing && <RentADev />}
+              <FitScore
+                match={job.ai.match}
+                score={job.ai.score}
+                summary={job.ai.summary}
+                checks={job.ai.checks}
+                hadDescription={job.ai.hadDescription}
+              />
+            </span>
           )}
           <BoardLinks job={job} labels={labels} />
           <div className="flex flex-wrap items-center justify-end gap-1">

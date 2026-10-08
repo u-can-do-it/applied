@@ -38,6 +38,7 @@ const verdict = (profile: { id: string; version: number }, jobId: string, match:
   summary: match ? 'fits' : 'does not',
   checks: [{ item: 'React', met: match }],
   hadDescription: false,
+  bodyLeasing: !match,
 });
 
 describeDb('AI profiles', () => {
@@ -91,6 +92,7 @@ describeDb('AI profiles', () => {
       summary: 'fits',
       checks: [{ item: 'React', met: true }],
       hadDescription: false,
+      bodyLeasing: false,
     });
     expect(await fitOf(unjudged)).toBeNull();
     await saveProfile({ name: 'Other', prompt: 'Vue', file: 'keep' }); // another profile is the active one now

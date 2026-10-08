@@ -13,7 +13,7 @@ vi.mock('@/features/applications/actions', () => ({ assessFitAction: vi.fn() }))
 const assess = vi.mocked(assessFitAction);
 
 const JOB = 'acme|reactdev';
-const fit: Fit = { match: true, score: 80, summary: 'Fits', checks: [], hadDescription: true };
+const fit: Fit = { match: true, score: 80, summary: 'Fits', checks: [], hadDescription: true, bodyLeasing: false };
 const app = { jobId: JOB, title: 'React Dev', content: 'The ad text', contentStatus: 'ok' } as Shown;
 
 let queryClient: QueryClient;
@@ -38,6 +38,8 @@ describe('useFitCheck', () => {
     act(() => hook.result.current.checkAgain(JOB));
     expect(hook.result.current.checking).toBe(true);
     await waitFor(() => expect(shownFit()?.score).toBe(80));
+    // the application's own call on body leasing follows the check
+    expect(queryClient.getQueryData<Shown>(applicationKey(JOB))?.bodyLeasing).toBe(false);
     expect(assess).toHaveBeenCalledExactlyOnceWith({ jobId: JOB });
     expect(hook.result.current.checking).toBe(false);
   });
