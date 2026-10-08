@@ -10,6 +10,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme="system"
       // clickable while a Sheet or Dialog is open (it makes the rest of the page inert)
       className="pointer-events-auto"
+      // every toast has its ×, so one needn't be waited out (a swipe closes it too)
+      closeButton
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
