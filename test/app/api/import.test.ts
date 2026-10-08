@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, OPTIONS, POST } from '@/app/api/import/route';
+import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import * as scrapersRepo from '@/lib/db/repos/scrapers';
 import { isImportRequest } from '@/lib/listings/bookmarklet';
 import { runAll } from '@/lib/listings/run';
@@ -12,6 +13,7 @@ vi.mock('@/lib/listings/bookmarklet', async (importOriginal) => ({
 }));
 vi.mock('@/lib/listings/run', () => ({ runAll: vi.fn() }));
 vi.mock('@/lib/db/repos/scrapers', () => ({ list: vi.fn() }));
+vi.mock('@/lib/db/repos/scrape-runs', () => ({ latestCronErrors: vi.fn(() => Promise.resolve([])) }));
 vi.mock('@/lib/db/repos/scrape-settings', () => ({ get: vi.fn(() => Promise.resolve({ keywords: ['React'] })) }));
 const allowed = vi.mocked(isImportRequest);
 const run = vi.mocked(runAll);
@@ -51,7 +53,15 @@ describe('/api/import', () => {
     const response = await GET(new NextRequest('https://jobwatch.test/api/import?host=czyjesteldorado.pl'));
     expect(response.status).toBe(200);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
-    expect(await response.json()).toEqual({ ok: true, data: { scrapers: ['Eldorado'], urls: [PAGE] } });
+    expect(await response.json()).toEqual({ ok: true, data: { scrapers: ['Eldorado'], urls: [PAGE], open: null } });
+  });
+
+  it('GET on a site no scraper reads: where to go instead, the board the latest scheduled run got a 403 from', async () => {
+    vi.mocked(runsRepo.latestCronErrors).mockResolvedValue([
+      { scraper: 'Eldorado', error: 'React: HTTP 403, message: Just a moment...' },
+    ]);
+    const response = await GET(new NextRequest('https://jobwatch.test/api/import?host=jobwatch.test'));
+    expect(await response.json()).toEqual({ ok: true, data: { scrapers: [], urls: [], open: PAGE } });
   });
 
   it("POST: runs that site's scrapers (switched off too) on the pages they read, nothing else", async () => {

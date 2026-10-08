@@ -8,7 +8,8 @@ import type { ScrapeSettings } from './settings';
 // The bookmarklet: for a board that blocks this server (Eldorado's Cloudflare answers a datacenter with
 // a challenge) but not your browser. Clicked on the board's site, it asks /api/import which pages that
 // site's scrapers read, fetches them there, as you, and sends them back; the server runs those scrapers
-// on them as usual (parse, filters, save, notify). Nothing gets past the board's checks: it is your
+// on them as usual (parse, filters, save, notify). Clicked anywhere else, it opens the blocked board's
+// search instead: a bookmarklet ends with its page, so the import is a second click there. Nothing gets past the board's checks: it is your
 // browser on the board's own page, like opening it yourself.
 
 /** What the bookmarklet sends as "Authorization: Bearer …"; derived from APP_PASSWORD. */
@@ -31,9 +32,18 @@ const hostOf = (url: string) => {
   }
 };
 
+/** A scraper's pages, as expandUrl gives them; null if its link can't be expanded. */
+function pagesOf(scraper: Pick<Scraper, 'config'>, settings: Pick<ScrapeSettings, 'keywords'>) {
+  try {
+    return expandUrl(scraper.config.url, settings.keywords, scraper.config.pages).map((page) => page.url);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The scrapers whose links are on `host` (switched on or not: a click is asking for them) and the
- * pages they read, as expandUrl gives them; a scraper whose link can't be expanded is left out.
+ * pages they read; a scraper whose link can't be expanded is left out.
  */
 export function importPlan(
   scrapers: readonly Pick<Scraper, 'id' | 'name' | 'config'>[],
@@ -43,17 +53,33 @@ export function importPlan(
   const chosen: { id: string; name: string }[] = [];
   const urls = new Set<string>();
   for (const scraper of scrapers) {
-    let pages: string[];
-    try {
-      pages = expandUrl(scraper.config.url, settings.keywords, scraper.config.pages).map((page) => page.url);
-    } catch {
-      continue;
-    }
-    if (!pages.length || pages.some((url) => hostOf(url) !== host)) continue;
+    const pages = pagesOf(scraper, settings);
+    if (!pages?.length || pages.some((url) => hostOf(url) !== host)) continue;
     chosen.push({ id: scraper.id, name: scraper.name });
     for (const url of pages) urls.add(url);
   }
   return { scrapers: chosen, urls: [...urls] };
+}
+
+/**
+ * Where a click elsewhere (on Jobwatch, say) takes you: the first page of the first scraper the latest
+ * scheduled run was refused with a 403, the board that blocks this server; null if none was. The
+ * scheduled run, not the scraper's last one: after an import from the browser that one is fine.
+ */
+export function blockedPage(
+  scrapers: readonly Pick<Scraper, 'name' | 'config'>[],
+  settings: Pick<ScrapeSettings, 'keywords'>,
+  cronErrors: readonly { scraper: string; error: string }[],
+): string | null {
+  const refused = new Set(
+    cronErrors.filter((failed) => /\bHTTP 403\b/.test(failed.error)).map((failed) => failed.scraper),
+  );
+  for (const scraper of scrapers) {
+    if (!refused.has(scraper.name)) continue;
+    const first = pagesOf(scraper, settings)?.[0];
+    if (first) return first;
+  }
+  return null;
 }
 
 // Runs on the board's page. Plain ES2020 in a string, not a compiled function: what's dragged to the
@@ -72,10 +98,15 @@ const SCRIPT = `(async (APP, TOKEN) => {
     return result.data;
   };
   try {
-    if (location.origin === APP) throw new Error('this is Jobwatch: open the board’s site, then click it there');
     say('which pages…');
     const plan = await answer(await fetch(APP + '/api/import?host=' + encodeURIComponent(location.host), { headers: auth }));
-    if (!plan.urls.length) throw new Error('no scraper reads ' + location.host);
+    if (!plan.urls.length) {
+      // not a scraped board's site (Jobwatch, say): off to the one that blocks the server, for the second click
+      if (!plan.open) throw new Error('no scraper reads ' + location.host + ', and no board is blocking Jobwatch now');
+      say('opening ' + new URL(plan.open).host + '… click Jobwatch import again there');
+      location.assign(plan.open);
+      return;
+    }
     const pages = [];
     for (const [i, url] of plan.urls.entries()) {
       say('page ' + (i + 1) + ' of ' + plan.urls.length + '…');

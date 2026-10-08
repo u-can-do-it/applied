@@ -19,6 +19,10 @@ const HELP = (
       notifications as a scheduled run, which keeps trying on its own.
     </p>
     <p>
+      Clicked anywhere else (here, say), it opens the search of the board that blocks this server (the one the last
+      scheduled run got an HTTP 403 from); a bookmarklet stops with its page, so click it once more there.
+    </p>
+    <p>
       It works on any site a scraper’s link points to, every scraper on that site at once. The link holds a key derived
       from the app’s password: keep it to yourself; changing the password changes it (drag it again).
     </p>
@@ -33,7 +37,7 @@ export function BookmarkletPanel({ href }: { href: string }) {
       </CardHeader>
       <CardContent className="px-4">
         <p className={`${SMALL} text-muted-foreground`}>
-          Drag it to your bookmarks bar, then click it on a board’s site that blocks this server.
+          Drag it to your bookmarks bar and click it: it opens the board that blocks this server; click it again there.
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           <Button asChild variant="outline" size="sm">
@@ -42,7 +46,7 @@ export function BookmarkletPanel({ href }: { href: string }) {
               ref={(link) => link?.setAttribute('href', href)}
               onClick={(event) => {
                 event.preventDefault(); // here it would run on this app
-                toast('Drag it to your bookmarks bar, then click it on the board’s site.');
+                toast('Drag it to your bookmarks bar, then click it there.');
               }}
             >
               <BookmarkIcon /> Jobwatch import

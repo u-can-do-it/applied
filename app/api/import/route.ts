@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import * as z from 'zod/mini';
-import { importPlan, isImportRequest } from '@/lib/listings/bookmarklet';
+import { blockedPage, importPlan, isImportRequest } from '@/lib/listings/bookmarklet';
 import { runAll } from '@/lib/listings/run';
+import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import * as scrapersRepo from '@/lib/db/repos/scrapers';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import { log } from '@/lib/log';
@@ -10,7 +11,8 @@ import { fail, ok } from '@/lib/shared/result';
 
 // The bookmarklet's endpoint (lib/listings/bookmarklet.ts), called from a board's page with
 // "Authorization: Bearer <token>":
-//   GET  ?host=czyjesteldorado.pl  -> Result<{ scrapers, urls }>: the pages to fetch there
+//   GET  ?host=czyjesteldorado.pl  -> Result<{ scrapers, urls, open }>: the pages to fetch there; on a site
+//        no scraper reads, `open`: the search of the board the latest scheduled run was refused by (or null)
 //   POST (gzipped JSON { host, pages: [{ url, body }] })  -> Result<RunSummary>: those scrapers, run on them
 // Any origin may call it: the token is the gate, not a cookie, so CORS guards nothing here.
 export const maxDuration = 300;
@@ -36,7 +38,9 @@ const importSchema = z.object({
 
 async function plan(host: string) {
   const [settings, scrapers] = await Promise.all([settingsRepo.get(), scrapersRepo.list()]);
-  return importPlan(scrapers, settings, host);
+  const found = importPlan(scrapers, settings, host);
+  if (found.urls.length) return { ...found, open: null };
+  return { ...found, open: blockedPage(scrapers, settings, await runsRepo.latestCronErrors()) };
 }
 
 export function OPTIONS() {
@@ -48,8 +52,8 @@ export async function GET(request: NextRequest) {
   const host = request.nextUrl.searchParams.get('host');
   if (!host) return reply(fail('Bad request'), 400);
   try {
-    const { scrapers, urls } = await plan(host);
-    return reply(ok({ scrapers: scrapers.map((scraper) => scraper.name), urls }));
+    const { scrapers, urls, open } = await plan(host);
+    return reply(ok({ scrapers: scrapers.map((scraper) => scraper.name), urls, open }));
   } catch (error) {
     log.error('Bookmarklet: the plan failed', { route: ROUTE, error });
     return reply(fail(message(error)), 500);

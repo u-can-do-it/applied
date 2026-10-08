@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Scraper } from '@/lib/db/repos/scrapers';
-import { bookmarklet, importPlan, importToken, isImportRequest } from '@/lib/listings/bookmarklet';
+import { blockedPage, bookmarklet, importPlan, importToken, isImportRequest } from '@/lib/listings/bookmarklet';
 import { scrape } from '@/lib/listings/pipeline/fetch';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 
@@ -55,6 +55,28 @@ describe('importPlan', () => {
   });
 });
 
+describe('blockedPage', () => {
+  const refused = {
+    scraper: 'Scraper c',
+    error: 'React: HTTP 403, message: Just a moment... (the site blocks this server?)',
+  };
+
+  it('is the first page of the first scraper the latest scheduled run got a 403 from', () => {
+    const blocked = blockedPage(
+      [scraper('a', 'https://justjoin.it/x'), scraper('b', 'https://nofluffjobs.com/x'), scraper('c', ELDORADO)],
+      { keywords: ['React', 'Node.js'] },
+      [{ scraper: 'Scraper b', error: 'HTTP 503 Service Unavailable' }, refused],
+    );
+    expect(blocked).toBe(PAGE);
+  });
+
+  it('is none when that run got no 403', () => {
+    const scrapers = [scraper('c', ELDORADO)];
+    expect(blockedPage(scrapers, { keywords: ['React'] }, [])).toBeNull();
+    expect(blockedPage(scrapers, { keywords: ['React'] }, [{ scraper: 'Scraper c', error: 'HTTP 4030' }])).toBeNull();
+  });
+});
+
 describe('the key', () => {
   const asking = (authorization?: string) =>
     new Request('https://jobwatch.test/api/import', { headers: authorization ? { authorization } : {} });
@@ -81,7 +103,10 @@ describe('the script', () => {
   /** Runs the bookmark's script on a stand-in Eldorado page, its fetch answering like the app and the board. */
   async function click(
     answers: { plan: unknown; run: unknown; page?: Response },
-    at = { host: 'czyjesteldorado.pl', origin: 'https://czyjesteldorado.pl' },
+    at: { host: string; origin: string; assign?: (url: string) => void } = {
+      host: 'czyjesteldorado.pl',
+      origin: 'https://czyjesteldorado.pl',
+    },
   ) {
     const box = { style: {}, textContent: '', remove: vi.fn() };
     vi.stubGlobal('document', { createElement: () => box, body: { append: vi.fn() } });
@@ -139,10 +164,15 @@ describe('the script', () => {
     expect(blocked.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it('clicked on Jobwatch itself: says to open the board first, asks nothing', async () => {
-    const here = await click({ plan: null, run: null }, { host: 'jobwatch.test', origin: 'https://jobwatch.test' });
-    expect(here.said).toBe('Jobwatch: failed: this is Jobwatch: open the board’s site, then click it there');
-    expect(here.fetch).not.toHaveBeenCalled();
+  it('clicked elsewhere (on Jobwatch): opens the blocked board for the second click, or says none is', async () => {
+    const assign = vi.fn();
+    const jobwatch = { host: 'jobwatch.test', origin: 'https://jobwatch.test', assign };
+    const away = await click({ plan: { ok: true, data: { scrapers: [], urls: [], open: PAGE } }, run: null }, jobwatch);
+    expect(away.said).toBe('Jobwatch: opening czyjesteldorado.pl… click Jobwatch import again there');
+    expect(assign).toHaveBeenCalledWith(PAGE);
+    expect(away.fetch).toHaveBeenCalledTimes(1);
+    const none = await click({ plan: { ok: true, data: { scrapers: [], urls: [], open: null } }, run: null }, jobwatch);
+    expect(none.said).toBe('Jobwatch: failed: no scraper reads jobwatch.test, and no board is blocking Jobwatch now');
   });
 });
 
