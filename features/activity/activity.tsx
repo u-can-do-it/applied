@@ -68,7 +68,8 @@ async function load(filter: RunFilter, asked: number) {
   const runs = await runsRepo.page(runsOf(filter), page, RUNS_PER_PAGE);
   const added: Record<number, BoardAdded[]> = {};
   for (const row of await runsRepo.addedPerBoard(runs.map((run) => run.id))) {
-    (added[row.runId] ??= []).push({ board: row.board, label: byId(row.board)?.label ?? row.board, added: row.added });
+    const { runId, board, ...numbers } = row;
+    (added[runId] ??= []).push({ board, label: byId(board)?.label ?? board, ...numbers });
   }
   // the active profile's open run is the one Settings → AI filter continues
   const activeId = profiles.at(0)?.id ?? null;

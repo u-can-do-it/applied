@@ -2,7 +2,7 @@ import 'server-only';
 import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, max, sql } from 'drizzle-orm';
 import { db } from '../client';
 import { first } from '../rows';
-import { offers, offersUnique, scrapeRuns, type ScrapeRunRow } from '../schema';
+import { jobLinks, offers, offersUnique, scrapeRuns, type ScrapeRunRow } from '../schema';
 import type { RunWindow } from './offers';
 
 // The run log: what each scrape found, saved and sent. Two weeks of it.
@@ -85,16 +85,27 @@ export async function counts(): Promise<{ all: number; failed: number; byTrigger
 }
 
 /**
- * The offers each finished run added, per board. Not stored with the run: an offer's first_seen is
- * when the run that found it saved it, so a run's are the ones first seen while it ran (one run at
- * a time, under the lock).
+ * The offers each finished run added, per board, and how many of those were another offer of a job
+ * known before the run (`known`: the lists show that job where it already was, not as new). Not
+ * stored with the run: an offer's first_seen is when the run that found it saved it, so a run's are
+ * the ones first seen while it ran (one run at a time, under the lock).
  */
-export async function addedPerBoard(runIds: number[]): Promise<{ runId: number; board: string; added: number }[]> {
+export async function addedPerBoard(
+  runIds: number[],
+): Promise<{ runId: number; board: string; added: number; known: number }[]> {
   if (!runIds.length) return [];
   return db()
-    .select({ runId: scrapeRuns.id, board: offers.src, added: count() })
+    .select({
+      runId: scrapeRuns.id,
+      board: offers.src,
+      added: count(),
+      known: sql<number>`(count(*) filter (where ${offersUnique.firstSeen} < ${scrapeRuns.startedAt}))::int`,
+    })
     .from(scrapeRuns)
     .innerJoin(offers, and(gte(offers.firstSeen, scrapeRuns.startedAt), lte(offers.firstSeen, scrapeRuns.finishedAt)))
+    // the offer's job, its earliest offer: first seen before the run, the job was known
+    .leftJoin(jobLinks, eq(jobLinks.titleKey, offers.titleKey))
+    .innerJoin(offersUnique, eq(offersUnique.jobId, sql`coalesce(${jobLinks.jobId}, ${offers.titleKey})`))
     .where(inArray(scrapeRuns.id, runIds))
     .groupBy(scrapeRuns.id, offers.src)
     .orderBy(desc(count()));

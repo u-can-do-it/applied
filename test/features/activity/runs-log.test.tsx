@@ -59,8 +59,8 @@ describe('the runs log', () => {
       runs: [run(1, [adzuna])],
       added: {
         1: [
-          { board: 'nofluff', label: 'NoFluff', added: 1 },
-          { board: 'justjoin', label: 'JustJoin', added: 1 },
+          { board: 'nofluff', label: 'NoFluff', added: 1, known: 0 },
+          { board: 'justjoin', label: 'JustJoin', added: 1, known: 0 },
         ],
       },
     });
@@ -76,6 +76,29 @@ describe('the runs log', () => {
       'Adzuna: HTTP 503, message: Service Temporarily Unavailable',
     ]);
     expect(lines[2].className).toContain('text-destructive');
+  });
+
+  it("says when a board's new offers were more offers of jobs the lists already had", () => {
+    show({
+      added: {
+        1: [
+          { board: 'justjoin', label: 'JustJoin', added: 2, known: 2 },
+          { board: 'nofluff', label: 'NoFluff', added: 1, known: 1 },
+          { board: 'pracuj', label: 'Pracuj', added: 3, known: 1 },
+          { board: 'linkedin', label: 'LinkedIn', added: 4, known: 2 },
+        ],
+      },
+    });
+    const row = screen.getByRole('button', { name: /06\.10\.2026/ });
+    fireEvent.click(row);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- the row is in its list item
+    const lines = within(within(row.closest('li')!).getByRole('list')).getAllByRole('listitem');
+    expect(lines.map((line) => line.textContent)).toEqual([
+      'JustJoin: 2 new (known jobs)',
+      'NoFluff: 1 new (known job)',
+      'Pracuj: 3 new (1 for a known job)',
+      'LinkedIn: 4 new (2 for known jobs)',
+    ]);
   });
 
   it('pages through the runs, the filter kept, without scrolling to the top of the page', () => {

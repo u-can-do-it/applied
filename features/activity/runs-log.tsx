@@ -20,7 +20,18 @@ import { seconds } from '@/lib/shared/format';
 import { triggerLabel } from '@/lib/listings/triggers';
 import { isRunFilter, RUN_FILTERS, runsHref, type RunFilter } from './run-filter';
 
-export type BoardAdded = { board: string; label: string; added: number };
+/** What a run added on a board; `known`: how many of those were another offer of a job the lists already had. */
+export type BoardAdded = { board: string; label: string; added: number; known: number };
+
+/** after a board's "2 new": " (known jobs)" when all of them were, " (1 for a known job)" when some */
+function KnownNote({ added, known }: BoardAdded) {
+  if (!known) return null;
+  const note =
+    known === added
+      ? `known job${known === 1 ? '' : 's'}`
+      : `${known} for ${known === 1 ? 'a known job' : 'known jobs'}`;
+  return <span className="text-muted-foreground"> ({note})</span>;
+}
 
 /**
  * The scrape runs, newest first, a page at a time: filtered by what started them, each opening to what it
@@ -195,6 +206,7 @@ function RunRow({ run, added }: { run: ScrapeRun; added: BoardAdded[] }) {
               {added.map((board) => (
                 <li key={board.board}>
                   {board.label}: <strong>{board.added} new</strong>
+                  <KnownNote {...board} />
                 </li>
               ))}
               {run.errors.map((failure, i) => (

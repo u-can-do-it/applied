@@ -140,9 +140,14 @@ describeDb('scraping settings, state and runs', () => {
     await runsRepo.finish(run, { found: 3, kept: 3, added: 3, fresh: 3, notified: 0, errors: [] });
     const unfinished = await runsRepo.start('cron');
     await offersRepo.ingest([offer('linkedin', '4')]);
-    expect(await runsRepo.addedPerBoard([before, run, unfinished])).toEqual([
-      { runId: run, board: 'justjoin', added: 2 },
-      { runId: run, board: 'nofluff', added: 1 },
+    // another board's offer of a job the first run brought: added, of a known job
+    const again = await runsRepo.start('cron');
+    await offersRepo.ingest([{ ...offer('nofluff', '5'), title: 'Dev 1' }, offer('nofluff', '6'), offer('nofluff', '7')]);
+    await runsRepo.finish(again, { found: 3, kept: 3, added: 3, fresh: 2, notified: 0, errors: [] });
+    expect(await runsRepo.addedPerBoard([before, run, unfinished, again])).toEqual([
+      { runId: again, board: 'nofluff', added: 3, known: 1 },
+      { runId: run, board: 'justjoin', added: 2, known: 0 },
+      { runId: run, board: 'nofluff', added: 1, known: 0 },
     ]);
     expect(await runsRepo.addedPerBoard([])).toEqual([]);
   });
