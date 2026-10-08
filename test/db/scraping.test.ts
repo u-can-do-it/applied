@@ -6,6 +6,7 @@ import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
 import * as scrapersRepo from '@/lib/db/repos/scrapers';
+import { KIND_IDS } from '@/lib/listings/kinds';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { boardOptions } from '@/lib/listings/board-filter';
 import { describeDb, exec, ISO } from './database';
@@ -60,8 +61,9 @@ describeDb('scrapers', () => {
       expect((await scrapersRepo.list()).map((scraper) => scraper.name)).toEqual(['Known']);
     } finally {
       await exec(sql`delete from public.scrapers where kind = 'hologram'`);
-      await exec(sql`alter table public.scrapers add constraint scrapers_kind_check
-        check (kind in ('justjoin', 'nofluff', 'solidjobs', 'bulldog', 'eldorado', 'builtin', 'linkedin', 'adzuna', 'himalayas', 'json', 'html', 'rss'))`);
+      // as the migrations left it: every kind this version knows
+      const kinds = sql.raw(KIND_IDS.map((kind) => `'${kind}'`).join(', '));
+      await exec(sql`alter table public.scrapers add constraint scrapers_kind_check check (kind in (${kinds}))`);
     }
   });
 });

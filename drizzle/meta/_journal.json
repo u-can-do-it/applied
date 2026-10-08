@@ -85,6 +85,13 @@
       "when": 1791466811405,
       "tag": "0011_ats_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791468862875,
+      "tag": "0012_remote_boards_kinds",
+      "breakpoints": true
     }
   ]
 }

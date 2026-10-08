@@ -126,6 +126,54 @@ describe('built-in board parsers', () => {
     expect(result.items).toMatchSnapshot();
   });
 
+  it('remotive: the public API; a job open only to other countries is not remote', () => {
+    const result = parse('remotive', fixture('remotive.json'));
+    expect(result.total).toBe(3);
+    const [worldwide, europe, usa] = result.items;
+    expect(worldwide).toMatchObject({ src: 'remotive', remote: true, locations: ['Worldwide'] });
+    expect(europe.remote).toBe(true);
+    expect(europe.locations).toContain('Europe');
+    expect(usa).toMatchObject({ remote: false, locations: ['USA'] });
+    for (const offer of result.items) {
+      expect(offer.url).toMatch(new RegExp(`^https://remotive\\.com/remote-jobs/.+-${offer.id}$`));
+      expect(offer.sort).toBeUndefined();
+    }
+    // its tags: what the keyword check reads besides the title
+    expect(worldwide.skills.length).toBeGreaterThan(0);
+    expect(result.sample?.length).toBeLessThan(3000);
+    expect(result.items).toMatchSnapshot();
+  });
+
+  it('jobicy: the public API, every job open to Poland (geo=poland), its level', () => {
+    const result = parse('jobicy', fixture('jobicy.json'));
+    expect(result.total).toBe(3);
+    const [emea, poland, anywhere] = result.items;
+    for (const offer of result.items) {
+      expect(offer.remote).toBe(true);
+      expect(offer.url).toMatch(new RegExp(`^https://jobicy\\.com/jobs/${offer.id}-`));
+      expect(offer.skills).toEqual([]);
+    }
+    expect(emea).toMatchObject({ src: 'jobicy', seniority: 'senior', locations: ['EMEA'] });
+    expect(poland.locations).toEqual(['Bulgaria', 'Poland', 'UK', 'USA']);
+    // "Any" says nothing: the title does
+    expect(poland.seniority).toBe('unknown');
+    expect(anywhere).toMatchObject({ seniority: 'mid', locations: ['Anywhere'] });
+    expect(result.items).toMatchSnapshot();
+  });
+
+  it('remoteok: the public API, its terms first; its mangled text mended', () => {
+    const result = parse('remoteok', fixture('remoteok.json'));
+    expect(result.total).toBe(3);
+    const [anyone, spain, singapore] = result.items;
+    expect(anyone).toMatchObject({ src: 'remoteok', remote: true, locations: [] });
+    // "MÃ¡laga" as it came: UTF-8 read as Latin-1
+    expect(spain).toMatchObject({ remote: false, locations: ['Málaga, Málaga, Andalucía, España'] });
+    expect(singapore).toMatchObject({ remote: false, locations: ['Singapore'], company: 'Bjak' });
+    for (const offer of result.items)
+      expect(offer.url).toMatch(new RegExp(`^https://remoteOK\\.com/remote-jobs/.+-${offer.id}$`));
+    expect(result.items).toMatchSnapshot();
+  });
+
   it('adzuna: the search API', () => {
     const result = parse('adzuna', fixture('adzuna.json'));
     expect(result.total).toBe(3);
@@ -176,6 +224,9 @@ describe('board parser edge cases', () => {
     expect(() => parse('builtin', '<html></html>')).toThrow(/no job cards/);
     expect(() => parse('adzuna', '{"count":0}')).toThrow('Adzuna: no results list (got count)');
     expect(() => parse('himalayas', '{"totalCount":0}')).toThrow('Himalayas: no jobs list (got totalCount)');
+    expect(() => parse('remotive', '{"jobs":null}')).toThrow('Remotive: no jobs list (got jobs)');
+    expect(() => parse('jobicy', '{"success":false}')).toThrow('Jobicy: no jobs list (got success)');
+    expect(() => parse('remoteok', '{"error":"rate limited"}')).toThrow('Remote OK: no jobs list (got error)');
     // what it answers a browser's Accept without content-type=application/json (lib/listings/api-params.ts)
     expect(() => parse('adzuna', '<!DOCTYPE html><title>Adzuna API</title>')).toThrow(/is not JSON/);
   });

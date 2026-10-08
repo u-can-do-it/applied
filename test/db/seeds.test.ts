@@ -45,7 +45,7 @@ describeDb('seeds', () => {
   it('a fresh install starts with the registry’s scrapers and the default settings', async () => {
     await exec(sql`delete from public.scrape_seeds`);
     // the migrations seeded the boards of their day; seed.ts adds the ones since
-    expect(await migrateAndSeed()).toEqual(['adzuna', 'himalayas']);
+    expect(await migrateAndSeed()).toEqual(['adzuna', 'himalayas', 'remotive', 'jobicy', 'remoteok']);
     expect(await rows()).toEqual(registry);
     // the seed has the settings of its day; the ones added since come from the defaults when read
     const [{ settings }] = await exec(sql`select settings from public.scrape_settings`);

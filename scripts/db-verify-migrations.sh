@@ -108,10 +108,10 @@ DROPPED_FUNCTIONS='jw_set_application_status|jw_ghost_stale_applications|jw_scra
 # tables a later migration adds (0006_push_subscriptions, 0007_seen_jobs, 0008_archived_jobs): new in (a), so
 # their entries are left out of the comparison too, and checked to be there
 ADDED_TABLES='push_subscriptions|seen_jobs|archived_jobs'
-# boards added since (0009_adzuna_kind, 0010_himalayas_kind): a migration lets their kind into scrapers_kind_check, and
+# boards added since (0009_adzuna_kind, 0010_himalayas_kind, 0012_remote_boards_kinds): a migration lets their kind into scrapers_kind_check, and
 # lib/db/seed.ts adds their scrapers after the migrations. Taken out of the kinds for the comparison,
 # and their seeded scrapers out of the rows, and checked to be there
-ADDED_BOARDS='adzuna|himalayas'
+ADDED_BOARDS='adzuna|himalayas|remotive|jobicy|remoteok'
 # generic kinds added since (0011_ats_kind): after the others in scrapers_kind_check, so taken out with the
 # comma before them; no scrapers are seeded for them
 ADDED_KINDS='ats'

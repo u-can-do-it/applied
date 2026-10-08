@@ -8,12 +8,15 @@ import { bulldog } from './bulldog.ts';
 import { eldorado } from './eldorado.ts';
 import { himalayas } from './himalayas.ts';
 import { indeed } from './indeed.ts';
+import { jobicy } from './jobicy.ts';
 import { justjoin } from './justjoin.ts';
 import { linkedin } from './linkedin.ts';
 import { BOARD_RE, bareHost, isLink, parseLink, siteName, withoutQuery, withoutTracking } from './links.ts';
 import { nofluff } from './nofluff.ts';
 import { olx } from './olx.ts';
 import { pracuj } from './pracuj.ts';
+import { remoteok } from './remoteok.ts';
+import { remotive } from './remotive.ts';
 import { rocketjobs } from './rocketjobs.ts';
 import { solidjobs } from './solidjobs.ts';
 import { theprotocol } from './theprotocol.ts';
@@ -34,6 +37,9 @@ export const SCRAPED_BOARDS = [
   linkedin,
   adzuna,
   himalayas,
+  remotive,
+  jobicy,
+  remoteok,
 ] as const;
 export type ScrapedBoardId = (typeof SCRAPED_BOARDS)[number]['id'];
 

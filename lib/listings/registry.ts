@@ -7,9 +7,12 @@ import { parseBulldog } from './parsers/bulldog';
 import { parseEldorado } from './parsers/eldorado';
 import { parseHtmlListing, parseJson } from './parsers/generic';
 import { parseHimalayas } from './parsers/himalayas';
+import { parseJobicy } from './parsers/jobicy';
 import { parseJustjoin } from './parsers/justjoin';
 import { parseLinkedin } from './parsers/linkedin';
 import { parseNofluff } from './parsers/nofluff';
+import { parseRemoteok } from './parsers/remoteok';
+import { parseRemotive } from './parsers/remotive';
 import { parseRss } from './parsers/rss';
 import { parseSolidjobs } from './parsers/solidjobs';
 import type { ListingParser } from './types';
@@ -25,6 +28,9 @@ export const PARSERS = {
   linkedin: parseLinkedin,
   adzuna: parseAdzuna,
   himalayas: parseHimalayas,
+  remotive: parseRemotive,
+  jobicy: parseJobicy,
+  remoteok: parseRemoteok,
   json: parseJson,
   html: parseHtmlListing,
   rss: parseRss,

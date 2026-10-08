@@ -54,6 +54,30 @@ export function areaTest(settings: Pick<ScrapeSettings, 'cities' | 'remoteOk'>) 
   };
 }
 
+// where a job remote from there may be done from Poland (the words folded: lowercase, no accents)
+const OPEN = /\b(poland|polska|europe|european union|eu|emea|cet|worldwide|anywhere|global)\b/;
+const REMOTE_WORDS = /\b(fully |100% )?remote\b|\bzdaln\p{L}*|\bwork from home\b/gu;
+
+/**
+ * A job remote only from another country ("Remote, France", "Remote - US") is not remote for you: it
+ * counts as remote when a place it names is Poland or Europe-wide, or it names none besides "Remote", or
+ * its title says so ("… - EMEA Remote", with an office in Paris as its place). The others go through the
+ * city filter with their places instead.
+ */
+export function remoteHere(remote: boolean, places: string[], title = ''): boolean {
+  if (!remote) return false;
+  if (OPEN.test(fold(title))) return true;
+  const named = places
+    .map((place) =>
+      fold(place)
+        .replace(REMOTE_WORDS, ' ')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .trim(),
+    )
+    .filter(Boolean);
+  return !named.length || named.some((place) => OPEN.test(place));
+}
+
 /** The place to show in a message: the matching city, else the first one. */
 export function placeOf(offer: Found, cities: string[]) {
   const folded = cities.map((city) => fold(city)).filter(Boolean);

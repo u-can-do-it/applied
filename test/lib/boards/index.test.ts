@@ -24,6 +24,9 @@ describe('boardOf', () => {
       ['https://www.linkedin.com/jobs/view/4123456789', 'linkedin'],
       ['https://pl.linkedin.com/jobs/view/4123456789', 'linkedin'],
       ['https://himalayas.app/companies/oversee/jobs/senior-react-dev', 'himalayas'],
+      ['https://remotive.com/remote-jobs/software-dev/senior-react-dev-2091045', 'remotive'],
+      ['https://jobicy.com/jobs/154820-research-engineer-inference', 'jobicy'],
+      ['https://remoteOK.com/remote-jobs/remote-frontend-engineer-bjak-1137420', 'remoteok'],
       ['https://theprotocol.it/szczegoly/praca/react', 'theprotocol'],
       ['https://www.pracuj.pl/praca/react,oferta,1004', 'pracuj'],
       ['https://rocketjobs.pl/oferta/x', 'rocketjobs'],
@@ -153,6 +156,13 @@ describe('boardIdOf', () => {
     expect(
       boardIdOf('himalayas', 'https://himalayas.app/companies/lemon-io/jobs/senior-full-stack-developer-4016266853'),
     ).toBe('lemon-io/senior-full-stack-developer-4016266853');
+    expect(boardIdOf('remotive', 'https://remotive.com/remote-jobs/software-dev/senior-react-dev-2091045')).toBe(
+      '2091045',
+    );
+    expect(boardIdOf('jobicy', 'https://jobicy.com/jobs/154820-research-engineer-inference')).toBe('154820');
+    expect(boardIdOf('remoteok', 'https://remoteOK.com/remote-jobs/remote-frontend-engineer-bjak-1137420')).toBe(
+      '1137420',
+    );
     expect(boardIdOf('linkedin', 'https://www.linkedin.com/jobs/view/4123456789/')).toBe('4123456789');
     expect(boardIdOf('linkedin', 'https://pl.linkedin.com/jobs/view/senior-dev-at-acme-4123456789')).toBe('4123456789');
     expect(

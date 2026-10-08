@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { boardOf } from '@/lib/boards';
 import { atsApiUrl, atsOf } from '@/lib/listings/ats';
 import { parseBody } from '@/lib/listings/parse';
-import { remoteHere } from '@/lib/listings/parsers/ats';
+import { remoteHere } from '@/lib/listings/match';
 
 // One recorded API response per ATS (test/fixtures/ats-*.json, trimmed by trim-ats.cjs to 3 jobs that show
 // the cases below). The snapshot holds the whole parsed output.

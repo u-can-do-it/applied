@@ -1,0 +1,75 @@
+{
+  "apiVersion": "2.2.19",
+  "documentationUrl": "https://jobi.cy/apidocs",
+  "friendlyNotice": "Thanks for using Jobicy API! Please ensure Jobicy is clearly credited with a direct link to the source, and all application buttons redirect to the original job URL provided in this feed. That’s all! You might be building something amazing, we wish you the best of luck!",
+  "jobCount": 3,
+  "lastUpdate": "2026-10-08T10:42:19+00:00",
+  "nextCursor": null,
+  "hasMore": false,
+  "appliedFilters": {
+    "count": 100,
+    "geo": "poland",
+    "industry": "engineering"
+  },
+  "jobs": [
+    {
+      "id": 150128,
+      "url": "https://jobicy.com/jobs/150128-c-golang-software-engineer-working-on-dqlite-a-raft-extension-for-sqlite",
+      "jobSlug": "150128-c-golang-software-engineer-working-on-dqlite-a-raft-extension-for-sqlite",
+      "jobTitle": "C, Golang Software Engineer working on dqlite, a Raft extension for SQLite",
+      "companyName": "Canonical",
+      "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/b4d068a9-221-1.png",
+      "jobIndustry": [
+        "Software Engineering"
+      ],
+      "jobType": [
+        "Full-Time"
+      ],
+      "jobGeo": "EMEA",
+      "jobLevel": "Senior",
+      "jobExcerpt": "Canonical is a leading provider of open source software and operating systems to the global enterprise and technology markets. Our platform, Ubuntu, is very widely used in breakthrough enterprise initiatives such as public cloud, data science, AI, engineering innovation and IoT. Our customers include the world's leading public cloud and silicon providers, and industry leaders&hellip;",
+      "jobDescription": "<p><a href=\"https://jobicy.com/company/canonical-ltd\" target=\"_blank\" rel=\"noopener\">Canonical</a> is a leading provider of open source software and operating systems to the global enterprise and technology markets. Our platform, Ubuntu, is very widely used in breakthrough enterprise initiatives such as public cloud, data science, AI, engineering innovation and IoT. Our customers include the world",
+      "pubDate": "2026-10-05T04:49:16+00:00"
+    },
+    {
+      "id": 154820,
+      "url": "https://jobicy.com/jobs/154820-research-engineer-inference",
+      "jobSlug": "154820-research-engineer-inference",
+      "jobTitle": "Research Engineer - Inference",
+      "companyName": "Elevenlabs",
+      "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e01b4c5d-221.png",
+      "jobIndustry": [
+        "Software Engineering"
+      ],
+      "jobType": [
+        "Full-Time"
+      ],
+      "jobGeo": "Bulgaria,  Poland,  UK,  USA",
+      "jobLevel": "Any",
+      "jobExcerpt": "About ElevenLabs ElevenLabs is an AI research and product company transforming how we interact with technology. We launched in January 2023 with the first human-like AI voice model. Today, we serve millions of users and thousands of businesses - from fast-growing startups to large enterprises like Deutsche Telekom and Meta. Our investors are some of&hellip;",
+      "jobDescription": "<h3>About <a href=\"https://jobicy.com/company/elevenlabs\" target=\"_blank\" rel=\"noopener\">ElevenLabs</a></h3>\n<p>ElevenLabs is an AI research and product company transforming how we interact with technology.</p>\n<p>We launched in January 2023 with the first human-like AI voice model. Today, we serve millions of users and thousands of businesses - from fast-growing startups to large enterprises like",
+      "pubDate": "2026-10-08T10:42:19+00:00"
+    },
+    {
+      "id": 150274,
+      "url": "https://jobicy.com/jobs/150274-devices-iot-field-engineering-manager-americas",
+      "jobSlug": "150274-devices-iot-field-engineering-manager-americas",
+      "jobTitle": "Devices & IOT Field Engineering Manager",
+      "companyName": "Canonical",
+      "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/b4d068a9-221-1.png",
+      "jobIndustry": [
+        "Software Engineering"
+      ],
+      "jobType": [
+        "Full-Time"
+      ],
+      "jobGeo": "Anywhere",
+      "jobLevel": "Midweight",
+      "jobExcerpt": "Canonical is a leading provider of open source software and operating systems to the global enterprise and technology markets. Our platform, Ubuntu, is very widely used in breakthrough enterprise initiatives such as public cloud, data science, AI, engineering innovation and IoT. Our customers include the world's leading public cloud and silicon providers, and industry leaders&hellip;",
+      "jobDescription": "<p><a href=\"https://jobicy.com/company/canonical-ltd\" target=\"_blank\" rel=\"noopener\">Canonical</a> is a leading provider of open source software and operating systems to the global enterprise and technology markets. Our platform, Ubuntu, is very widely used in breakthrough enterprise initiatives such as public cloud, data science, AI, engineering innovation and IoT. Our customers include the world",
+      "pubDate": "2026-10-08T03:30:14+00:00"
+    }
+  ],
+  "statusCode": 200,
+  "success": true
+}

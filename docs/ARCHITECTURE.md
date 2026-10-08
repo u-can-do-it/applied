@@ -59,7 +59,7 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
    `fetchOutbound`, parsed by the scraper's kind ([`lib/listings/registry.ts`](../lib/listings/registry.ts)),
    then filtered: a keyword in the title or skills and a city (or remote), each where the scraper checks it,
    and not an ignored title. A scraper's failure is part of its result, never the run's. A board with a quota
-   of calls (`listing.minutesPerCall`, Adzuna and Himalayas one every 20 minutes) is scraped by the schedule only as often as its
+   of calls (`listing.minutesPerCall`: Adzuna and Himalayas one every 20 minutes, Jobicy and Remote OK one an hour, Remotive one every 6 hours, as their terms ask) is scraped by the schedule only as often as its
    scrapers' calls allow ([`lib/listings/quota.ts`](../lib/listings/quota.ts)): `scrapersToRun` leaves them
    out of a cron run in between; "Scrape now" and `/scrape` take them anyway. What its API needs in every link (the keys, from the environment, and
    Adzuna's `content-type`) is added to the request only (`lib/listings/api-params.ts`); an `ats` scraper's
@@ -87,7 +87,7 @@ for steps 1–5 and gets its counts; steps 6 and 7 go on in `after()` (`backgrou
 ### Ads
 
 An offer's full text comes from its board ([`lib/ads/`](../lib/ads)): JustJoin, No Fluff Jobs and Himalayas
-through their APIs (Himalayas' job pages turn servers away), Built In and LinkedIn from their pages, the other scraped boards from the page's schema.org
+through their APIs (Himalayas' job pages turn servers away), Built In and LinkedIn from their pages, the other scraped boards (Remotive, Jobicy and Remote OK too) from the page's schema.org
 `JobPosting`, any other site from its `<main>`. A text under 80 characters counts as none. Two uses:
 
 - **The AI** (`scrapeOffer`, capped at 8 000 characters) reads it once per offer and caches it in
