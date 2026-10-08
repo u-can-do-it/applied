@@ -196,6 +196,22 @@ describeDb('offers', () => {
     expect(await offersRepo.titleKeyOf('ACME', 'React Developer')).toBe(byId?.titleKey);
   });
 
+  it("leaves every board's gender tags out of the title key", async () => {
+    const plain = await offersRepo.titleKeyOf('Shimi Sp. z o.o.', 'Software Developer');
+    for (const title of [
+      'Software Developer (m/f/n)',
+      'Software Developer (K/M/N)',
+      'Software Developer (m/w/d)',
+      'Software Developer (h/f)',
+      'Software Developer (M/F/NB)',
+      'Software Developer (k /m)',
+      'Software Developer m/f/d',
+    ])
+      expect(await offersRepo.titleKeyOf('SHIMI sp. z o.o.', title), title).toBe(plain);
+    // single letters inside a title stay
+    expect(await offersRepo.titleKeyOf('Shimi', 'Software Developer n')).not.toBe(plain);
+  });
+
   it('counts offers per board, and gives timestamps as ISO 8601', async () => {
     await offersRepo.ingest([
       offer('justjoin', '1', 'A', 'X'),
