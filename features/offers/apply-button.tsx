@@ -98,7 +98,7 @@ export function ApplyButton({
   return (
     <>
       {applied ? (
-        <span className="group/applied inline-flex h-6 items-center rounded-full border border-success text-success">
+        <span className="group/applied relative inline-flex h-6 items-center rounded-full border border-success text-success">
           <Button
             type="button"
             variant="ghost"
@@ -111,7 +111,9 @@ export function ApplyButton({
             aria-busy={pending || opening || undefined}
             title="Open the application"
           >
-            <CheckIcon /> Applied {zoneOf(tz).formatDayOf(applied)}
+            {/* the × takes its place: the badge keeps its width */}
+            <CheckIcon className="pointer-coarse:invisible pointer-fine:group-hover/applied:invisible pointer-fine:group-focus-within/applied:invisible" />{' '}
+            Applied {zoneOf(tz).formatDayOf(applied)}
           </Button>
           <Button
             type="button"
@@ -119,8 +121,9 @@ export function ApplyButton({
             size="icon-xs"
             className={cn(
               PILL,
-              '-ml-1.5 size-5 text-success hover:text-destructive',
-              'pointer-fine:hidden pointer-fine:group-hover/applied:inline-flex pointer-fine:group-focus-within/applied:inline-flex',
+              // on the check mark: centred where it is (8px in, 12px wide)
+              'absolute inset-y-0 left-1 my-auto size-5 text-success hover:text-destructive',
+              'pointer-fine:invisible pointer-fine:group-hover/applied:visible pointer-fine:group-focus-within/applied:visible',
             )}
             disabled={pending}
             onClick={() => void unmark()}
