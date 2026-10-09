@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
@@ -47,6 +48,15 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
   const [switched, setSwitched] = useState(false); // …in place of another one
   const sheet = useRef<SheetHandle>(null);
+  // Next keeps this page as you left it while you're on another tab (cacheComponents' <Activity>): Back
+  // brings the window back with it, but coming here by a link (the Applied tab) shows the list, closed.
+  // bfcacheId changes on a link, not on Back / Forward. Its note was saved as the page was left (useAutosave).
+  const { bfcacheId } = useRouter();
+  const [visit, setVisit] = useState(bfcacheId);
+  if (visit !== bfcacheId) {
+    setVisit(bfcacheId);
+    setOpen(null);
+  }
   const pending = fromServer.some((app) => app.contentStatus === 'pending');
 
   // notes written in the window show in the list at once, with when the database took them (the
