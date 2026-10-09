@@ -2,10 +2,9 @@
 
 import { use } from 'react';
 import { CalendarIcon, SearchIcon, SparklesIcon, XIcon } from 'lucide-react';
-import { DateInput } from '@/components/date-input';
+import { DateRangePicker, RANGE_PLACEHOLDER } from '@/components/date-range-picker';
 import { searchBox, searchInput } from '@/components/search-field';
 import { TimeZone } from '@/components/time-zone';
-import { Input } from '@/components/ui/input';
 import { toggleVariants } from '@/components/ui/toggle';
 import { validDay } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
@@ -96,20 +95,13 @@ function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
         ))}
       </nav>
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-        {/* a custom date replaces the preset */}
-        <DateInput
-          label="From"
-          value={from}
-          max={to || undefined}
+        {/* a custom range replaces the preset */}
+        <DateRangePicker
+          label="First seen"
+          from={from}
+          to={to}
           highlighted={custom}
-          onCommit={(day) => navigate(withParams(query, { from: day, days: null }, path))}
-        />
-        <DateInput
-          label="to"
-          value={to}
-          min={from || undefined}
-          highlighted={custom}
-          onCommit={(day) => navigate(withParams(query, { to: day, days: null }, path))}
+          onCommit={(range) => navigate(withParams(query, { ...range, days: null }, path))}
         />
         {custom && (
           <NavLink
@@ -164,19 +156,10 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
           ))}
         </div>
         <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-          {['From', 'to'].map((label) => (
-            <span key={label} className="flex items-center gap-1.5">
-              <span>{label}</span>
-              <span className="relative inline-flex items-center">
-                <Input
-                  disabled
-                  placeholder="dd.mm.rrrr"
-                  className="h-7 w-[calc(10ch+3rem)] rounded-full bg-card pr-8 text-[13px] disabled:opacity-100 md:text-[13px] dark:bg-card"
-                />
-                <CalendarIcon className="absolute right-2.5" />
-              </span>
-            </span>
-          ))}
+          <span className="inline-flex h-7 items-center gap-1.5 rounded-full border bg-card px-2.5">
+            <CalendarIcon className="size-3.5" />
+            {RANGE_PLACEHOLDER}
+          </span>
         </div>
       </div>
       <div className={cn(CHIPS, 'mb-2 items-center')} aria-hidden="true">

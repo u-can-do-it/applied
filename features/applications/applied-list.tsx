@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
-import { DateInput } from '@/components/date-input';
+import { DateRangePicker } from '@/components/date-range-picker';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { searchBox, searchInput } from '@/components/search-field';
 import { TimeZone, useZone } from '@/components/time-zone';
@@ -139,19 +139,12 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
   return (
     <>
       <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] text-muted-foreground">
-        <DateInput
-          label="Applied from"
-          value={range?.from ?? ''}
-          max={range?.to || undefined}
+        <DateRangePicker
+          label="Applied"
+          from={range?.from ?? ''}
+          to={range?.to ?? ''}
           highlighted={Boolean(range)}
-          onCommit={(day) => setRange({ from: day })}
-        />
-        <DateInput
-          label="to"
-          value={range?.to ?? ''}
-          min={range?.from || undefined}
-          highlighted={Boolean(range)}
-          onCommit={(day) => setRange({ to: day })}
+          onCommit={setRange}
         />
         {range && (
           <Button
