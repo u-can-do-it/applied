@@ -126,7 +126,14 @@ export function OfferRow({
           <BoardLinks job={job} labels={labels} />
           <div className="flex flex-wrap items-center justify-end gap-1">
             <ArchiveButton />
-            <ApplyButton jobId={job.jobId} src={job.src} id={job.id} appliedAt={job.appliedAt} tz={zone.tz} />
+            <ApplyButton
+              jobId={job.jobId}
+              src={job.src}
+              id={job.id}
+              appliedAt={job.appliedAt}
+              labels={labels}
+              tz={zone.tz}
+            />
           </div>
         </div>
       </SeenItem>
