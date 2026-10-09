@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
+import { DateInput } from '@/components/date-input';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { searchBox, searchInput } from '@/components/search-field';
 import { TimeZone, useZone } from '@/components/time-zone';
@@ -42,7 +43,7 @@ export function AppliedList({
 
 function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels: Record<string, string> }) {
   const zone = useZone();
-  const { search, setSearch, filter, setFilter } = useAppliedQuery(); // in the URL
+  const { search, setSearch, filter, setFilter, range, setRange } = useAppliedQuery(); // in the URL
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
   const [switched, setSwitched] = useState(false); // …in place of another one
   const sheet = useRef<SheetHandle>(null);
@@ -101,14 +102,17 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
   // ad texts are scraped in the background right after marking: refresh until they're in
   useRefreshWhile(pending, 3000, fromServer);
 
+  // the ones you applied for in the dates: the statistics count these, the list shows them
+  const inRange = useMemo(() => (range ? apps.filter(range.test) : apps), [apps, range]);
+
   const shown = useMemo(() => {
     const words = search.toLowerCase().split(/\s+/).filter(Boolean);
-    return apps.filter(
+    return inRange.filter(
       (app) =>
         (!filter || filter.test(app)) &&
         words.every((word) => `${app.title} ${app.company ?? ''} ${app.note ?? ''}`.toLowerCase().includes(word)),
     );
-  }, [apps, search, filter]);
+  }, [inRange, search, filter]);
 
   if (!apps.length) {
     return (
@@ -124,7 +128,35 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
 
   return (
     <>
-      <AppliedStats apps={apps} filter={filter?.id ?? null} setFilter={setFilter} />
+      <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] text-muted-foreground">
+        <DateInput
+          label="Applied from"
+          value={range?.from ?? ''}
+          max={range?.to || undefined}
+          highlighted={Boolean(range)}
+          onCommit={(day) => setRange({ from: day })}
+        />
+        <DateInput
+          label="to"
+          value={range?.to ?? ''}
+          min={range?.from || undefined}
+          highlighted={Boolean(range)}
+          onCommit={(day) => setRange({ to: day })}
+        />
+        {range && (
+          <Button
+            type="button"
+            variant="link"
+            size="icon-xs"
+            onClick={() => setRange({ from: '', to: '' })}
+            aria-label="Clear date range"
+          >
+            <XIcon />
+          </Button>
+        )}
+      </div>
+
+      <AppliedStats apps={inRange} filter={filter?.id ?? null} setFilter={setFilter} />
 
       <div className="flex items-stretch gap-2 max-[560px]:flex-col">
         <div className={cn(searchBox, 'flex-1')}>

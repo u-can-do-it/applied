@@ -86,3 +86,39 @@ it('follows the URL when it changes from outside (Back)', () => {
   expect(result.current.search).toBe('java');
   expect(result.current.filter?.id).toBe('positive');
 });
+
+it('a date range from the URL: the days you applied in the app’s time zone, both ends included', () => {
+  window.history.replaceState(null, '', '/applied?from=2026-09-20&to=2026-09-28');
+  const { result } = renderHook(() => useAppliedQuery());
+  const range = result.current.range;
+  expect(range).toMatchObject({ from: '2026-09-20', to: '2026-09-28' });
+  // Europe/Warsaw (the default zone): 20.09 00:30 there is 19.09 in UTC
+  expect(range?.test({ appliedAt: '2026-09-19T22:30:00Z' })).toBe(true);
+  expect(range?.test({ appliedAt: '2026-09-19T21:30:00Z' })).toBe(false);
+  expect(range?.test({ appliedAt: '2026-09-28T21:30:00Z' })).toBe(true);
+  expect(range?.test({ appliedAt: '2026-09-28T22:30:00Z' })).toBe(false);
+});
+
+it('a reversed range is swapped, an open end lets everything through, a bad date is no range', () => {
+  window.history.replaceState(null, '', '/applied?from=2026-09-28&to=2026-09-20');
+  const { result } = renderHook(() => useAppliedQuery());
+  expect(result.current.range?.test({ appliedAt: '2026-09-24T10:00:00Z' })).toBe(true);
+  act(() => window.history.replaceState(null, '', '/applied?from=2026-09-20'));
+  expect(result.current.range?.test({ appliedAt: '2030-01-01T10:00:00Z' })).toBe(true);
+  expect(result.current.range?.test({ appliedAt: '2026-09-01T10:00:00Z' })).toBe(false);
+  act(() => window.history.replaceState(null, '', '/applied?from=2026-02-31'));
+  expect(result.current.range).toBeNull();
+});
+
+it('setting a date is a new history entry; clearing the range takes both away, keeping the rest', () => {
+  window.history.replaceState(null, '', '/applied?status=rejected');
+  const { result } = renderHook(() => useAppliedQuery());
+  const entries = window.history.length;
+  act(() => result.current.setRange({ from: '2026-09-20' }));
+  act(() => result.current.setRange({ to: '2026-09-28' }));
+  expect(window.location.search).toBe('?status=rejected&from=2026-09-20&to=2026-09-28');
+  expect(window.history.length).toBe(entries + 2);
+  act(() => result.current.setRange({ from: '', to: '' }));
+  expect(window.location.search).toBe('?status=rejected');
+  expect(result.current.range).toBeNull();
+});
