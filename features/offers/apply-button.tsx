@@ -122,7 +122,7 @@ export function ApplyButton({
             className={cn(
               PILL,
               // on the check mark: centred where it is (8px in, 12px wide)
-              'absolute inset-y-0 left-1 my-auto size-5 text-success hover:text-destructive',
+              'absolute inset-y-0 left-1 my-auto size-5 text-destructive hover:text-destructive',
               'pointer-fine:invisible pointer-fine:group-hover/applied:visible pointer-fine:group-focus-within/applied:visible',
             )}
             disabled={pending}
