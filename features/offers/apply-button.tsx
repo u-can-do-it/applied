@@ -19,6 +19,15 @@ import { ON_HOVER } from './offer-actions';
 const loadSheet = () => import('@/features/applications/application-sheet');
 const ApplicationSheet = lazy(() => loadSheet().then((module) => ({ default: module.ApplicationSheet })));
 
+// fetched as you point at the badge (or tab to it), so the click finds it in: younger than this, the
+// click uses it; the window then checks it again as it opens, as on the Applied tab
+const PREFETCHED_FOR_MS = 30_000;
+const applicationQuery = (jobId: string) => ({
+  queryKey: applicationKey(jobId),
+  queryFn: () => loadApplication(jobId),
+  staleTime: PREFETCHED_FOR_MS,
+});
+
 const PILL =
   'rounded-full bg-transparent font-normal hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent';
 
@@ -72,9 +81,17 @@ export function ApplyButton({
     setError(null);
     start(async () => {
       setApplied(null);
+      queryClient.removeQueries({ queryKey: applicationKey(jobId), exact: true }); // a prefetched one is gone too
       const res = await unapplyAction({ jobId });
       if (!res.ok) startTransition(() => setError(res.error));
     });
+  };
+
+  // the application and the window's code, on the way before the click; a failure shows on the click
+  const prefetch = () => {
+    if (shown || pending) return;
+    void queryClient.query(applicationQuery(jobId)).catch(() => {});
+    void loadSheet().catch(() => {});
   };
 
   // the window opens with the application as the database has it (the list has only the day)
@@ -83,10 +100,7 @@ export function ApplyButton({
     setError(null);
     setOpening(true);
     try {
-      const [app] = await Promise.all([
-        queryClient.query({ queryKey: applicationKey(jobId), queryFn: () => loadApplication(jobId) }),
-        loadSheet(),
-      ]);
+      const [app] = await Promise.all([queryClient.query(applicationQuery(jobId)), loadSheet()]);
       setShown(app);
     } catch (failed) {
       setError(message(failed));
@@ -106,6 +120,8 @@ export function ApplyButton({
             className={cn(PILL, 'border-0 text-success hover:text-success hover:underline')}
             // marked a moment ago: the application is saved once the server answers
             disabled={pending}
+            onPointerEnter={prefetch}
+            onFocus={prefetch}
             onClick={() => void open()}
             aria-haspopup="dialog"
             aria-busy={pending || opening || undefined}
