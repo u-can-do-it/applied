@@ -30,7 +30,7 @@ export function OfferWindowButton({ job, labels, tz }: { job: OfferJob; labels: 
         type="button"
         variant="ghost"
         size="icon-xs"
-        className="ml-0.5 align-[-3px] text-muted-foreground hover:text-foreground"
+        className="ml-0.5 align-[-3px] text-muted-foreground hover:text-foreground "
         data-marks-seen
         onPointerEnter={prefetch}
         onFocus={prefetch}
