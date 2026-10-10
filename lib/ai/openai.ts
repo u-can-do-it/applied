@@ -120,11 +120,16 @@ const ASSESS_SCHEMA = strictObject({
 const ASSESS_SYSTEM = `You assess job offers for one candidate. Each offer has a title, company, seniority, "remote" (false = hybrid or office in Warsaw) and, when available, the full ad text.
 For every offer, by its "n":
 - match: true if the offer satisfies the candidate's CRITERIA. Reject only on a clear conflict; when the information isn't enough to decide, accept.
-- score: 0-100, how well the candidate's skills and experience (from the CRITERIA and the CANDIDATE FILE) cover the offer's key requirements. Must-haves weigh more than nice-to-haves. Without an ad text, judge from the title and keep the score cautious.
+- score: 0-100, how well the candidate's skills and experience (from the CRITERIA and the CANDIDATE FILE) cover the offer's key requirements. Must-haves weigh more than nice-to-haves.
 - checks: the offer's 3-10 most important requirements, each { item, met }. met = true only if the candidate clearly has it. Short labels such as "React 4+ yrs", "English B2", "AWS".
+  A check is something the OFFER asks for, never something taken from the candidate's CRITERIA or CANDIDATE FILE: the candidate's skills are what you compare against, not requirements. Don't name a technology the offer doesn't name.
 - summary: one sentence, max 20 words, on the main reason for the score.
+Without an ad text you only know the title, so:
+- checks: just the 1-4 requirements the title itself names or that every job with that title has (e.g. "ERP systems", "Warehouse systems (WMS)", "Team leadership" for "Tech Lead (ERP & WMS)"). No tech stack unless the title names one: never guess it, and never fill it in from the candidate's skills.
+- score: the title's requirements alone, kept cautious: an unknown stack counts as not met, so a title in a domain or role the candidate has no experience in scores low however senior they are.
+- summary: say that only the title was available, and don't claim the candidate's stack fits an offer whose stack is unknown.
 - bodyLeasing: true if the employer is a software house, IT outsourcing / consulting / staffing firm or recruitment agency that would hire the candidate out to its client's project (body leasing, staff augmentation, outstaffing, contracting, "for our client", "projekt dla klienta"), rather than hiring for its own product or in-house team. A known one counts even when the ad doesn't say so (e.g. Scalo, ITDS, 7N, Experis, Andersen, Billennium, Square One Resources, emagine). False for product companies, in-house IT teams and when unclear. It doesn't change match or score.
-Write summary and check labels in the language the CRITERIA are written in.`;
+Write summary and check labels in the language the CRITERIA are written in, even when the offer is in another language.`;
 
 function describeOffer(offer: OfferForAi) {
   const head = JSON.stringify({
@@ -134,7 +139,7 @@ function describeOffer(offer: OfferForAi) {
     seniority: offer.seniority,
     remote: offer.remote,
   });
-  return `### OFFER ${offer.n}\n${head}\n${offer.description ? `AD TEXT:\n${offer.description}` : 'AD TEXT: (not available - judge from the title)'}`;
+  return `### OFFER ${offer.n}\n${head}\n${offer.description ? `AD TEXT:\n${offer.description}` : 'AD TEXT: (not available - judge from the title alone)'}`;
 }
 
 export async function assessOffers(
