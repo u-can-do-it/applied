@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DateRangePicker, RANGE_PLACEHOLDER } from '@/components/date-range-picker';
 
 // Radix measures the popover; jsdom has no ResizeObserver
@@ -12,6 +12,10 @@ vi.stubGlobal(
     disconnect() {}
   },
 );
+
+// The calendar is lazy: its first import (react-day-picker, cold) can outlast findByRole's 1s under the
+// full suite's load. Loaded here, the picker's own import finds it in the module cache.
+beforeAll(() => import('@/components/ui/calendar'));
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
