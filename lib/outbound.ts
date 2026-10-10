@@ -3,6 +3,7 @@ import dns, { type LookupAddress } from 'node:dns';
 import { BlockList, isIP } from 'node:net';
 import { Agent } from 'undici';
 import { env } from './env';
+import { refusedByBlockingBoard, throughScrapingAnt } from './scraping-ant';
 
 // What the server sends to other sites (listing pages, offers' ads, links typed in "Add application"):
 // every such request goes through fetchOutbound().
@@ -15,6 +16,8 @@ import { env } from './env';
 // a private one to the connection) is closed by the connection's own lookup: the requests go through
 // an undici Agent whose `lookup` checks the addresses it is about to connect to, so the address used
 // is always one that passed.
+// A board that turns this server away (its `blocksServer`): a page it refuses is fetched again
+// through ScrapingAnt (lib/scraping-ant.ts).
 
 /** A desktop browser's User-Agent: some boards answer bots with nothing. */
 export const BROWSER_UA =
@@ -154,6 +157,7 @@ function unwrap(error: unknown): unknown {
 /**
  * A GET to a user-supplied or scraped link: checked (checkUrl), its redirects followed here up to
  * MAX_REDIRECTS hops with each hop checked, and in production connected only to checked addresses.
+ * Refused by a board that blocks this server: the page through ScrapingAnt instead.
  */
 export async function fetchOutbound(raw: string, init: Omit<RequestInit, 'redirect' | 'method' | 'body'> = {}) {
   let url = (await checkUrl(raw)).toString();
@@ -171,7 +175,11 @@ export async function fetchOutbound(raw: string, init: Omit<RequestInit, 'redire
       throw unwrap(error);
     }
     const location = REDIRECT.has(res.status) ? res.headers.get('location') : null;
-    if (!location) return res;
+    if (!location) {
+      if (!refusedByBlockingBoard(url, res)) return res;
+      await res.body?.cancel();
+      return throughScrapingAnt(url);
+    }
     await res.body?.cancel();
     if (hop >= MAX_REDIRECTS) throw new Error(`More than ${MAX_REDIRECTS} redirects`);
     const next = await checkUrl(new URL(location, url).toString());

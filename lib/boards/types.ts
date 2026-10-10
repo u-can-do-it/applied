@@ -18,6 +18,11 @@ export type Board<Id extends string = string> = {
    * from that one. The offers_unique view lists these boards (drizzle/0014_offers_unique_own_board_first.sql).
    */
   aggregator?: true;
+  /**
+   * Its site turns this server away (Eldorado's Cloudflare answers a datacenter with a challenge): a page it
+   * refuses is fetched again through ScrapingAnt (lib/scraping-ant.ts) when SCRAPINGANT_API_KEY is set
+   */
+  blocksServer?: true;
   /** in the board filter from the start; the others once one of your scrapers uses them */
   alwaysInFilters?: boolean;
   /** the offer's id on the board, when its link shows it: what the board's ad reader and pages take */

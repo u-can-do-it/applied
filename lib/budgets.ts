@@ -14,6 +14,15 @@ export const OPENAI_TIMEOUT_MS = 120_000;
 /** One request for an offer's ad (lib/ads/fetch.ts). */
 export const AD_TIMEOUT_MS = 12_000;
 
+/** One page fetched through ScrapingAnt (lib/scraping-ant.ts), all its tries, once its turn comes. */
+export const SCRAPING_ANT_TIMEOUT_MS = 25_000;
+
+/**
+ * The longest a page waits for its turn at ScrapingAnt (one request at a time): past it, it fails and is
+ * tried again later, so a batch's ads still fit in an AI run's lock.
+ */
+export const SCRAPING_ANT_WAIT_MS = 30_000;
+
 /** After the last AI batch: saving verdicts, Telegram, the run log, unlocking. */
 export const WRAP_UP_MS = 30_000;
 

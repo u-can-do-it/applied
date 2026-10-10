@@ -9,6 +9,8 @@ import {
   OPENAI_TIMEOUT_MS,
   SCRAPE_LOCK_MS,
   SCRAPE_LOCK_SECONDS,
+  SCRAPING_ANT_TIMEOUT_MS,
+  SCRAPING_ANT_WAIT_MS,
   SLICE_MS,
   WRAP_UP_MS,
 } from '@/lib/budgets';
@@ -43,6 +45,8 @@ describe('time budgets', () => {
     expect(AI_RUN_LOCK_MS).toBeGreaterThan(OPENAI_TIMEOUT_MS + 10_000);
     // from the last renewal: a batch's ads, a few jobs at once, each job's boards one after another
     expect(AI_RUN_LOCK_MS).toBeGreaterThanOrEqual(5 * AD_TIMEOUT_MS);
+    // an ad through ScrapingAnt: its wait for a turn, then the request
+    expect(AI_RUN_LOCK_MS).toBeGreaterThan(SCRAPING_ANT_WAIT_MS + SCRAPING_ANT_TIMEOUT_MS);
   });
 
   it('every maxDuration is the function limit, as a literal (Next reads it without running the code)', () => {

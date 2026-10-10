@@ -9,6 +9,7 @@ export const eldorado: ScrapedBoard<'eldorado'> = {
   // an employer's page opened from Eldorado counts as Eldorado
   tagsLinks: /czyjesteldorado/i,
   aggregator: true,
+  blocksServer: true,
   alwaysInFilters: true,
   idFromLink: (url) => pathOf(url).match(/\/praca\/(\d+)/)?.[1] ?? null,
   listing: {

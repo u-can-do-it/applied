@@ -58,6 +58,10 @@ const schema = z.object({
   ADZUNA_APP_ID: optional,
   ADZUNA_APP_KEY: optional,
 
+  // ScrapingAnt (optional: without it a board that blocks this server stays blocked, lib/scraping-ant.ts);
+  // app.scrapingant.com → Dashboard → API token
+  SCRAPINGANT_API_KEY: optional,
+
   // Web Push (optional: without all three, no push notifications). `npx web-push generate-vapid-keys`
   // makes the pair; the subject is how a push service reaches you: mailto:you@example.com or an https URL
   VAPID_PUBLIC_KEY: z.preprocess(unset, vapidKey('a VAPID public key (base64url)').optional()),
