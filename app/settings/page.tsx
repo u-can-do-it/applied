@@ -4,7 +4,6 @@ import { Suspense } from 'react';
 import { env } from '@/lib/env';
 import { isUsable } from '@/lib/ai/profiles';
 import { effectiveTimeZone } from '@/lib/listings/settings';
-import { bookmarklet, importToken } from '@/lib/listings/bookmarklet';
 import { requestOrigin } from '@/lib/listings/schedule';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
 import * as offersRepo from '@/lib/db/repos/offers';
@@ -24,7 +23,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AiPanel } from '@/features/ai/ai-panel';
 import { HealthCard, HealthCardFallback } from '@/features/health/health-card';
 import { NotificationsPanel } from '@/features/notifications/notifications-panel';
-import { BookmarkletPanel } from '@/features/scraping/bookmarklet-panel';
 import { FiltersPanel } from '@/features/scraping/filters-panel';
 import { SchedulePanel } from '@/features/scraping/schedule-panel';
 import { ScrapersPanel } from '@/features/scraping/scrapers-panel';
@@ -63,7 +61,6 @@ async function Settings() {
     // only with the VAPID keys (without them nothing is pushed); not yet migrated (the table is new):
     // none, the Health card says the database is behind
     vapidPublicKey() ? pushRepo.list().catch(() => []) : Promise.resolve([]),
-    importToken(),
   ]);
   let data;
   try {
@@ -78,7 +75,7 @@ async function Settings() {
   } catch (error) {
     return <LoadError title="Can’t load the settings." detail={message(error)} />;
   }
-  const [cron, origin, profiles, devices, token] = await extras;
+  const [cron, origin, profiles, devices] = await extras;
   // what the AI filter would check new offers against: the active profile, if it can work
   const active = profiles[0];
   const ai = {
@@ -115,8 +112,6 @@ async function Settings() {
         />
       </Suspense>
       <ScrapersPanel scrapers={scrapers} counts={counts} keywords={settings.keywords} schedule={settings} />
-      {/* no token = no APP_PASSWORD: only a local dev server, which lets it through without one */}
-      <BookmarkletPanel href={bookmarklet(origin, token ?? '')} />
     </TimeZone>
   );
 }

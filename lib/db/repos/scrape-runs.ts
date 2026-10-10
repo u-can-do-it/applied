@@ -39,17 +39,6 @@ export function list(limit = 12): Promise<ScrapeRun[]> {
   return db().select().from(scrapeRuns).orderBy(desc(scrapeRuns.startedAt)).limit(limit);
 }
 
-/** What the latest finished scheduled run's scrapers ran into; none yet: none. */
-export async function latestCronErrors(): Promise<ScrapeRun['errors']> {
-  const rows = await db()
-    .select({ errors: scrapeRuns.errors })
-    .from(scrapeRuns)
-    .where(and(eq(scrapeRuns.trigger, 'cron'), isNotNull(scrapeRuns.finishedAt)))
-    .orderBy(desc(scrapeRuns.startedAt))
-    .limit(1);
-  return rows[0]?.errors ?? [];
-}
-
 /** Which runs the log shows: the ones a trigger started, or the ones where something failed. */
 export type RunsOf = { trigger?: string; failed?: boolean };
 

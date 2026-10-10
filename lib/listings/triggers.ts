@@ -1,11 +1,11 @@
 // What starts a scrape run (scrape_runs.trigger), and its name in the UI: the Health card, the run log
-// and its filter all say it the same way.
+// and its filter all say it the same way. Older runs may say `bookmarklet` (from a browser, before
+// ScrapingAnt fetched Eldorado for the server): shown as stored, under All.
 
 export const TRIGGERS = {
   cron: 'Cron',
   manual: 'Scrape now',
   telegram: 'Telegram',
-  bookmarklet: 'Bookmarklet',
 } as const;
 
 export type Trigger = keyof typeof TRIGGERS;

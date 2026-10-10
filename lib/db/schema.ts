@@ -305,7 +305,7 @@ export const scrapeRuns = pgTable(
     id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
     startedAt: timestamptz('started_at').notNull().defaultNow(),
     finishedAt: timestamptz('finished_at'),
-    trigger: text('trigger').notNull(), // cron | manual | telegram | bookmarklet
+    trigger: text('trigger').notNull(), // cron | manual | telegram (older runs: bookmarklet)
     found: integer('found').notNull().default(0), // items on the pages
     kept: integer('kept').notNull().default(0), // after keyword / city filters
     added: integer('added').notNull().default(0), // new rows in offers
