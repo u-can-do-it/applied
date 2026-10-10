@@ -54,9 +54,12 @@ export function ArchiveRow({
   return <RowContext value={{ archived, title, move }}>{children}</RowContext>;
 }
 
+/** The row the caller is in (its offer window archives it too); null outside one. */
+export const useArchiveRow = () => use(RowContext);
+
 /** The row's archive button ("Restore" in the archived list). */
 export function ArchiveButton() {
-  const row = use(RowContext);
+  const row = useArchiveRow();
   if (!row) return null;
   const Icon = row.archived ? ArchiveRestoreIcon : ArchiveIcon;
   return (

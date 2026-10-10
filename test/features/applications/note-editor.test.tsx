@@ -4,6 +4,7 @@ import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NoteEditor, type NoteHandle } from '@/features/applications/note-editor';
 import { setApplicationNoteAction } from '@/features/applications/actions';
+import { loadApplication } from '@/features/applications/use-application';
 import { NOTE_CONFLICT } from '@/lib/shared/application-messages';
 
 const refresh = vi.fn();
@@ -33,6 +34,10 @@ function open(initial = 'old') {
     <NoteEditor
       ref={handle}
       jobId={JOB}
+      store={{
+        save: (note, seenAt) => setApplicationNoteAction({ jobId: JOB, note, seenAt }),
+        load: () => loadApplication(JOB),
+      }}
       initial={initial}
       seenAt={T1}
       editedAt={T1}

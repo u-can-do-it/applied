@@ -26,7 +26,7 @@ async function emptyTables() {
     truncate public.offers, public.job_links, public.ai_dup_pairs, public.applications, public.ai_profiles,
       public.ai_verdicts, public.ai_runs, public.offer_details, public.scrapers, public.scrape_runs,
       public.notify_queue, public.scrape_settings, public.push_subscriptions, public.seen_jobs,
-      public.archived_jobs
+      public.archived_jobs, public.job_notes
     restart identity cascade`);
   await db().execute(sql`delete from public.scrape_state`);
   await db().execute(sql`insert into public.scrape_state (id) values (true)`);

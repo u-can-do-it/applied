@@ -3,33 +3,41 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useTransition } from 'react';
 import { Loader2Icon, RotateCwIcon, SparklesIcon } from 'lucide-react';
+import type { Fit } from '@/lib/ai/profiles';
 import { message } from '@/lib/shared/errors';
-import { unwrap } from '@/lib/shared/result';
+import { unwrap, type Result } from '@/lib/shared/result';
 import { Button } from '@/components/ui/button';
 import { FitScore } from '@/features/offers/fit-score';
 import { isRentADev, RentADev } from '@/features/offers/rent-a-dev';
-import { assessFitAction } from './actions';
-import { applicationKey, type Shown } from './use-application';
+import type { Shown } from './use-application';
+
+/** What the fit parts need: an application's, or an offer's (its window names them the same). */
+export type ShownFit = Pick<Shown, 'fit' | 'content' | 'contentStatus' | 'bodyLeasing'>;
 
 // the ad text still on its way: it would be judged on the title alone
-const adWaiting = (app: Shown) => app.content === undefined || app.contentStatus === 'pending';
+const adWaiting = (app: ShownFit) => app.content === undefined || app.contentStatus === 'pending';
 
 /**
- * Asks the active AI profile how well the job fits: its own transition, as the AI can take a minute
- * and the rest of the window stays in use meanwhile. The verdict goes onto whatever the window has by
- * then (the ad text may have come in); asked again, the new verdict replaces the old one.
+ * Asks the active AI profile how well the job fits (`assess`, an application's or an offer's action):
+ * its own transition, as the AI can take a minute and the rest of the window stays in use meanwhile.
+ * The verdict goes onto whatever the window's query (`queryKey`) has by then (the ad text may have
+ * come in); asked again, the new verdict replaces the old one.
  */
-export function useFitCheck(jobId: string, onError: (error: string | null) => void) {
+export function useFitCheck(
+  queryKey: readonly unknown[],
+  assess: () => Promise<Result<Fit>>,
+  onError: (error: string | null) => void,
+) {
   const queryClient = useQueryClient();
   const [checking, start] = useTransition();
   const check = () =>
     start(async () => {
       onError(null);
       try {
-        const fit = unwrap(await assessFitAction({ jobId }));
-        // the application's own call on body leasing follows the check (lib/applications.ts assessFit)
-        queryClient.setQueryData<Shown>(
-          applicationKey(jobId),
+        const fit = unwrap(await assess());
+        // an application's own call on body leasing follows the check (lib/applications.ts assessFit)
+        queryClient.setQueryData<ShownFit>(
+          queryKey,
           (current) => current && { ...current, fit, bodyLeasing: fit.bodyLeasing },
         );
       } catch (error) {
@@ -44,7 +52,7 @@ export function useFitCheck(jobId: string, onError: (error: string | null) => vo
  * a judged one a "Check again" beside the score, shown as you point at the window's header (`group/header`).
  * "Rent-a-dev" before it, as in the list.
  */
-export function ApplicationFit({ app, checking, onCheck }: { app: Shown; checking: boolean; onCheck: () => void }) {
+export function ApplicationFit({ app, checking, onCheck }: { app: ShownFit; checking: boolean; onCheck: () => void }) {
   return (
     <span className="flex flex-wrap items-center justify-end gap-1">
       {isRentADev(app) && <RentADev />}
@@ -53,7 +61,7 @@ export function ApplicationFit({ app, checking, onCheck }: { app: Shown; checkin
   );
 }
 
-function FitBadge({ app, checking, onCheck }: { app: Shown; checking: boolean; onCheck: () => void }) {
+function FitBadge({ app, checking, onCheck }: { app: ShownFit; checking: boolean; onCheck: () => void }) {
   if (checking)
     return (
       <Button type="button" variant="outline" size="sm" disabled aria-busy>
@@ -103,7 +111,7 @@ function FitBadge({ app, checking, onCheck }: { app: Shown; checking: boolean; o
 }
 
 /** The AI's one-line reason for the score, under the title. */
-export function FitSummary({ app }: { app: Shown }) {
+export function FitSummary({ app }: { app: Pick<ShownFit, 'fit'> }) {
   if (!app.fit?.summary) return null;
   return (
     <p className="mt-1 mb-0 text-xs text-brand">

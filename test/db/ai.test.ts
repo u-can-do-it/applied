@@ -194,11 +194,13 @@ describeDb('AI verdicts and runs', () => {
     await detailsRepo.save([{ src: 'justjoin', id: 'o1', status: 'empty', description: null }]); // scraped again
     const found = await detailsRepo.forOffers([...offers, { src: 'nofluff', id: 'o1', title: '', company: '' }]);
     expect(found).toHaveLength(700);
-    expect(found.find((row) => row.id === 'o1')).toEqual({
+    expect(found.find((row) => row.id === 'o1')).toMatchObject({
       src: 'justjoin',
       id: 'o1',
       status: 'empty',
       description: null,
+      details: null,
+      complete: false,
     });
     expect(await detailsRepo.forOffers([])).toEqual([]);
   });

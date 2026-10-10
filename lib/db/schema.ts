@@ -30,7 +30,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import type { SavedDetails } from '../applications';
-import type { OfferLink } from '../ads/details';
+import type { JobDetails, OfferLink } from '../ads/details';
 import type { Check } from '../ai/openai';
 import type { ScraperConfig } from '../listings/config';
 import { KIND_IDS, type KindId } from '../listings/kinds';
@@ -210,7 +210,8 @@ export const aiRuns = pgTable(
   ],
 ).enableRLS();
 
-// full ad text, scraped once per offer and reused by every profile
+// an offer's ad text, scraped once and reused: by every profile (cut to what the AI reads) and by
+// the offer's window, which saves it complete, with what the board says besides (details)
 export const offerDetails = pgTable(
   'offer_details',
   {
@@ -219,6 +220,8 @@ export const offerDetails = pgTable(
     description: text('description'),
     status: text('status').$type<'ok' | 'empty'>().notNull(),
     fetchedAt: timestamptz('fetched_at').notNull().defaultNow(),
+    details: jsonb('details').$type<JobDetails>(),
+    complete: boolean('complete').notNull().default(false), // false: an AI run's, cut at its length
   },
   (table) => [
     primaryKey({ name: 'offer_details_pkey', columns: [table.src, table.id] }),
@@ -229,6 +232,17 @@ export const offerDetails = pgTable(
     }).onDelete('cascade'),
     check('offer_details_status_check', sql`status in ('ok', 'empty')`),
   ],
+).enableRLS();
+
+// your note on a job you haven't applied to (its window); marking it applied moves it to the application
+export const jobNotes = pgTable(
+  'job_notes',
+  {
+    jobId: text('dup_key').primaryKey(), // the job (offers_unique.dup_key)
+    note: text('note'),
+    noteUpdatedAt: timestamptz('note_updated_at').notNull().defaultNow(),
+  },
+  () => [check('job_notes_note_length', sql`length(note) <= 10000`)],
 ).enableRLS();
 
 // ---- scraping: the scrapers, settings, machine state, runs and the notification queue ------------
@@ -396,6 +410,7 @@ export type AiProfileRow = typeof aiProfiles.$inferSelect;
 export type AiVerdictRow = typeof aiVerdicts.$inferSelect;
 export type AiRunRow = typeof aiRuns.$inferSelect;
 export type OfferDetailsRow = typeof offerDetails.$inferSelect;
+export type JobNoteRow = typeof jobNotes.$inferSelect;
 export type ScraperRow = typeof scrapers.$inferSelect;
 export type NewScraperRow = typeof scrapers.$inferInsert;
 export type ScrapeSettingsRow = typeof scrapeSettings.$inferSelect;

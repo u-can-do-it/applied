@@ -113,6 +113,13 @@
       "when": 1791481730897,
       "tag": "0015_body_leasing",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791638949463,
+      "tag": "0016_offer_window",
+      "breakpoints": true
     }
   ]
 }

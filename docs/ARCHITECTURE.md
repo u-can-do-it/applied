@@ -37,15 +37,16 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 
 ### Triggers
 
-| Trigger                              | Route                  | What it does                                                                                                                                                                                                                                                     |
-| ------------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supabase Cron (`pg_cron` + `pg_net`) | `GET /api/cron/scrape` | Checks the secret, then whether a run is due (`checkDue`: not paused, within the hours, the interval passed). Takes the lock, answers 202 at once, runs the scrape in `after()`, then continues waiting AI runs in the time left. `?force=1`, `?wait=1` by hand. |
-| "Scrape now" (header, Notifications) | `POST /api/scrape`     | Same-origin and login checks, then a full run whatever the schedule; the AI check and the notifications go on in `after()`.                                                                                                                                      |
-| `/scrape` in Telegram                | `POST /api/telegram`   | A full run in `after()`; the bot replies with the counts. The other commands mute, unmute, send the queue and report status.                                                                                                                                     |
-| Settings → AI filter / "Check …"     | server render, action  | Starts an AI run, and on every render (and every 4 s while a run is open) continues a paused one in `after()`.                                                                                                                                                   |
-| "Mark applied", "Add", "Fetch again" | server actions         | Save the application, then fetch its ad text in `after()`.                                                                                                                                                                                                       |
-| Opening the Applied tab              | server render          | Marks applications with no news for 30 days as ghosted.                                                                                                                                                                                                          |
-| Any page, once a minute              | `GET /api/changes`     | `AutoRefresh` compares a fingerprint (last run, newest offer, queue size, lock, mute) and refreshes the page only when it changed.                                                                                                                               |
+| Trigger                                     | Route                  | What it does                                                                                                                                                                                                                                                     |
+| ------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase Cron (`pg_cron` + `pg_net`)        | `GET /api/cron/scrape` | Checks the secret, then whether a run is due (`checkDue`: not paused, within the hours, the interval passed). Takes the lock, answers 202 at once, runs the scrape in `after()`, then continues waiting AI runs in the time left. `?force=1`, `?wait=1` by hand. |
+| "Scrape now" (header, Notifications)        | `POST /api/scrape`     | Same-origin and login checks, then a full run whatever the schedule; the AI check and the notifications go on in `after()`.                                                                                                                                      |
+| `/scrape` in Telegram                       | `POST /api/telegram`   | A full run in `after()`; the bot replies with the counts. The other commands mute, unmute, send the queue and report status.                                                                                                                                     |
+| Settings → AI filter / "Check …"            | server render, action  | Starts an AI run, and on every render (and every 4 s while a run is open) continues a paused one in `after()`.                                                                                                                                                   |
+| "Mark applied", "Add", "Fetch again"        | server actions         | Save the application, then fetch its ad text in `after()`.                                                                                                                                                                                                       |
+| An offer's window (Offers, after its title) | `GET /api/offer`       | Asked as you point at its button: the job's complete ad with the board's details (fetched then the first time, saved in `offer_details`), your note on it (`job_notes`) and the verdict. "Mark applied" there takes the note to the application.                 |
+| Opening the Applied tab                     | server render          | Marks applications with no news for 30 days as ghosted.                                                                                                                                                                                                          |
+| Any page, once a minute                     | `GET /api/changes`     | `AutoRefresh` compares a fingerprint (last run, newest offer, queue size, lock, mute) and refreshes the page only when it changed.                                                                                                                               |
 
 ### The scrape pipeline
 
@@ -91,6 +92,9 @@ through their APIs (Himalayas' job pages turn servers away), Built In and Linked
 - **The AI** (`scrapeOffer`, capped at 8 000 characters) reads it once per offer and caches it in
   `offer_details`; a network error isn't cached, so a later run tries again. A job is judged on its title if
   no offer has a text.
+- **An offer's window** (`scrapeOfferFull`, with the board's details) saves it complete in `offer_details`
+  (`complete`, `details`), so the next opening and the AI have it; an AI run reads it cut to its 8 000
+  characters, and its own shorter copy never overwrites it. Fetching fails: the AI's copy, if there is one.
 - **Applications** (`scrapeOfferFull`, plus salary, contract, location, work mode, dates) save it in the
   application, trying the job's other boards if the clicked one fails. The state machine is
   [below](#application-ad-content). What the board didn't give (salary, location, remote / hybrid / on-site,
@@ -437,5 +441,5 @@ Values that live outside the code keep their names, so nothing breaks across a d
 - note drafts in the browser: `localStorage` key `jobwatch:note:<job id>`, value `{ text, base }`;
 - the URL's filters (`?q=`, `?src=`, `?days=`…; the Applied tab's `?q=` and `?status=`, its ids in
   `features/applications/status-filter.ts`);
-- `/api/application` takes `?jobId=` (or `?key=`, the same);
+- `/api/application` takes `?jobId=` (or `?key=`, the same); `/api/offer` takes `?jobId=`;
 - what the prompts send OpenAI and read back (a job's `board`, `first_seen`; a pair's `p`; an offer's `n`).

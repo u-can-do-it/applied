@@ -44,6 +44,9 @@ const result = (ad: Ad, max: number): Scraped => {
     : { status: 'empty', text: '', details: ad.details };
 };
 
+/** An ad's text as the AI reads it: an offer's window saves it complete, an AI run reads this much. */
+export const adForAi = (text: string) => text.slice(0, AI_CHARS);
+
 /** For the AI: the ad text, capped. Only network / HTTP errors throw, so they can be retried later. */
 export async function scrapeOffer(offer: OfferLink): Promise<Scraped> {
   return result(await readAd(offer), AI_CHARS);

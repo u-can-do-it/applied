@@ -22,7 +22,7 @@ const onError = vi.fn();
 function setUp(shown: Shown | undefined) {
   queryClient = new QueryClient();
   if (shown) queryClient.setQueryData(applicationKey(JOB), shown);
-  return renderHook(() => useFitCheck(JOB, onError), {
+  return renderHook(() => useFitCheck(applicationKey(JOB), () => assess({ jobId: JOB }), onError), {
     wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
   });
 }

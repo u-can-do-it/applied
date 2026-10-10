@@ -11,7 +11,14 @@ import { useConfirm } from '@/components/confirm';
 import { useReturnFocus } from '@/components/return-focus';
 import { keepOpenOnToast } from '@/components/toasts';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { refetchContentAction, removeStatusStepAction, setApplicationStatusAction, unapplyAction } from './actions';
+import {
+  assessFitAction,
+  refetchContentAction,
+  removeStatusStepAction,
+  setApplicationNoteAction,
+  setApplicationStatusAction,
+  unapplyAction,
+} from './actions';
 import { AdDetails } from './ad-details';
 import { AdText } from './ad-text';
 import { ApplicationFit, FitSummary, useFitCheck } from './application-fit';
@@ -20,7 +27,7 @@ import { moveDraft, writeDraft } from './note-drafts';
 import { LazyApplicationForm, loadApplicationForm } from './lazy-application-form';
 import { NoteEditor, type NoteHandle } from './note-editor';
 import { StatusEditor } from './status-editor';
-import { applicationKey, useApplication, type Shown } from './use-application';
+import { applicationKey, loadApplication, useApplication, type Shown } from './use-application';
 import { useDay } from './use-day';
 
 // One application: status, timeline, note, saved ad. Opens with what the list already has (title,
@@ -74,7 +81,7 @@ export function ApplicationSheet({
   const [busy, start] = useTransition();
   const loaded = useApplication(jobId, { acting: busy });
   const app: Shown = loaded.data ?? initial;
-  const fit = useFitCheck(jobId, setActionError);
+  const fit = useFitCheck(applicationKey(jobId), () => assessFitAction({ jobId }), setActionError);
   const gone = useRef(false); // unmarked: there's no note to save any more
 
   // shown at once; a load already on its way would bring the old state back, so it's dropped
@@ -266,6 +273,10 @@ export function ApplicationSheet({
             <NoteEditor
               ref={note}
               jobId={jobId}
+              store={{
+                save: (text, seenAt) => setApplicationNoteAction({ jobId, note: text, seenAt }),
+                load: () => loadApplication(jobId),
+              }}
               initial={initial.note ?? ''}
               seenAt={initial.noteUpdatedAt}
               editedAt={app.noteUpdatedAt}
@@ -273,7 +284,7 @@ export function ApplicationSheet({
               onStale={() => onNoteStale(jobId)}
             />
             <AdDetails details={app.details} />
-            <AdText app={app} loadError={loaded.error ? message(loaded.error) : null} />
+            <AdText ad={app} loadError={loaded.error ? message(loaded.error) : null} />
           </div>
 
           <ApplicationFooter

@@ -3,6 +3,7 @@ import { columnsOf, contentOf, fetchDue, NO_LINK, NONE, transition, type Content
 import { boardIdOf, boardOf, cleanLink, offerIdOf } from './boards';
 import type { Zone } from './dates';
 import * as applicationsRepo from './db/repos/applications';
+import * as jobNotesRepo from './db/repos/job-notes';
 import * as linksRepo from './db/repos/job-links';
 import * as offersRepo from './db/repos/offers';
 import type { NewApplicationRow } from './db/schema';
@@ -53,14 +54,15 @@ export const getApplication = (jobId: string) => applicationsRepo.get(jobId);
 const findJob = (jobId: string) => offersRepo.jobById(jobId);
 
 /**
- * Marks the job applied (keeping the first date if it already was), with the clicked offer's link.
- * The ad text is then to be fetched (saveContent).
+ * Marks the job applied (keeping the first date if it already was), with the clicked offer's link and
+ * the note you wrote in its window, which moves here. The ad text is then to be fetched (saveContent).
  */
 export async function markApplied(jobId: string, clicked: { src: string; id: string }) {
-  const job = await findJob(jobId);
+  const [job, note] = await Promise.all([findJob(jobId), jobNotesRepo.get(jobId)]);
   if (!job) throw new Error('That offer is no longer in the database.');
   const offer = job.offers.find(({ src, id }) => src === clicked.src && id === clicked.id) ?? job.offers[0];
   await applicationsRepo.insertUnlessThere({
+    ...(note?.note && { note: note.note, noteUpdatedAt: note.noteUpdatedAt }),
     jobId,
     src: offer.src,
     id: offer.id,
@@ -72,6 +74,7 @@ export async function markApplied(jobId: string, clicked: { src: string; id: str
     outcome: 'pending',
     history: [{ stage: 'submitted', state: 'pending', at: new Date().toISOString() }],
   });
+  if (note) await jobNotesRepo.take(jobId);
 }
 
 /** Open applications without news for a month become ghosted. Returns how many just did. */

@@ -17,7 +17,7 @@ import * as verdictsRepo from '../db/repos/ai-verdicts';
 import { mergeDuplicatesRound } from './merge-duplicates';
 import { assessOffers, type OfferForAi } from './openai';
 import { getProfile, type Profile, type ProfileWithFile } from './profiles';
-import { scrapeOffer } from '../ads';
+import { adForAi, scrapeOffer } from '../ads';
 import { log } from '../log';
 import { message } from '../shared/errors';
 
@@ -121,7 +121,7 @@ async function descriptions(jobs: Pending[]): Promise<Map<string, string | null>
       const hit = cached.get(`${offer.src}\u0001${offer.id}`);
       if (hit) {
         if (hit.status === 'ok' && hit.description) {
-          text = hit.description;
+          text = adForAi(hit.description); // the window's is complete
           break;
         }
         continue; // known to have no ad text

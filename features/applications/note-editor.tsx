@@ -5,24 +5,32 @@ import { useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type 
 import { CheckIcon } from 'lucide-react';
 import { NOTE_CONFLICT } from '@/lib/shared/application-messages';
 import { cn } from '@/lib/shared/cn';
+import type { Result } from '@/lib/shared/result';
 import { useAutosave, type AutosaveSave, type AutosaveStatus } from '@/components/use-autosave';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { setApplicationNoteAction } from './actions';
 import { noteValue, restoreNote, writeDraft, type Theirs } from './note-drafts';
-import { loadApplication } from './use-application';
 import { useDay } from './use-day';
 
-// Your note: saves itself when you stop typing, leave the box or close the window (useAutosave),
-// with a copy in this browser until the database has it (note-drafts.ts). A save says which version
-// of the note it was written over (note_updated_at); if the note was changed elsewhere since
-// (another tab), nothing is overwritten: you see both and pick.
+// Your note, an application's or a job's you haven't applied to (its offer window): saves itself when
+// you stop typing, leave the box or close the window (useAutosave), with a copy in this browser until
+// the database has it (note-drafts.ts, by job: a job's draft is its application's once it's marked).
+// A save says which version of the note it was written over (note_updated_at); if the note was changed
+// elsewhere since (another tab), nothing is overwritten: you see both and pick.
 
 export type NoteHandle = {
   /** saves what's left; the note (undefined: not saved, see the conflict) */
   flush: () => string | null | undefined;
+  /** saves what's left and waits for it (before the note moves: marking the job applied) */
+  settle: () => Promise<void>;
   /** unmarked: there's no note to save any more */
   discard: () => void;
+};
+
+/** The note where it's kept: saving one over the version you saw, reading it as it is now. */
+export type NoteStore = {
+  save: (note: string, seenAt: string | null) => Promise<Result<{ noteUpdatedAt: string }>>;
+  load: () => Promise<{ note: string | null; noteUpdatedAt: string | null } | null>;
 };
 
 const NOTE_STATUS: Record<AutosaveStatus, string> = {
@@ -33,20 +41,27 @@ const NOTE_STATUS: Record<AutosaveStatus, string> = {
   error: 'not saved yet (kept in this browser, tries again on the next change)',
 };
 
+const APPLICATION_PLACEHOLDER =
+  "Recruiter's name, the salary you asked for, what they asked in the interview, next steps…";
+
 export function NoteEditor({
   jobId,
+  store,
   initial,
   seenAt,
   editedAt,
+  placeholder = APPLICATION_PLACEHOLDER,
   onSaved,
   onStale,
   ref,
 }: {
   jobId: string;
+  store: NoteStore;
   /** the note as the window opened with it, and its note_updated_at */
   initial: string;
   seenAt: string | null;
   editedAt: string | null;
+  placeholder?: string;
   onSaved: (note: string | null, at: string) => void;
   /** the note was changed elsewhere: the list's copy of it is outdated */
   onStale: () => void;
@@ -63,7 +78,7 @@ export function NoteEditor({
 
   // after a failed save: if the note isn't the one this was written over any more, show the other one
   const lookAgain = async (value: string, base: string, latest: () => string) => {
-    const fresh = await loadApplication(jobId).catch(() => null);
+    const fresh = await store.load().catch(() => null);
     if (!fresh || fresh.noteUpdatedAt === savedAt.current) return;
     conflict.current = true;
     setTheirs({ note: fresh.note ?? '', at: fresh.noteUpdatedAt });
@@ -73,7 +88,7 @@ export function NoteEditor({
   };
 
   const save: AutosaveSave<string> = async (value, { base, latest }) => {
-    const res = await setApplicationNoteAction({ jobId, note: value, seenAt: savedAt.current });
+    const res = await store.save(value, savedAt.current);
     if (!res.ok) {
       setProblem(res.error);
       await lookAgain(value, base, latest); // before the next save goes: it mustn't go over theirs
@@ -95,6 +110,7 @@ export function NoteEditor({
       void autosave.flush();
       return noteValue(text);
     },
+    settle: autosave.flush,
     discard: autosave.cancel,
   }));
 
@@ -164,7 +180,7 @@ export function NoteEditor({
             writeDraft(jobId, value === stored && !conflict.current ? null : { text: value, base: stored });
           }}
           onBlur={() => void autosave.flush()}
-          placeholder="Recruiter's name, the salary you asked for, what they asked in the interview, next steps…"
+          placeholder={placeholder}
         />
       </label>
       {problem && !theirs && status === 'error' && (

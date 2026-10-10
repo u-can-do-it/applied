@@ -4,11 +4,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { Shown } from './use-application';
 import { useDay } from './use-day';
 
+/** What the box needs: an application's, or an offer's (its window names them the same). */
+export type ShownAd = Pick<Shown, 'content' | 'contentStatus' | 'contentError' | 'scrapedAt'>;
+
 /**
  * The saved ad text. It loads into this box, which has the same place and size before and after; it
  * fills what's left, so a short ad or the placeholder look the same as a long one.
  */
-export function AdText({ app, loadError }: { app: Shown; loadError: string | null }) {
+export function AdText({ ad: app, loadError }: { ad: ShownAd; loadError: string | null }) {
   const day = useDay();
   const waiting = app.content === undefined || app.contentStatus === 'pending';
   const hasText = app.contentStatus === 'ok' && !!app.content;

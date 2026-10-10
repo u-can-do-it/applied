@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
 import { ArchiveButton, ArchiveRow } from './archive';
 import { FitScore } from './fit-score';
+import { OfferWindowButton } from './offer-window-button';
 import { RentADev } from './rent-a-dev';
 import { SeenItem, SeenMark } from './seen';
 
@@ -40,7 +41,8 @@ function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, st
 
 /**
  * One job in the list. A job the latest scrape run that brought new jobs brought is marked "new", with a
- * faint tint, so what came in last time stands out; one you opened before has a check mark after its title.
+ * faint tint, so what came in last time stands out; one you opened before has a check mark after its title,
+ * and then the button of its window (the ad, your note, the fit), until it's applied to.
  * The archive button takes it out of the list (or, in the archived list, back into the others). With a
  * mouse, the archive and "Mark applied" buttons show on the row's hover (or keyboard focus) only. A job
  * the active profile judged has its fit badge, and the verdict's line under its title; "Rent-a-dev" when
@@ -95,6 +97,23 @@ export function OfferRow({
             <Marked text={job.title} marks={job.marks?.title} />
           </a>
           <SeenMark />
+          {/* applied: the Applied badge opens the application's window instead */}
+          {!job.appliedAt && (
+            <OfferWindowButton
+              job={{
+                jobId: job.jobId,
+                src: job.src,
+                id: job.id,
+                title: job.title,
+                company: job.company,
+                url: job.url,
+                firstSeen: job.firstSeen,
+                ai: job.ai,
+              }}
+              labels={labels}
+              tz={zone.tz}
+            />
+          )}
           <div className="mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']">
             {job.company && (
               <span>
