@@ -138,7 +138,7 @@ export function ApplicationSheet({
   };
 
   // saved in the form: back to the window with it (under its new job, if it's another job's now)
-  const saved = (fresh: ApplicationWithContent, checkFit: boolean) => {
+  const saved = (fresh: ApplicationWithContent) => {
     const moved = fresh.jobId !== jobId;
     if (moved) {
       moveDraft(jobId, fresh.jobId);
@@ -147,7 +147,6 @@ export function ApplicationSheet({
     // the AI's verdict is the job's: the same job keeps it, another one loads its own
     show(moved ? fresh : { ...fresh, fit: app.fit }, fresh.jobId);
     setEditing(false);
-    if (checkFit) fit.checkAgain(fresh.jobId);
     // the ad text is fetched again (the link changed): look for it now, then every 3 s
     if (moved || fresh.contentStatus === 'pending')
       void queryClient.refetchQueries({ queryKey: applicationKey(fresh.jobId), type: 'all' });
@@ -242,7 +241,7 @@ export function ApplicationSheet({
         {editing && <LazyApplicationForm app={app as ApplicationWithContent} onCancel={stopEditing} onSaved={saved} />}
         {/* hidden, not gone, while editing: the note keeps what you typed */}
         <div className={cn('flex min-h-0 flex-1 flex-col', editing && 'hidden')}>
-          <SheetHeader className="gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">
+          <SheetHeader className="group/header gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">
             <div className="flex items-start gap-3">
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 {/* the form has the window's title while it's open */}

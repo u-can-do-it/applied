@@ -129,7 +129,7 @@ describe('ApplicationForm', () => {
     expect(box('Location').value).toBe('Warszawa');
   });
 
-  it('editing, "Check the fit again" goes to the window with what was saved; adding has no such box', async () => {
+  it('editing, Save changes hands the window what was saved (the fit is checked again from the window)', async () => {
     const app = {
       jobId: 'acme|reactdev',
       url: LINK,
@@ -143,14 +143,10 @@ describe('ApplicationForm', () => {
       content: 'The ad text',
     } as unknown as ApplicationWithContent;
     open({ app });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Check the fit again' }));
+    expect(screen.queryByRole('checkbox')).toBeNull();
     update.mockResolvedValueOnce({ ok: true, data: app });
     click('Save changes');
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(app, true));
-    cleanup();
-
-    open();
-    expect(screen.queryByRole('checkbox', { name: 'Check the fit again' })).toBeNull();
+    await waitFor(() => expect(onSaved).toHaveBeenCalledExactlyOnceWith(app));
   });
 
   it('says what is wrong under each field, with the schema’s words, and sends nothing', async () => {

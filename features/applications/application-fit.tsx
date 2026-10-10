@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useTransition } from 'react';
-import { Loader2Icon, SparklesIcon } from 'lucide-react';
+import { Loader2Icon, RotateCwIcon, SparklesIcon } from 'lucide-react';
 import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { Button } from '@/components/ui/button';
@@ -17,50 +17,31 @@ const adWaiting = (app: Shown) => app.content === undefined || app.contentStatus
 /**
  * Asks the active AI profile how well the job fits: its own transition, as the AI can take a minute
  * and the rest of the window stays in use meanwhile. The verdict goes onto whatever the window has by
- * then (the ad text may have come in). `checkAgain(jobId)`: after an edit ("Check the fit again"), once
- * the ad text is in; the new verdict replaces the old one.
+ * then (the ad text may have come in); asked again, the new verdict replaces the old one.
  */
 export function useFitCheck(jobId: string, onError: (error: string | null) => void) {
   const queryClient = useQueryClient();
   const [checking, start] = useTransition();
-  const shown = (id: string) => queryClient.getQueryData<Shown>(applicationKey(id));
-  // the window's copy once its ad text is in; undefined: the window has closed meanwhile
-  const adIn = (id: string) =>
-    new Promise<Shown | undefined>((resolve) => {
-      const settled = () => {
-        const app = shown(id);
-        return !app || !adWaiting(app);
-      };
-      if (settled()) {
-        resolve(shown(id));
-        return;
-      }
-      const stop = queryClient.getQueryCache().subscribe(() => {
-        if (!settled()) return;
-        stop();
-        resolve(shown(id));
-      });
-    });
-  const run = (id: string, afterEdit: boolean) =>
+  const check = () =>
     start(async () => {
       onError(null);
       try {
-        if (afterEdit && !(await adIn(id))) return;
-        const fit = unwrap(await assessFitAction({ jobId: id }));
+        const fit = unwrap(await assessFitAction({ jobId }));
         // the application's own call on body leasing follows the check (lib/applications.ts assessFit)
         queryClient.setQueryData<Shown>(
-          applicationKey(id),
+          applicationKey(jobId),
           (current) => current && { ...current, fit, bodyLeasing: fit.bodyLeasing },
         );
       } catch (error) {
         onError(message(error));
       }
     });
-  return { checking, check: () => run(jobId, false), checkAgain: (id: string) => run(id, true) };
+  return { checking, check };
 }
 
 /**
- * The active AI profile's match score, as on the offers; a job it hasn't judged gets a button that asks it.
+ * The active AI profile's match score, as on the offers; a job it hasn't judged gets a button that asks it,
+ * a judged one a "Check again" beside the score, shown as you point at the window's header (`group/header`).
  * "Rent-a-dev" before it, as in the list.
  */
 export function ApplicationFit({ app, checking, onCheck }: { app: Shown; checking: boolean; onCheck: () => void }) {
@@ -79,19 +60,34 @@ function FitBadge({ app, checking, onCheck }: { app: Shown; checking: boolean; o
         <Loader2Icon className="animate-spin" /> Checking…
       </Button>
     );
-  if (app.fit)
-    return (
-      <FitScore
-        match={app.fit.match}
-        score={app.fit.score}
-        summary={app.fit.summary}
-        checks={app.fit.checks}
-        hadDescription={app.fit.hadDescription}
-      />
-    );
   if (app.fit === undefined) return null; // not loaded yet
 
   const waiting = adWaiting(app);
+  if (app.fit)
+    return (
+      <>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          // a touch screen can't hover: always there
+          className="text-muted-foreground transition-opacity hover:text-foreground pointer-fine:opacity-0 pointer-fine:group-hover/header:opacity-100 pointer-fine:focus-visible:opacity-100"
+          title={waiting ? 'Once the ad text is in' : 'Check the fit again'}
+          aria-label="Check the fit again"
+          disabled={waiting}
+          onClick={onCheck}
+        >
+          <RotateCwIcon />
+        </Button>
+        <FitScore
+          match={app.fit.match}
+          score={app.fit.score}
+          summary={app.fit.summary}
+          checks={app.fit.checks}
+          hadDescription={app.fit.hadDescription}
+        />
+      </>
+    );
   return (
     <Button
       type="button"
