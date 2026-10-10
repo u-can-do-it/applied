@@ -42,6 +42,7 @@ const result = (kept: Found[], extra: Partial<ScrapeResult> = {}): ScrapeResult 
   kept,
   skipped: { keyword: 0, area: 0, ignored: 0 },
   pages: [],
+  proxied: 0,
   ms: 5,
   ...extra,
 });
@@ -160,10 +161,10 @@ describe('outcomes', () => {
     expect(scraperOutcomes(fetched, addedPerScraper(rows, owners))).toEqual([
       {
         id: 'ok',
-        outcome: { ok: true, found: 7, kept: 2, added: 1, error: 'page 2: HTTP 500', ms: 5, mark: 300 },
+        outcome: { ok: true, found: 7, kept: 2, added: 1, error: 'page 2: HTTP 500', ms: 5, proxied: 0, mark: 300 },
       },
-      { id: 'failing', outcome: { ok: false, found: 0, kept: 0, added: 0, error: 'HTTP 403', ms: 5, mark: 50 } },
-      { id: 'fresh', outcome: { ok: true, found: 1, kept: 1, added: 1, error: null, ms: 5, mark: 0 } },
+      { id: 'failing', outcome: { ok: false, found: 0, kept: 0, added: 0, error: 'HTTP 403', ms: 5, proxied: 0, mark: 50 } },
+      { id: 'fresh', outcome: { ok: true, found: 1, kept: 1, added: 1, error: null, ms: 5, proxied: 0, mark: 0 } },
     ]);
     // a newer watermark than what the pages had stays
     expect(scraperOutcomes([{ scraper: ok, result: result([], { maxSort: 10 }) }], new Map())[0].outcome.mark).toBe(

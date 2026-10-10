@@ -190,6 +190,6 @@ describe('the checks', () => {
       level: 'warn',
       fix: { action: 'resumeScraping' },
     });
-    expect(scrapingCheck(settings).reason).toBe('On, every 10 min (weekends 30 min), 7:00–22:00 (Europe/Warsaw).');
+    expect(scrapingCheck(settings).reason).toBe('On, every 10 min (weekends 1 h), 7:00–22:00 (Europe/Warsaw).');
   });
 });

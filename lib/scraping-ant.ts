@@ -32,6 +32,10 @@ export function refusedByBlockingBoard(url: string, res: Response): boolean {
   return Boolean(byHost(new URL(url).hostname)?.blocksServer);
 }
 
+/** On the Response throughScrapingAnt hands back: the page came through ScrapingAnt (a run counts those). */
+const VIA = 'x-jobwatch-via';
+export const cameThroughScrapingAnt = (res: Response) => res.headers.get(VIA) === 'scrapingant';
+
 let queue: Promise<unknown> = Promise.resolve();
 
 /** One request at a time (the free plan's limit, in this function); a page that waited too long fails. */
@@ -85,7 +89,7 @@ export function throughScrapingAnt(url: string): Promise<Response> {
       }
       return new Response(res.body, {
         status: page >= 200 && page < 600 ? page : 502,
-        headers: { 'content-type': res.headers.get('content-type') ?? 'text/html; charset=utf-8' },
+        headers: { 'content-type': res.headers.get('content-type') ?? 'text/html; charset=utf-8', [VIA]: 'scrapingant' },
       });
     }
   });

@@ -34,9 +34,9 @@ describeDb('scrapers', () => {
       { id: 'boardb', label: 'Second' },
     ]);
 
-    await scrapersRepo.saveOutcome(first, { ok: true, found: 10, kept: 4, added: 2, error: null, ms: 1234, mark: 42 });
+    await scrapersRepo.saveOutcome(first, { ok: true, found: 10, kept: 4, added: 2, error: null, ms: 1234, proxied: 2, mark: 42 });
     let scraper = await scrapersRepo.get(first);
-    expect(scraper).toMatchObject({ mark: 42, lastStatus: 'ok', lastFound: 10, lastKept: 4, lastNew: 2, lastMs: 1234 });
+    expect(scraper).toMatchObject({ mark: 42, lastStatus: 'ok', lastFound: 10, lastKept: 4, lastNew: 2, lastMs: 1234, lastProxied: 2 });
     expect(scraper?.lastRunAt).toMatch(ISO);
     expect(scraper?.config).toEqual(search('First', 'boarda').config);
     const [json] = await exec(sql`select jsonb_typeof(config) as config from public.scrapers where id = ${first}`);

@@ -271,6 +271,7 @@ export const scrapers = pgTable(
     lastNew: integer('last_new'),
     lastError: text('last_error'),
     lastMs: integer('last_ms'),
+    lastProxied: integer('last_proxied'), // pages of the last run that came through ScrapingAnt; null = before it was counted
     createdAt: createdAt(),
     updatedAt: timestamptz('updated_at').notNull().defaultNow(),
   },

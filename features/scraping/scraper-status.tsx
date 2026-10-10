@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { CheckIcon, TriangleAlertIcon, XIcon } from 'lucide-react';
 import { useZone } from '@/components/time-zone';
+import { byId } from '@/lib/boards';
 import type { Scraper } from '@/lib/db/repos/scrapers';
 import { seconds } from '@/lib/shared/format';
 
@@ -42,6 +43,17 @@ export function ScraperStatus({ scraper }: { scraper: Scraper }) {
 }
 
 /**
+ * How a board that turns the server away (its `blocksServer`: Eldorado) was reached in the scraper's
+ * last run: as any other, or through ScrapingAnt (lib/scraping-ant.ts). Nothing for the other boards.
+ */
+export function fetchedVia(scraper: Pick<Scraper, 'src' | 'lastProxied'>): string | null {
+  const proxied = scraper.lastProxied;
+  if (proxied === null || (!proxied && !byId(scraper.src)?.blocksServer)) return null;
+  if (!proxied) return 'fetched directly';
+  return `through ScrapingAnt (${proxied} page${proxied === 1 ? '' : 's'})`;
+}
+
+/**
  * Settings' line about a scraper: whether its last run went through (the details are on Activity), and when
  * the schedule runs it next if its board's quota of calls holds it back (`nextAt`; Scrape now runs it any time).
  */
@@ -59,6 +71,7 @@ export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: n
   );
   if (!scraper.lastRunAt) return <p className="m-0 mt-0.5 text-xs text-muted-foreground">Not run yet{firstRun}</p>;
   const failed = scraper.lastStatus === 'error' || scraper.lastError;
+  const via = fetchedVia(scraper);
   return (
     <p className="m-0 mt-0.5 text-xs">
       {failed ? (
@@ -74,6 +87,7 @@ export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: n
           {scraper.lastNew} new
         </span>
       )}
+      {via && <span className="text-muted-foreground"> · {via}</span>}
       {waits}
       {firstRun}
     </p>

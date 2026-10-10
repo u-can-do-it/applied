@@ -30,6 +30,7 @@ export function scraperOutcomes(
       added: addedBy.get(scraper.id) ?? 0,
       error: result.error,
       ms: result.ms,
+      proxied: result.proxied,
       // the watermark moves only on a successful run; null -> "has run" even with nothing dated
       mark: result.ok ? Math.max(scraper.mark ?? -Infinity, result.maxSort ?? -Infinity, 0) : scraper.mark,
     },

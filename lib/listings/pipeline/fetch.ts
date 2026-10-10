@@ -2,6 +2,7 @@ import 'server-only';
 import { STATUS_CODES } from 'node:http';
 import type { Scraper } from '../../db/repos/scrapers';
 import { BROWSER_UA, fetchOutbound, readText } from '../../outbound';
+import { cameThroughScrapingAnt } from '../../scraping-ant';
 import { message } from '../../shared/errors';
 import { withApiParams } from '../api-params';
 import { isObj, str, strip } from '../extract';
@@ -19,7 +20,11 @@ import type { Fetched } from './model';
 const TIMEOUT_MS = 20_000;
 const PARALLEL = 4;
 
-export async function fetchPage(url: string, headers: Record<string, string> = {}): Promise<string> {
+/** The page's text, and whether it came through ScrapingAnt (its board turned the server away). */
+export async function fetchPage(
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<{ text: string; proxied: boolean }> {
   const sent = new Headers({
     'User-Agent': BROWSER_UA,
     'Accept-Language': 'pl,en;q=0.8',
@@ -39,7 +44,7 @@ export async function fetchPage(url: string, headers: Record<string, string> = {
       `HTTP ${res.status}${words}${res.status === 403 || res.status === 429 ? ' (the site blocks this server?)' : ''}`,
     );
   }
-  return readText(res);
+  return { text: await readText(res), proxied: cameThroughScrapingAnt(res) };
 }
 
 /**
@@ -79,6 +84,8 @@ export type PageResult = {
   error?: string;
   total: number;
   kept: number;
+  /** fetched through ScrapingAnt */
+  proxied?: true;
 };
 export type ScrapeResult = {
   ok: boolean;
@@ -92,6 +99,8 @@ export type ScrapeResult = {
   /** newest sort value over everything on the pages, kept or not (the scraper's watermark) */
   maxSort?: number;
   pages: PageResult[];
+  /** how many of the pages came through ScrapingAnt (the board turned the server away) */
+  proxied: number;
   sample?: string;
   ms: number;
 };
@@ -119,13 +128,13 @@ export async function scrape(
   try {
     urls = expandUrl(config.url, settings.keywords, config.pages);
   } catch (error) {
-    return { ok: false, error: message(error), found: 0, kept: [], skipped, pages, ms: 0 };
+    return { ok: false, error: message(error), found: 0, kept: [], skipped, pages, proxied: 0, ms: 0 };
   }
   for (const target of urls) {
     const { keyword, page, url } = target;
     try {
-      const body = await fetchPage(withApiParams(scraper.kind, url), config.headers);
-      const parsed = parseBody(scraper.kind, body, { src: scraper.src, url, config });
+      const { text, proxied } = await fetchPage(withApiParams(scraper.kind, url), config.headers);
+      const parsed = parseBody(scraper.kind, text, { src: scraper.src, url, config });
       sample ??= parsed.sample;
       found += parsed.total;
       let pageKept = 0;
@@ -139,7 +148,7 @@ export async function scrape(
           kept.set(offer.id, offer);
         }
       }
-      pages.push({ keyword, page, url, ok: true, total: parsed.total, kept: pageKept });
+      pages.push({ keyword, page, url, ok: true, total: parsed.total, kept: pageKept, ...(proxied && { proxied }) });
     } catch (error) {
       pages.push({ keyword, page, url, ok: false, error: message(error), total: 0, kept: 0 });
     }
@@ -160,6 +169,7 @@ export async function scrape(
     skipped,
     maxSort,
     pages,
+    proxied: pages.filter((result) => result.proxied).length,
     sample,
     ms: Date.now() - startedAt,
   };

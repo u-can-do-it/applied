@@ -28,6 +28,7 @@ const columns = {
   lastNew: scrapers.lastNew,
   lastError: scrapers.lastError,
   lastMs: scrapers.lastMs,
+  lastProxied: scrapers.lastProxied,
 } satisfies Record<keyof Scraper, unknown>;
 
 const inOrder = [asc(scrapers.position), asc(scrapers.createdAt)];
@@ -77,6 +78,8 @@ export type ScraperOutcome = {
   added: number;
   error: string | null;
   ms: number;
+  /** pages that came through ScrapingAnt */
+  proxied: number;
   mark: number | null;
 };
 
@@ -93,6 +96,7 @@ export async function saveOutcome(id: string, outcome: ScraperOutcome) {
       lastNew: outcome.added,
       lastError: outcome.error,
       lastMs: outcome.ms,
+      lastProxied: outcome.proxied,
     })
     .where(eq(scrapers.id, id));
 }

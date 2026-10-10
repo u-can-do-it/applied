@@ -34,6 +34,7 @@ const scraper = (id: string, name: string): Scraper => ({
   lastNew: null,
   lastError: null,
   lastMs: null,
+  lastProxied: null,
 });
 
 const SUMMARY = { found: 3, kept: 2, added: 1, fresh: 1, notified: 0, notifyLater: true, errors: [], ms: 5 };

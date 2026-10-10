@@ -38,7 +38,7 @@ export type ScrapeSettings = {
 export const DEFAULT_SETTINGS: ScrapeSettings = {
   enabled: true,
   everyMinutes: 5,
-  weekendEveryMinutes: 30,
+  weekendEveryMinutes: 60,
   fromHour: 7,
   toHour: 22,
   keywords: ['React'],

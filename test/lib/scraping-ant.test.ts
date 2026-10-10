@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fetchPage } from '@/lib/listings/pipeline/fetch';
 import { fetchOutbound } from '@/lib/outbound';
 
 // fetchOutbound on a board that blocks the server (Eldorado): a refused page goes again through
@@ -72,6 +73,13 @@ describe('a board that blocks the server', () => {
     const calls = stubFetch(() => new Response('<html>the ad</html>'));
     expect(await (await fetchOutbound(AD)).text()).toBe('<html>the ad</html>');
     expect(calls).toEqual([AD]);
+  });
+
+  it('a run knows which pages came through ScrapingAnt', async () => {
+    stubFetch(challenge, () => viaAnt('<html>the list</html>'));
+    expect(await fetchPage(AD)).toEqual({ text: '<html>the list</html>', proxied: true });
+    stubFetch(() => new Response('<html>the list</html>'));
+    expect(await fetchPage(AD)).toEqual({ text: '<html>the list</html>', proxied: false });
   });
 
   it('without a key, the refusal stays the answer', async () => {

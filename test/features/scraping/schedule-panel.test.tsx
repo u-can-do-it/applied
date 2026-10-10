@@ -42,7 +42,7 @@ describe('SchedulePanel', () => {
     save.mockResolvedValueOnce({ ok: true, data: 'Saved.' });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
-      expect(save).toHaveBeenCalledWith({ everyMinutes: 15, weekendEveryMinutes: 30, fromHour: 8, toHour: 22 }),
+      expect(save).toHaveBeenCalledWith({ everyMinutes: 15, weekendEveryMinutes: 60, fromHour: 8, toHour: 22 }),
     );
   });
 });
