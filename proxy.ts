@@ -3,7 +3,7 @@ import { AUTH_COOKIE, authEnabled, isValidToken } from '@/server/auth';
 import { env } from '@/lib/env';
 
 // Every page and server action needs the login cookie, except the login page itself, the endpoints
-// called without it (they check their own secret: the cron one and Telegram's), and what the browser
+// called without it (they check their own secret: the cron one, Telegram's and the Gmail script's), and what the browser
 // fetches without the cookie to install the app and
 // show its notifications: the manifest, the icons and the service worker (public files, nothing private).
 export async function proxy(request: NextRequest) {
@@ -26,9 +26,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // everything except the login page, the cron and Telegram endpoints, Next's own assets,
+  // everything except the login page, the cron, Telegram and alert email endpoints, Next's own assets,
   // the favicon, the manifest, the icons and the service worker (test/proxy.test.ts)
   matcher: [
-    '/((?!login|api/cron/|api/telegram|_next/static|_next/image|favicon\\.ico$|manifest\\.webmanifest$|icons/|sw\\.js$).*)',
+    '/((?!login|api/cron/|api/telegram|api/alerts/|_next/static|_next/image|favicon\\.ico$|manifest\\.webmanifest$|icons/|sw\\.js$).*)',
   ],
 };

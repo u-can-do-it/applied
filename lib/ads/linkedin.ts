@@ -1,7 +1,7 @@
 import 'server-only';
 import { parse as parseHtml } from 'node-html-parser';
 import { htmlToText } from '../shared/html';
-import type { AdReader, JobDetails } from './details';
+import type { Ad, AdReader, JobDetails } from './details';
 import { get } from './fetch';
 import { readPage } from './page';
 
@@ -10,7 +10,8 @@ import { readPage } from './page';
 // criteria come in the page's language (Accept-Language: pl first)
 const LI_CONTRACT = ['Employment type', 'Forma zatrudnienia', 'Rodzaj zatrudnienia'];
 
-async function fromFragment(id: string) {
+/** One posting as its public fragment has it: the ad, and its title (a job from an alert email has no card). */
+export async function readPosting(id: string): Promise<Ad & { title: string }> {
   const html = await (
     await get(`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${encodeURIComponent(id)}`, 'text/html')
   ).text();
@@ -30,12 +31,17 @@ async function fromFragment(id: string) {
     contract: criteria.find(([label]) => LI_CONTRACT.includes(label))?.[1],
   };
   const lines = criteria.filter(([label, value]) => label && value).map(([label, value]) => `${label}: ${value}`);
-  return { text: [lines.join('\n'), description].filter(Boolean).join('\n\n'), details };
+  return {
+    title: one('.top-card-layout__title') ?? '',
+    text: [lines.join('\n'), description].filter(Boolean).join('\n\n'),
+    details,
+  };
 }
 
 export const readLinkedin: AdReader = async (offer) => {
   try {
-    return await fromFragment(offer.id);
+    const { text, details } = await readPosting(offer.id);
+    return { text, details };
   } catch {
     return readPage(offer.url); // the job page has a JobPosting too, when LinkedIn shows it
   }

@@ -141,6 +141,13 @@
       "when": 1791801186402,
       "tag": "0019_linkedin_since",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791803122786,
+      "tag": "0020_alert_jobs",
+      "breakpoints": true
     }
   ]
 }

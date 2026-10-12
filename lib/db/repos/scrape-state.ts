@@ -4,11 +4,19 @@ import { db } from '../client';
 import { first } from '../rows';
 import { scrapeState, type ScrapeStateRow } from '../schema';
 
-// The scraping machine's state, one row: the run lock, the last call and run, notifications muted.
+// The scraping machine's state, one row: the run lock, the last call and run, notifications muted, the last
+// LinkedIn alert email.
 
 export type ScrapeState = Omit<ScrapeStateRow, 'id'>;
 
-const NONE: ScrapeState = { lockedUntil: null, lastCallAt: null, lastRunAt: null, muted: false };
+const NONE: ScrapeState = {
+  lockedUntil: null,
+  lastCallAt: null,
+  lastRunAt: null,
+  muted: false,
+  alertEmailAt: null,
+  alertEmailJobs: null,
+};
 
 export async function get(): Promise<ScrapeState> {
   const row = first(
@@ -18,6 +26,8 @@ export async function get(): Promise<ScrapeState> {
         lastCallAt: scrapeState.lastCallAt,
         lastRunAt: scrapeState.lastRunAt,
         muted: scrapeState.muted,
+        alertEmailAt: scrapeState.alertEmailAt,
+        alertEmailJobs: scrapeState.alertEmailJobs,
       })
       .from(scrapeState)
       .limit(1),
@@ -32,6 +42,8 @@ async function patch(fields: Partial<ScrapeState>) {
 export const markCall = () => patch({ lastCallAt: new Date().toISOString() });
 export const setMuted = (muted: boolean) => patch({ muted });
 export const unlock = () => patch({ lockedUntil: null });
+/** A LinkedIn job alert email came in, with this many jobs in it. */
+export const markAlertEmail = (jobs: number) => patch({ alertEmailAt: new Date().toISOString(), alertEmailJobs: jobs });
 
 /**
  * Takes the run lock for `seconds` (and stamps last_run_at): false = another run holds it. One

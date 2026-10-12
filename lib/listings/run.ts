@@ -1,6 +1,6 @@
 import 'server-only';
 import { after } from 'next/server';
-import { AI_BUDGET_MS, SCRAPE_LOCK_SECONDS } from '../budgets';
+import { AD_CHECK_MS, AI_BUDGET_MS, SCRAPE_LOCK_SECONDS } from '../budgets';
 import { activeChannels } from '../channels';
 import * as queueRepo from '../db/repos/notify-queue';
 import * as runsRepo from '../db/repos/scrape-runs';
@@ -10,6 +10,7 @@ import * as stateRepo from '../db/repos/scrape-state';
 import { log } from '../log';
 import { message } from '../shared/errors';
 import { aiFilter } from './pipeline/ai-filter';
+import { fetchAlerts } from './pipeline/alerts';
 import { newJobs, selectAnnouncable } from './pipeline/announce';
 import { fetchListings, scrapersToRun } from './pipeline/fetch';
 import type { RunError, RunSummary } from './pipeline/model';
@@ -22,9 +23,9 @@ import type { Trigger } from './triggers';
 
 export type { RunSummary } from './pipeline/model';
 
-// One run = every enabled scraper: fetch, parse, filter, save new offers, queue the new jobs for
-// the notification channels (Telegram, push), check them against the active AI profile and send
-// the matches (unless muted).
+// One run = every enabled scraper, and the jobs LinkedIn's alert emails named: fetch, parse, filter, save
+// new offers, queue the new jobs for the notification channels (Telegram, push), check them against the
+// active AI profile and send the matches (unless muted).
 // The steps are in ./pipeline; this file puts them in order, under the lock, with the run log.
 
 const EMPTY = { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] as RunError[], ms: 0 };
@@ -56,12 +57,22 @@ export async function runAll(
     if (opts.scraper && !chosen.length) return { ...EMPTY, skipped: 'This scraper no longer exists.' };
     runId = await runsRepo.start(trigger);
 
-    const fetched = await fetchListings(chosen, settings);
+    const scraped = await fetchListings(chosen, settings);
+    // not for one scraper's run (its button in Settings); after the scrapers, so what they kept isn't read again
+    const alerts = opts.scraper
+      ? null
+      : await fetchAlerts(
+          settings,
+          scraped.flatMap(({ result }) => result.kept),
+          startedAt + AD_CHECK_MS,
+        );
+    const fetched = alerts ? [...scraped, alerts.fetched] : scraped;
     const owners = pickOwners(fetched);
     const added = await ingest(owners);
+    await alerts?.settle();
     const fresh = selectAnnouncable(added, owners, settings);
     const addedBy = addedPerScraper(added, owners);
-    const outcomes = scraperOutcomes(fetched, addedBy);
+    const outcomes = scraperOutcomes(scraped, addedBy); // the alerts' isn't a scraper's row
     await recordOutcomes(outcomes);
 
     const summary = summarize({ fetched, owners, added, fresh, ms: Date.now() - startedAt });

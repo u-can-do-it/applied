@@ -5,6 +5,9 @@ import { env } from '@/lib/env';
 import { isUsable } from '@/lib/ai/profiles';
 import { effectiveTimeZone } from '@/lib/listings/settings';
 import { requestOrigin } from '@/lib/listings/schedule';
+import { ALERTS_PATH, alertsSecret, gmailScript } from '@/lib/listings/gmail-alerts';
+import { linkedin } from '@/lib/boards/linkedin';
+import * as alertsRepo from '@/lib/db/repos/alert-jobs';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
 import * as offersRepo from '@/lib/db/repos/offers';
 import * as pushRepo from '@/lib/db/repos/push-subscriptions';
@@ -23,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AiPanel } from '@/features/ai/ai-panel';
 import { HealthCard, HealthCardFallback } from '@/features/health/health-card';
 import { NotificationsPanel } from '@/features/notifications/notifications-panel';
+import { AlertsPanel } from '@/features/scraping/alerts-panel';
 import { FiltersPanel } from '@/features/scraping/filters-panel';
 import { SchedulePanel } from '@/features/scraping/schedule-panel';
 import { ScrapersPanel } from '@/features/scraping/scrapers-panel';
@@ -57,6 +61,7 @@ async function Settings() {
   const extras = Promise.all([
     cronInfo(),
     requestOrigin(),
+    alertsSecret(),
     profileList().catch(() => []),
     // only with the VAPID keys (without them nothing is pushed); not yet migrated (the table is new):
     // none, the Health card says the database is behind
@@ -64,18 +69,19 @@ async function Settings() {
   ]);
   let data;
   try {
-    const [settings, scrapers, state, queued, counts] = await Promise.all([
+    const [settings, scrapers, state, queued, counts, alerts] = await Promise.all([
       appSettings(),
       scrapersRepo.list(),
       stateRepo.get(),
       queueRepo.size(),
       offersRepo.countPerBoard(),
+      alertsRepo.counts(linkedin.id),
     ]);
-    data = { settings, scrapers, state, queued, counts };
+    data = { settings, scrapers, state, queued, counts, alerts };
   } catch (error) {
     return <LoadError title="Can’t load the settings." detail={message(error)} />;
   }
-  const [cron, origin, profiles, devices] = await extras;
+  const [cron, origin, secret, profiles, devices] = await extras;
   // what the AI filter would check new offers against: the active profile, if it can work
   const active = profiles[0];
   const ai = {
@@ -83,7 +89,7 @@ async function Settings() {
     profile: isUsable(active) ? active.name : null,
     keySet: Boolean(env.OPENAI_API_KEY),
   };
-  const { settings, scrapers, state, queued, counts } = data;
+  const { settings, scrapers, state, queued, counts, alerts } = data;
   const timeZone = effectiveTimeZone(settings);
 
   return (
@@ -112,6 +118,12 @@ async function Settings() {
         />
       </Suspense>
       <ScrapersPanel scrapers={scrapers} counts={counts} keywords={settings.keywords} schedule={settings} />
+      <AlertsPanel
+        lastEmailAt={state.alertEmailAt}
+        lastEmailJobs={state.alertEmailJobs}
+        counts={alerts}
+        script={secret && gmailScript(`${origin}${ALERTS_PATH}`, secret)}
+      />
     </TimeZone>
   );
 }

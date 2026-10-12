@@ -32,6 +32,7 @@ import {
 import type { SavedDetails } from '../applications';
 import type { JobDetails, OfferLink } from '../ads/details';
 import type { Check } from '../ai/openai';
+import type { AlertOutcome } from '../listings/alert-email';
 import type { ScraperConfig } from '../listings/config';
 import { KIND_IDS, type KindId } from '../listings/kinds';
 import type { HistoryEntry, OutcomeId, StageId } from '../stages';
@@ -307,6 +308,9 @@ export const scrapeState = pgTable(
     lastCallAt: timestamptz('last_call_at'), // the endpoint was called (by any trigger), even if nothing was due
     lastRunAt: timestamptz('last_run_at'), // a run actually started
     muted: boolean('muted').notNull().default(false), // /mute: offers wait in notify_queue
+    // the last LinkedIn job alert email the Gmail script sent (POST /api/alerts/linkedin), and its jobs
+    alertEmailAt: timestamptz('alert_email_at'),
+    alertEmailJobs: integer('alert_email_jobs'),
   },
   () => [check('scrape_state_id_check', sql`id`)],
 ).enableRLS();
@@ -323,6 +327,25 @@ export const keywordMisses = pgTable(
     checkedAt: timestamptz('checked_at').notNull().defaultNow(),
   },
   (table) => [primaryKey({ name: 'keyword_misses_pkey', columns: [table.src, table.id] })],
+).enableRLS();
+
+// The jobs LinkedIn's job alert emails named (POST /api/alerts/linkedin, from the Gmail script in Settings),
+// each once: a scrape run reads the ones waiting and keeps what passes the filters
+// (lib/listings/pipeline/alerts.ts). A month of them, so an email sent again adds nothing.
+export const alertJobs = pgTable(
+  'alert_jobs',
+  {
+    src: text('src').notNull(), // the board: linkedin
+    id: text('id').notNull(),
+    receivedAt: timestamptz('received_at').notNull().defaultNow(),
+    // null = waiting; kept (an offer now), skipped (the filters), known (a scraper had it already)
+    outcome: text('outcome').$type<AlertOutcome>(),
+    doneAt: timestamptz('done_at'),
+  },
+  (table) => [
+    primaryKey({ name: 'alert_jobs_pkey', columns: [table.src, table.id] }),
+    check('alert_jobs_outcome_check', sql`outcome in ('kept', 'skipped', 'known')`),
+  ],
 ).enableRLS();
 
 // scrapers added in later versions, each seeded once, so one you deleted doesn't come back
@@ -434,6 +457,7 @@ export type NewScraperRow = typeof scrapers.$inferInsert;
 export type ScrapeSettingsRow = typeof scrapeSettings.$inferSelect;
 export type ScrapeStateRow = typeof scrapeState.$inferSelect;
 export type KeywordMissRow = typeof keywordMisses.$inferSelect;
+export type AlertJobRow = typeof alertJobs.$inferSelect;
 export type ScrapeSeedRow = typeof scrapeSeeds.$inferSelect;
 export type ScrapeRunRow = typeof scrapeRuns.$inferSelect;
 export type NotifyQueueRow = typeof notifyQueue.$inferSelect;

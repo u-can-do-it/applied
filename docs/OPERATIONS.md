@@ -6,7 +6,7 @@ isn't. How it works inside: [ARCHITECTURE.md](ARCHITECTURE.md).
 - [Deploy on Vercel](#deploy-on-vercel)
 - [Environment variables](#environment-variables)
 - [Database](#database) (set-up, migrations, [a local database](#a-local-database))
-- [Supabase Cron](#supabase-cron) · [Notifications](#notifications) ([push on Android](#push-notifications-on-android), [Telegram](#telegram)) · [OpenAI](#openai)
+- [Supabase Cron](#supabase-cron) · [LinkedIn alert emails](#linkedin-alert-emails) · [Notifications](#notifications) ([push on Android](#push-notifications-on-android), [Telegram](#telegram)) · [OpenAI](#openai)
 - [Health](#health) · [Logs](#logs) · [SSRF policy](#ssrf-policy)
 - [Recovery](#recovery) · [Timeouts and the pooler](#timeouts-and-the-pooler)
 
@@ -155,6 +155,24 @@ paused. The app then checks again whether a run is due. Vercel's own cron can't 
   runs even if not due (`force=1`) and answers with the result (`wait=1`). Every answer has `"jobwatch"` in it.
 - **Disconnect** removes both jobs (`jobwatch-scrape`, and the daily cleanup that keeps a week of its log).
 - Activity → "Supabase Cron" shows its last calls and what the app answered.
+
+## LinkedIn alert emails
+
+LinkedIn's job alerts match on the whole ad and catch what its logged-out search misses. A Google Apps Script
+in your Gmail sends each new alert email to `POST /api/alerts/linkedin` every 10 minutes; the next scrape run
+reads each job's posting and keeps it when the filters let it through, as the LinkedIn scrapers' offers.
+
+- **Set up:** Settings → **LinkedIn alert emails** → "Set it up in Gmail": the script there has this app's
+  address and secret in it (open Settings on the deployed app, not on localhost). At `script.google.com` → New
+  project, paste it, save, pick `setup` and Run, and allow it to read Gmail and connect to an external service.
+  `setup` adds the 10-minute trigger; Google emails you when a run of it fails.
+- **The secret** is derived from the [cron secret](#environment-variables): after changing `CRON_SECRET` or
+  `APP_PASSWORD` the endpoint answers 401 until the script is pasted again.
+- **What the panel says:** the last email and how many jobs were in it (none: another kind of LinkedIn email, or a
+  layout `lib/listings/alert-email.ts` doesn't read), and what became of the week's jobs: kept, found by the
+  scrapers already, left out by the filters, waiting (at most 10 postings are read a run).
+- **By hand:** `curl -H 'Authorization: Bearer <alerts secret>' -H 'Content-Type: application/json' -d
+'{"html": "<a href=\"https://www.linkedin.com/jobs/view/4466208580\">x</a>"}' https://<app>/api/alerts/linkedin`.
 
 ## Notifications
 
