@@ -154,7 +154,9 @@ Tailwind v4 and shadcn/ui ([ADR 0007](docs/decisions/0007-shadcn-ui-and-tailwind
      another id), `cleanLink` when its links need their query (otherwise a board's link loses it);
    - a board Jobwatch scrapes also has a `listing`: the scraper kind's label and hint in Settings, the
      default search, and the `seeds` (the scrapers it comes with); `minutesPerCall` when its API has a quota
-     of calls (`lib/listings/quota.ts` then runs its scrapers as often as their calls allow). What its API
+     of calls (`lib/listings/quota.ts` then runs its scrapers as often as their calls allow); `keywordsInAd`
+     when its cards have no skills but its search reads the whole ad (a title without a keyword then has its
+     ad read for one, once: `lib/listings/pipeline/ad-check.ts`; it needs an ad reader). What its API
      needs in every link (an API key, read from a variable of its own) goes in `lib/listings/api-params.ts`,
      never in the link.
 2. **Its parser** (a scraped board): `lib/listings/parsers/<id>.ts`, a `ListingParser` that turns one page

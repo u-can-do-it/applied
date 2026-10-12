@@ -4,7 +4,7 @@ import { refresh } from 'next/cache';
 import { action } from '@/server/action';
 import { cronSchedule } from '@/lib/listings/cron';
 import type { ScrapeSettings } from '@/lib/listings/settings';
-import { scrape, type PageResult } from '@/lib/listings/pipeline/fetch';
+import { scrape, type PageResult, type ScrapeResult } from '@/lib/listings/pipeline/fetch';
 import { cronSecret, requestOrigin, syncCron } from '@/lib/listings/schedule';
 import * as cronRepo from '@/lib/db/repos/cron';
 import * as offersRepo from '@/lib/db/repos/offers';
@@ -105,13 +105,17 @@ export type TestResult = {
   kept: number;
   fresh: number;
   skipped: { keyword: number; area: number; ignored: number };
+  ads?: ScrapeResult['ads'];
   pages: PageResult[];
   offers: TestOffer[];
   sample?: string;
   ms: number;
 };
 
-/** Fetches with the form's current values; nothing is saved. */
+/**
+ * Fetches with the form's current values; nothing is saved but which ads named no keyword (on a board
+ * whose cards have no skills), so the runs don't read them again.
+ */
 export const testScraperAction = action(scraperSchema, async ({ scraper }): Promise<TestResult> => {
   const result = await scrape(scraper, await settingsRepo.get());
   const known = await offersRepo
@@ -127,6 +131,7 @@ export const testScraperAction = action(scraperSchema, async ({ scraper }): Prom
     kept: result.kept.length,
     fresh: result.kept.slice(0, 200).filter((offer) => !known.has(offer.id)).length,
     skipped: result.skipped,
+    ...(result.ads && { ads: result.ads }),
     pages: result.pages,
     offers: result.kept.slice(0, 25).map((offer) => ({
       id: offer.id,

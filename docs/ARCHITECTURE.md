@@ -57,7 +57,14 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 1. **`fetchListings`** (`fetch.ts`): every enabled scraper's pages (4 scrapers at once, 20 s per page), through
    `fetchOutbound`, parsed by the scraper's kind ([`lib/listings/registry.ts`](../lib/listings/registry.ts)),
    then filtered: a keyword in the title or skills and a city (or remote), each where the scraper checks it,
-   and not an ignored title. A scraper's failure is part of its result, never the run's. A board with a quota
+   and not an ignored title. On a board whose cards have no skills while its search reads the whole ad
+   (`listing.keywordsInAd`: LinkedIn), a title without a keyword that passed the rest has its ad read for one
+   (`ad-check.ts`): once per offer (a kept one is in `offers`, a miss in `keyword_misses`), one at a time, at most 10 a run, none
+   after one that fails or comes back empty, nor past `AD_CHECK_MS`. Paging stops at a page short of a full
+   one; `{since}` in a link is the seconds back to an hour before the scraper's last complete run (every page
+   and ad read: `scrapers.last_complete_at`), so LinkedIn's `f_TPR=r{since}` covers the night and a failed
+   run, and what an incomplete run left is still in the next one's window. A scraper's failure is part of its
+   result, never the run's. A board with a quota
    of calls (`listing.minutesPerCall`: Adzuna and Himalayas one every 20 minutes, Jobicy and Remote OK one an hour, Remotive one every 6 hours, as their terms ask) is scraped by the schedule only as often as its
    scrapers' calls allow ([`lib/listings/quota.ts`](../lib/listings/quota.ts)): `scrapersToRun` leaves them
    out of a cron run in between; "Scrape now" and `/scrape` take them anyway. What its API needs in every link (the keys, from the environment, and
@@ -209,9 +216,10 @@ live in [`lib/db/repos/`](../lib/db/repos), one file per table; the rules on top
 | `ai_verdicts`        | one per profile version and job                                               | `lib/ai/runs.ts` (`assessBatch`); `lib/ai/profiles.ts` drops older versions' on edit (unless kept); `jw_merge_jobs` moves them                               |
 | `ai_runs`            | manual AI runs: range, phase, progress, lock                                  | `lib/ai/runs.ts` (`startRun`, and each slice writes its state's `save`, `lib/ai/run-state.ts`)                                                               |
 | `offer_details`      | an offer's ad text for the AI (`ok` / `empty`)                                | `lib/ai/runs.ts` (`descriptions`)                                                                                                                            |
-| `scrapers`           | saved searches, their config, mark and last result                            | `features/scraping/actions.ts` (Settings), `lib/listings/pipeline/persist.ts` (`recordOutcomes`), `lib/db/seed.ts`                                           |
+| `scrapers`           | saved searches, their config, mark, last result and last complete run         | `features/scraping/actions.ts` (Settings), `lib/listings/pipeline/persist.ts` (`recordOutcomes`), `lib/db/seed.ts`                                           |
 | `scrape_settings`    | one row: schedule, filters, switches, time zone (jsonb)                       | `features/scraping/actions.ts`, `features/notifications/actions.ts`; created by `0003_seed`                                                                  |
 | `scrape_state`       | one row: run lock, last call, last run, muted                                 | `lib/listings/run.ts` and `/api/cron/scrape` (lock), `lib/listings/schedule.ts` (last call), `/api/telegram` and `features/notifications/actions.ts` (muted) |
+| `keyword_misses`     | offers whose ad named none of the keywords, per keyword set (two weeks)       | `lib/listings/pipeline/ad-check.ts` (`checkAds`)                                                                                                             |
 | `scrape_seeds`       | which seeds were added (`board:<id>` markers), so deleted ones stay deleted   | `lib/db/seed.ts`, `0003_seed`, `0004_board_seeds`                                                                                                            |
 | `scrape_runs`        | the run log (two weeks)                                                       | `lib/listings/run.ts`                                                                                                                                        |
 | `notify_queue`       | new jobs waiting to be sent (every channel)                                   | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what no channel sent)                                        |

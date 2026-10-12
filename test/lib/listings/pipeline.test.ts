@@ -43,6 +43,7 @@ const result = (kept: Found[], extra: Partial<ScrapeResult> = {}): ScrapeResult 
   skipped: { keyword: 0, area: 0, ignored: 0 },
   pages: [],
   proxied: 0,
+  complete: true,
   ms: 5,
   ...extra,
 });
@@ -141,8 +142,11 @@ describe('outcomes', () => {
   const failing = scraper('failing', { mark: 50 });
   const fresh = scraper('fresh', { mark: null });
   const fetched: Fetched[] = [
-    { scraper: ok, result: result([offer('a'), offer('b')], { found: 7, maxSort: 300, error: 'page 2: HTTP 500' }) },
-    { scraper: failing, result: result([], { ok: false, error: 'HTTP 403', maxSort: 999 }) },
+    {
+      scraper: ok,
+      result: result([offer('a'), offer('b')], { found: 7, maxSort: 300, error: 'page 2: HTTP 500', complete: false }),
+    },
+    { scraper: failing, result: result([], { ok: false, error: 'HTTP 403', maxSort: 999, complete: false }) },
     { scraper: fresh, result: result([offer('c', { src: 'nofluff' })], { maxSort: undefined }) },
   ];
   const owners = pickOwners(fetched);
@@ -157,14 +161,40 @@ describe('outcomes', () => {
     );
   });
 
-  it('moves the watermark only on success; a first run marks "has run" with 0', () => {
+  it('moves the watermark only on success; a first run marks "has run" with 0; complete only with every page', () => {
     expect(scraperOutcomes(fetched, addedPerScraper(rows, owners))).toEqual([
       {
         id: 'ok',
-        outcome: { ok: true, found: 7, kept: 2, added: 1, error: 'page 2: HTTP 500', ms: 5, proxied: 0, mark: 300 },
+        outcome: {
+          ok: true,
+          found: 7,
+          kept: 2,
+          added: 1,
+          error: 'page 2: HTTP 500',
+          ms: 5,
+          proxied: 0,
+          mark: 300,
+          complete: false,
+        },
       },
-      { id: 'failing', outcome: { ok: false, found: 0, kept: 0, added: 0, error: 'HTTP 403', ms: 5, proxied: 0, mark: 50 } },
-      { id: 'fresh', outcome: { ok: true, found: 1, kept: 1, added: 1, error: null, ms: 5, proxied: 0, mark: 0 } },
+      {
+        id: 'failing',
+        outcome: {
+          ok: false,
+          found: 0,
+          kept: 0,
+          added: 0,
+          error: 'HTTP 403',
+          ms: 5,
+          proxied: 0,
+          mark: 50,
+          complete: false,
+        },
+      },
+      {
+        id: 'fresh',
+        outcome: { ok: true, found: 1, kept: 1, added: 1, error: null, ms: 5, proxied: 0, mark: 0, complete: true },
+      },
     ]);
     // a newer watermark than what the pages had stays
     expect(scraperOutcomes([{ scraper: ok, result: result([], { maxSort: 10 }) }], new Map())[0].outcome.mark).toBe(

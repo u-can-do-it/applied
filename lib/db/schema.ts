@@ -272,6 +272,9 @@ export const scrapers = pgTable(
     lastError: text('last_error'),
     lastMs: integer('last_ms'),
     lastProxied: integer('last_proxied'), // pages of the last run that came through ScrapingAnt; null = before it was counted
+    // the last run that got every page and every ad its keyword check needed: the next one's {since}
+    // looks back to an hour before it (lib/listings/match.ts sinceSeconds); null = none yet
+    lastCompleteAt: timestamptz('last_complete_at'),
     createdAt: createdAt(),
     updatedAt: timestamptz('updated_at').notNull().defaultNow(),
   },
@@ -306,6 +309,20 @@ export const scrapeState = pgTable(
     muted: boolean('muted').notNull().default(false), // /mute: offers wait in notify_queue
   },
   () => [check('scrape_state_id_check', sql`id`)],
+).enableRLS();
+
+// The offers whose ad was read for the keywords and named none (a board whose cards have no skills:
+// lib/listings/pipeline/ad-check.ts), so the runs that find them again don't read it again. For those
+// keywords only; kept two weeks, longer than a search's {since} looks back.
+export const keywordMisses = pgTable(
+  'keyword_misses',
+  {
+    src: text('src').notNull(),
+    id: text('id').notNull(),
+    keywords: text('keywords').notNull(), // folded, unique, sorted, one a line (ad-check.ts keywordsKey)
+    checkedAt: timestamptz('checked_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ name: 'keyword_misses_pkey', columns: [table.src, table.id] })],
 ).enableRLS();
 
 // scrapers added in later versions, each seeded once, so one you deleted doesn't come back
@@ -416,6 +433,7 @@ export type ScraperRow = typeof scrapers.$inferSelect;
 export type NewScraperRow = typeof scrapers.$inferInsert;
 export type ScrapeSettingsRow = typeof scrapeSettings.$inferSelect;
 export type ScrapeStateRow = typeof scrapeState.$inferSelect;
+export type KeywordMissRow = typeof keywordMisses.$inferSelect;
 export type ScrapeSeedRow = typeof scrapeSeeds.$inferSelect;
 export type ScrapeRunRow = typeof scrapeRuns.$inferSelect;
 export type NotifyQueueRow = typeof notifyQueue.$inferSelect;

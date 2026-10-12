@@ -23,6 +23,7 @@ export function TestView({ test }: { test: Result<TestResult> }) {
     result.skipped.area && `${result.skipped.area} not remote / not in the cities`,
     result.skipped.ignored && `${result.skipped.ignored} by title`,
   ].filter(Boolean);
+  const ads = result.ads;
   return (
     <section
       className="rounded-lg border bg-background px-3 py-2.5 text-sm [&_a]:text-foreground"
@@ -39,6 +40,14 @@ export function TestView({ test }: { test: Result<TestResult> }) {
         {result.pages.length > 1 ? 's' : ''} → <strong>{result.kept} kept</strong>, {result.fresh} of them not saved yet
         · {seconds(result.ms, 1)}
         {skipped.length > 0 && <span className="text-muted-foreground"> · skipped: {skipped.join(', ')}</span>}
+        {ads && (
+          <span className="text-muted-foreground">
+            {' '}
+            · titles without a keyword: {ads.read} ad{ads.read === 1 ? '' : 's'} read, {ads.kept} kept for a keyword in
+            the ad
+            {ads.left > 0 && <span className="text-warning">, {ads.left} left for the next run</span>}
+          </span>
+        )}
       </p>
       {result.pages.length > 1 || !result.ok ? (
         <ul className="my-1.5 list-disc pl-5 text-[13px]">

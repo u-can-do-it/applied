@@ -38,6 +38,8 @@ export type Kind = {
   minutesPerCall?: number;
   /** the first minutes of every hour, when its API turns calls away (the board's listing.skipHourStart) */
   skipHourStart?: number;
+  /** a title without a keyword has its ad read for one (the board's listing.keywordsInAd) */
+  keywordsInAd?: true;
 };
 
 const KINDS: Kind[] = [
@@ -49,6 +51,7 @@ const KINDS: Kind[] = [
     defaults: listing.defaults,
     minutesPerCall: listing.minutesPerCall,
     skipHourStart: listing.skipHourStart,
+    keywordsInAd: listing.keywordsInAd,
   })),
   ...GENERIC_KINDS,
 ];

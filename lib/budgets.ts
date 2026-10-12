@@ -14,6 +14,13 @@ export const OPENAI_TIMEOUT_MS = 120_000;
 /** One request for an offer's ad (lib/ads/fetch.ts). */
 export const AD_TIMEOUT_MS = 12_000;
 
+/**
+ * A scraper's keyword check of ads (a board whose cards have no skills: lib/listings/pipeline/ad-check.ts)
+ * starts no new read after this much of its scrape: the rest wait for the next run, and the run's AI check
+ * keeps most of its time.
+ */
+export const AD_CHECK_MS = 60_000;
+
 /** One page fetched through ScrapingAnt (lib/scraping-ant.ts), all its tries, once its turn comes. */
 export const SCRAPING_ANT_TIMEOUT_MS = 25_000;
 

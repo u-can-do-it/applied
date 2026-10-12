@@ -53,6 +53,11 @@ export type Listing = {
    */
   skipHourStart?: number;
   /**
+   * Its cards have no skills and its search reads the whole ad: an offer whose title names none of the
+   * keywords is kept when its ad does, read once per offer (lib/listings/pipeline/ad-check.ts)
+   */
+  keywordsInAd?: true;
+  /**
    * The scrapers the board comes with: the defaults, under this name, with another link if given.
    * `npm run db:migrate` adds them once per database (lib/db/seed.ts), so deleting them is for good.
    */

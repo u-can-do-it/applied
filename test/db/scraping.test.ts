@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { expect, it } from 'vitest';
+import * as keywordMissesRepo from '@/lib/db/repos/keyword-misses';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
 import * as offersRepo from '@/lib/db/repos/offers';
 import * as runsRepo from '@/lib/db/repos/scrape-runs';
@@ -34,10 +35,38 @@ describeDb('scrapers', () => {
       { id: 'boardb', label: 'Second' },
     ]);
 
-    await scrapersRepo.saveOutcome(first, { ok: true, found: 10, kept: 4, added: 2, error: null, ms: 1234, proxied: 2, mark: 42 });
+    expect((await scrapersRepo.get(first))?.lastCompleteAt).toBeNull();
+    const outcome = {
+      ok: true,
+      found: 10,
+      kept: 4,
+      added: 2,
+      error: null,
+      ms: 1234,
+      proxied: 2,
+      mark: 42,
+      complete: true,
+    };
+    await scrapersRepo.saveOutcome(first, outcome);
     let scraper = await scrapersRepo.get(first);
-    expect(scraper).toMatchObject({ mark: 42, lastStatus: 'ok', lastFound: 10, lastKept: 4, lastNew: 2, lastMs: 1234, lastProxied: 2 });
+    expect(scraper).toMatchObject({
+      mark: 42,
+      lastStatus: 'ok',
+      lastFound: 10,
+      lastKept: 4,
+      lastNew: 2,
+      lastMs: 1234,
+      lastProxied: 2,
+    });
     expect(scraper?.lastRunAt).toMatch(ISO);
+    expect(scraper?.lastCompleteAt).toBe(scraper?.lastRunAt);
+    // a run that missed a page: its time is the last run's, not the last complete one's
+    await exec(sql`update public.scrapers set last_complete_at = now() - interval '9 hours' where id = ${first}`);
+    const complete = (await scrapersRepo.get(first))?.lastCompleteAt;
+    await scrapersRepo.saveOutcome(first, { ...outcome, error: 'page 2: HTTP 429', complete: false });
+    scraper = await scrapersRepo.get(first);
+    expect(scraper?.lastCompleteAt).toBe(complete);
+    expect(scraper?.lastRunAt).not.toBe(complete);
     expect(scraper?.config).toEqual(search('First', 'boarda').config);
     const [json] = await exec(sql`select jsonb_typeof(config) as config from public.scrapers where id = ${first}`);
     expect(json).toEqual({ config: 'object' });
@@ -65,6 +94,28 @@ describeDb('scrapers', () => {
       const kinds = sql.raw(KIND_IDS.map((kind) => `'${kind}'`).join(', '));
       await exec(sql`alter table public.scrapers add constraint scrapers_kind_check check (kind in (${kinds}))`);
     }
+  });
+});
+
+describeDb('keyword misses (the ads that named no keyword)', () => {
+  it('finds them per board and for the same keywords only; checked again, they take the new keywords', async () => {
+    await keywordMissesRepo.save('linkedin', ['1', '2', '2'], 'react');
+    await keywordMissesRepo.save('other', ['3'], 'react');
+    expect(await keywordMissesRepo.find('linkedin', ['1', '2', '3', '4'], 'react')).toEqual(new Set(['1', '2']));
+    expect(await keywordMissesRepo.find('linkedin', ['1'], 'angular\nreact')).toEqual(new Set());
+    expect(await keywordMissesRepo.find('linkedin', [], 'react')).toEqual(new Set());
+
+    await keywordMissesRepo.save('linkedin', ['1'], 'angular\nreact');
+    expect(await keywordMissesRepo.find('linkedin', ['1', '2'], 'angular\nreact')).toEqual(new Set(['1']));
+    expect(await keywordMissesRepo.find('linkedin', ['1', '2'], 'react')).toEqual(new Set(['2']));
+  });
+
+  it('keeps two weeks', async () => {
+    await keywordMissesRepo.save('linkedin', ['old', 'recent'], 'react');
+    await exec(sql`update public.keyword_misses set checked_at = now() - interval '15 days' where id = 'old'`);
+    await exec(sql`update public.keyword_misses set checked_at = now() - interval '13 days' where id = 'recent'`);
+    await keywordMissesRepo.save('linkedin', [], 'react');
+    expect(await keywordMissesRepo.find('linkedin', ['old', 'recent'], 'react')).toEqual(new Set(['recent']));
   });
 });
 
@@ -142,7 +193,11 @@ describeDb('scraping settings, state and runs', () => {
     await offersRepo.ingest([offer('linkedin', '4')]);
     // another board's offer of a job the first run brought: added, of a known job
     const again = await runsRepo.start('cron');
-    await offersRepo.ingest([{ ...offer('nofluff', '5'), title: 'Dev 1' }, offer('nofluff', '6'), offer('nofluff', '7')]);
+    await offersRepo.ingest([
+      { ...offer('nofluff', '5'), title: 'Dev 1' },
+      offer('nofluff', '6'),
+      offer('nofluff', '7'),
+    ]);
     await runsRepo.finish(again, { found: 3, kept: 3, added: 3, fresh: 2, notified: 0, errors: [] });
     expect(await runsRepo.addedPerBoard([before, run, unfinished, again])).toEqual([
       { runId: again, board: 'nofluff', added: 3, known: 1 },

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { areaTest, expandUrl, fold, keywordTest, MAX_PAGES, placeOf, titleTest } from '@/lib/listings/match';
+import {
+  areaTest,
+  expandUrl,
+  fold,
+  keywordTest,
+  MAX_PAGES,
+  placeOf,
+  sinceSeconds,
+  titleTest,
+} from '@/lib/listings/match';
 import type { Found } from '@/lib/listings/types';
 
 const offer = (overrides: Partial<Found> = {}): Found => ({
@@ -203,6 +212,15 @@ describe('expandUrl', () => {
     ]);
   });
 
+  it('{since}: the seconds given, an hour without them', () => {
+    expect(expandUrl('https://x.test/?q={keyword}&f_TPR=r{since}', ['a'], 1, 36_000)).toEqual([
+      { url: 'https://x.test/?q=a&f_TPR=r36000', keyword: 'a', page: 1 },
+    ]);
+    expect(expandUrl('https://x.test/?f_TPR=r{since}', []).map((link) => link.url)).toEqual([
+      'https://x.test/?f_TPR=r3600',
+    ]);
+  });
+
   it('the page count is clamped to 1..MAX_PAGES and rounded down', () => {
     const count = (pages: number) => expandUrl('https://x.test/?p={page}', [], pages).length;
     expect(count(99)).toBe(MAX_PAGES);
@@ -210,5 +228,24 @@ describe('expandUrl', () => {
     expect(count(-3)).toBe(1);
     expect(count(Number.NaN)).toBe(1);
     expect(count(2.9)).toBe(2);
+  });
+});
+
+describe('sinceSeconds', () => {
+  const now = Date.parse('2026-10-12T07:00:00Z');
+  const ago = (seconds: number) => new Date(now - seconds * 1000).toISOString();
+
+  it('back to an hour before the last complete run', () => {
+    expect(sinceSeconds(ago(600), now)).toBe(4200); // the next run, 10 minutes later
+    expect(sinceSeconds(ago(9 * 3600), now)).toBe(36_000); // overnight
+    expect(sinceSeconds(ago(0.4), now)).toBe(3601); // whole seconds, up
+  });
+
+  it('an hour without one; at most a week', () => {
+    expect(sinceSeconds(null, now)).toBe(3600);
+    expect(sinceSeconds(undefined, now)).toBe(3600);
+    expect(sinceSeconds('not a time', now)).toBe(3600);
+    expect(sinceSeconds(ago(30 * 86400), now)).toBe(7 * 86400);
+    expect(sinceSeconds(ago(-600), now)).toBe(3600); // a clock ahead of this one's
   });
 });

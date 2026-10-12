@@ -8,14 +8,15 @@ import { SEED_SCRAPERS } from '@/lib/listings/kinds';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { describeDb, exec } from './database';
 
-// A fresh install's scrapers: the ones the SQL migrations inserted (0003_seed.sql, history now) and
-// those lib/db/seed.ts adds after them, for any board not seeded yet. Both must be the registry's.
+// A fresh install's scrapers: the ones the SQL migrations inserted (0003_seed.sql, history now), as later
+// ones updated them (0019_linkedin_since.sql), and those lib/db/seed.ts adds after them, for any board not
+// seeded yet. All must be the registry's.
 
 const migrations = (JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as { entries: { tag: string }[] })
   .entries;
 const seeding = migrations
   .map(({ tag }) => readFileSync(`drizzle/${tag}.sql`, 'utf8'))
-  .filter((file) => /insert into public\.(scrapers|scrape_seeds)\b/i.test(file));
+  .filter((file) => /(insert into|update) public\.(scrapers|scrape_seeds)\b/i.test(file));
 
 let client: postgres.Sql | undefined;
 const seed = () => seedBoards((client ??= postgres(process.env.TEST_DATABASE_URL ?? '', { max: 1 })));

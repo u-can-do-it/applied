@@ -98,7 +98,9 @@ export const ScraperFields = withForm({
                     {keywords.join(', ') || 'none set'}): one search per keyword; <Code>{'{keywords}'}</Code> is all of
                     them in one.
                     {!usesKeyword && ' Without them the link is fetched as it is.'} <Code>{'{start}'}</Code> (0, 10,
-                    20…) or <Code>{'{page}'}</Code> (1, 2, 3…) fetch several pages.
+                    20…) or <Code>{'{page}'}</Code> (1, 2, 3…) fetch several pages, up to the first with under 10 offers
+                    ({'{start}'}) or none ({'{page}'}). <Code>{'{since}'}</Code> is the seconds back to an hour before
+                    this scraper’s last run that read everything (at least an hour), for a search by posting time.
                   </>
                 )
               }

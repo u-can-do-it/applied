@@ -29,6 +29,7 @@ const columns = {
   lastError: scrapers.lastError,
   lastMs: scrapers.lastMs,
   lastProxied: scrapers.lastProxied,
+  lastCompleteAt: scrapers.lastCompleteAt,
 } satisfies Record<keyof Scraper, unknown>;
 
 const inOrder = [asc(scrapers.position), asc(scrapers.createdAt)];
@@ -81,15 +82,20 @@ export type ScraperOutcome = {
   /** pages that came through ScrapingAnt */
   proxied: number;
   mark: number | null;
+  /** every page and every ad its keyword check needed came through: the next {since} starts from now */
+  complete: boolean;
 };
 
 /** What its last run did, and the new watermark. */
 export async function saveOutcome(id: string, outcome: ScraperOutcome) {
+  const now = new Date().toISOString();
   await db()
     .update(scrapers)
     .set({
       mark: outcome.mark,
-      lastRunAt: new Date().toISOString(),
+      lastRunAt: now,
+      // up to a minute or so after its pages were fetched (the ad check): the hour {since} adds covers that
+      ...(outcome.complete && { lastCompleteAt: now }),
       lastStatus: outcome.ok ? 'ok' : 'error',
       lastFound: outcome.found,
       lastKept: outcome.kept,

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  AD_CHECK_MS,
   AD_TIMEOUT_MS,
   AI_BUDGET_MS,
   AI_RUN_LOCK_MS,
@@ -26,6 +27,10 @@ describe('time budgets', () => {
   it("a scrape run's last AI batch and the wrap-up fit in the function", () => {
     expect(AI_BUDGET_MS).toBeGreaterThan(0);
     expect(AI_BUDGET_MS + OPENAI_TIMEOUT_MS + WRAP_UP_MS).toBeLessThanOrEqual(FUNCTION_LIMIT_MS);
+  });
+
+  it("a scrape's keyword check of ads, its last read too, leaves the run's AI check most of its time", () => {
+    expect(AD_CHECK_MS + AD_TIMEOUT_MS).toBeLessThanOrEqual(AI_BUDGET_MS / 2);
   });
 
   it("an AI run's slice and its last round fit in the function", () => {

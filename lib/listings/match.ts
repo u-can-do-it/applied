@@ -94,17 +94,34 @@ const slug = (keyword: string) =>
     .replace(/^-+|-+$/g, '');
 
 export const MAX_PAGES = 5;
+/** {start} goes up by this much a page, so a page with fewer offers is its search's last */
+export const PAGE_SIZE = 10;
+
+const HOUR = 3600;
+const WEEK = 7 * 24 * HOUR;
+
+/**
+ * {since}: the seconds back to an hour before the scraper's last complete run (every page and every ad it
+ * needed came through), so a search limited to them (LinkedIn's f_TPR=r{since}) covers the night, a failed
+ * run and what the board indexed late. Without such a run an hour; at most a week.
+ */
+export function sinceSeconds(lastCompleteAt: string | null | undefined, now = Date.now()): number {
+  const ago = lastCompleteAt ? (now - Date.parse(lastCompleteAt)) / 1000 : NaN;
+  return Number.isFinite(ago) ? Math.min(WEEK, Math.max(HOUR, Math.ceil(ago) + HOUR)) : HOUR;
+}
 
 /**
  * A URL with {keyword} / {keyword_slug} becomes one URL per keyword; {keywords} is all of them in one,
  * space-separated (for an API that takes a list); with {start} (0, 10, 20…) or {page} (1, 2, 3…) also
- * one per page, `pages` of them. Without placeholders, just itself.
+ * one per page, `pages` of them. {since} becomes `since` (sinceSeconds). Without placeholders, just itself.
  */
 export function expandUrl(
   url: string,
   keywords: string[],
   pages = 1,
+  since = HOUR,
 ): { url: string; keyword: string | null; page: number }[] {
+  url = url.replaceAll('{since}', String(since));
   const hasKeyword = /\{keyword(?:_slug)?\}/.test(url);
   const hasKeywords = url.includes('{keywords}');
   if ((hasKeyword || hasKeywords) && !keywords.length)
@@ -117,7 +134,7 @@ export function expandUrl(
   const out: { url: string; keyword: string | null; page: number }[] = [];
   for (const keyword of hasKeyword ? keywords : [null]) {
     for (let i = 0; i < pageCount; i++) {
-      let pageUrl = url.replaceAll('{start}', String(i * 10)).replaceAll('{page}', String(i + 1));
+      let pageUrl = url.replaceAll('{start}', String(i * PAGE_SIZE)).replaceAll('{page}', String(i + 1));
       if (keyword !== null)
         pageUrl = pageUrl
           .replaceAll('{keyword_slug}', slug(keyword))

@@ -33,6 +33,7 @@ export function scraperOutcomes(
       proxied: result.proxied,
       // the watermark moves only on a successful run; null -> "has run" even with nothing dated
       mark: result.ok ? Math.max(scraper.mark ?? -Infinity, result.maxSort ?? -Infinity, 0) : scraper.mark,
+      complete: result.complete,
     },
   }));
 }

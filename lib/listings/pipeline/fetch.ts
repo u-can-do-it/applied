@@ -1,21 +1,25 @@
 import 'server-only';
 import { STATUS_CODES } from 'node:http';
+import { AD_CHECK_MS } from '../../budgets';
 import type { Scraper } from '../../db/repos/scrapers';
 import { BROWSER_UA, fetchOutbound, readText } from '../../outbound';
 import { cameThroughScrapingAnt } from '../../scraping-ant';
 import { message } from '../../shared/errors';
 import { withApiParams } from '../api-params';
 import { isObj, str, strip } from '../extract';
-import { areaTest, expandUrl, keywordTest, titleTest } from '../match';
+import { kindOf } from '../kinds';
+import { areaTest, expandUrl, keywordTest, PAGE_SIZE, sinceSeconds, titleTest } from '../match';
 import { parseBody } from '../parse';
 import { isDue } from '../quota';
 import type { ScrapeSettings } from '../settings';
 import type { Found } from '../types';
+import { checkAds, type AdCheck } from './ad-check';
 import type { Fetched } from './model';
 
 // Step 1, fetchListings: every enabled scraper's pages, fetched, parsed and filtered (keywords,
-// cities, ignored titles). A scraper's failure is part of its result, never the run's. A board with a quota
-// of calls has its scrapers skipped by the runs in between (lib/listings/quota.ts).
+// cities, ignored titles; on a board whose cards have no skills, a title without a keyword has its ad
+// read for one: ad-check.ts). A scraper's failure is part of its result, never the run's. A board with a
+// quota of calls has its scrapers skipped by the runs in between (lib/listings/quota.ts).
 
 const TIMEOUT_MS = 20_000;
 const PARALLEL = 4;
@@ -101,15 +105,20 @@ export type ScrapeResult = {
   pages: PageResult[];
   /** how many of the pages came through ScrapingAnt (the board turned the server away) */
   proxied: number;
+  /** every page came through, and every ad the keyword check needed was read: the next {since} can start here */
+  complete: boolean;
+  /** a board whose cards have no skills: the ads read for the keywords, the offers they kept, the ones left for later */
+  ads?: { read: number; kept: number; left: number };
   sample?: string;
   ms: number;
 };
 
 /**
- * Fetches and filters one scraper's pages; never throws (errors are part of the result).
+ * Fetches and filters one scraper's pages; never throws (errors are part of the result). Its last
+ * complete run sets {since} (none, as in a test: the last hour).
  */
 export async function scrape(
-  scraper: Pick<Scraper, 'kind' | 'src' | 'config'>,
+  scraper: Pick<Scraper, 'kind' | 'src' | 'config'> & Partial<Pick<Scraper, 'lastCompleteAt'>>,
   settings: ScrapeSettings,
 ): Promise<ScrapeResult> {
   const startedAt = Date.now();
@@ -118,6 +127,9 @@ export async function scrape(
   const inArea = config.checkLocation ? areaTest(settings) : null;
   const ignored = titleTest(settings.ignore);
   const kept = new Map<string, Found>();
+  // a title without a keyword whose ad decides, after the pages; `page`: its index in `pages`
+  const unsure =
+    wantKeyword && kindOf(scraper.kind).keywordsInAd ? new Map<string, { offer: Found; page: number }>() : null;
   const skipped = { keyword: 0, area: 0, ignored: 0 };
   const pages: PageResult[] = [];
   let maxSort: number | undefined;
@@ -126,24 +138,42 @@ export async function scrape(
 
   let urls: ReturnType<typeof expandUrl>;
   try {
-    urls = expandUrl(config.url, settings.keywords, config.pages);
+    urls = expandUrl(config.url, settings.keywords, config.pages, sinceSeconds(scraper.lastCompleteAt, startedAt));
   } catch (error) {
-    return { ok: false, error: message(error), found: 0, kept: [], skipped, pages, proxied: 0, ms: 0 };
+    return {
+      ok: false,
+      error: message(error),
+      found: 0,
+      kept: [],
+      skipped,
+      pages,
+      proxied: 0,
+      complete: false,
+      ms: 0,
+    };
   }
+  // a page short of a full one (PAGE_SIZE with {start}; without, an empty one) is its search's last
+  const fullPage = config.url.includes('{start}') ? PAGE_SIZE : 1;
+  const ended = new Set<string | null>(); // the keywords whose search had its last page
   for (const target of urls) {
     const { keyword, page, url } = target;
+    if (ended.has(keyword)) continue;
     try {
       const { text, proxied } = await fetchPage(withApiParams(scraper.kind, url), config.headers);
       const parsed = parseBody(scraper.kind, text, { src: scraper.src, url, config });
       sample ??= parsed.sample;
       found += parsed.total;
+      if (parsed.total < fullPage) ended.add(keyword);
       let pageKept = 0;
       for (const offer of parsed.items) {
         if (offer.sort !== undefined && (maxSort === undefined || offer.sort > maxSort)) maxSort = offer.sort;
-        if (wantKeyword && !wantKeyword([offer.title, ...offer.skills])) skipped.keyword++;
+        const named = !wantKeyword || wantKeyword([offer.title, ...offer.skills]);
+        if (!named && !unsure) skipped.keyword++;
         else if (inArea && !inArea(offer)) skipped.area++;
         else if (ignored(offer.title)) skipped.ignored++;
-        else {
+        else if (!named) {
+          if (unsure && !unsure.has(offer.id)) unsure.set(offer.id, { offer, page: pages.length });
+        } else {
           if (!kept.has(offer.id)) pageKept++;
           kept.set(offer.id, offer);
         }
@@ -153,23 +183,41 @@ export async function scrape(
       pages.push({ keyword, page, url, ok: false, error: message(error), total: 0, kept: 0 });
     }
   }
+
+  let ads: AdCheck | null = null;
+  if (unsure?.size) {
+    const offers = [...unsure.values()].map(({ offer }) => offer);
+    try {
+      ads = await checkAds(offers, settings.keywords, startedAt + AD_CHECK_MS);
+    } catch (error) {
+      ads = { kept: [], missed: 0, read: 0, left: offers.length, error: message(error) };
+    }
+    const byAd = new Set(ads.kept.map((offer) => offer.id));
+    for (const { offer, page } of unsure.values()) {
+      if (!byAd.has(offer.id)) continue;
+      kept.set(offer.id, offer);
+      pages[page].kept++;
+    }
+    skipped.keyword += ads.missed;
+  }
+
   const failed = pages.filter((result) => !result.ok);
+  const errors = failed.map(
+    (result) =>
+      `${[result.keyword, urls.length > 1 && result.page > 1 && `page ${result.page}`].filter(Boolean).join(' ')}${result.keyword || result.page > 1 ? ': ' : ''}${result.error}`,
+  );
+  if (ads?.error) errors.push(`reading the ads for the keywords: ${ads.error}; ${ads.left} left for the next run`);
   return {
     ok: failed.length < pages.length,
-    error: failed.length
-      ? failed
-          .map(
-            (result) =>
-              `${[result.keyword, urls.length > 1 && result.page > 1 && `page ${result.page}`].filter(Boolean).join(' ')}${result.keyword || result.page > 1 ? ': ' : ''}${result.error}`,
-          )
-          .join('; ')
-      : null,
+    error: errors.length ? errors.join('; ') : null,
     found,
     kept: [...kept.values()],
     skipped,
     maxSort,
     pages,
     proxied: pages.filter((result) => result.proxied).length,
+    complete: !failed.length && !ads?.left,
+    ...(ads && { ads: { read: ads.read, kept: ads.kept.length, left: ads.left } }),
     sample,
     ms: Date.now() - startedAt,
   };
