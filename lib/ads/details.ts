@@ -45,6 +45,10 @@ export function workModeText(details: JobDetails | null | undefined) {
 /** One offer's ad as read from its board. */
 export type Ad = { text: string; details: JobDetails };
 
+/** Shorter than this, a page's text isn't an ad (a login wall, an empty template). */
+export const MIN_AD_CHARS = 80;
+export const isAdText = (text: string) => text.trim().length >= MIN_AD_CHARS;
+
 // untyped JSON from a board (a string, a number, an array of them…) printed the way String() prints it
 // eslint-disable-next-line @typescript-eslint/no-base-to-string -- the value is untyped JSON; String() is the conversion we want
 export const asString = (value: unknown) => String(value ?? '');

@@ -64,6 +64,46 @@ describe('ad readers', () => {
     expect(ad).toEqual({ status: 'ok', text: `${LONG}\n• Remote`, details: {} });
   });
 
+  describe('LinkedIn', () => {
+    const offer = { src: 'linkedin', id: '1', url: 'https://www.linkedin.com/jobs/view/1' };
+    const criteria = `<ul><li class="description__job-criteria-item">
+        <h3 class="description__job-criteria-subheader">Forma zatrudnienia</h3>
+        <span class="description__job-criteria-text">Pełny etat</span></li>
+      <li class="description__job-criteria-item">
+        <h3 class="description__job-criteria-subheader">Branże</h3>
+        <span class="description__job-criteria-text">Tworzenie oprogramowania i wiele innych branż</span></li></ul>`;
+    const pages = (fragment: Response, jobPage: string) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => Promise.resolve(url.includes('/jobs-guest/') ? fragment : new Response(jobPage))),
+      );
+
+    it('the posting fragment: its criteria, then the ad', async () => {
+      answer(`${criteria}<div class="show-more-less-html__markup"><p>${LONG}</p></div>`);
+      const ad = await scrapeOffer(offer);
+      expect(ad.status).toBe('ok');
+      expect(ad.text).toBe(
+        `Forma zatrudnienia: Pełny etat\nBranże: Tworzenie oprogramowania i wiele innych branż\n\n${LONG}`,
+      );
+    });
+
+    it('turned away (HTTP 429, a login wall): an error to retry, never "no ad text" to keep', async () => {
+      pages(new Response('', { status: 429 }), '<html><body><main>Sign in to see this job</main></body></html>');
+      await expect(scrapeOffer(offer)).rejects.toThrow('LinkedIn showed no ad');
+      // the fragment's criteria alone pass for an ad's length, but aren't one
+      pages(new Response(criteria), '<html><body>Sign in</body></html>');
+      await expect(scrapeOffer(offer)).rejects.toThrow('LinkedIn showed no ad');
+    });
+
+    it("the job page's JobPosting when the fragment fails", async () => {
+      pages(
+        new Response('', { status: 429 }),
+        `<script type="application/ld+json">{"@type": "JobPosting", "description": "<p>${LONG}</p>"}</script>`,
+      );
+      expect(await scrapeOffer(offer)).toMatchObject({ status: 'ok', text: LONG });
+    });
+  });
+
   it("an unknown site: the JobPosting, else the <main>, and the page's title", async () => {
     answer(`<html><head><title>Dev at Acme</title></head><body><main><p>${LONG}</p></main></body></html>`);
     expect(await readJobPage({ src: '', id: '', url: 'https://acme.test/job' })).toEqual({

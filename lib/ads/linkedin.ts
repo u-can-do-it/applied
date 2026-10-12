@@ -1,11 +1,13 @@
 import 'server-only';
 import { parse as parseHtml } from 'node-html-parser';
 import { htmlToText } from '../shared/html';
-import type { Ad, AdReader, JobDetails } from './details';
+import { isAdText, type Ad, type AdReader, type JobDetails } from './details';
 import { get } from './fetch';
 import { readPage } from './page';
 
-// LinkedIn: its public (logged-out) job posting fragment.
+// LinkedIn: its public (logged-out) job posting fragment. Every posting has an ad, so one read without it
+// is LinkedIn turning the server away (HTTP 429 to a burst of reads, a login wall after some twenty): an
+// error, not "this job has no ad text" to keep, so the next read tries again.
 
 // criteria come in the page's language (Accept-Language: pl first)
 const LI_CONTRACT = ['Employment type', 'Forma zatrudnienia', 'Rodzaj zatrudnienia'];
@@ -24,6 +26,8 @@ export async function readPosting(id: string): Promise<Ad & { title: string }> {
       li.querySelector('.description__job-criteria-text')?.text.replace(/\s+/g, ' ').trim() ?? '',
     ]);
   const description = htmlToText(root.querySelector('.show-more-less-html__markup')?.innerHTML ?? '');
+  // its criteria alone (three lines) pass for an ad's length
+  if (!description.trim()) throw new Error('LinkedIn showed no ad (a login wall?)');
   const details: JobDetails = {
     company: one('.topcard__org-name-link'),
     location: one('.topcard__flavor--bullet'),
@@ -43,6 +47,9 @@ export const readLinkedin: AdReader = async (offer) => {
     const { text, details } = await readPosting(offer.id);
     return { text, details };
   } catch {
-    return readPage(offer.url); // the job page has a JobPosting too, when LinkedIn shows it
+    // the job page has a JobPosting too, when LinkedIn shows it
+    const page = await readPage(offer.url);
+    if (!isAdText(page.text)) throw new Error('LinkedIn showed no ad (a login wall?)');
+    return page;
   }
 };

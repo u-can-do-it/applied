@@ -6,7 +6,7 @@ import { byId, type BoardId } from '../boards';
 import { mainText, pageTitle, parsePage } from '../dom';
 import { htmlToText } from '../shared/html';
 import { readBuiltin } from './builtin';
-import type { Ad, AdReader, JobDetails, OfferLink } from './details';
+import { isAdText, type Ad, type AdReader, type JobDetails, type OfferLink } from './details';
 import { get } from './fetch';
 import { readHimalayas } from './himalayas';
 import { findJobPosting, fromJobPosting } from './job-posting';
@@ -39,7 +39,7 @@ function readAd(offer: OfferLink): Promise<Ad> {
 
 const result = (ad: Ad, max: number): Scraped => {
   const text = ad.text.trim();
-  return text.length >= 80
+  return isAdText(text)
     ? { status: 'ok', text: text.slice(0, max), details: ad.details }
     : { status: 'empty', text: '', details: ad.details };
 };
@@ -73,7 +73,7 @@ export async function readJobPage(offer: OfferLink) {
     const html = await (await get(offer.url, 'text/html')).text();
     const page = parsePage(html);
     title = pageTitle(page);
-    if (ad.text.trim().length < 80) {
+    if (!isAdText(ad.text)) {
       const jp = findJobPosting(page);
       ad = jp
         ? fromJobPosting(jp)
@@ -83,7 +83,7 @@ export async function readJobPage(offer: OfferLink) {
           };
     }
   } catch (error) {
-    if (ad.text.trim().length < 80) throw error; // nothing at all from this link
+    if (!isAdText(ad.text)) throw error; // nothing at all from this link
   }
   return { pageTitle: title, text: ad.text.trim().slice(0, FULL_CHARS), details: ad.details };
 }

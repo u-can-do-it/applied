@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Ad } from '../../ads/details';
+import { isAdText, type Ad } from '../../ads/details';
 import { readPosting } from '../../ads/linkedin';
 import { linkedin } from '../../boards/linkedin';
 import * as alertsRepo from '../../db/repos/alert-jobs';
@@ -88,7 +88,7 @@ export async function fetchAlerts(
     let posting: Ad & { title: string };
     try {
       posting = await readPosting(id);
-      if (!posting.title || posting.text.trim().length < 80) throw new Error('it came back empty (a login wall?)');
+      if (!posting.title || !isAdText(posting.text)) throw new Error('it came back empty (a login wall?)');
     } catch (failure) {
       error = `job ${id}: ${message(failure)}`;
       break;
