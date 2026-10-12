@@ -4,6 +4,7 @@ import { QueryProvider } from '@/components/query-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { assessFitAction, fillFromLinkAction, fillFromTextAction } from '@/features/applications/actions';
+import { assessJobFitAction } from '@/features/offers/actions';
 import { ServiceWorker } from '@/features/shell/service-worker';
 import { SlowAiActions } from '@/features/shell/slow-ai-actions';
 import { actionId } from '@/server/action';
@@ -25,8 +26,8 @@ export const viewport: Viewport = {
   ],
 };
 
-// the server actions you wait on while OpenAI answers (the AI runs and "Scrape now"'s AI check go on after the answer)
-const AI_ACTIONS = [assessFitAction, fillFromLinkAction, fillFromTextAction].map(actionId);
+// the server actions you wait on while the AI answers (the AI runs and "Scrape now"'s AI check go on after the answer)
+const AI_ACTIONS = [assessFitAction, assessJobFitAction, fillFromLinkAction, fillFromTextAction].map(actionId);
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
