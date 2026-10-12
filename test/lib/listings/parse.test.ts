@@ -210,6 +210,11 @@ describe('board parser edge cases', () => {
     expect(() => parse('linkedin', '<html><body>Sign in to continue</body></html>')).toThrow(/no job cards/);
   });
 
+  it('a Built In search with nothing in it: no results, not an error', () => {
+    const empty = '<html><body><p>No job results.</p> <p>To see more jobs, try:</p></body></html>';
+    expect(parse('builtin', empty)).toEqual({ total: 0, items: [] });
+  });
+
   it('says what is wrong with a page it cannot read', () => {
     expect(() => parse('justjoin', '{"items":[]}')).toThrow('JustJoin API: no data list (got items)');
     expect(() => parse('justjoin', '<html>')).toThrow(/is not JSON/);

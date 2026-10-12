@@ -7,8 +7,11 @@ const MODE = /^((?:In-Office or )?Remote|In-Office|Hybrid)$/i;
 const line = (text: string | undefined) => text?.replace(/\s+/g, ' ').trim() ?? '';
 
 export const parseBuiltin: ListingParser = (body, { src }) => {
-  if (!body.includes('data-id="job-card"'))
+  if (!body.includes('data-id="job-card"')) {
+    // a search with nothing in it (say, no React job updated today) says so: no results, not a block
+    if (body.includes('No job results.')) return { total: 0, items: [] };
     throw new Error('Built In: no job cards in the page (blocked or the markup changed)');
+  }
   // one card per <div id="job-card-<job id>">
   const cards = parsePage(body)
     .querySelectorAll('div[id^="job-card-"]')
