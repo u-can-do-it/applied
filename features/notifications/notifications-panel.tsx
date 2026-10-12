@@ -145,7 +145,7 @@ export function NotificationsPanel({
           {!view.aiOn
             ? 'Off: every new offer is sent.'
             : !ai.keySet
-              ? 'OPENAI_API_KEY isn’t set: until it is, every new offer is sent.'
+              ? 'No AI key (GEMINI_API_KEY or OPENAI_API_KEY): until one is set, every new offer is sent.'
               : !ai.profile
                 ? 'No AI profile yet (AI filter → Profile): until then, every new offer is sent.'
                 : 'On: only the matches are sent, with their fit.'}

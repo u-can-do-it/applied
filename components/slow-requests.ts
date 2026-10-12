@@ -1,15 +1,15 @@
 import { toast } from 'sonner';
-import { OPENAI_TIMEOUT_MS } from '@/lib/budgets';
+import { AI_TIMEOUT_MS } from '@/lib/budgets';
 
 // A toast when a request the browser makes takes over 3 s: server actions, page navigations (the RSC
 // payload) and the /api endpoints all go through window.fetch. It shows while the request still waits
 // and then says how long it took. Prefetches aren't watched: nobody is waiting for them.
-// The server actions that answer only after OpenAI does get SLOW_AI_MS instead (slowAfter()).
+// The server actions that answer only after the AI does get SLOW_AI_MS instead (slowAfter()).
 
 export const SLOW_MS = 3000;
 
 /** An AI answer often takes tens of seconds; past half its timeout it's slow. */
-export const SLOW_AI_MS = OPENAI_TIMEOUT_MS / 2;
+export const SLOW_AI_MS = AI_TIMEOUT_MS / 2;
 
 /** server action id (its Next-Action header) -> its own SLOW_MS */
 const limits = new Map<string, number>();

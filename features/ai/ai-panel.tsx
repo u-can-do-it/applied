@@ -1,7 +1,7 @@
 import { countPending } from '@/lib/ai/runs';
 import { describeRange } from '@/lib/dates';
-import { env } from '@/lib/env';
 import { aiConfig } from '@/lib/ai/openai';
+import { aiProvider } from '@/lib/ai/provider';
 import { isUsable, listProfiles } from '@/lib/ai/profiles';
 import { message } from '@/lib/shared/errors';
 import { appZone } from '@/lib/time-zone';
@@ -71,7 +71,7 @@ export async function AiPanel() {
             label: describeRange(range) || 'all offers',
             newCount: pending[i] ?? 0,
           }))}
-          aiConfigured={Boolean(env.OPENAI_API_KEY)}
+          aiConfigured={Boolean(aiProvider())}
           models={aiConfig()}
         />
       </CardContent>

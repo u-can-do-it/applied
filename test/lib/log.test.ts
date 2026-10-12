@@ -128,6 +128,9 @@ describe('secrets', () => {
     expect(scrubText('key sk-proj-abcdefghijklmnopqrstuv and Bearer eyJhbGciOi.x.y')).toBe(
       'key [redacted] and [redacted]',
     );
+    // FAKE, not a real key: a Google API key's shape, built here so no key-shaped string is in the source
+    const fakeGoogleKey = `AIza${'x'.repeat(35)}`;
+    expect(scrubText(`Gemini key ${fakeGoogleKey}`)).toBe('Gemini key [redacted]');
   });
 
   it("an error: message() and its stack's frames, never a failed query's values", () => {

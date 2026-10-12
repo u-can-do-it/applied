@@ -1,6 +1,6 @@
 import 'server-only';
 import { assessJobs, type Verdict } from '../../ai/runs';
-import { env } from '../../env';
+import { aiProvider } from '../../ai/provider';
 import { getProfile, isUsable, listProfiles, type ProfileWithFile } from '../../ai/profiles';
 import { message } from '../../shared/errors';
 import type { ScrapeSettings } from '../settings';
@@ -8,9 +8,9 @@ import type { ScrapeSettings } from '../settings';
 // Step 6, aiFilter: the new jobs checked against the active AI profile, so the notifications (notify) can
 // send only the matches and the offers show their fit.
 
-/** The active AI profile, if the AI filter can work: on in Settings, a usable profile, an OpenAI key. */
+/** The active AI profile, if the AI filter can work: on in Settings, a usable profile, an AI key. */
 export async function aiProfile(settings: ScrapeSettings): Promise<ProfileWithFile | null> {
-  if (!settings.aiFilter || !env.OPENAI_API_KEY) return null;
+  if (!settings.aiFilter || !aiProvider()) return null;
   const active = (await listProfiles())[0];
   if (!isUsable(active)) return null;
   return getProfile(active.id);

@@ -1,11 +1,14 @@
 import 'server-only';
-import { OPENAI_TIMEOUT_MS } from '../budgets';
+import { AI_TIMEOUT_MS } from '../budgets';
 import { env } from '../env';
+import { aiProvider, AI_KEYS } from './provider';
 
-// Chat Completions with a strict JSON schema, so every answer parses. Plain fetch, no SDK.
-// Two jobs, each with its own model / reasoning effort:
-//   assessment - offer vs CV + criteria, the careful one      (default gpt-6-luna, high)
-//   duplicates - "are these two postings the same job?"       (default gpt-6-luna, low)
+// Chat Completions with a strict JSON schema, so every answer parses. Plain fetch, no SDK. Gemini or
+// OpenAI, whichever key is set (./provider). Three jobs, each with its own reasoning effort:
+//   assessment - offer vs CV + criteria, the careful one      (medium)
+//   duplicates - "are these two postings the same job?"       (low)
+//   extraction - an offer's page -> the "Add application" form (low)
+// The model: GEMINI_MODEL (default gemini-3.8-flash), or with OpenAI OPENAI_MODEL (default gpt-6-luna) or one per job.
 
 export type OfferForAi = {
   n: number;
@@ -37,12 +40,16 @@ export type JobForAi = {
 export type PairForAi = { p: number; a: JobForAi; b: JobForAi };
 export type DupDecision = { p: number; same: boolean; reason: string };
 
-export const aiConfig = () => ({
-  assess: { model: env.OPENAI_ASSESS_MODEL ?? env.OPENAI_MODEL, effort: env.OPENAI_ASSESS_EFFORT },
-  dedup: { model: env.OPENAI_DEDUP_MODEL ?? env.OPENAI_MODEL, effort: env.OPENAI_DEDUP_EFFORT },
-  // "Add application": reading an offer's page into the form
-  extract: { model: env.OPENAI_EXTRACT_MODEL ?? env.OPENAI_MODEL, effort: env.OPENAI_EXTRACT_EFFORT },
-});
+export const aiConfig = () => {
+  const model = (perJob: string | undefined) =>
+    aiProvider()?.name === 'Gemini' ? env.GEMINI_MODEL : (perJob ?? env.OPENAI_MODEL);
+  return {
+    assess: { model: model(env.OPENAI_ASSESS_MODEL), effort: env.OPENAI_ASSESS_EFFORT },
+    dedup: { model: model(env.OPENAI_DEDUP_MODEL), effort: env.OPENAI_DEDUP_EFFORT },
+    // "Add application": reading an offer's page into the form
+    extract: { model: model(env.OPENAI_EXTRACT_MODEL), effort: env.OPENAI_EXTRACT_EFFORT },
+  };
+};
 const FILE_CHARS = 15_000; // keep a long CV from dominating every request
 
 const strictObject = (properties: Record<string, unknown>) => ({
@@ -60,9 +67,9 @@ async function chat<T>(opts: {
   schemaName: string;
   schema: Record<string, unknown>;
 }): Promise<T> {
-  const key = env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY is not set');
-  const base = env.OPENAI_BASE_URL;
+  const provider = aiProvider();
+  if (!provider) throw new Error(`No AI key: ${AI_KEYS} is not set`);
+  const { name, key, baseUrl } = provider;
 
   const body: Record<string, unknown> = {
     model: opts.model,
@@ -75,29 +82,29 @@ async function chat<T>(opts: {
   if (opts.effort && opts.effort !== 'none') body.reasoning_effort = opts.effort;
 
   const send = () =>
-    fetch(`${base}/chat/completions`, {
+    fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       cache: 'no-store',
-      signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     });
 
   let res = await send();
   // a model without reasoning settings rejects the parameter: retry once without it
   if (res.status === 400 && body.reasoning_effort) {
     const text = await res.text();
-    if (!/reasoning/i.test(text)) throw new Error(`OpenAI 400: ${text.slice(0, 300)}`);
+    if (!/reasoning/i.test(text)) throw new Error(`${name} 400: ${text.slice(0, 300)}`);
     delete body.reasoning_effort;
     res = await send();
   }
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(`${name} ${res.status}: ${(await res.text()).slice(0, 300)}`);
 
   const json = (await res.json()) as {
     choices?: { message?: { content?: string | null; refusal?: string | null } }[];
   } | null;
   const msg = json?.choices?.[0]?.message;
-  if (msg?.refusal) throw new Error(`OpenAI refused: ${msg.refusal}`);
+  if (msg?.refusal) throw new Error(`${name} refused: ${msg.refusal}`);
   return JSON.parse(msg?.content ?? '{}') as T;
 }
 
@@ -148,7 +155,7 @@ export async function assessOffers(
   offers: OfferForAi[],
 ) {
   const { model, effort } = aiConfig().assess;
-  // criteria + file first: identical across batches, so OpenAI's prompt cache can reuse them
+  // criteria + file first: identical across batches, so the provider's prompt cache can reuse them
   const context =
     `CRITERIA:\n${criteria.trim() || '(none - use the file)'}\n` +
     (file ? `\nCANDIDATE FILE "${file.name}":\n${file.text.slice(0, FILE_CHARS)}\n` : '');

@@ -9,7 +9,7 @@ Telegram. One user, one password; a Next.js app on Vercel with a Supabase Postgr
 Supabase Cron ─(schedule from Settings)─→ /api/cron/scrape ─┐
 "Scrape now" ───────────────────────────→ /api/scrape ──────┼─→ scrape pipeline ─→ Postgres (offers)
 Telegram /scrape ───────────────────────→ /api/telegram ────┘   (boards → filters)  └→ AI filter ─→ Telegram, push
-Settings → AI filter ─→ AI runs (duplicates → assessment, OpenAI) ─→ verdicts (the offers' fit)      Applied tab ─→ applications + ad text
+Settings → AI filter ─→ AI runs (duplicates → assessment, Gemini) ─→ verdicts (the offers' fit)      Applied tab ─→ applications + ad text
 ```
 
 ## Quick start
@@ -27,7 +27,7 @@ npm run dev                  # http://localhost:3000 (no login without APP_PASSW
 Then Settings → **Scrape now**. `npm test` runs the unit tests, `npm run test:db` the database tests on a
 throwaway container.
 
-To deploy (Supabase, Vercel, Supabase Cron, push notifications, Telegram, OpenAI): [docs/OPERATIONS.md](docs/OPERATIONS.md).
+To deploy (Supabase, Vercel, Supabase Cron, push notifications, Telegram, Gemini / OpenAI): [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Docs
 

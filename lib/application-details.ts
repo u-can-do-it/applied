@@ -1,8 +1,8 @@
 import 'server-only';
 import { asString, isSkillLevel, workModeOf, type JobDetails, type Skill } from './ads/details';
 import { extractJob } from './ai/openai';
+import { aiProvider } from './ai/provider';
 import * as applicationsRepo from './db/repos/applications';
-import { env } from './env';
 import { log } from './log';
 
 // An application's details (salary, contract, where, how): which of them are yours, what a scrape
@@ -120,14 +120,14 @@ const skillsOf = (ai: Awaited<ReturnType<typeof extractJob>>['skills'] | undefin
  * Fills the details nobody gave (not the board, not you) from the ad text, by the AI, and marks the
  * text read (`textRead`), so it isn't read again; the skills ([] if it names none) mark it read for
  * them, so a text read before there were skills is read once more. What's there stays. Without
- * OPENAI_API_KEY, or when the AI fails, the details stay as they are (unmarked: read next time).
+ * AI key, or when the AI fails, the details stay as they are (unmarked: read next time).
  */
 export async function withTextDetails(
   saved: SavedDetails | null,
   app: { url: string; title: string; content: string | null },
 ): Promise<SavedDetails | null> {
   const text = app.content?.trim();
-  if (!text || !env.OPENAI_API_KEY) return saved;
+  if (!text || !aiProvider()) return saved;
   let ai: Awaited<ReturnType<typeof extractJob>>;
   try {
     ai = await extractJob({ url: app.url, pageTitle: app.title, text });
@@ -161,7 +161,7 @@ let reading: Promise<number> | null = null; // one pass at a time in this server
  * or before there were skills, or the AI failed then): read now, `max` at most per call. Returns how many got read.
  */
 export function readDetailsFromText(max = 40): Promise<number> {
-  if (!env.OPENAI_API_KEY) return Promise.resolve(0);
+  if (!aiProvider()) return Promise.resolve(0);
   reading ??= (async () => {
     let read = 0;
     const due = await applicationsRepo.withUnreadText(max);

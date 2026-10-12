@@ -18,8 +18,8 @@ import {
   updateApplication,
 } from '@/lib/applications';
 import { boardIdOf, boardOf, cleanLink } from '@/lib/boards';
-import { env } from '@/lib/env';
 import { extractJob, type ExtractedJob } from '@/lib/ai/openai';
+import { aiProvider, AI_KEYS } from '@/lib/ai/provider';
 import { readJobPage } from '@/lib/ads';
 import { workModeOf, type WorkMode } from '@/lib/ads/details';
 import { log } from '@/lib/log';
@@ -133,7 +133,7 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
 
   let ai: ExtractedJob | null = null;
   let warning: string | undefined;
-  if (!env.OPENAI_API_KEY) warning = 'No OPENAI_API_KEY: filled in only what the page says plainly.';
+  if (!aiProvider()) warning = `No AI key (${AI_KEYS}): filled in only what the page says plainly.`;
   else if (read) {
     try {
       ai = await extractJob({ url: link, pageTitle: read.pageTitle, text: read.text });
@@ -164,7 +164,7 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
 
 /** For a page that can't be read (a login wall, a page drawn by scripts): the AI fills in the form from the ad text you pasted. */
 export const fillFromTextAction = action(fillFromTextSchema, async ({ text, link }): Promise<JobDraft> => {
-  if (!env.OPENAI_API_KEY) throw new Error('Filling in from the text needs the AI, and OPENAI_API_KEY isn’t set.');
+  if (!aiProvider()) throw new Error(`Filling in from the text needs the AI, and no AI key (${AI_KEYS}) is set.`);
   const ai = await extractJob({ url: link, pageTitle: '', text: text.trim() });
   return {
     // the link and the text stay as they are in the form

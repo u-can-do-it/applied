@@ -6,8 +6,8 @@ import * as offersRepo from '@/lib/db/repos/offers';
 import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import * as settingsRepo from '@/lib/db/repos/scrape-settings';
 import * as stateRepo from '@/lib/db/repos/scrape-state';
-import { env } from '@/lib/env';
 import { listProfiles } from '@/lib/ai/profiles';
+import { aiProvider } from '@/lib/ai/provider';
 import { log } from '@/lib/log';
 import { message } from '@/lib/shared/errors';
 import { notify } from '@/lib/listings/pipeline/notify';
@@ -109,8 +109,8 @@ export async function POST(request: NextRequest) {
       : 'unknown';
     const ai = !settings.aiFilter
       ? 'off'
-      : !env.OPENAI_API_KEY
-        ? 'on, but no OPENAI_API_KEY (all sent)'
+      : !aiProvider()
+        ? 'on, but no AI key (all sent)'
         : profiles[0]
           ? `“${profiles[0].name}”`
           : 'on, but no profile (all sent)';

@@ -6,7 +6,7 @@ isn't. How it works inside: [ARCHITECTURE.md](ARCHITECTURE.md).
 - [Deploy on Vercel](#deploy-on-vercel)
 - [Environment variables](#environment-variables)
 - [Database](#database) (set-up, migrations, [a local database](#a-local-database))
-- [Supabase Cron](#supabase-cron) · [LinkedIn alert emails](#linkedin-alert-emails) · [Notifications](#notifications) ([push on Android](#push-notifications-on-android), [Telegram](#telegram)) · [OpenAI](#openai)
+- [Supabase Cron](#supabase-cron) · [LinkedIn alert emails](#linkedin-alert-emails) · [Notifications](#notifications) ([push on Android](#push-notifications-on-android), [Telegram](#telegram)) · [AI](#ai-gemini-openai)
 - [Health](#health) · [Logs](#logs) · [SSRF policy](#ssrf-policy)
 - [Recovery](#recovery) · [Timeouts and the pooler](#timeouts-and-the-pooler)
 
@@ -52,15 +52,17 @@ read, with its name, so the parts that don't need it keep working. Locally they 
 | `SUPABASE_DB_URL`               | yes                  |                             | The database, a `postgres://` / `postgresql://` URI. The Session pooler (5432), on Vercel and for `npm run db:migrate` alike; not the Transaction pooler (6543). Server-side only, never `NEXT_PUBLIC_`.                                                                                                                                                                                                                                          |
 | `APP_PASSWORD`                  | in production        |                             | The login. Without it, production answers 503 everywhere (`proxy.ts`); a dev server stays open. Pages are also `noindex` (`app/layout.tsx`).                                                                                                                                                                                                                                                                                                      |
 | `CRON_SECRET`                   | no                   | derived from `APP_PASSWORD` | The bearer token Supabase Cron sends to `/api/cron/scrape`. Without it and without `APP_PASSWORD`, only a dev server accepts cron calls.                                                                                                                                                                                                                                                                                                          |
-| `OPENAI_API_KEY`                | no                   |                             | The AI filter, AI runs and "Fill in from the link" / "from the ad text". Without it the app runs without them.                                                                                                                                                                                                                                                                                                                                    |
-| `OPENAI_MODEL`                  | no                   | `gpt-6-luna`                | The model for every AI job unless one below is set.                                                                                                                                                                                                                                                                                                                                                                                               |
-| `OPENAI_ASSESS_MODEL`           | no                   | `OPENAI_MODEL`              | Judging jobs against a profile.                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `OPENAI_DEDUP_MODEL`            | no                   | `OPENAI_MODEL`              | Deciding whether two jobs are the same.                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `OPENAI_EXTRACT_MODEL`          | no                   | `OPENAI_MODEL`              | "Fill in from the link" / "from the ad text".                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `OPENAI_ASSESS_EFFORT`          | no                   | `high`                      | Reasoning effort: `none`, `low`, `medium` or `high`. Dropped automatically when the model refuses it.                                                                                                                                                                                                                                                                                                                                             |
+| `GEMINI_API_KEY`                | no                   |                             | The AI filter, AI runs and "Fill in from the link" / "from the ad text", with Gemini (aistudio.google.com → Get API key). Set, it wins over `OPENAI_API_KEY`. Without either key the app runs without them.                                                                                                                                                                                                                                       |
+| `GEMINI_MODEL`                  | no                   | `gemini-3.8-flash`          | Gemini's model, for every AI job.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `OPENAI_API_KEY`                | no                   |                             | The same with OpenAI (platform.openai.com → API keys), when `GEMINI_API_KEY` isn't set.                                                                                                                                                                                                                                                                                                                                                           |
+| `OPENAI_MODEL`                  | no                   | `gpt-6-luna`                | OpenAI's model for every AI job unless one below is set.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `OPENAI_ASSESS_MODEL`           | no                   | `OPENAI_MODEL`              | Judging jobs against a profile (OpenAI only).                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `OPENAI_DEDUP_MODEL`            | no                   | `OPENAI_MODEL`              | Deciding whether two jobs are the same (OpenAI only).                                                                                                                                                                                                                                                                                                                                                                                             |
+| `OPENAI_EXTRACT_MODEL`          | no                   | `OPENAI_MODEL`              | "Fill in from the link" / "from the ad text" (OpenAI only).                                                                                                                                                                                                                                                                                                                                                                                       |
+| `OPENAI_ASSESS_EFFORT`          | no                   | `medium`                    | Reasoning effort, Gemini's too: `none`, `low`, `medium` or `high`. Dropped automatically when the model refuses it. Gemini at `high` sometimes outlasts a call's timeout ([ADR 0010](decisions/0010-gemini-through-openai-compatible-api.md)).                                                                                                                                                                                                    |
 | `OPENAI_DEDUP_EFFORT`           | no                   | `low`                       | Same, for duplicates.                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `OPENAI_EXTRACT_EFFORT`         | no                   | `low`                       | Same, for "Fill in from the link" / "from the ad text".                                                                                                                                                                                                                                                                                                                                                                                           |
-| `OPENAI_BASE_URL`               | no                   | `https://api.openai.com/v1` | Another OpenAI-compatible endpoint (a proxy, Azure-compatible). An http(s) URL; trailing slashes are trimmed.                                                                                                                                                                                                                                                                                                                                     |
+| `OPENAI_BASE_URL`               | no                   | `https://api.openai.com/v1` | OpenAI's: another OpenAI-compatible endpoint (a proxy, Azure-compatible). An http(s) URL; trailing slashes are trimmed.                                                                                                                                                                                                                                                                                                                           |
 | `TELEGRAM_BOT_TOKEN`            | no (both or neither) |                             | The bot that sends new offers and takes commands. Without both, no Telegram (push may still send).                                                                                                                                                                                                                                                                                                                                                |
 | `TELEGRAM_CHAT_ID`              | no (both or neither) |                             | Your chat with the bot; the only chat whose commands count. A group's starts with `-`.                                                                                                                                                                                                                                                                                                                                                            |
 | `TELEGRAM_API_URL`              | no                   | `https://api.telegram.org`  | Another Bot API server (a local one, or a stand-in for tests).                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -242,14 +244,16 @@ webhook or the variables: no messages about new offers (they're queued only whil
 **Test message** is disabled, and commands are answered 200 to Telegram but get no reply and run nothing. The
 Health card's Telegram row says "Off in Settings". **Disconnect** removes the webhook, if you want that too.
 
-## OpenAI
+## AI (Gemini, OpenAI)
 
-`OPENAI_API_KEY` (platform.openai.com → API keys) turns on three jobs, each with its own model and effort
-([the variables](#environment-variables)): **assess** (a job against a profile, high effort), **dedup**
-(are two jobs the same, low effort) and **extract** ("Fill in from the link" and "Fill in from the ad text", low
-effort). Each call gives up after 120 s. Without the key: no AI runs, the AI filter lets everything through to the
-notifications, "Fill in from the link" fills in only what the page says plainly, and "Fill in from the ad text"
-refuses. `OPENAI_BASE_URL` points it at another compatible endpoint.
+`GEMINI_API_KEY` (aistudio.google.com → Get API key) or `OPENAI_API_KEY` (platform.openai.com → API keys) turns on
+three jobs, each with its own effort ([the variables](#environment-variables)): **assess** (a job against a
+profile, medium effort), **dedup** (are two jobs the same, low effort) and **extract** ("Fill in from the link" and
+"Fill in from the ad text", low effort). With Gemini's key set, Gemini is asked (`GEMINI_MODEL`, through its
+OpenAI-compatible API: [ADR 0010](decisions/0010-gemini-through-openai-compatible-api.md)), else OpenAI. Each call
+gives up after 150 s. Without a key: no AI runs, the AI filter lets everything through to the notifications, "Fill
+in from the link" fills in only what the page says plainly, and "Fill in from the ad text" refuses.
+`OPENAI_BASE_URL` points OpenAI at another compatible endpoint.
 
 ## Health
 
@@ -259,7 +263,7 @@ refuses. `OPENAI_BASE_URL` points it at another compatible endpoint.
   (on with its schedule, or paused), **Supabase Cron** (connected, following the settings, its last answer),
   **Last run** (finished, which scrapers failed), **Telegram** (configured, reachable, commands connected, or off in Settings),
   **Push** (the VAPID keys set and well-formed, how many devices are subscribed),
-  **OpenAI** (key set), **AI profile** (one exists, with criteria or a CV). A check that throws is a red row
+  **AI** (Gemini's or OpenAI's key set), **AI profile** (one exists, with criteria or a CV). A check that throws is a red row
   saying why; the others still show.
 - **`GET /api/health`** (logged in) answers `{ "db": "ok" | "behind" | "unreachable", "pending": ["0005_…"] }`,
   with status 503 unless it's `ok`. `behind` lists the migrations this deployment has and the database hasn't
@@ -277,8 +281,8 @@ scraper's failure.
 **Redaction:** a log line never has a secret in it. Values under keys like `token`, `secret`, `password`,
 `cookie` or `authorization`, a push subscription's `endpoint`, `p256dh` and `auth` (push logs name the push
 service's host only), the configured secrets themselves (`SUPABASE_DB_URL` and its password, `APP_PASSWORD`,
-`CRON_SECRET`, `OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `VAPID_PRIVATE_KEY`, also percent-encoded), a URL's password
-and its token-like query parameters, bearer tokens, OpenAI keys and bot tokens in free text are replaced with
+`CRON_SECRET`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `VAPID_PRIVATE_KEY`, also percent-encoded), a URL's password
+and its token-like query parameters, bearer tokens, OpenAI and Google API keys and bot tokens in free text are replaced with
 `[redacted]`. A failed query is logged by its cause, never its SQL or its values. Supabase Cron's functions
 rethrow the database's words only, since their arguments include the cron secret.
 
@@ -315,8 +319,8 @@ allowed"; a scraper shows it as its error.
   Supabase SQL Editor: `update public.scrape_state set locked_until = null;`. A run whose function died stays
   "didn't finish" in the run log; the next run is unaffected.
 - **An AI run that doesn't move:** between slices a run is paused, and Settings → AI filter or Supabase Cron's next call
-  continues it; a dead worker's lock runs out after `AI_RUN_LOCK_MS` (3 min). With scraping paused or the cron
-  not connected, only Settings → AI filter continues it: open it. A run whose OpenAI calls keep failing ends as `failed`
+  continues it; a dead worker's lock runs out after `AI_RUN_LOCK_MS` (3.5 min). With scraping paused or the cron
+  not connected, only Settings → AI filter continues it: open it. A run whose AI calls keep failing ends as `failed`
   after three rounds (the logs say why). To stop one, edit the profile's text or file (a new version: the next
   slice cancels the run), or in the SQL Editor:
   `update public.ai_runs set status = 'cancelled', finished_at = now(), lock_until = null where status = 'running';`
@@ -346,12 +350,12 @@ their relationships and that every `maxDuration` matches):
 | Budget              | Value | What                                                                                                     |
 | ------------------- | ----- | -------------------------------------------------------------------------------------------------------- |
 | `FUNCTION_LIMIT_MS` | 300 s | A function's `maxDuration` (the routes and pages that start work).                                       |
-| `OPENAI_TIMEOUT_MS` | 120 s | One OpenAI call.                                                                                         |
+| `AI_TIMEOUT_MS`     | 150 s | One AI call (Gemini or OpenAI).                                                                          |
 | `WRAP_UP_MS`        | 30 s  | After the last AI batch: verdicts, notifications, the run log, unlocking.                                |
-| `AI_BUDGET_MS`      | 150 s | A scrape's AI check starts no new batch after this, counted from the run's start.                        |
-| `SLICE_MS`          | 150 s | An AI run's slice starts no new round after this.                                                        |
+| `AI_BUDGET_MS`      | 120 s | A scrape's AI check starts no new batch after this, counted from the run's start.                        |
+| `SLICE_MS`          | 120 s | An AI run's slice starts no new round after this.                                                        |
 | `SCRAPE_LOCK_MS`    | 280 s | The scrape lock: outlives a live run's last AI batch, frees a crashed one before the next knock (5 min). |
-| `AI_RUN_LOCK_MS`    | 180 s | An AI run's lock, renewed after every round and before each OpenAI call.                                 |
+| `AI_RUN_LOCK_MS`    | 210 s | An AI run's lock, renewed after every round and before each AI call.                                     |
 | `AD_TIMEOUT_MS`     | 12 s  | One request for an offer's ad.                                                                           |
 
 Elsewhere: a listing page 20 s (`lib/listings/pipeline/fetch.ts`), a Telegram call 15 s, a push 10 s, Supabase Cron's call

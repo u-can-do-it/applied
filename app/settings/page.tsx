@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
-import { env } from '@/lib/env';
 import { isUsable } from '@/lib/ai/profiles';
+import { aiProvider } from '@/lib/ai/provider';
 import { effectiveTimeZone } from '@/lib/listings/settings';
 import { requestOrigin } from '@/lib/listings/schedule';
 import { ALERTS_PATH, alertsSecret, gmailScript } from '@/lib/listings/gmail-alerts';
@@ -87,7 +87,7 @@ async function Settings() {
   const ai = {
     on: data.settings.aiFilter,
     profile: isUsable(active) ? active.name : null,
-    keySet: Boolean(env.OPENAI_API_KEY),
+    keySet: Boolean(aiProvider()),
   };
   const { settings, scrapers, state, queued, counts, alerts } = data;
   const timeZone = effectiveTimeZone(settings);

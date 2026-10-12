@@ -7,7 +7,7 @@ import {
   AI_BUDGET_MS,
   AI_RUN_LOCK_MS,
   FUNCTION_LIMIT_MS,
-  OPENAI_TIMEOUT_MS,
+  AI_TIMEOUT_MS,
   SCRAPE_LOCK_MS,
   SCRAPE_LOCK_SECONDS,
   SCRAPING_ANT_TIMEOUT_MS,
@@ -26,7 +26,7 @@ const MAX_DURATION = /export\s+const\s+maxDuration\b[^=]*=\s*([^;\n]+)/g;
 describe('time budgets', () => {
   it("a scrape run's last AI batch and the wrap-up fit in the function", () => {
     expect(AI_BUDGET_MS).toBeGreaterThan(0);
-    expect(AI_BUDGET_MS + OPENAI_TIMEOUT_MS + WRAP_UP_MS).toBeLessThanOrEqual(FUNCTION_LIMIT_MS);
+    expect(AI_BUDGET_MS + AI_TIMEOUT_MS + WRAP_UP_MS).toBeLessThanOrEqual(FUNCTION_LIMIT_MS);
   });
 
   it("a scrape's keyword check of ads, its last read too, leaves the run's AI check most of its time", () => {
@@ -35,19 +35,19 @@ describe('time budgets', () => {
 
   it("an AI run's slice and its last round fit in the function", () => {
     expect(SLICE_MS).toBeGreaterThan(0);
-    expect(SLICE_MS + OPENAI_TIMEOUT_MS + WRAP_UP_MS).toBeLessThanOrEqual(FUNCTION_LIMIT_MS);
+    expect(SLICE_MS + AI_TIMEOUT_MS + WRAP_UP_MS).toBeLessThanOrEqual(FUNCTION_LIMIT_MS);
   });
 
   it('the scrape lock outlives a live run, and a crashed run frees it by the next knock', () => {
-    expect(SCRAPE_LOCK_MS).toBeGreaterThanOrEqual(AI_BUDGET_MS + OPENAI_TIMEOUT_MS);
+    expect(SCRAPE_LOCK_MS).toBeGreaterThanOrEqual(AI_BUDGET_MS + AI_TIMEOUT_MS);
     expect(SCRAPE_LOCK_MS).toBeLessThan(Math.min(...INTERVALS) * 60_000);
     // the scrape lock (lib/db/repos/scrape-state.ts lock) takes whole seconds (::int)
     expect(Number.isInteger(SCRAPE_LOCK_SECONDS)).toBe(true);
   });
 
   it("an AI run's lock outlasts each part of a round", () => {
-    // renewed right before the OpenAI call: the call, then saving the round (which renews it again)
-    expect(AI_RUN_LOCK_MS).toBeGreaterThan(OPENAI_TIMEOUT_MS + 10_000);
+    // renewed right before the AI call: the call, then saving the round (which renews it again)
+    expect(AI_RUN_LOCK_MS).toBeGreaterThan(AI_TIMEOUT_MS + 10_000);
     // from the last renewal: a batch's ads, a few jobs at once, each job's boards one after another
     expect(AI_RUN_LOCK_MS).toBeGreaterThanOrEqual(5 * AD_TIMEOUT_MS);
     // an ad through ScrapingAnt: its wait for a turn, then the request
@@ -57,7 +57,7 @@ describe('time budgets', () => {
   it('every maxDuration is the function limit, as a literal (Next reads it without running the code)', () => {
     const files = readdirSync(app, { recursive: true, encoding: 'utf8' }).filter((file) => /\.tsx?$/.test(file));
     const mentioning = files.filter((file) => readFileSync(join(app, file), 'utf8').includes('maxDuration'));
-    // the routes that scrape or call OpenAI ("Scrape now" is one), and the pages whose server actions
+    // the routes that scrape or call the AI ("Scrape now" is one), and the pages whose server actions
     // or after() do (AI runs, reading an ad, "+ Add application", testing a scraper)
     expect(mentioning.length).toBeGreaterThanOrEqual(6);
     expect(mentioning).toEqual(
