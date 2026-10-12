@@ -13,7 +13,7 @@ export function pickOwners(fetched: readonly Fetched[]): Owners {
       const key = offerKey(offer);
       const had = owners.get(key);
       if (!had) owners.set(key, { offer, scraper });
-      // e.g. LinkedIn's "Warszawa" search doesn't say remote, its "remote only" one does
+      // e.g. one search's card says "remote" in its place, another's of the same job doesn't
       else if (offer.remote && !had.offer.remote) owners.set(key, { ...had, offer: { ...had.offer, remote: true } });
     }
   }

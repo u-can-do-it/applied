@@ -20,7 +20,8 @@ export const linkedin: ScrapedBoard<'linkedin'> = {
     hint:
       'LinkedIn’s logged-out job search, 10 offers per page, sorted by relevance (it ignores sortBy), so the newest come from a short ' +
       'window: f_TPR=r{since} = posted since an hour before the last run that read everything (overnight too), over up to 5 pages ' +
-      '(r3600 = the last hour, r86400 = 24 h). location= a city or a country; f_WT=2 remote only (1 office, 3 hybrid). Its search ' +
+      '(r3600 = the last hour, r86400 = 24 h). location= a city or a country; it ignores f_WT (remote only): a card is remote when it ' +
+      'says so, or is placed in a whole country ("Polska"). Its search ' +
       'reads the whole ad but its cards have no skills: a title without a keyword has its ad read, once, for one.',
     defaults: {
       url: 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keyword}&location=Warszawa&f_TPR=r{since}&start={start}',

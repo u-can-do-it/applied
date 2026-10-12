@@ -8,7 +8,8 @@ import type { Scraper } from '../../db/repos/scrapers';
 import { message } from '../../shared/errors';
 import type { AlertOutcome } from '../alert-email';
 import { seniorityOf } from '../extract';
-import { areaTest, keywordTest, remoteHere, titleTest } from '../match';
+import { areaTest, keywordTest, titleTest } from '../match';
+import { linkedinRemote } from '../parsers/linkedin';
 import type { ScrapeSettings } from '../settings';
 import type { Found } from '../types';
 import { MAX_READS } from './ad-check';
@@ -119,17 +120,16 @@ export async function fetchAlerts(
   return { fetched: { scraper: ALERTS, result }, settle: () => alertsRepo.settle(src, outcomes) };
 }
 
-/** The job as a LinkedIn card has it; placed in a whole country (LinkedIn's "Poland"), it's done from anywhere there. */
+/** The job as a LinkedIn card has it. */
 function toOffer(id: string, posting: Ad & { title: string }): Found {
   const place = posting.details.location ?? '';
-  const countryWide = place !== '' && !place.includes(',') && remoteHere(true, [place]);
   return {
     src: linkedin.id,
     id,
     title: posting.title,
     company: posting.details.company ?? null,
     seniority: seniorityOf(posting.title),
-    remote: countryWide || /remote|zdaln/i.test(`${posting.title} ${place}`),
+    remote: linkedinRemote(posting.title, place),
     url: `https://www.linkedin.com/jobs/view/${id}`,
     locations: place ? [place] : [],
     skills: [],

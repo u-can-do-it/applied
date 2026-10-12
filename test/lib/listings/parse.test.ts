@@ -4,6 +4,7 @@ import type { ScraperConfig } from '@/lib/listings/config';
 import { valuesAt } from '@/lib/listings/extract';
 import type { KindId } from '@/lib/listings/kinds';
 import { parseBody } from '@/lib/listings/parse';
+import { linkedinRemote } from '@/lib/listings/parsers/linkedin';
 
 // One recorded response per built-in board (test/fixtures/, trimmed to a few offers). The snapshot
 // holds the whole parsed output, so a parser change or a re-recorded fixture shows up in the diff.
@@ -199,10 +200,37 @@ describe('built-in board parsers', () => {
 });
 
 describe('board parser edge cases', () => {
-  it('a remote-only LinkedIn search marks every card remote', () => {
-    const url = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=React&f_WT=2&start=0';
-    const result = parse('linkedin', fixture('linkedin.html'), url);
-    expect(result.items.every((offer) => offer.remote)).toBe(true);
+  it('LinkedIn\'s "remote only" search (f_WT=2) doesn\'t make a card remote: the card says so, or its whole country', () => {
+    // cards LinkedIn's logged-out search answered with f_WT=2 (it ignores it), Oct 2026
+    const card = (id: string, title: string, place: string) =>
+      `<li><div class="base-card" data-entity-urn="urn:li:jobPosting:${id}"><h3 class="base-search-card__title">${title}</h3>` +
+      `<h4 class="base-search-card__subtitle">Acme</h4><span class="job-search-card__location">${place}</span></div></li>`;
+    const html = [
+      card('4478394978', 'Junior Front-end Developer', 'Kraków'), // "Work in the office, in the center of Krakow"
+      card('4476010094', 'I. Fullstack Developer (m/f/d) FlexHub Lodz', 'Łódź'), // hybrid in Łódź
+      card('4478388792', 'Forward Deployed Engineer', 'Polska'),
+      card('4478511224', 'Full-Stack Engineer (Python / React)', 'Warszawa'),
+      card('1000000001', 'Senior React Engineer (Remote)', 'Gdańsk, Pomorskie, Polska'),
+    ].join('');
+    const url =
+      'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=React&location=Poland&f_WT=2&start=0';
+    expect(parse('linkedin', html, url).items.map((offer) => [offer.id, offer.remote])).toEqual([
+      ['4478394978', false],
+      ['4476010094', false],
+      ['4478388792', true],
+      ['4478511224', false],
+      ['1000000001', true],
+    ]);
+  });
+
+  it('linkedinRemote: remote or zdalnie in the title or place, or a place that is a whole country or region', () => {
+    expect(linkedinRemote('React Developer', 'Warszawa (zdalnie)')).toBe(true);
+    expect(linkedinRemote('React Developer', 'Poland')).toBe(true);
+    expect(linkedinRemote('React Developer', 'European Union')).toBe(true);
+    expect(linkedinRemote('React Developer', 'Kraków, Małopolskie, Polska')).toBe(false);
+    expect(linkedinRemote('React Developer', 'Cracow Metropolitan Area')).toBe(false);
+    expect(linkedinRemote('React Developer', 'Germany')).toBe(false);
+    expect(linkedinRemote('React Developer', '')).toBe(false);
   });
 
   it('past the last LinkedIn page: no results, not an error', () => {
