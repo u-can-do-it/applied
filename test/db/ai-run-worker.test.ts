@@ -2,9 +2,10 @@ import { sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GET as cronCall } from '@/app/api/cron/scrape/route';
-import { continueRun, latestRun, startRun } from '@/lib/ai/runs';
-import { PROFILE_CHANGED } from '@/lib/ai/run-state';
+import { assessJobs, assessWaiting, continueRun, latestRun, startRun } from '@/lib/ai/runs';
+import { PROFILE_CHANGED, WAITING_FOR_AD } from '@/lib/ai/run-state';
 import { AI_RUN_LOCK_MS, SLICE_MS } from '@/lib/budgets';
+import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as offersRepo from '@/lib/db/repos/offers';
 import * as verdictsRepo from '@/lib/db/repos/ai-verdicts';
 import { getProfile, saveProfile } from '@/lib/ai/profiles';
@@ -25,7 +26,8 @@ const runAfterAnswer = async () => {
 };
 
 // One slice of an AI run (continueRun) against the database, with `fetch` stubbed: OpenAI is
-// answered here, every other request (the ads' pages) fails as if the network were down.
+// answered here, every other request (the ads' pages) fails as if the network were down, unless the
+// test answers it (onOtherRequest). The jobs' ads are saved before (offer_details), unless a test says not.
 
 const OPENAI = 'https://openai.test/v1';
 
@@ -33,8 +35,8 @@ type ChatBody = { response_format: { json_schema: { name: string } }; messages: 
 
 /** Called while OpenAI "thinks" (e.g. to move the clock past the slice's deadline). */
 let duringCall: () => void = () => {};
-/** Called for every other request (an ad's page), before it fails. */
-let onOtherRequest: () => void = () => {};
+/** Called for every other request (an ad's page): its answer, else it fails. */
+let onOtherRequest: () => Response | undefined = () => undefined;
 /** The run's lock as it stood when OpenAI was asked. */
 const locksWhenAsked: (number | null)[] = [];
 const asked: string[] = [];
@@ -42,7 +44,8 @@ const asked: string[] = [];
 const fakeFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   if (url !== `${OPENAI}/chat/completions`) {
-    onOtherRequest();
+    const answer = onOtherRequest();
+    if (answer) return answer;
     throw new Error(`no network in tests: ${url}`);
   }
   const [row] = await exec(
@@ -80,8 +83,13 @@ const job = (src: string, id: string, title: string, company: string) => ({
   url: `https://${src}.example/${id}`,
 });
 
-async function profileAndRun(jobs: ReturnType<typeof job>[]) {
+const AD = 'React, TypeScript and a lot of other things this ad says about the job, long enough to be an ad.';
+/** An ad page as a site the app has no reader for gives it: its <main>. */
+const adPage = () => new Response(`<html><body><main><p>${AD}</p></main></body></html>`);
+
+async function profileAndRun(jobs: ReturnType<typeof job>[], { withAds = true } = {}) {
   const added = await offersRepo.ingest(jobs);
+  if (withAds) await detailsRepo.save(jobs.map((row) => ({ src: row.src, id: row.id, status: 'ok', description: AD })));
   const id = await saveProfile({ name: 'P', prompt: 'React, remote', file: 'keep' });
   const profile = await getProfile(id);
   if (!profile) throw new Error('no profile');
@@ -93,7 +101,7 @@ describeDb('an AI run slice (continueRun)', () => {
   beforeEach(() => {
     asked.length = 0;
     duringCall = () => {};
-    onOtherRequest = () => {};
+    onOtherRequest = () => undefined;
     locksWhenAsked.length = 0;
     fakeFetch.mockClear();
     vi.stubGlobal('fetch', fakeFetch);
@@ -132,17 +140,39 @@ describeDb('an AI run slice (continueRun)', () => {
   });
 
   it('renews its lock right before asking OpenAI, however long the ads took', async () => {
-    const { profile, run } = await profileAndRun([job('justjoin', '1', 'React Developer', 'Acme')]);
+    const { profile, run } = await profileAndRun([job('acme', '1', 'React Developer', 'Acme')], { withAds: false });
     await exec(sql`update public.ai_runs set phase = 'assess' where id = ${run.id}`);
     vi.useFakeTimers({ toFake: ['Date'] });
     const start = Date.now();
-    onOtherRequest = () => vi.setSystemTime(Date.now() + 50_000); // each ad request: slow, then failing
+    // the ad's page: slow
+    onOtherRequest = () => {
+      vi.setSystemTime(Date.now() + 100_000);
+      return adPage();
+    };
     await continueRun(run.id);
     expect(locksWhenAsked).toHaveLength(1);
     const lock = locksWhenAsked[0] ?? 0;
     // taken at the start (start + AI_RUN_LOCK_MS), then renewed after the ads' 100 s or more
     expect(lock).toBeGreaterThanOrEqual(start + 100_000 + AI_RUN_LOCK_MS);
     expect(await latestRun(profile.id)).toMatchObject({ status: 'done', lockUntil: null });
+  });
+
+  it("judges no job without its ad: one whose ad can't be read waits, and the run says so", async () => {
+    const { profile, run, jobIds } = await profileAndRun(
+      [job('justjoin', '1', 'React Developer', 'Acme'), job('justjoin', '2', 'Vue Developer', 'Beta')],
+      { withAds: false },
+    );
+    await detailsRepo.save([{ src: 'justjoin', id: '1', status: 'ok', description: AD }]);
+    await continueRun(run.id);
+    expect(await latestRun(profile.id)).toMatchObject({
+      status: 'done',
+      total: 2,
+      done: 1,
+      error: `1 ${WAITING_FOR_AD}`,
+      lockUntil: null,
+    });
+    expect(asked).toEqual(['assessments']);
+    expect([...(await verdictsRepo.forJobs(profile, jobIds)).keys()]).toHaveLength(1);
   });
 
   it('cancels a run whose profile changed since it started', async () => {
@@ -192,7 +222,7 @@ describeDb('Supabase Cron continues a paused AI run (no tab open)', () => {
   beforeEach(async () => {
     asked.length = 0;
     duringCall = () => {};
-    onOtherRequest = () => {};
+    onOtherRequest = () => undefined;
     locksWhenAsked.length = 0;
     afterAnswer.length = 0;
     fakeFetch.mockClear();
@@ -247,5 +277,72 @@ describeDb('Supabase Cron continues a paused AI run (no tab open)', () => {
     const response = await cronCall(new NextRequest('http://localhost:3000/api/cron/scrape'));
     expect(response.status).toBe(401);
     expect(afterAnswer).toEqual([]);
+  });
+});
+
+describeDb('jobs waiting for their ad (a scrape run, before Telegram and after)', () => {
+  beforeEach(() => {
+    asked.length = 0;
+    duringCall = () => {};
+    onOtherRequest = () => undefined;
+    fakeFetch.mockClear();
+    vi.stubGlobal('fetch', fakeFetch);
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    vi.stubEnv('OPENAI_BASE_URL', OPENAI);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("a new job whose ad can't be read isn't judged; a later run judges it once the ad comes in", async () => {
+    const { profile, jobIds } = await profileAndRun([job('acme', '1', 'React Developer', 'Acme')], { withAds: false });
+    const [jobId] = jobIds;
+    const later = Date.now() + 60_000;
+
+    // before Telegram: the ad's page is down, so no verdict and no AI call
+    const before = await assessJobs(profile, [jobId], later);
+    expect(before.verdicts.size).toBe(0);
+    expect(asked).toEqual([]);
+    expect(await assessWaiting(profile, later)).toEqual({ judged: 0, error: null });
+    expect(asked).toEqual([]);
+
+    // a run after: the page answers, the job is judged from its ad
+    onOtherRequest = adPage;
+    expect(await assessWaiting(profile, later)).toEqual({ judged: 1, error: null });
+    expect(asked).toEqual(['assessments']);
+    expect(await verdictsRepo.ofJob(profile, jobId)).toMatchObject({ score: 70, hadDescription: true });
+    // judged from its ad: it waits no more
+    expect(await assessWaiting(profile, later)).toEqual({ judged: 0, error: null });
+    expect(asked).toEqual(['assessments']);
+  });
+
+  it('a verdict on the title alone is made again from the ad; an ad known to have no text is never read again', async () => {
+    const { profile, jobIds } = await profileAndRun(
+      [job('justjoin', '1', 'React Developer', 'Acme'), job('nofluff', '2', 'Vue Developer', 'Beta')],
+      { withAds: false },
+    );
+    await detailsRepo.save([
+      { src: 'justjoin', id: '1', status: 'ok', description: AD },
+      { src: 'nofluff', id: '2', status: 'empty', description: null },
+    ]);
+    const titleOnly = {
+      match: false,
+      score: 10,
+      summary: 'title',
+      checks: [],
+      hadDescription: false,
+      bodyLeasing: false,
+    };
+    await verdictsRepo.save(
+      jobIds.map((jobId) => ({ profileId: profile.id, version: profile.version, jobId, ...titleOnly })),
+    );
+    expect(await assessWaiting(profile, Date.now() + 60_000)).toEqual({ judged: 1, error: null });
+    expect(fakeFetch).toHaveBeenCalledOnce(); // OpenAI's call: no ad read
+    const fits = await Promise.all(jobIds.map((jobId) => verdictsRepo.ofJob(profile, jobId)));
+    expect(fits.map((fit) => [fit?.score, fit?.hadDescription])).toEqual([
+      [70, true],
+      [10, false],
+    ]);
   });
 });

@@ -39,6 +39,7 @@ type Pending = Omit<offersRepo.Job, 'appliedAt'>;
 const BATCH = 4; // offers per OpenAI call (each carries a full ad)
 const PARALLEL = 3; // calls at once
 const ADS_PARALLEL = 4; // a batch's jobs whose ads are fetched at once
+const NO_AD = 'No ad text to judge it on: the AI judges a job only from its ad.';
 
 // ---- reads -----------------------------------------------------------------------------
 
@@ -150,53 +151,65 @@ async function descriptions(jobs: Pending[]): Promise<Map<string, string | null>
   return out;
 }
 
-/** `beforeAsk`: right before the OpenAI call (an AI run renews its lock there). */
+/**
+ * Judges the batch's jobs whose ad could be read; the rest wait for it (`waiting`), never judged on
+ * their title alone. `beforeAsk`: right before the OpenAI call (an AI run renews its lock there).
+ */
 async function assessBatch(profile: ProfileWithFile, batch: Pending[], beforeAsk?: () => Promise<void>) {
   const texts = await descriptions(batch);
+  const readable = batch.flatMap((job) => {
+    const description = texts.get(job.jobId);
+    return description ? [{ job, description }] : [];
+  });
+  const waiting = batch.filter((job) => !texts.get(job.jobId)).map((job) => job.jobId);
+  if (!readable.length) return { saved: 0, answered: new Set<string>(), waiting };
   const file = profile.fileName && profile.fileText ? { name: profile.fileName, text: profile.fileText } : null;
-  const input: OfferForAi[] = batch.map((job, i) => ({
+  const input: OfferForAi[] = readable.map(({ job, description }, i) => ({
     n: i + 1,
     title: job.title,
     company: job.company,
     seniority: job.seniority,
     remote: job.remote,
-    description: texts.get(job.jobId) ?? null,
+    description,
   }));
   await beforeAsk?.();
   const assessments = await assessOffers(profile.prompt, file, input);
   const rows = assessments.map((assessment) => ({
     profileId: profile.id,
     version: profile.version,
-    jobId: batch[assessment.n - 1].jobId,
+    jobId: readable[assessment.n - 1].job.jobId,
     match: assessment.match,
     score: assessment.score,
     summary: assessment.summary,
     checks: assessment.checks,
-    hadDescription: Boolean(input[assessment.n - 1].description),
+    hadDescription: true,
     bodyLeasing: assessment.bodyLeasing,
   }));
   await verdictsRepo.save(rows);
-  return { saved: rows.length, answered: new Set(rows.map((row) => row.jobId)) };
+  return { saved: rows.length, answered: new Set(rows.map((row) => row.jobId)), waiting };
 }
 
 /**
  * One job judged on its own (an application's window asks for it): with the ad text given, not
- * scraped. The verdict is kept like a run's; null if the AI left it out of its answer.
+ * scraped. The verdict is kept like a run's; null if the AI left it out of its answer. Without an ad
+ * text it throws: no job is judged on its title alone.
  */
 export async function assessOne(
   profile: ProfileWithFile,
   jobId: string,
-  offer: Omit<OfferForAi, 'n'>,
+  offer: Omit<OfferForAi, 'n' | 'description'> & { description: string | null },
 ): Promise<verdictsRepo.Fit | null> {
+  const { description } = offer;
+  if (!description) throw new Error(NO_AD);
   const file = profile.fileName && profile.fileText ? { name: profile.fileName, text: profile.fileText } : null;
-  const assessment = (await assessOffers(profile.prompt, file, [{ n: 1, ...offer }])).at(0);
+  const assessment = (await assessOffers(profile.prompt, file, [{ n: 1, ...offer, description }])).at(0);
   if (!assessment) return null;
   const fit = {
     match: assessment.match,
     score: assessment.score,
     summary: assessment.summary,
     checks: assessment.checks,
-    hadDescription: Boolean(offer.description),
+    hadDescription: true,
     bodyLeasing: assessment.bodyLeasing,
   };
   await verdictsRepo.save([{ profileId: profile.id, version: profile.version, jobId, ...fit }]);
@@ -211,9 +224,31 @@ export type Verdict = verdictsRepo.Verdict;
 const verdictsFor = (profile: ProfileVersion, jobIds: string[]) => verdictsRepo.forJobs(profile, jobIds);
 
 /**
+ * The jobs judged, a few batches at once, until they're done or the deadline (no new round after it:
+ * a batch can take up to two minutes). Those whose ad can't be read yet wait for it. Answers how many
+ * were judged and the last error.
+ */
+async function assessRounds(profile: ProfileWithFile, jobs: Pending[], deadline: number) {
+  let judged = 0;
+  let error: string | null = null;
+  for (let i = 0; i < jobs.length && Date.now() < deadline; i += BATCH * PARALLEL) {
+    const round = jobs.slice(i, i + BATCH * PARALLEL);
+    const batches = Array.from({ length: Math.ceil(round.length / BATCH) }, (_, index) =>
+      round.slice(index * BATCH, index * BATCH + BATCH),
+    );
+    for (const result of await Promise.allSettled(batches.map((batch) => assessBatch(profile, batch)))) {
+      if (result.status === 'rejected') error = message(result.reason);
+      else judged += result.value.saved;
+    }
+  }
+  return { judged, error };
+}
+
+/**
  * The verdicts for these jobs, assessing the ones this profile hasn't judged yet. No run and no
- * browser tab needed; stops starting new batches at the deadline (a batch can take up to two
- * minutes), so whatever is left gets its turn next time.
+ * browser tab needed; stops starting new batches at the deadline, so whatever is left gets its
+ * turn next time. A job whose ad can't be read yet stays without a verdict (assessWaiting judges
+ * it once it can).
  */
 export async function assessJobs(profile: ProfileWithFile, jobIds: string[], deadline: number) {
   const verdicts = await verdictsFor(profile, jobIds);
@@ -221,19 +256,26 @@ export async function assessJobs(profile: ProfileWithFile, jobIds: string[], dea
   let error: string | null = null;
   if (missing.length) {
     // one row per job, with all its offers (the ad may be on any)
-    const jobs = await offersRepo.jobsById(missing.slice(0, 120));
-    for (let i = 0; i < jobs.length && Date.now() < deadline; i += BATCH * PARALLEL) {
-      const round = jobs.slice(i, i + BATCH * PARALLEL);
-      const batches = Array.from({ length: Math.ceil(round.length / BATCH) }, (_, index) =>
-        round.slice(index * BATCH, index * BATCH + BATCH),
-      );
-      for (const result of await Promise.allSettled(batches.map((batch) => assessBatch(profile, batch)))) {
-        if (result.status === 'rejected') error = message(result.reason);
-      }
-    }
+    ({ error } = await assessRounds(profile, await offersRepo.jobsById(missing.slice(0, 120)), deadline));
     for (const [jobId, verdict] of await verdictsFor(profile, missing)) verdicts.set(jobId, verdict);
   }
   return { verdicts, error };
+}
+
+/** How far back a scrape run looks for jobs waiting for their ad. */
+const WAITING_DAYS = 7;
+/** Jobs a scrape run looks at for that: a round's worth, the newest first. */
+const WAITING_PER_RUN = BATCH * PARALLEL;
+
+/**
+ * The jobs of the last WAITING_DAYS whose ad couldn't be read when they were new (or that were judged
+ * on their title alone, before every judgment needed the ad): their ads are tried again, and the
+ * ones read are judged. Their offers known to have no ad text aren't read again (offer_details).
+ */
+export async function assessWaiting(profile: ProfileWithFile, deadline: number) {
+  const since = new Date(Date.now() - WAITING_DAYS * 86_400_000).toISOString();
+  const jobs = await verdictsRepo.waitingForAd(profile, since, WAITING_PER_RUN);
+  return assessRounds(profile, jobs, deadline);
 }
 
 /** What one slice works with, besides its state. */
@@ -265,7 +307,8 @@ async function perform(state: SliceState, slice: Slice): Promise<SliceEvent> {
       return { type: 'recounted', pending: await countPending({ id: run.profileId, version: run.version }, range) };
     case 'assess': {
       if (Date.now() >= slice.deadline) return { type: 'outOfTime' };
-      const pending = stillToAssess(state, await pendingRows(run, BATCH * PARALLEL + 20));
+      // the ones waiting for their ad are read again too, and left out
+      const pending = stillToAssess(state, await pendingRows(run, BATCH * PARALLEL + 20 + state.waiting.size));
       if (!pending.length) return { type: 'nothingLeft', at: Date.now() };
       const batches: Pending[][] = [];
       for (let i = 0; i < Math.min(pending.length, BATCH * PARALLEL); i += BATCH)
@@ -277,7 +320,12 @@ async function perform(state: SliceState, slice: Slice): Promise<SliceEvent> {
       const results = settled.map((outcome, i): BatchResult => {
         const jobs = batches[i].map((job) => job.jobId);
         if (outcome.status === 'fulfilled')
-          return { jobs, answered: [...outcome.value.answered], saved: outcome.value.saved };
+          return {
+            jobs,
+            answered: [...outcome.value.answered],
+            saved: outcome.value.saved,
+            waiting: outcome.value.waiting,
+          };
         const error = message(outcome.reason);
         log.warn('AI run: batch failed', { runId: run.id, jobs: jobs.length, error: outcome.reason });
         return { jobs, error };

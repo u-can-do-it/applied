@@ -96,8 +96,8 @@ export async function setJobNote(jobId: string, note: string, seenAt: string | n
 }
 
 /**
- * Asks the AI how well the job fits the active profile, from its ad as the window has it (the title
- * alone without one). The verdict is kept like a run's, so the list has it too.
+ * Asks the AI how well the job fits the active profile, from its ad as the window has it; without one
+ * it throws (no job is judged on its title alone). The verdict is kept like a run's, so the list has it too.
  */
 export async function assessJobFit(jobId: string): Promise<Fit> {
   const [job, profiles] = await Promise.all([offersRepo.jobById(jobId), listProfiles()]);

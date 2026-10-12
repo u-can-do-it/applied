@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { ExternalLinkIcon, TriangleAlertIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ListedJob } from '@/lib/jobs';
@@ -53,6 +53,14 @@ export function OfferSheet({
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const fit = useFitCheck(offerKey(jobId), () => assessJobFitAction({ jobId }), setError);
+  // a verdict on the title alone (from before every judgment needed the ad) is made again from the ad,
+  // once the window has it: once per opening
+  const rejudged = useRef(false);
+  useEffect(() => {
+    if (rejudged.current || data?.contentStatus !== 'ok' || !data.fit || data.fit.hadDescription) return;
+    rejudged.current = true;
+    fit.check();
+  }, [data, fit]);
   const board = labels[job.src] ?? job.src;
   // the list's verdict until the window's is in; the ad text and the note load into their places
   const shown: ShownFit & ShownAd = {

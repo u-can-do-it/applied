@@ -1,8 +1,8 @@
 import 'server-only';
-import { and, count, desc, eq, inArray, lt, notExists, sql } from 'drizzle-orm';
+import { and, count, desc, eq, exists, gte, inArray, lt, notExists, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../client';
 import { first } from '../rows';
-import { aiVerdicts, offersUnique, type AiVerdictRow } from '../schema';
+import { aiVerdicts, offerDetails, offersUnique, type AiVerdictRow } from '../schema';
 import { inRange, type Job } from './offers';
 
 // The AI's verdict on a job, per profile version: does it match, how well, and why.
@@ -84,48 +84,82 @@ export async function removeOlderThan(profile: ProfileVersion) {
 
 // ---- jobs and their verdicts (offers_unique) --------------------------------------------------
 
-const unjudged = (profile: ProfileVersion) =>
-  notExists(
-    db()
-      .select({ one: sql`1` })
-      .from(aiVerdicts)
-      .where(
-        and(
-          eq(aiVerdicts.profileId, profile.id),
-          eq(aiVerdicts.version, profile.version),
-          eq(aiVerdicts.jobId, offersUnique.jobId),
-        ),
+/** This profile version's verdict on the job, as a subquery; `also`: what else it must be. */
+const verdictOn = (profile: ProfileVersion, also?: SQL) =>
+  db()
+    .select({ one: sql`1` })
+    .from(aiVerdicts)
+    .where(
+      and(
+        eq(aiVerdicts.profileId, profile.id),
+        eq(aiVerdicts.version, profile.version),
+        eq(aiVerdicts.jobId, offersUnique.jobId),
+        also,
       ),
-  );
+    );
 
-/** Jobs in the range this profile version hasn't judged yet, newest first. */
+const unjudged = (profile: ProfileVersion) => notExists(verdictOn(profile));
+
+/**
+ * The job's ad may yet be read: one of its offers isn't known to have no ad text (offer_details 'empty').
+ * A job whose ads all came back empty is never judged: the AI gets no job without its ad.
+ */
+const adMayBeRead = sql<boolean>`exists (
+  select 1 from jsonb_array_elements(${offersUnique.offers}) copy
+  left join ${offerDetails} on ${offerDetails.src} = copy ->> 'src' and ${offerDetails.id} = copy ->> 'id'
+  where ${offerDetails.status} is distinct from 'empty'
+)`;
+
+const pendingColumns = {
+  src: offersUnique.src,
+  id: offersUnique.id,
+  title: offersUnique.title,
+  company: offersUnique.company,
+  seniority: offersUnique.seniority,
+  remote: offersUnique.remote,
+  url: offersUnique.url,
+  firstSeen: offersUnique.firstSeen,
+  jobId: offersUnique.jobId,
+  offers: offersUnique.offers,
+};
+
+/** Jobs in the range this profile version hasn't judged yet and that may get their ad, newest first. */
 export function unjudgedJobs(profile: ProfileVersion, range: Range, limit: number): Promise<Omit<Job, 'appliedAt'>[]> {
   return db()
-    .select({
-      src: offersUnique.src,
-      id: offersUnique.id,
-      title: offersUnique.title,
-      company: offersUnique.company,
-      seniority: offersUnique.seniority,
-      remote: offersUnique.remote,
-      url: offersUnique.url,
-      firstSeen: offersUnique.firstSeen,
-      jobId: offersUnique.jobId,
-      offers: offersUnique.offers,
-    })
+    .select(pendingColumns)
     .from(offersUnique)
-    .where(and(inRange(range), unjudged(profile)))
+    .where(and(inRange(range), unjudged(profile), adMayBeRead))
     .orderBy(desc(offersUnique.firstSeen))
     .limit(limit);
 }
 
-/** How many jobs in the range this profile version hasn't judged yet. */
+/** How many jobs in the range this profile version hasn't judged yet and that may get their ad. */
 export async function countUnjudged(profile: ProfileVersion, range: Range): Promise<number> {
   const [{ jobs }] = await db()
     .select({ jobs: count() })
     .from(offersUnique)
-    .where(and(inRange(range), unjudged(profile)));
+    .where(and(inRange(range), unjudged(profile), adMayBeRead));
   return jobs;
+}
+
+/**
+ * Jobs first seen since `since` that wait for their ad to be judged, newest first: not judged by this
+ * profile version (their ad couldn't be read yet), or judged on the title alone (before every
+ * judgment needed the ad). Not the ones whose ads are known to have no text.
+ */
+export function waitingForAd(profile: ProfileVersion, since: string, limit: number): Promise<Omit<Job, 'appliedAt'>[]> {
+  return db()
+    .select(pendingColumns)
+    .from(offersUnique)
+    .where(
+      and(
+        gte(offersUnique.firstSeen, since),
+        or(unjudged(profile), exists(verdictOn(profile, eq(aiVerdicts.hadDescription, false)))),
+        adMayBeRead,
+      ),
+    )
+    .orderBy(desc(offersUnique.firstSeen))
+    .limit(limit);
 }
 
 /** Jobs in the range: all, judged by this profile version, and matching it. */

@@ -142,6 +142,27 @@ describeDb('AI verdicts and runs', () => {
     expect((await getJobs({ q: '', src: '', page: 0 })).jobs.every((job) => !job.ai)).toBe(true);
   });
 
+  it('a job whose ads all have no text is never pending; one judged on its title alone waits for its ad', async () => {
+    const id = await saveProfile({ name: 'P', prompt: 'React', file: 'keep' });
+    const profile = { id, version: 1 };
+    const [first, second, third] = await threeJobs();
+    const [noAd] = await offersRepo.ingest([job('nofluff', '9', 'Go Developer', 'Delta')]);
+    await detailsRepo.save([{ src: 'nofluff', id: '9', status: 'empty', description: null }]);
+    expect(await countPending(profile, {})).toBe(3);
+    expect((await verdictsRepo.unjudgedJobs(profile, {}, 10)).map((row) => row.jobId)).not.toContain(noAd.titleKey);
+
+    // first: judged from its ad; second: on its title alone (before every judgment needed the ad); third: not yet
+    await verdictsRepo.save([
+      { ...verdict(profile, first, true), hadDescription: true },
+      verdict(profile, second, false),
+    ]);
+    const since = new Date(Date.now() - 3_600_000).toISOString();
+    const waiting = await verdictsRepo.waitingForAd(profile, since, 10);
+    expect(waiting.map((row) => row.jobId).sort()).toEqual([second, third]);
+    expect(waiting[0].offers).toEqual([expect.objectContaining({ src: 'justjoin' })]);
+    expect(await verdictsRepo.waitingForAd(profile, '2999-01-01T00:00:00Z', 10)).toEqual([]);
+  });
+
   it('starts one run per profile version, and gives its lock to one worker at a time', async () => {
     const id = await saveProfile({ name: 'P', prompt: 'React', file: 'keep' });
     const profile = await getProfile(id);

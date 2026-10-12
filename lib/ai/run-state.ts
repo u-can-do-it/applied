@@ -31,13 +31,16 @@ export type SliceState =
       tries: ReadonlyMap<string, number>;
       /** jobs saved in this slice: never sent twice in one slice, whatever a read says */
       savedHere: ReadonlySet<string>;
+      /** jobs whose ad couldn't be read in this slice: they wait for it, not asked again in it */
+      waiting: ReadonlySet<string>;
       save: RunPatch | null;
     }
   | { step: 'paused'; save: RunPatch }
   | { step: 'finished'; status: Exclude<Run['status'], 'running'>; error: string | null; save: RunPatch };
 
-/** One OpenAI call's worth of jobs, and what came of it. */
-export type BatchResult = { jobs: string[]; answered: string[]; saved: number } | { jobs: string[]; error: string };
+/** One OpenAI call's worth of jobs, and what came of it; `waiting`: no ad text, so not sent. */
+export type BatchResult =
+  { jobs: string[]; answered: string[]; saved: number; waiting: string[] } | { jobs: string[]; error: string };
 
 export type SliceEvent =
   /** `current`: the profile is still there, at the run's version */
@@ -55,6 +58,8 @@ export const MAX_TRIES = 2;
 /** Rounds that fail before the run does: one bad answer shouldn't end it, a dead API should. */
 export const MAX_FAILED_ROUNDS = 3;
 export const PROFILE_CHANGED = 'The profile changed since this run started. Run it again.';
+/** After the count of the jobs whose ad couldn't be read in the run's last slice. */
+export const WAITING_FOR_AD = "offer(s) wait for their ad text: they're judged once it can be read.";
 
 /** A slice's first state, from the run as its lock was taken. */
 export const started = (run: Pick<Run, 'phase' | 'pairsChecked' | 'merged' | 'done' | 'total'>): SliceState => ({
@@ -86,6 +91,7 @@ const assessing = (progress: Progress, save: RunPatch | null = null): SliceState
   failedRounds: 0,
   tries: new Map(),
   savedHere: new Set(),
+  waiting: new Set(),
   save,
 });
 
@@ -136,20 +142,27 @@ export function transition(state: SliceState, event: SliceEvent): SliceState {
       if (state.step !== 'assess') throw invalid(state, event);
       const tries = new Map(state.tries);
       const savedHere = new Set(state.savedHere);
+      const waiting = new Set(state.waiting);
       let saved = 0;
+      let asked = false;
       let lastError: string | null = null;
       for (const batch of event.batches) {
         if ('error' in batch) {
           lastError = batch.error;
+          asked = true;
           continue;
         }
         saved += batch.saved;
         const answered = new Set(batch.answered);
         for (const job of answered) savedHere.add(job);
-        for (const job of batch.jobs) if (!answered.has(job)) tries.set(job, (tries.get(job) ?? 0) + 1);
+        for (const job of batch.waiting) waiting.add(job);
+        for (const job of batch.jobs)
+          if (!answered.has(job) && !waiting.has(job)) tries.set(job, (tries.get(job) ?? 0) + 1);
+        if (batch.waiting.length < batch.jobs.length) asked = true;
       }
       const done = state.progress.done + saved;
-      const failedRounds = saved ? 0 : state.failedRounds + 1;
+      // a round whose jobs all wait for their ad asked the AI nothing: not a failed one
+      const failedRounds = saved ? 0 : asked ? state.failedRounds + 1 : state.failedRounds;
       if (failedRounds >= MAX_FAILED_ROUNDS)
         return finished('failed', lastError ?? 'The AI returned no answers.', event.at);
       return {
@@ -158,6 +171,7 @@ export function transition(state: SliceState, event: SliceEvent): SliceState {
         failedRounds,
         tries,
         savedHere,
+        waiting,
         save: { done, error: lastError, lockUntil: lockFrom(event.at) },
       };
     }
@@ -165,7 +179,11 @@ export function transition(state: SliceState, event: SliceEvent): SliceState {
     case 'nothingLeft': {
       if (state.step !== 'assess') throw invalid(state, event);
       const skipped = [...state.tries.values()].filter((count) => count >= MAX_TRIES).length;
-      return finished('done', skipped ? `${skipped} offer(s) couldn't be assessed.` : null, event.at);
+      const notes = [
+        skipped && `${skipped} offer(s) couldn't be assessed.`,
+        state.waiting.size && `${state.waiting.size} ${WAITING_FOR_AD}`,
+      ].filter(Boolean);
+      return finished('done', notes.join(' ') || null, event.at);
     }
 
     case 'crashed':
@@ -177,10 +195,16 @@ export function transition(state: SliceState, event: SliceEvent): SliceState {
   }
 }
 
-/** The pending jobs this slice still sends: not saved in it already, not skipped by the model too often. */
+/**
+ * The pending jobs this slice still sends: not saved in it already, not skipped by the model too often,
+ * not waiting for their ad.
+ */
 export function stillToAssess<T extends { jobId: string }>(state: SliceState, rows: readonly T[]): T[] {
   if (state.step !== 'assess') return [];
-  return rows.filter((row) => !state.savedHere.has(row.jobId) && (state.tries.get(row.jobId) ?? 0) < MAX_TRIES);
+  return rows.filter(
+    (row) =>
+      !state.savedHere.has(row.jobId) && !state.waiting.has(row.jobId) && (state.tries.get(row.jobId) ?? 0) < MAX_TRIES,
+  );
 }
 
 const invalid = (state: SliceState, event: SliceEvent) =>

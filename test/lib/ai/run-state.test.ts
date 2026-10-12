@@ -5,6 +5,7 @@ import {
   started,
   stillToAssess,
   transition,
+  WAITING_FOR_AD,
   type Progress,
   type SliceEvent,
   type SliceState,
@@ -25,6 +26,7 @@ const assess = (extra: Partial<Extract<SliceState, { step: 'assess' }>> = {}): S
   failedRounds: 0,
   tries: new Map(),
   savedHere: new Set(),
+  waiting: new Set(),
   save: null,
   ...extra,
 });
@@ -104,9 +106,9 @@ describe('AI run slice: assessment', () => {
       type: 'assessRound',
       at: AT,
       batches: [
-        { jobs: ['a', 'b', 'c'], answered: ['a'], saved: 1 },
+        { jobs: ['a', 'b', 'c'], answered: ['a'], saved: 1, waiting: [] },
         { jobs: ['d'], error: 'OpenAI 429' },
-        { jobs: ['e'], answered: ['e'], saved: 1 },
+        { jobs: ['e'], answered: ['e'], saved: 1, waiting: [] },
       ],
     });
     expect(next).toEqual(
@@ -122,6 +124,33 @@ describe('AI run slice: assessment', () => {
     );
   });
 
+  it("a job without its ad waits: not sent, not a skip, and a round of only those isn't a failed one", () => {
+    const next = transition(assess({ failedRounds: 2 }), {
+      type: 'assessRound',
+      at: AT,
+      batches: [{ jobs: ['a', 'b'], answered: [], saved: 0, waiting: ['a', 'b'] }],
+    });
+    expect(next).toMatchObject({ step: 'assess', failedRounds: 2, tries: new Map(), waiting: new Set(['a', 'b']) });
+    // a job read in a later round is judged: the others' waiting stays
+    const later = transition(next, {
+      type: 'assessRound',
+      at: AT,
+      batches: [{ jobs: ['c', 'd'], answered: ['c'], saved: 1, waiting: ['d'] }],
+    });
+    expect(later).toMatchObject({ failedRounds: 0, tries: new Map(), waiting: new Set(['a', 'b', 'd']) });
+    // neither the waiting nor the judged are sent again in this slice
+    expect(
+      stillToAssess(
+        later,
+        ['a', 'c', 'e'].map((jobId) => ({ jobId })),
+      ),
+    ).toEqual([{ jobId: 'e' }]);
+    expect(transition(later, { type: 'nothingLeft', at: AT })).toMatchObject({
+      status: 'done',
+      error: `3 ${WAITING_FOR_AD}`,
+    });
+  });
+
   it('three rounds in a row without an answer fail the run, with the last error', () => {
     const empty: SliceEvent = { type: 'assessRound', at: AT, batches: [{ jobs: ['a'], error: 'OpenAI 500' }] };
     const two = transition(transition(assess(), empty), empty);
@@ -133,13 +162,21 @@ describe('AI run slice: assessment', () => {
       save: finishedSave('failed', 'OpenAI 500'),
     });
     // answers without a single saved verdict, and no error
-    const silent: SliceEvent = { type: 'assessRound', at: AT, batches: [{ jobs: ['a'], answered: [], saved: 0 }] };
+    const silent: SliceEvent = {
+      type: 'assessRound',
+      at: AT,
+      batches: [{ jobs: ['a'], answered: [], saved: 0, waiting: [] }],
+    };
     expect(transition(assess({ failedRounds: 2 }), silent)).toMatchObject({
       status: 'failed',
       error: 'The AI returned no answers.',
     });
     // one saved verdict resets the count
-    const saved: SliceEvent = { type: 'assessRound', at: AT, batches: [{ jobs: ['a'], answered: ['a'], saved: 1 }] };
+    const saved: SliceEvent = {
+      type: 'assessRound',
+      at: AT,
+      batches: [{ jobs: ['a'], answered: ['a'], saved: 1, waiting: [] }],
+    };
     expect(transition(assess({ failedRounds: 2 }), saved)).toMatchObject({ step: 'assess', failedRounds: 0 });
   });
 

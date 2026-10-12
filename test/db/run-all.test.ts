@@ -38,6 +38,13 @@ const fakeFetch = vi.fn((input: string | URL | Request, init?: RequestInit) => {
   }
   if (url.startsWith(`${OPENAI}/`)) return Promise.resolve(new Response('overloaded', { status: 500 }));
   const path = url.startsWith(BOARD) ? new URL(url).pathname : null;
+  // an offer's ad: its page's <main>
+  if (path?.startsWith('/job/'))
+    return Promise.resolve(
+      new Response(
+        `<main><p>The ad of ${path}: React, TypeScript and the rest of what the job asks for, long enough to be an ad.</p></main>`,
+      ),
+    );
   const page = path === null ? undefined : pages[path];
   if (page === undefined) return Promise.reject(new Error(`unexpected request: ${url}`));
   if (page === 'down') return Promise.resolve(new Response('down', { status: 500 }));

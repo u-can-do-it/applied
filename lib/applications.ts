@@ -171,8 +171,8 @@ export async function saveContent(jobId: string) {
 
 /**
  * Asks the AI how well the job fits the active profile (a job no run judged: one added by hand,
- * or applied to before the profile changed), from the saved ad text, or the title alone without
- * one. The verdict is kept like a run's, so the offers have it too.
+ * or applied to before the profile changed), from the saved ad text; without one it throws (no job
+ * is judged on its title alone). The verdict is kept like a run's, so the offers have it too.
  */
 export async function assessFit(jobId: string): Promise<Fit> {
   const [app, profiles] = await Promise.all([getApplication(jobId), listProfiles()]);

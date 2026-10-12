@@ -1,12 +1,13 @@
 import 'server-only';
-import { assessJobs, type Verdict } from '../../ai/runs';
+import { assessJobs, assessWaiting, type Verdict } from '../../ai/runs';
 import { env } from '../../env';
 import { getProfile, isUsable, listProfiles, type ProfileWithFile } from '../../ai/profiles';
 import { message } from '../../shared/errors';
 import type { ScrapeSettings } from '../settings';
 
 // Step 6, aiFilter: the new jobs checked against the active AI profile, so the notifications (notify) can
-// send only the matches and the offers show their fit.
+// send only the matches and the offers show their fit. The AI judges a job only from its ad: one whose ad
+// couldn't be read waits, and step 8, aiWaiting, tries its ad again in the runs after.
 
 /** The active AI profile, if the AI filter can work: on in Settings, a usable profile, an OpenAI key. */
 export async function aiProfile(settings: ScrapeSettings): Promise<ProfileWithFile | null> {
@@ -47,4 +48,18 @@ export async function aiFilter(
     matched: jobs.filter((jobId) => assessed.verdicts.get(jobId)?.match).length,
     error: assessed.error,
   };
+}
+
+/**
+ * Step 8: the jobs of the last days whose ad couldn't be read yet (lib/ai/runs.ts assessWaiting), judged
+ * once it can. Never throws: what went wrong is in `error`.
+ */
+export async function aiWaiting(settings: ScrapeSettings, deadline: number) {
+  try {
+    const profile = await aiProfile(settings);
+    if (!profile) return { judged: 0, error: null };
+    return await assessWaiting(profile, deadline);
+  } catch (error) {
+    return { judged: 0, error: message(error) };
+  }
 }

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TimeZone } from '@/components/time-zone';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { applyAction } from '@/features/applications/actions';
-import { archiveAction, setJobNoteAction } from '@/features/offers/actions';
+import { archiveAction, assessJobFitAction, setJobNoteAction } from '@/features/offers/actions';
 import { ArchiveRow } from '@/features/offers/archive';
 import { NOTE_PLACEHOLDER, OfferSheet, type OfferJob } from '@/features/offers/offer-sheet';
 import { offerKey } from '@/features/offers/use-offer';
@@ -27,9 +27,11 @@ vi.mock('@/features/offers/actions', () => ({
 const apply = vi.mocked(applyAction);
 const saveNote = vi.mocked(setJobNoteAction);
 const archive = vi.mocked(archiveAction);
+const assess = vi.mocked(assessJobFitAction);
 
 const JOB = 'rossmannsdp|lidertechnologiczny';
 const AT = '2026-10-09T08:00:00.000Z';
+const fit = { match: true, score: 15, summary: 'ERP and WMS', checks: [], hadDescription: true, bodyLeasing: false };
 const job: OfferJob = {
   jobId: JOB,
   src: 'eldorado',
@@ -38,7 +40,7 @@ const job: OfferJob = {
   company: 'Rossmann SDP',
   url: 'https://czyjesteldorado.pl/praca/455630',
   firstSeen: '2026-10-10T09:00:00.000Z',
-  ai: { match: true, score: 15, summary: 'ERP and WMS', checks: [], hadDescription: true, bodyLeasing: false },
+  ai: fit,
 };
 const window: OfferWindow = {
   content: 'Biegłość w technologiach backendowych (np. .NET / C#)',
@@ -51,9 +53,13 @@ const window: OfferWindow = {
   noteUpdatedAt: AT,
 };
 
-function open({ inRow = false } = {}) {
+function open({ inRow = false, shown = window } = {}) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(Response.json(shown))),
+  );
   const queryClient = new QueryClient();
-  queryClient.setQueryData(offerKey(JOB), window);
+  queryClient.setQueryData(offerKey(JOB), shown);
   const onClose = vi.fn();
   const sheet = <OfferSheet job={job} labels={{ eldorado: 'Eldorado' }} onClose={onClose} />;
   render(
@@ -80,11 +86,7 @@ const note = () => screen.getByPlaceholderText<HTMLTextAreaElement>(NOTE_PLACEHO
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  // the window checks again as it opens: the same answer
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(() => Promise.resolve(Response.json(window))),
-  );
+  // the window checks again as it opens: the same answer (open())
   apply.mockResolvedValue({ ok: true, data: undefined });
   archive.mockResolvedValue({ ok: true, data: undefined });
   saveNote.mockResolvedValue({ ok: true, data: { noteUpdatedAt: '2026-10-10T10:00:00.000Z' } });
@@ -123,6 +125,22 @@ describe('an offer window', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mark applied' }));
     expect(await screen.findByText('That offer is no longer in the database.')).toBeTruthy();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('a verdict on the title alone is made again from the ad the window has, once; never without an ad', async () => {
+    const titleOnly = { ...window, fit: { ...fit, hadDescription: false } };
+    assess.mockResolvedValue({ ok: true, data: fit });
+    open({ shown: titleOnly });
+    await waitFor(() => expect(assess).toHaveBeenCalledWith({ jobId: JOB }));
+    // the window's own load answers with the old verdict again (here): still once
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
+    expect(assess).toHaveBeenCalledOnce();
+    cleanup();
+    assess.mockClear();
+    open({ shown: { ...titleOnly, content: null, contentStatus: 'empty' } });
+    open();
+    await waitFor(() => expect(screen.getAllByText('15%')).toHaveLength(2));
+    expect(assess).not.toHaveBeenCalled();
   });
 
   it('Archive takes the offer out of the list', async () => {

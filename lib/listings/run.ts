@@ -9,7 +9,7 @@ import * as settingsRepo from '../db/repos/scrape-settings';
 import * as stateRepo from '../db/repos/scrape-state';
 import { log } from '../log';
 import { message } from '../shared/errors';
-import { aiFilter } from './pipeline/ai-filter';
+import { aiFilter, aiWaiting } from './pipeline/ai-filter';
 import { fetchAlerts } from './pipeline/alerts';
 import { newJobs, selectAnnouncable } from './pipeline/announce';
 import { fetchListings, scrapersToRun } from './pipeline/fetch';
@@ -25,7 +25,7 @@ export type { RunSummary } from './pipeline/model';
 
 // One run = every enabled scraper, and the jobs LinkedIn's alert emails named: fetch, parse, filter, save
 // new offers, queue the new jobs for the notification channels (Telegram, push), check them against the
-// active AI profile and send the matches (unless muted).
+// active AI profile and send the matches (unless muted); then judge the earlier jobs whose ad couldn't be read.
 // The steps are in ./pipeline; this file puts them in order, under the lock, with the run log.
 
 const EMPTY = { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] as RunError[], ms: 0 };
@@ -94,7 +94,8 @@ export async function runAll(
     if (send) await queueRepo.enqueue(fresh);
     const tail = aiTail({ runId, settings, jobs, send, errors, deadline: startedAt + AI_BUDGET_MS });
 
-    if (opts.background && (jobs.length || fresh.length)) {
+    // in the background even with nothing new: the jobs waiting for their ad are judged there too
+    if (opts.background) {
       after(() =>
         tail()
           .catch((failure: unknown) => {
@@ -103,7 +104,7 @@ export async function runAll(
           .finally(() => stateRepo.unlock().catch(() => {})),
       );
       unlockLater = true; // only once after() took it: if that throws, `finally` below unlocks
-      return { ...summary, notifyLater: true };
+      return { ...summary, notifyLater: jobs.length > 0 || fresh.length > 0 };
     }
     const { sent, more } = await tail();
     return { ...summary, notified: sent, errors: [...errors, ...more], ms: Date.now() - startedAt };
@@ -119,8 +120,8 @@ export async function runAll(
 }
 
 /**
- * Steps 6 and 7 (aiFilter → notify), then what they did into the run log. Returned as a function:
- * it runs now, or after the answer (`background`).
+ * Steps 6 to 8 (aiFilter → notify → aiWaiting), then what they did into the run log. Returned as a
+ * function: it runs now, or after the answer (`background`).
  */
 function aiTail(run: {
   runId: number;
@@ -142,6 +143,11 @@ function aiTail(run: {
     note('AI / Notify', notified.error);
     // a channel failed but another sent them: a warning, not a failure
     if (notified.warning) note('Notify', `Sent ${notified.sent}; ${notified.warning}`, true);
+    // after the sending: what's judged here is in the next run's message
+    const waited = await aiWaiting(run.settings, run.deadline);
+    note('AI (waiting for their ad)', waited.error);
+    if (waited.judged)
+      log.info('Scrape run: judged jobs whose ad came in late', { scrapeRunId: run.runId, judged: waited.judged });
     if (filtered.checked || run.send || more.length)
       await runsRepo.update(run.runId, {
         notified: notified.sent,
