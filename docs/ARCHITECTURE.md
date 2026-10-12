@@ -21,7 +21,7 @@ flowchart LR
   Channels --> Telegram[Telegram Bot API]
   Channels --> Push["Web Push (web-push → push services)"] --> Phone["your phone: the installed PWA, public/sw.js"]
   CronApi -->|after the scrape| AiRuns["AI runs: slices under a lock (lib/ai)"]
-  AiRuns --> AI["Gemini (or OpenAI)"]
+  AiRuns --> OpenAI
   UI["features/*: offers · ai · applications · scraping · notifications · telegram · health · activity"] --> Actions["server actions: action() = login + zod + Result"]
   Actions --> Services["services (lib/*): the rules"] --> Repos["lib/db/repos: one per table"] --> DB[("Supabase Postgres: Drizzle schema + migrations")]
   Pipeline --> Repos
@@ -83,7 +83,7 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
    mark; the run's counts go into `scrape_runs`. The announced offers go into `notify_queue` when sending is on
    and a notification channel is ready (Telegram set up and switched on, or push set up with a subscribed device).
 6. **`aiFilter`** (`ai-filter.ts`): every new job (announced or not) is judged against the active AI profile,
-   if the AI filter is on, a profile is usable and an AI key (`GEMINI_API_KEY` or `OPENAI_API_KEY`) is set. No new batch after `AI_BUDGET_MS`.
+   if the AI filter is on, a profile is usable and `OPENAI_API_KEY` is set. No new batch after `AI_BUDGET_MS`.
 7. **`notify`** (`notify.ts`): what waits in the queue goes, as one batch, to every ready
    [channel](#notification-channels): matches listed with their fit, the rest counted. An offer without a
    verdict waits for the next run, and after 20 minutes is sent anyway, marked "not checked". While muted
@@ -109,13 +109,13 @@ through their APIs (Himalayas' job pages turn servers away), Built In and Linked
   application, trying the job's other boards if the clicked one fails. The state machine is
   [below](#application-ad-content). What the board didn't give (salary, location, remote / hybrid / on-site,
   a hybrid job's office and home days, and the tech stack: each skill on JustJoin's 1–5 scale, the languages
-  with their level) the AI reads from the saved text (`lib/application-details.ts`, `details.textRead`,
+  with their level) OpenAI reads from the saved text (`lib/application-details.ts`, `details.textRead`,
   `details.skills`); JustJoin's API gives the skills itself. A saved text not read yet (or read before there
   were skills) is read when the Applied page has rendered, 40 per visit.
 
-"Fill in from the link" (Add application) reads the page the same way and lets the AI
-fill in the form. A page that can't be read (a login wall, one drawn by scripts):
-"Fill in from the ad text" gives the AI the text pasted into the form instead.
+"Fill in from the link" (Add application) reads the page the same way and lets OpenAI
+(`OPENAI_EXTRACT_MODEL`) fill in the form. A page that can't be read (a login wall, one drawn by scripts):
+"Fill in from the ad text" gives OpenAI the text pasted into the form instead.
 
 ### AI runs
 
@@ -125,7 +125,7 @@ A run checks a date range against one profile version ([`lib/ai/runs.ts`](../lib
    or one a prefix of the other, similar titles by `pg_trgm`, at most 45 days apart). The AI (low effort)
    decides each pair once (`ai_dup_pairs`); same pairs are merged (`jw_merge_jobs`: `job_links`, and the
    verdicts and application move to the kept job, the earliest).
-2. **Assessment** (phase `assess`): each job this profile version hasn't judged, 4 per AI call, 3 calls at
+2. **Assessment** (phase `assess`): each job this profile version hasn't judged, 4 per OpenAI call, 3 calls at
    once, with its ad text. Verdicts are stored per profile version and job, so a second run sends only
    what's new, and editing a profile's text or file (a new version) has its jobs checked again – unless it's
    saved keeping its verdicts (same version: only the jobs it hasn't judged get the new criteria).
@@ -333,7 +333,7 @@ Outside `ok` the text is always what you typed, so a fetch that fails or finds n
 | [`lib/boards/`](../lib/boards)             | The board registry: one file per board (hosts, link ids, listing defaults, seeds); `index.ts` lists them.                                                                                                                                                                 |
 | [`lib/listings/`](../lib/listings)         | Scraping: `run.ts` and `pipeline/` (the steps), `parsers/` (one per board, plus generic JSON / HTML / RSS / ATS), `ats.ts` (the ATSs), `registry.ts`, `kinds.ts`, `match.ts` (filters), `settings.ts`, `schedule.ts` (cron secret, `checkDue`), `cron.ts` (the schedule). |
 | [`lib/ads/`](../lib/ads)                   | An offer's full ad text and details, one reader per board that needs one.                                                                                                                                                                                                 |
-| [`lib/ai/`](../lib/ai)                     | AI calls (`openai.ts`; Gemini or OpenAI: `provider.ts`), profiles, runs and their state machine, the run card's view, merging duplicates.                                                                                                                                 |
+| [`lib/ai/`](../lib/ai)                     | OpenAI calls (`openai.ts`), profiles, runs and their state machine, the run card's view, merging duplicates.                                                                                                                                                              |
 | [`lib/db/`](../lib/db)                     | `schema.ts`, `client.ts` (the connection), `connection.ts`, `health.ts` (pending migrations), `seed.ts` (board seeds), `repos/` (one per table).                                                                                                                          |
 | [`lib/health/`](../lib/health)             | The Health card's checks (pure) and the reads they need.                                                                                                                                                                                                                  |
 | [`lib/shared/`](../lib/shared)             | What client components may import: `Result`, errors, formatting, URL filters, `cn()`, the Zod schemas (`schemas/`).                                                                                                                                                       |
@@ -454,4 +454,4 @@ Values that live outside the code keep their names, so nothing breaks across a d
 - the URL's filters (`?q=`, `?src=`, `?days=`…; the Applied tab's `?q=` and `?status=`, its ids in
   `features/applications/status-filter.ts`);
 - `/api/application` takes `?jobId=` (or `?key=`, the same); `/api/offer` takes `?jobId=`;
-- what the prompts send the AI and read back (a job's `board`, `first_seen`; a pair's `p`; an offer's `n`).
+- what the prompts send OpenAI and read back (a job's `board`, `first_seen`; a pair's `p`; an offer's `n`).

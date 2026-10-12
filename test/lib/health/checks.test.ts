@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aiKeyCheck,
   cronCheck,
   lastRunCheck,
   migrationsCheck,
+  openAiCheck,
   overall,
   profileCheck,
   pushCheck,
@@ -151,9 +151,9 @@ describe('the checks', () => {
     );
   });
 
-  it('the AI key and the AI profile', () => {
-    expect(aiKeyCheck('Gemini')).toMatchObject({ level: 'ok', reason: 'Gemini: the key is set.' });
-    expect(aiKeyCheck(null)).toMatchObject({ level: 'warn', fix: { code: 'GEMINI_API_KEY' } });
+  it('OpenAI and the AI profile', () => {
+    expect(openAiCheck(true).level).toBe('ok');
+    expect(openAiCheck(false)).toMatchObject({ level: 'warn', fix: { code: 'OPENAI_API_KEY' } });
     expect(profileCheck([])).toMatchObject({ level: 'warn', fix: { href: '/settings#ai-filter' } });
     expect(profileCheck([{ name: 'Me', version: 2, prompt: ' ', fileName: null }]).level).toBe('warn');
     expect(profileCheck([{ name: 'Me', version: 2, prompt: '', fileName: 'cv.pdf' }])).toEqual({

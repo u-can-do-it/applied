@@ -35,18 +35,14 @@ const schema = z.object({
   // what Supabase Cron sends to /api/cron/scrape; derived from APP_PASSWORD when not set
   CRON_SECRET: optional,
 
-  // the AI filter and "Fill in" (optional: without a key the app runs without them). Gemini when
-  // GEMINI_API_KEY is set, else OpenAI (lib/ai/provider.ts)
-  GEMINI_API_KEY: optional,
-  GEMINI_MODEL: withDefault('gemini-3.8-flash'),
+  // the AI filter and "Fill in" (optional: without a key the app runs without them)
   OPENAI_API_KEY: optional,
   OPENAI_MODEL: withDefault('gpt-6-luna'),
-  // a model per job, OpenAI's only; not set = OPENAI_MODEL
+  // a model per job; not set = OPENAI_MODEL
   OPENAI_ASSESS_MODEL: optional,
   OPENAI_DEDUP_MODEL: optional,
   OPENAI_EXTRACT_MODEL: optional,
-  // the reasoning effort per job, Gemini's too; assessing at high, Gemini sometimes outlasts the timeout
-  OPENAI_ASSESS_EFFORT: withDefault('medium'),
+  OPENAI_ASSESS_EFFORT: withDefault('high'),
   OPENAI_DEDUP_EFFORT: withDefault('low'),
   OPENAI_EXTRACT_EFFORT: withDefault('low'),
   OPENAI_BASE_URL: z.preprocess(unset, url.default('https://api.openai.com/v1')).transform(trimSlashes),

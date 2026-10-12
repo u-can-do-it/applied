@@ -4,8 +4,6 @@
 - Context: [ARCHITECTURE.md → AI run](../ARCHITECTURE.md#ai-run)
 - Update (2026-10-06): the AI tab is gone; its part here (starting and continuing runs) is Settings → AI filter's,
   which asks for the run's state every 4 s instead of refreshing the page.
-- Update (2026-10-12): the calls go to Gemini ([ADR 0010](0010-gemini-through-openai-compatible-api.md)), each up
-  to 150 s (`AI_TIMEOUT_MS`), so a slice starts no new round after 120 s.
 
 ## Context
 

@@ -6,9 +6,8 @@ const required = { SUPABASE_DB_URL: 'postgresql://postgres:pw@localhost:5432/pos
 describe('parseEnv', () => {
   it('applies the defaults', () => {
     const env = parseEnv(required);
-    expect(env.GEMINI_MODEL).toBe('gemini-3.8-flash');
     expect(env.OPENAI_MODEL).toBe('gpt-6-luna');
-    expect(env.OPENAI_ASSESS_EFFORT).toBe('medium');
+    expect(env.OPENAI_ASSESS_EFFORT).toBe('high');
     expect(env.OPENAI_DEDUP_EFFORT).toBe('low');
     expect(env.OPENAI_EXTRACT_EFFORT).toBe('low');
     expect(env.OPENAI_BASE_URL).toBe('https://api.openai.com/v1');
@@ -18,7 +17,6 @@ describe('parseEnv', () => {
 
   it('leaves the optional features off when their variables are missing', () => {
     const env = parseEnv(required);
-    expect(env.GEMINI_API_KEY).toBeUndefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect(env.TELEGRAM_BOT_TOKEN).toBeUndefined();
     expect(env.TELEGRAM_CHAT_ID).toBeUndefined();

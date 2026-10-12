@@ -27,7 +27,6 @@ const SECRET_PARAM =
 const SECRET_TEXT: [RegExp, string][] = [
   [/\bbot\d+:[\w-]{20,}/g, REDACTED], // a Telegram bot token, in a Bot API URL
   [/\bsk-[\w-]{16,}/g, REDACTED], // an OpenAI key
-  [/\bAIza[\w-]{35}/g, REDACTED], // a Google API key (Gemini's)
   [/\b(Bearer|Basic)\s+[\w.~+/=-]+/gi, REDACTED],
   // libpq's key=value connection strings (and error messages quoting one): password='…' / pwd=…
   [/\b(password|passwd|pwd)\s*=\s*('(?:[^'\\]|\\.)*'|"[^"]*"|[^\s&;,]+)/gi, `$1=${REDACTED}`],
@@ -37,7 +36,6 @@ const SECRET_ENV = [
   'SUPABASE_DB_URL',
   'APP_PASSWORD',
   'CRON_SECRET',
-  'GEMINI_API_KEY',
   'OPENAI_API_KEY',
   'TELEGRAM_BOT_TOKEN',
   'VAPID_PRIVATE_KEY',

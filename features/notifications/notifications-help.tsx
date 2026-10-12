@@ -25,8 +25,7 @@ export function NotificationsHelp() {
         <strong>Only offers the AI profile matches:</strong> every new offer is checked right after scraping, as the AI
         tab would (also the ones that aren’t sent, like a new scraper’s first run). The matches are listed with their
         fit; if none match, the message just says how many new offers there are. One the AI can’t check for 20 minutes
-        is sent anyway, marked. Without an AI key (<Code>GEMINI_API_KEY</Code> or <Code>OPENAI_API_KEY</Code>) or an AI
-        profile, every new offer is sent.
+        is sent anyway, marked. Without <Code>OPENAI_API_KEY</Code> or an AI profile, every new offer is sent.
       </p>
     </>
   );

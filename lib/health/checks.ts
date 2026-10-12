@@ -171,14 +171,13 @@ export function pushCheck({ problem, devices, notify, telegram }: PushInput): He
   };
 }
 
-/** `provider`: whose key is set (Gemini's wins), null for neither. */
-export function aiKeyCheck(provider: string | null): HealthResult {
-  return provider
-    ? { level: 'ok', reason: `${provider}: the key is set.` }
+export function openAiCheck(keySet: boolean): HealthResult {
+  return keySet
+    ? { level: 'ok', reason: 'The key is set.' }
     : {
         level: 'warn',
         reason: 'No key: no AI filter and no AI runs.',
-        fix: { type: 'hint', text: 'Set', code: 'GEMINI_API_KEY' },
+        fix: { type: 'hint', text: 'Set', code: 'OPENAI_API_KEY' },
       };
 }
 

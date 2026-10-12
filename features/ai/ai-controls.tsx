@@ -110,7 +110,7 @@ export function AiControls({
       {!aiConfigured && (
         <Alert variant="destructive">
           <TriangleAlertIcon />
-          <AlertTitle>No AI key on the server: set GEMINI_API_KEY (or OPENAI_API_KEY).</AlertTitle>
+          <AlertTitle>OPENAI_API_KEY is not set on the server.</AlertTitle>
         </Alert>
       )}
       {error && !running && (

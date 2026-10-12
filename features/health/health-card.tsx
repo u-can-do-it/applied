@@ -2,13 +2,13 @@ import { connection } from 'next/server';
 import { ChevronRightIcon, CircleAlertIcon, CircleCheckIcon, CircleXIcon } from 'lucide-react';
 import { checkDbHealth } from '@/lib/db/health';
 import { DEFAULT_TZ, zoneOf, type Zone } from '@/lib/dates';
-import { aiProvider } from '@/lib/ai/provider';
+import { env } from '@/lib/env';
 import * as runsRepo from '@/lib/db/repos/scrape-runs';
 import {
-  aiKeyCheck,
   cronCheck,
   lastRunCheck,
   migrationsCheck,
+  openAiCheck,
   overall,
   profileCheck,
   pushCheck,
@@ -124,7 +124,7 @@ export async function HealthCard() {
           telegram: telegramReady() && (await telegramEnabled),
         }),
     },
-    { id: 'ai', label: 'AI', check: () => aiKeyCheck(aiProvider()?.name ?? null) },
+    { id: 'openai', label: 'OpenAI', check: () => openAiCheck(Boolean(env.OPENAI_API_KEY)) },
     { id: 'profile', label: 'AI profile', check: async () => profileCheck(await profileList()) },
   ];
   const rows = await runChecks(checks);

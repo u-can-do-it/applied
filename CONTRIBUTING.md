@@ -125,7 +125,7 @@ Tailwind v4 and shadcn/ui ([ADR 0007](docs/decisions/0007-shadcn-ui-and-tailwind
   must catch and log its own failure: nobody else sees it.
 - A request to a link from a user or a page goes through `fetchOutbound()` and its body through `readText()`
   (`lib/outbound.ts`, the [SSRF checks](docs/OPERATIONS.md#ssrf-policy)). Plain `fetch` only for services the
-  environment configures (Telegram, Gemini / OpenAI); push goes through `web-push` to the push service the browser chose
+  environment configures (Telegram, OpenAI); push goes through `web-push` to the push service the browser chose
   (`lib/push.ts`: https only, with a timeout).
 - A page is read with `parsePage()` (`lib/dom.ts`) or, for a feed, `fast-xml-parser`, not regular expressions.
 
@@ -206,7 +206,7 @@ starts with `// @vitest-environment jsdom` and uses Testing Library.
 
 Pure modules get unit tests (the pipeline's pure steps, the state machines, dates, matching, the Health
 checks); whatever needs SQL goes in `test/db/` against a real database, not a mock. A test never calls a real
-board, Telegram or AI (Gemini, OpenAI): stub `fetch` or the module.
+board, Telegram or OpenAI: stub `fetch` or the module.
 
 ## CI
 
