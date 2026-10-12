@@ -50,3 +50,15 @@ export async function saveComplete(row: Omit<CompleteDetails, 'complete' | 'fetc
     .values(values)
     .onConflictDoUpdate({ target: [offerDetails.src, offerDetails.id], set: values });
 }
+
+/**
+ * Your text for the ad (the window's "Edit"): kept as the complete ad, so the window, an AI run and
+ * marking it applied have it; what the board said besides (details) stays.
+ */
+export async function saveText(row: Pick<CompleteDetails, 'src' | 'id'> & { description: string }) {
+  const values = { ...row, status: 'ok' as const, complete: true, fetchedAt: sql`now()` };
+  await db()
+    .insert(offerDetails)
+    .values(values)
+    .onConflictDoUpdate({ target: [offerDetails.src, offerDetails.id], set: values });
+}

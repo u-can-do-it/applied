@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TimeZone } from '@/components/time-zone';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { applyAction } from '@/features/applications/actions';
-import { archiveAction, assessJobFitAction, setJobNoteAction } from '@/features/offers/actions';
+import { archiveAction, assessJobFitAction, setJobAdAction, setJobNoteAction } from '@/features/offers/actions';
+import { AD_PLACEHOLDER } from '@/features/offers/ad-editor';
 import { ArchiveRow } from '@/features/offers/archive';
 import { NOTE_PLACEHOLDER, OfferSheet, type OfferJob } from '@/features/offers/offer-sheet';
 import { offerKey } from '@/features/offers/use-offer';
@@ -20,6 +21,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/features/applications/actions', () => ({ applyAction: vi.fn(), assessFitAction: vi.fn() }));
 vi.mock('@/features/offers/actions', () => ({
   setJobNoteAction: vi.fn(),
+  setJobAdAction: vi.fn(),
   assessJobFitAction: vi.fn(),
   archiveAction: vi.fn(),
   restoreAction: vi.fn(),
@@ -28,6 +30,7 @@ const apply = vi.mocked(applyAction);
 const saveNote = vi.mocked(setJobNoteAction);
 const archive = vi.mocked(archiveAction);
 const assess = vi.mocked(assessJobFitAction);
+const saveAd = vi.mocked(setJobAdAction);
 
 const JOB = 'rossmannsdp|lidertechnologiczny';
 const AT = '2026-10-09T08:00:00.000Z';
@@ -141,6 +144,55 @@ describe('an offer window', () => {
     open();
     await waitFor(() => expect(screen.getAllByText('15%')).toHaveLength(2));
     expect(assess).not.toHaveBeenCalled();
+  });
+
+  describe('the ad, yours to edit', () => {
+    const pasted = 'React 19, Next.js, design systems';
+    const noAd = { ...window, content: null, contentStatus: 'empty' as const, fit: { ...fit, hadDescription: false } };
+    const adField = () => screen.getByPlaceholderText<HTMLTextAreaElement>(AD_PLACEHOLDER);
+
+    it('one the board page doesn’t give, pasted: saved as the ad, and the AI judges the job from it', async () => {
+      saveAd.mockResolvedValue({ ok: true, data: { ...window, content: pasted, contentStatus: 'ok' } });
+      assess.mockResolvedValue({ ok: true, data: { ...fit, score: 80 } });
+      open({ shown: noAd });
+      expect(screen.getByText(/The board page had no ad text\.\s*$/)).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Paste the ad text' }));
+      fireEvent.change(adField(), { target: { value: `  ${pasted}\n` } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save the ad' }));
+      await waitFor(() => expect(saveAd).toHaveBeenCalledExactlyOnceWith({ jobId: JOB, content: pasted }));
+      expect(await screen.findByText(pasted)).toBeTruthy();
+      await waitFor(() => expect(assess).toHaveBeenCalledExactlyOnceWith({ jobId: JOB }));
+      expect(await screen.findByText('80%')).toBeTruthy();
+    });
+
+    it('the board’s, edited from its text; Cancel leaves it as it was', () => {
+      open();
+      fireEvent.click(screen.getByRole('button', { name: 'Edit the ad' }));
+      expect(adField().value).toBe(window.content);
+      fireEvent.change(adField(), { target: { value: 'something else' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(screen.getByText(window.content ?? '')).toBeTruthy();
+      expect(saveAd).not.toHaveBeenCalled();
+    });
+
+    it('closing the window saves what you typed (no AI call); "Mark applied" saves it first', async () => {
+      saveAd.mockResolvedValue({ ok: true, data: { ...window, content: pasted } });
+      open({ shown: noAd });
+      fireEvent.click(screen.getByRole('button', { name: 'Paste the ad text' }));
+      fireEvent.change(adField(), { target: { value: pasted } });
+      fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]);
+      await waitFor(() => expect(saveAd).toHaveBeenCalledExactlyOnceWith({ jobId: JOB, content: pasted }));
+      expect(assess).not.toHaveBeenCalled();
+      cleanup();
+      saveAd.mockClear();
+      open({ shown: noAd });
+      fireEvent.click(screen.getByRole('button', { name: 'Paste the ad text' }));
+      fireEvent.change(adField(), { target: { value: pasted } });
+      fireEvent.click(screen.getByRole('button', { name: 'Mark applied' }));
+      await waitFor(() => expect(apply).toHaveBeenCalled());
+      expect(saveAd).toHaveBeenCalledExactlyOnceWith({ jobId: JOB, content: pasted });
+      expect(saveAd.mock.invocationCallOrder[0]).toBeLessThan(apply.mock.invocationCallOrder[0]);
+    });
   });
 
   it('Archive takes the offer out of the list', async () => {

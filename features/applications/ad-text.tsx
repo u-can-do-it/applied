@@ -1,5 +1,7 @@
 'use client';
 
+import { PencilIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Shown } from './use-application';
 import { useDay } from './use-day';
@@ -9,9 +11,10 @@ export type ShownAd = Pick<Shown, 'content' | 'contentStatus' | 'contentError' |
 
 /**
  * The saved ad text. It loads into this box, which has the same place and size before and after; it
- * fills what's left, so a short ad or the placeholder look the same as a long one.
+ * fills what's left, so a short ad or the placeholder look the same as a long one. `onEdit`: an
+ * offer's window lets you change it, or paste one the board page doesn't give.
  */
-export function AdText({ ad: app, loadError }: { ad: ShownAd; loadError: string | null }) {
+export function AdText({ ad: app, loadError, onEdit }: { ad: ShownAd; loadError: string | null; onEdit?: () => void }) {
   const day = useDay();
   const waiting = app.content === undefined || app.contentStatus === 'pending';
   const hasText = app.contentStatus === 'ok' && !!app.content;
@@ -44,8 +47,15 @@ export function AdText({ ad: app, loadError }: { ad: ShownAd; loadError: string 
           </p>
         )}
       </div>
-      {app.scrapedAt && hasText && (
-        <p className="m-0 -mt-1.5 text-xs text-muted-foreground">saved {day(app.scrapedAt)}.</p>
+      {((app.scrapedAt && hasText) || (onEdit && !waiting)) && (
+        <p className="m-0 -mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+          {app.scrapedAt && hasText && <>saved {day(app.scrapedAt)}.</>}
+          {onEdit && !waiting && (
+            <Button type="button" variant="link" size="xs" className="ml-auto px-0" onClick={onEdit}>
+              <PencilIcon /> {hasText ? 'Edit the ad' : 'Paste the ad text'}
+            </Button>
+          )}
+        </p>
       )}
     </>
   );

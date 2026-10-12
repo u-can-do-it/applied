@@ -3,6 +3,7 @@ import { columnsOf, contentOf, fetchDue, NO_LINK, NONE, transition, type Content
 import { boardIdOf, boardOf, cleanLink, offerIdOf } from './boards';
 import type { Zone } from './dates';
 import * as applicationsRepo from './db/repos/applications';
+import * as detailsRepo from './db/repos/offer-details';
 import * as jobNotesRepo from './db/repos/job-notes';
 import * as linksRepo from './db/repos/job-links';
 import * as offersRepo from './db/repos/offers';
@@ -126,7 +127,10 @@ export const unmarkApplied = (jobId: string) => applicationsRepo.remove(jobId);
 
 const patch = (jobId: string, fields: Partial<NewApplicationRow>) => applicationsRepo.patch(jobId, fields);
 
-/** Scrapes the complete ad: the offer that was marked first, then the job's other boards. */
+/**
+ * Scrapes the complete ad: the offer that was marked first, then the job's other boards; none giving it,
+ * the one its offer window kept (what you pasted there).
+ */
 export async function saveContent(jobId: string) {
   const app = await getApplication(jobId);
   if (!app) return;
@@ -159,6 +163,13 @@ export async function saveContent(jobId: string) {
     } catch (error) {
       lastError = message(error);
     }
+  }
+  const kept = (await detailsRepo.forOffers(offers).catch(() => [])).find(
+    (row) => row.complete && row.status === 'ok' && row.description,
+  );
+  if (kept?.description) {
+    await save({ type: 'fetchSucceeded', text: kept.description, at: new Date().toISOString() }, kept.details);
+    return;
   }
   const at = new Date().toISOString();
   await save(

@@ -24,8 +24,6 @@ export type OfferAd = {
 };
 export type OfferWindow = OfferAd & { fit: Fit | null; note: string | null; noteUpdatedAt: string | null };
 
-const NO_TEXT = 'The board page had no ad text.';
-
 /** The job's ad: saved complete, else fetched now; an AI run's shorter copy when fetching fails. */
 async function adOf(offers: OfferLink[]): Promise<OfferAd> {
   const saved = new Map((await detailsRepo.forOffers(offers)).map((row) => [`${row.src}\u0001${row.id}`, row]));
@@ -67,9 +65,7 @@ async function adOf(offers: OfferLink[]): Promise<OfferAd> {
       scrapedAt: short.fetchedAt,
       details: null,
     };
-  return empty
-    ? { ...empty, contentError: NO_TEXT }
-    : { content: null, contentStatus: 'failed', contentError: error, scrapedAt: null, details: null };
+  return empty ?? { content: null, contentStatus: 'failed', contentError: error, scrapedAt: null, details: null };
 }
 
 /** What the window shows besides what the list has; null if the job is gone. */
@@ -82,6 +78,20 @@ export async function getOfferWindow(jobId: string): Promise<OfferWindow | null>
     jobNotesRepo.get(jobId),
   ]);
   return { ...ad, fit, note: note?.note ?? null, noteUpdatedAt: note?.noteUpdatedAt ?? null };
+}
+
+/**
+ * Saves your text as the job's ad (one the board page doesn't give, or gives wrong): on its first
+ * offer, the one the window reads first. Answers with the ad as the window now shows it.
+ */
+export async function setJobAd(jobId: string, content: string): Promise<OfferAd> {
+  if (!content) throw new Error('Paste the ad text first.');
+  const job = await offersRepo.jobById(jobId);
+  if (!job) throw new Error('That offer is no longer in the database.');
+  const offer = job.offers.at(0);
+  if (!offer) throw new Error('This job has no link.');
+  await detailsRepo.saveText({ src: offer.src, id: offer.id, description: content });
+  return adOf(job.offers);
 }
 
 /**

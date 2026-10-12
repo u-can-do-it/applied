@@ -30,6 +30,12 @@ export const removeStepSchema = z.object({
 });
 
 /** seenAt: the note's note_updated_at as the window read it (null: never written), so a change made elsewhere since isn't overwritten */
+/** The complete ad's length, at most: what a board gives (lib/ads FULL_CHARS), or what you paste. */
+export const AD_MAX = 200_000;
+
+/** An offer's ad as you typed it in its window. */
+export const setAdSchema = z.object({ jobId, content: text(AD_MAX) });
+
 export const setNoteSchema = z.object({
   jobId,
   note: z.string(),
@@ -86,7 +92,7 @@ export const applicationFieldsSchema = z.object({
   officeDays: text(100),
   content: z.pipe(
     string(),
-    z.transform((content: string) => content.slice(0, 200_000)),
+    z.transform((content: string) => content.slice(0, AD_MAX)),
   ),
 });
 

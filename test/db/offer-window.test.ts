@@ -1,13 +1,27 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import { scrapeOfferFull } from '@/lib/ads';
+import { getApplication, markApplied, saveContent } from '@/lib/applications';
 import * as jobNotesRepo from '@/lib/db/repos/job-notes';
 import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as offersRepo from '@/lib/db/repos/offers';
+import { setJobAd } from '@/lib/offer-window';
 import { describeDb, ISO } from './database';
 
 // An offer's window in the database: the note on a job (saved only over the version you saw), and the
 // complete ad, which an AI run's shorter copy doesn't overwrite.
 
 const JOB = 'acme|reactdeveloper';
+
+// never the real AI (reading the details from the ad text)
+vi.mock('@/lib/ai/openai', () => ({
+  extractJob: vi.fn(() => Promise.reject(new Error('no AI'))),
+  assessOffers: vi.fn(),
+}));
+// the board never answers here: what's shown is what was saved
+vi.mock('@/lib/ads', async (original) => ({
+  ...(await original<typeof import('@/lib/ads')>()),
+  scrapeOfferFull: vi.fn(() => Promise.reject(new Error('HTTP 429'))),
+}));
 
 describeDb('the note on a job', () => {
   it('the first save makes it; a second "first" one finds it there (changed elsewhere)', async () => {
@@ -38,7 +52,7 @@ describeDb('the complete ad', () => {
   const offer = { src: 'eldorado', id: '455630' };
 
   async function anOffer() {
-    await offersRepo.ingest([
+    const [added] = await offersRepo.ingest([
       {
         ...offer,
         title: 'Lider Technologiczny',
@@ -48,6 +62,7 @@ describeDb('the complete ad', () => {
         url: 'https://x.example/1',
       },
     ]);
+    return added.titleKey;
   }
 
   it("the window's complete ad, with the board's details, over an AI run's shorter copy", async () => {
@@ -70,5 +85,22 @@ describeDb('the complete ad', () => {
     await detailsRepo.save([{ ...offer, status: 'ok', description: 'the first 8000 characters' }]);
     const [row] = await detailsRepo.forOffers([offer]);
     expect(row).toMatchObject({ description: 'the whole ad', complete: true });
+  });
+
+  it('the ad you paste: kept complete, with what the board said besides; marking the job applied takes it', async () => {
+    const jobId = await anOffer();
+    await detailsRepo.saveComplete({ ...offer, status: 'empty', description: null, details: { contract: 'B2B' } });
+    expect(await setJobAd(jobId, 'React 19, Next.js')).toMatchObject({
+      content: 'React 19, Next.js',
+      contentStatus: 'ok',
+      details: { contract: 'B2B' },
+    });
+    await detailsRepo.save([{ ...offer, status: 'empty', description: null }]); // an AI run's read
+    expect((await detailsRepo.forOffers([offer]))[0]).toMatchObject({ status: 'ok', description: 'React 19, Next.js' });
+
+    await markApplied(jobId, offer);
+    await saveContent(jobId); // the board doesn't answer
+    expect(vi.mocked(scrapeOfferFull)).toHaveBeenCalled();
+    expect(await getApplication(jobId)).toMatchObject({ contentStatus: 'ok', content: 'React 19, Next.js' });
   });
 });
