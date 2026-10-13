@@ -44,9 +44,11 @@ export const setNoteSchema = z.object({
 });
 
 const LINK_NEEDED = 'Paste a link that starts with https://';
-export const fillFromLinkSchema = z.object({
-  link: z.string({ error: LINK_NEEDED }).check(z.refine(isLink, LINK_NEEDED)),
-});
+const link = z.string({ error: LINK_NEEDED }).check(z.refine(isLink, LINK_NEEDED));
+export const fillFromLinkSchema = z.object({ link });
+
+/** An offer's ad read from a link you pasted in its window (the company's own page, say). */
+export const setAdFromLinkSchema = z.object({ jobId, link });
 
 const TEXT_NEEDED = 'Paste the ad text first.';
 /** The ad text pasted into the form, and its link if there is one (it tells the AI a little more). */

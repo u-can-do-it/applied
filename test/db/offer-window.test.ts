@@ -1,10 +1,11 @@
 import { expect, it, vi } from 'vitest';
-import { scrapeOfferFull } from '@/lib/ads';
+import { readJobPage, scrapeOfferFull } from '@/lib/ads';
+import { extractJob } from '@/lib/ai/openai';
 import { getApplication, markApplied, saveContent } from '@/lib/applications';
 import * as jobNotesRepo from '@/lib/db/repos/job-notes';
 import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as offersRepo from '@/lib/db/repos/offers';
-import { setJobAd } from '@/lib/offer-window';
+import { setJobAd, setJobAdFromLink } from '@/lib/offer-window';
 import { describeDb, ISO } from './database';
 
 // An offer's window in the database: the note on a job (saved only over the version you saw), and the
@@ -21,6 +22,7 @@ vi.mock('@/lib/ai/openai', () => ({
 vi.mock('@/lib/ads', async (original) => ({
   ...(await original<typeof import('@/lib/ads')>()),
   scrapeOfferFull: vi.fn(() => Promise.reject(new Error('HTTP 429'))),
+  readJobPage: vi.fn(),
 }));
 
 describeDb('the note on a job', () => {
@@ -102,5 +104,50 @@ describeDb('the complete ad', () => {
     await saveContent(jobId); // the board doesn't answer
     expect(vi.mocked(scrapeOfferFull)).toHaveBeenCalled();
     expect(await getApplication(jobId)).toMatchObject({ contentStatus: 'ok', content: 'React 19, Next.js' });
+  });
+
+  it('the ad read from a link you pasted: saved as yours; the AI fills in what the board didn’t say', async () => {
+    const jobId = await anOffer();
+    await detailsRepo.saveComplete({ ...offer, status: 'empty', description: null, details: { contract: 'B2B' } });
+    const text = 'React 19, Next.js, design systems. '.repeat(4);
+    vi.mocked(readJobPage).mockResolvedValue({ pageTitle: 'Frontend', text, details: { location: 'Warszawa' } });
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    vi.mocked(extractJob).mockResolvedValueOnce({
+      title: 'Frontend',
+      company: 'Rossmann',
+      location: 'Łódź',
+      workMode: 'hybrid',
+      officeDays: '',
+      salary: '30 000 PLN / month',
+      contract: 'UoP',
+      seniority: 'senior',
+      skills: [{ name: 'React', level: 4, note: '' }],
+    });
+    expect(await setJobAdFromLink(jobId, ' https://careers.rossmann.pl/jobs/42 ')).toEqual({
+      content: text.trim(),
+      contentStatus: 'ok',
+      contentError: null,
+      scrapedAt: expect.stringMatching(ISO) as unknown,
+      // the board's first, then the page's, then the AI's
+      details: {
+        contract: 'B2B',
+        location: 'Warszawa',
+        company: 'Rossmann',
+        salary: '30 000 PLN / month',
+        workMode: 'hybrid',
+        skills: [{ name: 'React', level: 4 }],
+      },
+      warning: undefined,
+    });
+    expect(vi.mocked(readJobPage)).toHaveBeenCalledWith({
+      src: 'rossmann',
+      id: '',
+      url: 'https://careers.rossmann.pl/jobs/42',
+    });
+
+    // a login wall: nothing saved, and it says why
+    vi.mocked(readJobPage).mockResolvedValue({ pageTitle: 'Sign in', text: 'Sign in to see', details: {} });
+    await expect(setJobAdFromLink(jobId, 'https://linkedin.com/jobs/view/1')).rejects.toThrow(/no ad text/);
+    expect((await detailsRepo.forOffers([offer]))[0].description).toBe(text.trim());
   });
 });

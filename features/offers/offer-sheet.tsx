@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { ExternalLinkIcon, TriangleAlertIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ListedJob } from '@/lib/jobs';
-import type { OfferWindow } from '@/lib/offer-window';
+import type { OfferAd, OfferWindow } from '@/lib/offer-window';
 import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { useReturnFocus } from '@/components/return-focus';
@@ -20,15 +20,16 @@ import { AdText, type ShownAd } from '@/features/applications/ad-text';
 import { ApplicationFit, FitSummary, useFitCheck, type ShownFit } from '@/features/applications/application-fit';
 import { NoteEditor, type NoteHandle } from '@/features/applications/note-editor';
 import { useDay } from '@/features/applications/use-day';
-import { assessJobFitAction, setJobAdAction, setJobNoteAction } from './actions';
-import { AdEditor } from './ad-editor';
+import { assessJobFitAction, setJobNoteAction } from './actions';
+import { AdEditor, type AdEditorHandle } from './ad-editor';
 import { useArchiveRow } from './archive';
 import { loadOffer, offerKey, useOffer } from './use-offer';
 
 // One offer you haven't applied to, read like an application: the ad complete with what the board says
 // besides, your note, the AI's fit; marking it applied, archiving it. Opens with what the list has
 // (title, company, verdict); the ad and the note load into their places. The ad is yours to edit, or to
-// paste when the board page doesn't give it: saved, the AI judges the job from it. Not modal, as an
+// paste (or read from a link) when the board page doesn't give it: it saves itself, and once you're done
+// the AI judges the job from it. Not modal, as an
 // application's window: the list stays in use, a click anywhere else closes it (the note saved on the way).
 
 export type OfferJob = Pick<ListedJob, 'jobId' | 'src' | 'id' | 'title' | 'company' | 'url' | 'firstSeen' | 'ai'>;
@@ -57,8 +58,9 @@ export function OfferSheet({
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<string | null>(null); // the ad as you edit it; null: not editing
-  const [savingAd, startSavingAd] = useTransition();
+  const [editing, setEditing] = useState(false); // the ad
+  const adEditor = useRef<AdEditorHandle>(null);
+  const changedAd = useRef(false); // saved since the edit began: the AI judges it again once you're done
   const fit = useFitCheck(offerKey(jobId), () => assessJobFitAction({ jobId }), setError);
   // a verdict on the title alone (from before every judgment needed the ad) is made again from the ad,
   // once the window has it: once per opening
@@ -79,38 +81,26 @@ export function OfferSheet({
     scrapedAt: data?.scrapedAt ?? null,
   };
 
-  // what you typed in the ad, if it's not what's saved
-  const changedAd = () => {
-    const text = draft?.trim();
-    return text && text !== data?.content?.trim() ? text : null;
-  };
-  const saveAd = async (content: string) => {
-    const ad = unwrap(await setJobAdAction({ jobId, content }));
-    await queryClient.cancelQueries({ queryKey: offerKey(jobId) }); // a load asked before would bring the old ad
+  const adSaved = (ad: OfferAd) => {
+    changedAd.current = true;
+    rejudged.current = true; // judged once you're done, from what you saved
+    void queryClient.cancelQueries({ queryKey: offerKey(jobId) }); // a load asked before would bring the old ad
     queryClient.setQueryData<OfferWindow>(offerKey(jobId), (current) => current && { ...current, ...ad });
   };
-
-  const saveAdAndCheck = () =>
-    startSavingAd(async () => {
-      setError(null);
-      const content = changedAd();
-      try {
-        if (content) await saveAd(content);
-        setDraft(null);
-        if (!content) return;
-        rejudged.current = true; // judged here, from what you saved
-        fit.check();
-      } catch (failure) {
-        setError(message(failure));
-      }
-    });
+  const editAd = () => {
+    changedAd.current = false;
+    setEditing(true);
+  };
+  const doneEditingAd = () => {
+    setEditing(false);
+    if (changedAd.current) fit.check();
+  };
 
   const close = () => {
     if (!moved.current) note.current?.flush();
     // the ad you were editing is saved on the way out (the AI judges it in a run, or as it opens next)
-    const content = changedAd();
-    if (content && !moved.current)
-      void saveAd(content).catch((failure: unknown) => toast.error(`The ad wasn’t saved: ${message(failure)}`));
+    if (!moved.current)
+      void adEditor.current?.settle().then((why) => why && toast.error(`The ad wasn’t saved: ${why}`));
     setOpen(false);
   };
 
@@ -119,8 +109,8 @@ export function OfferSheet({
       setError(null);
       try {
         await note.current?.settle(); // the note moves to the application: all of it
-        const content = changedAd();
-        if (content) await saveAd(content); // and the ad you pasted, when the board doesn't give it
+        const why = await adEditor.current?.settle(); // and the ad you pasted, when the board doesn't give it
+        if (why) throw new Error(`The ad wasn’t saved: ${why}`);
         unwrap(await applyAction({ jobId, src: job.src, id: job.id }));
         moved.current = true;
         toast.success(`Marked applied: “${job.title}”`);
@@ -195,19 +185,19 @@ export function OfferSheet({
             )
           )}
           <AdDetails details={data?.details ?? null} />
-          {draft === null ? (
+          {editing && data ? (
+            <AdEditor
+              ref={adEditor}
+              jobId={jobId}
+              initial={data.contentStatus === 'ok' ? (data.content ?? '') : ''}
+              onSaved={adSaved}
+              onDone={doneEditingAd}
+            />
+          ) : (
             <AdText
               ad={shown}
               loadError={loaded.error ? message(loaded.error) : null}
-              onEdit={data ? () => setDraft(data.contentStatus === 'ok' ? (data.content ?? '') : '') : undefined}
-            />
-          ) : (
-            <AdEditor
-              value={draft}
-              onChange={setDraft}
-              onSave={saveAdAndCheck}
-              onCancel={() => setDraft(null)}
-              saving={savingAd}
+              onEdit={data ? editAd : undefined}
             />
           )}
         </div>

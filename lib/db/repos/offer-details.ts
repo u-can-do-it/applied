@@ -53,9 +53,11 @@ export async function saveComplete(row: Omit<CompleteDetails, 'complete' | 'fetc
 
 /**
  * Your text for the ad (the window's "Edit"): kept as the complete ad, so the window, an AI run and
- * marking it applied have it; what the board said besides (details) stays.
+ * marking it applied have it; what the board said besides (details) stays, unless `details` is given.
  */
-export async function saveText(row: Pick<CompleteDetails, 'src' | 'id'> & { description: string }) {
+export async function saveText(
+  row: Pick<CompleteDetails, 'src' | 'id'> & { description: string; details?: CompleteDetails['details'] },
+) {
   const values = { ...row, status: 'ok' as const, complete: true, fetchedAt: sql`now()` };
   await db()
     .insert(offerDetails)

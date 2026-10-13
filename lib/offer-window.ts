@@ -2,10 +2,13 @@ import 'server-only';
 import * as detailsRepo from './db/repos/offer-details';
 import * as jobNotesRepo from './db/repos/job-notes';
 import * as offersRepo from './db/repos/offers';
-import { adForAi, scrapeOfferFull } from './ads';
-import { workModeOf, type JobDetails, type OfferLink } from './ads/details';
+import { adForAi, readJobPage, scrapeOfferFull } from './ads';
+import { isAdText, workModeOf, type JobDetails, type OfferLink } from './ads/details';
+import { extractJob, type ExtractedJob } from './ai/openai';
 import { fitOf, getProfile, isUsable, listProfiles, type Fit } from './ai/profiles';
 import { assessOne } from './ai/runs';
+import { boardIdOf, boardOf } from './boards';
+import { env } from './env';
 import { message } from './shared/errors';
 import { NOTE_CONFLICT, NOTE_MAX } from './shared/schemas/applications';
 
@@ -93,6 +96,61 @@ export async function setJobAd(jobId: string, content: string): Promise<OfferAd>
   await detailsRepo.saveText({ src: offer.src, id: offer.id, description: content });
   return adOf(job.offers);
 }
+
+/**
+ * The ad read from a link you pasted (the company's own page, when the board's doesn't give it), saved
+ * as the job's ad like your text; the AI reads what the job is besides from it, for what the board
+ * didn't say (the board's details stay). Answers with the ad as the window now shows it, and why the
+ * AI didn't help, if it didn't.
+ */
+export async function setJobAdFromLink(jobId: string, link: string): Promise<OfferAd & { warning?: string }> {
+  const job = await offersRepo.jobById(jobId);
+  if (!job) throw new Error('That offer is no longer in the database.');
+  const offer = job.offers.at(0);
+  if (!offer) throw new Error('This job has no link.');
+  const board = boardOf(link);
+  const url = link.trim();
+  const page = await readJobPage({ src: board, id: boardIdOf(board, url) ?? '', url }).catch((failure: unknown) => {
+    throw new Error(`Couldn’t read the page (${message(failure)}). Paste the ad text instead.`);
+  });
+  if (!isAdText(page.text)) throw new Error('That page has no ad text (a login wall?). Paste the ad text instead.');
+
+  let ai: ExtractedJob | null = null;
+  let warning: string | undefined;
+  if (!env.OPENAI_API_KEY) warning = 'No OPENAI_API_KEY: only what the page says plainly is filled in.';
+  else
+    try {
+      ai = await extractJob({ url, pageTitle: page.pageTitle, text: page.text });
+    } catch (error) {
+      warning = `The AI couldn’t read it (${message(error)}); only what the page says plainly is filled in.`;
+    }
+  const saved = (await detailsRepo.forOffers([offer])).at(0);
+  const details = { ...given(detailsOf(ai)), ...given(page.details), ...given(saved?.details ?? {}) };
+  await detailsRepo.saveText({ src: offer.src, id: offer.id, description: page.text.trim(), details });
+  return { ...(await adOf(job.offers)), warning };
+}
+
+/** What the AI read from the page, as a board's details. */
+function detailsOf(ai: ExtractedJob | null): JobDetails {
+  if (!ai) return {};
+  return {
+    company: ai.company,
+    location: ai.location,
+    salary: ai.salary,
+    contract: ai.contract,
+    workMode: ai.workMode === 'unknown' ? undefined : ai.workMode,
+    officeDays: ai.officeDays,
+    skills: ai.skills.length
+      ? ai.skills.map(({ name, level, note }) => ({ name, ...(level ? { level } : {}), ...(note ? { note } : {}) }))
+      : undefined,
+  };
+}
+
+/** Only what's said: an empty value doesn't cover another source's. */
+const given = (details: JobDetails): JobDetails =>
+  Object.fromEntries(
+    Object.entries(details).filter(([, value]: [string, unknown]) => value !== undefined && value !== ''),
+  );
 
 /**
  * Saves your note on the job ('' clears it), if nobody else changed it since you read it: `seenAt` is
