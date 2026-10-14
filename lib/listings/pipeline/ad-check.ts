@@ -2,6 +2,7 @@ import 'server-only';
 import { scrapeOfferFull } from '../../ads';
 import * as missesRepo from '../../db/repos/keyword-misses';
 import * as offersRepo from '../../db/repos/offers';
+import { Deferred } from '../../pace';
 import { message } from '../../shared/errors';
 import { fold, keywordTest } from '../match';
 import type { Found } from '../types';
@@ -11,8 +12,9 @@ import type { Found } from '../types';
 // the other filters, is kept when its ad names one. Each ad is read once: an offer kept before is in
 // `offers` already, one whose ad named none is in keyword_misses (for these keywords).
 // One read at a time, at most MAX_READS a run, and none after one that fails or comes back empty (the board
-// is turning the server away: its login wall has no ad) or past the deadline: the rest wait for the next
-// run, whose {since} still reaches back to them, as this run doesn't count as complete.
+// is turning the server away: its login wall has no ad), nor past the deadline or the board's batch
+// (lib/pace.ts): the rest wait for the scraper's follow-up (follow-up.ts), or the next run, whose {since}
+// still reaches back to them, as this run doesn't count as complete.
 
 /**
  * Ads read per scraper and run: LinkedIn served a login wall after some twenty in a row (Oct 2026), so a
@@ -27,9 +29,11 @@ export type AdCheck = {
   missed: number;
   /** ads read now */
   read: number;
-  /** not decided: they wait for the next run */
+  /** not decided: they wait for later */
   left: number;
-  /** why the reads stopped before the deadline or MAX_READS */
+  /** those offers */
+  unread: Found[];
+  /** why the reads stopped before the deadline, MAX_READS or the board's batch */
   error: string | null;
 };
 
@@ -39,7 +43,7 @@ export const keywordsKey = (keywords: string[]) =>
 
 /** `offers`: one board's, each once. Throws only when the database does. */
 export async function checkAds(offers: Found[], keywords: string[], deadline: number): Promise<AdCheck> {
-  if (!offers.length) return { kept: [], missed: 0, read: 0, left: 0, error: null };
+  if (!offers.length) return { kept: [], missed: 0, read: 0, left: 0, unread: [], error: null };
   const { src } = offers[0];
   const key = keywordsKey(keywords);
   const ids = offers.map((offer) => offer.id);
@@ -48,6 +52,7 @@ export async function checkAds(offers: Found[], keywords: string[], deadline: nu
   const toRead = offers.filter((offer) => !known.has(offer.id) && !missedBefore.has(offer.id));
   const named = keywordTest(keywords);
   const missed: string[] = [];
+  const decided = new Set<string>();
   let read = 0;
   let error: string | null = null;
   for (const offer of toRead.slice(0, MAX_READS)) {
@@ -56,10 +61,11 @@ export async function checkAds(offers: Found[], keywords: string[], deadline: nu
       const ad = await scrapeOfferFull(offer);
       if (ad.status === 'empty') throw new Error('it came back empty (a login wall?)');
       read++;
+      decided.add(offer.id);
       if (named([ad.text])) kept.push(offer);
       else missed.push(offer.id);
     } catch (failure) {
-      error = `"${offer.title}": ${message(failure)}`;
+      if (!(failure instanceof Deferred)) error = `"${offer.title}": ${message(failure)}`;
       break;
     }
   }
@@ -69,6 +75,7 @@ export async function checkAds(offers: Found[], keywords: string[], deadline: nu
     missed: missedBefore.size + missed.length,
     read,
     left: toRead.length - read,
+    unread: toRead.filter((offer) => !decided.has(offer.id)),
     error,
   };
 }

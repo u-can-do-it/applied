@@ -37,17 +37,17 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 
 ### Triggers
 
-| Trigger                                     | Route                       | What it does                                                                                                                                                                                                                                                     |
-| ------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supabase Cron (`pg_cron` + `pg_net`)        | `GET /api/cron/scrape`      | Checks the secret, then whether a run is due (`checkDue`: not paused, within the hours, the interval passed). Takes the lock, answers 202 at once, runs the scrape in `after()`, then continues waiting AI runs in the time left. `?force=1`, `?wait=1` by hand. |
-| "Scrape now" (header, Notifications)        | `POST /api/scrape`          | Same-origin and login checks, then a full run whatever the schedule; the AI check and the notifications go on in `after()`.                                                                                                                                      |
-| `/scrape` in Telegram                       | `POST /api/telegram`        | A full run in `after()`; the bot replies with the counts. The other commands mute, unmute, send the queue and report status.                                                                                                                                     |
-| Settings → AI filter / "Check …"            | server render, action       | Starts an AI run, and on every render (and every 4 s while a run is open) continues a paused one in `after()`.                                                                                                                                                   |
-| "Mark applied", "Add", "Fetch again"        | server actions              | Save the application, then fetch its ad text in `after()`.                                                                                                                                                                                                       |
-| An offer's window (Offers, after its title) | `GET /api/offer`            | Asked as you point at its button: the job's complete ad with the board's details (fetched then the first time, saved in `offer_details`), your note on it (`job_notes`) and the verdict. "Mark applied" there takes the note to the application.                 |
-| Opening the Applied tab                     | server render               | Marks applications with no news for 30 days as ghosted.                                                                                                                                                                                                          |
-| Any page, once a minute                     | `GET /api/changes`          | `AutoRefresh` compares a fingerprint (last run, newest offer, queue size, lock, mute) and refreshes the page only when it changed.                                                                                                                               |
-| The Gmail script, every 10 minutes          | `POST /api/alerts/linkedin` | Checks its secret (derived from the cron one), takes one LinkedIn job alert email and queues the jobs it links to in `alert_jobs` for the next run (`lib/listings/alert-email.ts` reads only their ids).                                                         |
+| Trigger                                     | Route                       | What it does                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase Cron (`pg_cron` + `pg_net`)        | `GET /api/cron/scrape`      | Knocks every 5 minutes. Checks the secret, then whether a run is due (`checkDue`: not paused, within the hours, the interval passed), or else a [follow-up](#linkedins-pace-and-the-follow-up). Takes the lock, answers 202 at once, runs the scrape in `after()`, then continues waiting AI runs in the time left. `?force=1`, `?wait=1` by hand. |
+| "Scrape now" (header, Notifications)        | `POST /api/scrape`          | Same-origin and login checks, then a full run whatever the schedule; the AI check and the notifications go on in `after()`.                                                                                                                                                                                                                        |
+| `/scrape` in Telegram                       | `POST /api/telegram`        | A full run in `after()`; the bot replies with the counts. The other commands mute, unmute, send the queue and report status.                                                                                                                                                                                                                       |
+| Settings → AI filter / "Check …"            | server render, action       | Starts an AI run, and on every render (and every 4 s while a run is open) continues a paused one in `after()`.                                                                                                                                                                                                                                     |
+| "Mark applied", "Add", "Fetch again"        | server actions              | Save the application, then fetch its ad text in `after()`.                                                                                                                                                                                                                                                                                         |
+| An offer's window (Offers, after its title) | `GET /api/offer`            | Asked as you point at its button: the job's complete ad with the board's details (fetched then the first time, saved in `offer_details`), your note on it (`job_notes`) and the verdict. "Mark applied" there takes the note to the application.                                                                                                   |
+| Opening the Applied tab                     | server render               | Marks applications with no news for 30 days as ghosted.                                                                                                                                                                                                                                                                                            |
+| Any page, once a minute                     | `GET /api/changes`          | `AutoRefresh` compares a fingerprint (last run, newest offer, queue size, lock, mute) and refreshes the page only when it changed.                                                                                                                                                                                                                 |
+| The Gmail script, every 10 minutes          | `POST /api/alerts/linkedin` | Checks its secret (derived from the cron one), takes one LinkedIn job alert email and queues the jobs it links to in `alert_jobs` for the next run (`lib/listings/alert-email.ts` reads only their ids).                                                                                                                                           |
 
 ### The scrape pipeline
 
@@ -61,7 +61,8 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
    and not an ignored title. On a board whose cards have no skills while its search reads the whole ad
    (`listing.keywordsInAd`: LinkedIn), a title without a keyword that passed the rest has its ad read for one
    (`ad-check.ts`): once per offer (a kept one is in `offers`, a miss in `keyword_misses`), one at a time, at most 10 a run, none
-   after one that fails or comes back empty, nor past `AD_CHECK_MS`. Paging stops at a page short of a full
+   after one that fails or comes back empty, nor past `AD_CHECK_MS` or LinkedIn's batch
+   ([below](#linkedins-pace-and-the-follow-up)). Paging stops at a page short of a full
    one; `{since}` in a link is the seconds back to an hour before the scraper's last complete run (every page
    and ad read: `scrapers.last_complete_at`), so LinkedIn's `f_TPR=r{since}` covers the night and a failed
    run, and what an incomplete run left is still in the next one's window. A scraper's failure is part of its
@@ -92,6 +93,23 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 
 The cron and `/scrape` already run the whole pipeline after their answer, in `after()`. "Scrape now" waits
 for steps 1–5 and gets its counts; steps 6 and 7 go on in `after()` (`background`), still under the lock.
+
+### LinkedIn's pace and the follow-up
+
+LinkedIn answers a burst of requests with HTTP 429 (two searches' pages and their ads, some thirty in a few
+seconds, were turned away in most runs; Oct 2026). Its board has a `pace` (`lib/boards/linkedin.ts`), and
+[`lib/pace.ts`](../lib/pace.ts) keeps to it for every request to it in a function (a run's pages, its ads, the
+alert emails' postings, the AI's ads): one at a time, 2 s apart, at most 15 in any 3 minutes, none for 3 minutes
+after a 429. A request past that isn't sent: it fails at once as `Deferred`, which is not an error.
+
+What a LinkedIn scraper's run couldn't read (a page deferred or failed, an ad its keyword check didn't get to)
+is saved in `scrapers.follow_up` ([`follow-up.ts`](../lib/listings/pipeline/follow-up.ts)), for a follow-up 5
+minutes later: Supabase Cron's knock between the runs finds it due (`checkDue`) and runs those pages and ads
+alone (trigger `follow-up`, under the lock, without moving the schedule: `lock(…, false)`), through the same
+pipeline; a run due by then does it as that scraper's part. Until then the runs leave the scraper out, so its
+backlog isn't asked for again. Once nothing is left, its last complete run is the run that left it (its
+`{since}` narrows again); after 6 follow-ups it's given up, and the next run reads its whole window again.
+Settings shows the waiting follow-up under the scraper.
 
 ### Ads
 
@@ -191,9 +209,10 @@ token, and only `TELEGRAM_CHAT_ID` may give commands. Set-up: [OPERATIONS.md →
 ### Cron
 
 Supabase Cron's job (`jobwatch-scrape`) is created by `jw_cron_connect` with the app's URL and secret, and
-rescheduled by `jw_cron_reschedule` whenever the interval, hours, time zone or pause change
-([`lib/listings/cron.ts`](../lib/listings/cron.ts): the hours turned into UTC for every offset the zone has
-in a year, so an hour wider where clocks change). The app still decides whether a run is due. A second job
+rescheduled by `jw_cron_reschedule` whenever the hours, time zone or pause change
+([`lib/listings/cron.ts`](../lib/listings/cron.ts): every 5 minutes whatever the interval, the hours turned
+into UTC for every offset the zone has in a year, so an hour wider where clocks change). The app decides
+whether a run is due, or a [follow-up](#linkedins-pace-and-the-follow-up). A second job
 (`jobwatch-cron-cleanup`) runs daily and keeps a week of `cron.job_run_details`.
 
 ### Time zone
@@ -244,7 +263,7 @@ There is no state machine in code: the lifecycle is the lock in `scrape_state` a
 ```mermaid
 stateDiagram-v2
   [*] --> Called: cron knock, Scrape now or /scrape
-  Called --> Skipped: cron only, not due (paused, outside the hours, too soon)
+  Called --> Skipped: cron only, not due (paused, outside the hours, too soon) and no follow-up due
   Called --> Busy: the lock is held
   Called --> Locked: lock taken (locked_until = now + SCRAPE_LOCK_MS)
   Locked --> Fetching: scrape_runs row started
@@ -365,6 +384,9 @@ the entry says so (_stored as_): those names stay (production data and applied m
 - **kind**: Which parser reads a scraper's pages: a board's own (`justjoin`, `linkedin`…) or a generic one
   (`json`, `html`, `rss`, and `ats`: one company's careers page on an ATS, its offers under the ATS's name,
   `greenhouse`, `lever`…). _Stored as:_ `scrapers.kind`.
+- **follow-up**: A run of only what a LinkedIn scraper's run couldn't read (its pages and ads), 5 minutes
+  later ([LinkedIn's pace](#linkedins-pace-and-the-follow-up)). _Stored as:_ `scrapers.follow_up`, the
+  `follow-up` trigger in `scrape_runs`.
 - **mark**: A scraper's newest sort value seen; an offer at or below it is saved but not announced. Null until
   the scraper's first run, which only saves. _Stored as:_ `scrapers.mark`.
 - **offer**: One posting on one board: a row in `offers`, identified by `src` + `id`. `OfferLink` is an

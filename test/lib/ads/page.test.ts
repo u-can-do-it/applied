@@ -4,7 +4,12 @@ import { findJobPosting } from '@/lib/ads/job-posting';
 import { mainText, pageTitle, parsePage, scriptById, scriptsOfType } from '@/lib/dom';
 
 // Reading an ad's page with the HTML parser: the JobPosting, a page's <main>, Built In's ad body,
-// the <title>. Requests are answered here (`fetch` stubbed).
+// the <title>. Requests are answered here (`fetch` stubbed), without LinkedIn's pace (test/lib/pace.test.ts).
+
+vi.mock('@/lib/pace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/pace')>()),
+  paced: (_url: string, request: () => Promise<Response>) => request(),
+}));
 
 const answer = (html: string) =>
   vi.stubGlobal(

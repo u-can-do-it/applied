@@ -18,6 +18,26 @@ export type Found = {
   sort?: number;
 };
 
+/** A page of a scraper's search: its keyword (null: the link has no {keyword}) and its number, from 1. */
+export type PageTarget = { keyword: string | null; page: number };
+
+/**
+ * What a run of a paced board's scraper couldn't read, waiting for its follow-up (scrapers.follow_up:
+ * lib/listings/pipeline/follow-up.ts).
+ */
+export type FollowUp = {
+  /** when the run that left it started: once nothing's left, the scraper's last complete run */
+  from: string;
+  /** not before this */
+  at: string;
+  /** follow-ups of it so far */
+  tries: number;
+  /** the pages that didn't come through */
+  pages: PageTarget[];
+  /** the offers whose ad decides (a title without a keyword), not read yet */
+  ads: Found[];
+};
+
 export type Parsed = {
   items: Found[];
   /** offers on the page, before anything was skipped */

@@ -7,19 +7,26 @@ import * as offersRepo from '@/lib/db/repos/offers';
 import { keywordsKey, MAX_READS } from '@/lib/listings/pipeline/ad-check';
 import { scrape } from '@/lib/listings/pipeline/fetch';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
+import { Deferred, paced } from '@/lib/pace';
 
 // scrape() on LinkedIn, whose cards have no skills: a title without a keyword has its ad read for one,
 // once; its search looks back to an hour before the last complete run ({since}) and stops at a short page.
-// `fetch` answers the search pages; the ads and the database are mocked. No network.
+// `fetch` answers the search pages; the ads and the database are mocked, LinkedIn's pace lets everything
+// through unless a test defers a request (its own test: test/lib/pace.test.ts). No network.
 
 vi.mock('@/lib/ads', () => ({ scrapeOfferFull: vi.fn() }));
 vi.mock('@/lib/db/repos/offers', () => ({ knownIds: vi.fn() }));
 vi.mock('@/lib/db/repos/keyword-misses', () => ({ find: vi.fn(), save: vi.fn() }));
+vi.mock('@/lib/pace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/pace')>()),
+  paced: vi.fn(),
+}));
 
 const readAd = vi.mocked(scrapeOfferFull);
 const known = vi.mocked(offersRepo.knownIds);
 const missedBefore = vi.mocked(missesRepo.find);
 const remember = vi.mocked(missesRepo.save);
+const pace = vi.mocked(paced);
 
 const settings = { ...DEFAULT_SETTINGS, keywords: ['React'], cities: ['warszawa'], ignore: ['php'] };
 const scraper = (extra: { lastCompleteAt?: string | null; checkKeyword?: boolean } = {}) => ({
@@ -61,6 +68,7 @@ beforeEach(() => {
       return Promise.resolve(new Response(page ? page.map(card).join('') : '<!DOCTYPE html><!---->'));
     }),
   );
+  pace.mockReset().mockImplementation((_url, request) => request());
   readAd.mockReset();
   known.mockReset().mockResolvedValue(new Set());
   missedBefore.mockReset().mockResolvedValue(new Set());
@@ -123,14 +131,14 @@ describe('the keyword check of the ads', () => {
     expect(result).toMatchObject({
       ok: true,
       complete: false,
-      error: 'reading the ads for the keywords: "Backend Engineer": HTTP 429; 2 left for the next run',
+      error: 'reading the ads for the keywords: "Backend Engineer": HTTP 429; 2 left for later',
     });
 
     readAd.mockReset().mockResolvedValue({ status: 'empty', text: '', details: {} });
     const empty = await scrape(scraper(), settings);
     expect(readAd).toHaveBeenCalledTimes(1);
     expect(empty.error).toBe(
-      'reading the ads for the keywords: "Front End Engineer": it came back empty (a login wall?); 3 left for the next run',
+      'reading the ads for the keywords: "Front End Engineer": it came back empty (a login wall?); 3 left for later',
     );
     expect(empty.complete).toBe(false);
   });
@@ -186,7 +194,7 @@ describe('the keyword check of the ads', () => {
     expect(result).toMatchObject({
       ok: true,
       complete: false,
-      error: 'reading the ads for the keywords: connection refused; 1 left for the next run',
+      error: 'reading the ads for the keywords: connection refused; 1 left for later',
     });
   });
 
@@ -234,5 +242,53 @@ describe('the search', () => {
     ]);
     expect(result.found).toBe(33);
     expect(result.complete).toBe(true);
+  });
+});
+
+describe("LinkedIn's batch, and the follow-up", () => {
+  const BATCH_USED = () => Promise.reject(new Deferred("LinkedIn's batch of 15 requests is used"));
+
+  it("what doesn't fit the batch isn't an error: its pages and ads are left, the run not complete", async () => {
+    search.React = [
+      [...many(8, 100), { id: '1', title: 'Front End Engineer' }, { id: '2', title: 'Backend Engineer' }],
+      many(5, 200),
+    ];
+    // the batch is used after the first page
+    pace.mockImplementation((url, request) =>
+      new URL(url).searchParams.get('start') === '0' ? request() : BATCH_USED(),
+    );
+    readAd.mockResolvedValueOnce(ad('React and TypeScript')).mockImplementationOnce(BATCH_USED);
+
+    const result = await scrape(scraper(), settings);
+
+    expect(result).toMatchObject({ ok: true, error: null, complete: false, found: 10 });
+    expect(ids(result.kept)).toEqual([...ids(many(8, 100)), '1']);
+    expect(result.pages.map(({ page, ok, deferred }) => [page, ok, deferred])).toEqual([
+      [1, true, undefined],
+      ...[2, 3, 4, 5].map((page) => [page, false, true]),
+    ]);
+    expect(result.unread.pages).toEqual([2, 3, 4, 5].map((page) => ({ keyword: 'React', page })));
+    expect(ids(result.unread.ads)).toEqual(['2']);
+  });
+
+  it('a follow-up reads only the pages and ads its run left, and keeps what their ads name', async () => {
+    search.React = [many(10, 100), [...many(2, 200), { id: '3', title: 'Data Engineer' }], []];
+    const left = { id: '2', title: 'Backend Engineer', src: 'linkedin' } as (typeof search.React)[0][0] & {
+      src: string;
+    };
+    ads({ 2: 'Node.js and React', 3: 'Python, Spark' });
+
+    const result = await scrape(scraper(), settings, {
+      from: '2026-10-14T07:20:00.000Z',
+      at: '2026-10-14T07:25:00.000Z',
+      tries: 0,
+      pages: [{ keyword: 'React', page: 2 }],
+      ads: [{ ...left, company: 'Acme', seniority: null, remote: false, url: '', locations: [], skills: [] }],
+    });
+
+    expect(requested.map((url) => new URL(url).searchParams.get('start'))).toEqual(['10']);
+    expect(ids(result.kept)).toEqual(['200', '201', '2']);
+    expect(readAd.mock.calls.map(([offer]) => offer.id)).toEqual(['2', '3']);
+    expect(result).toMatchObject({ error: null, complete: true, unread: { pages: [], ads: [] } });
   });
 });

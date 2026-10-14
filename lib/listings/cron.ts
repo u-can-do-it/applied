@@ -37,13 +37,12 @@ export function utcHours(from: number, to: number, tz: string, year = new Date()
   return ranges.join(',');
 }
 
-// The cron line, e.g. every 10th minute of 5:00–20:59 UTC. The 1 h and 2 h intervals call hourly
-// (that a run comes every 2 h is checkDue's part). It calls as often as the shorter of the weekday and
-// weekend intervals every day (pg_cron's days are UTC's): checkDue keeps to the day's own.
+// The cron line, e.g. every 5th minute of 5:00–20:59 UTC, whatever the interval: a run is due on the knock
+// its interval has passed by (checkDue keeps to the day's own, weekday or weekend: pg_cron's days are
+// UTC's), and a knock between can start a follow-up of what LinkedIn's scrapers couldn't read
+// (lib/listings/pipeline/follow-up.ts, FOLLOW_UP_MINUTES after them).
 export function cronSchedule(schedule: Schedule): string {
-  const every = Math.min(schedule.everyMinutes, schedule.weekendEveryMinutes);
-  const minute = every < 60 ? `*/${every}` : '0';
-  return `${minute} ${utcHours(schedule.fromHour, schedule.toHour, effectiveTimeZone(schedule))} * * *`;
+  return `*/5 ${utcHours(schedule.fromHour, schedule.toHour, effectiveTimeZone(schedule))} * * *`;
 }
 
 /** "every 10 min (weekends 30 min), 7:00–22:00 (Europe/Warsaw)" */

@@ -68,26 +68,17 @@ describe('cronSchedule', () => {
     browserTimeZone: '',
   };
 
-  it('the interval, then the hours in UTC', () => {
-    expect(cronSchedule(base)).toBe('*/10 5-20 * * *');
+  it('every 5 minutes whatever the interval (a run is due on its knock, a follow-up between), in the hours in UTC', () => {
+    expect(cronSchedule(base)).toBe('*/5 5-20 * * *');
     expect(cronSchedule({ ...base, everyMinutes: 5 })).toBe('*/5 5-20 * * *');
-  });
-
-  it('1 h and 2 h intervals run hourly, on the hour', () => {
-    expect(cronSchedule({ ...base, everyMinutes: 60, weekendEveryMinutes: 60 })).toBe('0 5-20 * * *');
-    expect(cronSchedule({ ...base, everyMinutes: 120, weekendEveryMinutes: 120 })).toBe('0 5-20 * * *');
-  });
-
-  it('calls as often as the shorter of the weekday and weekend intervals', () => {
-    expect(cronSchedule({ ...base, everyMinutes: 120, weekendEveryMinutes: 30 })).toBe('*/30 5-20 * * *');
-    expect(cronSchedule({ ...base, everyMinutes: 60, weekendEveryMinutes: 120 })).toBe('0 5-20 * * *');
+    expect(cronSchedule({ ...base, everyMinutes: 120, weekendEveryMinutes: 120 })).toBe('*/5 5-20 * * *');
   });
 
   it("the picked zone, else the browser's, else the default", () => {
-    expect(cronSchedule({ ...base, timeZone: 'UTC', browserTimeZone: 'Asia/Kolkata' })).toBe('*/10 7-21 * * *');
-    expect(cronSchedule({ ...base, timeZone: '', browserTimeZone: 'UTC' })).toBe('*/10 7-21 * * *');
-    expect(cronSchedule({ ...base, timeZone: '', browserTimeZone: '' })).toBe('*/10 5-20 * * *'); // Europe/Warsaw
-    expect(cronSchedule({ ...base, fromHour: 0, toHour: 0 })).toBe('*/10 * * * *');
+    expect(cronSchedule({ ...base, timeZone: 'UTC', browserTimeZone: 'Asia/Kolkata' })).toBe('*/5 7-21 * * *');
+    expect(cronSchedule({ ...base, timeZone: '', browserTimeZone: 'UTC' })).toBe('*/5 7-21 * * *');
+    expect(cronSchedule({ ...base, timeZone: '', browserTimeZone: '' })).toBe('*/5 5-20 * * *'); // Europe/Warsaw
+    expect(cronSchedule({ ...base, fromHour: 0, toHour: 0 })).toBe('*/5 * * * *');
   });
 });
 

@@ -1,6 +1,7 @@
 import 'server-only';
 import { asc, eq } from 'drizzle-orm';
 import { isKind } from '../../listings/kinds';
+import type { FollowUp } from '../../listings/types';
 import { db } from '../client';
 import { first } from '../rows';
 import { scrapers, type ScraperRow } from '../schema';
@@ -30,6 +31,7 @@ const columns = {
   lastMs: scrapers.lastMs,
   lastProxied: scrapers.lastProxied,
   lastCompleteAt: scrapers.lastCompleteAt,
+  followUp: scrapers.followUp,
 } satisfies Record<keyof Scraper, unknown>;
 
 const inOrder = [asc(scrapers.position), asc(scrapers.createdAt)];
@@ -60,11 +62,19 @@ export async function insert(scraper: ScraperInput & { position: number }): Prom
   return id;
 }
 
-/** resetMark: the search changed, so its next run only saves (no flood of notifications) */
+/**
+ * resetMark: the search changed, so its next run only saves (no flood of notifications). A changed search
+ * drops what its last run left for a follow-up: those were the old one's pages.
+ */
 export async function update(id: string, fields: Partial<ScraperInput & { position: number }>, resetMark = false) {
   await db()
     .update(scrapers)
-    .set({ ...fields, ...(resetMark ? { mark: null } : {}), updatedAt: new Date().toISOString() })
+    .set({
+      ...fields,
+      ...(resetMark ? { mark: null } : {}),
+      ...(fields.config ? { followUp: null } : {}),
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(scrapers.id, id));
 }
 
@@ -82,8 +92,10 @@ export type ScraperOutcome = {
   /** pages that came through ScrapingAnt */
   proxied: number;
   mark: number | null;
-  /** every page and every ad its keyword check needed came through: the next {since} starts from now */
-  complete: boolean;
+  /** its {since} starts from this run's (lib/listings/pipeline/follow-up.ts afterRun); null: the last one stays */
+  completeAt: string | null;
+  /** what waits for its follow-up; null: nothing */
+  followUp: FollowUp | null;
 };
 
 /** What its last run did, and the new watermark. */
@@ -95,7 +107,8 @@ export async function saveOutcome(id: string, outcome: ScraperOutcome) {
       mark: outcome.mark,
       lastRunAt: now,
       // up to a minute or so after its pages were fetched (the ad check): the hour {since} adds covers that
-      ...(outcome.complete && { lastCompleteAt: now }),
+      ...(outcome.completeAt && { lastCompleteAt: outcome.completeAt }),
+      followUp: outcome.followUp,
       lastStatus: outcome.ok ? 'ok' : 'error',
       lastFound: outcome.found,
       lastKept: outcome.kept,

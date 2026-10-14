@@ -155,6 +155,13 @@
       "when": 1791825663717,
       "tag": "0021_linkedin_no_ad",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791963516397,
+      "tag": "0022_scraper_follow_up",
+      "breakpoints": true
     }
   ]
 }

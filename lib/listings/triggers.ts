@@ -6,6 +6,8 @@ export const TRIGGERS = {
   cron: 'Cron',
   manual: 'Scrape now',
   telegram: 'Telegram',
+  // what LinkedIn's scrapers couldn't read, a few minutes after (lib/listings/pipeline/follow-up.ts)
+  'follow-up': 'Follow-up',
 } as const;
 
 export type Trigger = keyof typeof TRIGGERS;

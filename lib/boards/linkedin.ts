@@ -9,6 +9,9 @@ export const linkedin: ScrapedBoard<'linkedin'> = {
   id: 'linkedin',
   label: 'LinkedIn',
   hosts: [/(^|\.)linkedin\.com$/],
+  // some thirty requests in a few seconds (two searches' pages and their ads at once) got HTTP 429 in most
+  // runs, a login wall after some twenty in a row; ten in a burst went through (Oct 2026)
+  pace: { gapMs: 2_000, batch: 15, windowMs: 3 * 60_000 },
   idFromLink,
   // its job id can be in the query; with one, the canonical job link
   cleanLink(url) {

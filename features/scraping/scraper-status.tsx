@@ -53,9 +53,12 @@ export function fetchedVia(scraper: Pick<Scraper, 'src' | 'lastProxied'>): strin
   return `through ScrapingAnt (${proxied} page${proxied === 1 ? '' : 's'})`;
 }
 
+const plural = (count: number, word: string) => (count ? `${count} ${word}${count === 1 ? '' : 's'}` : '');
+
 /**
  * Settings' line about a scraper: whether its last run went through (the details are on Activity), and when
- * the schedule runs it next if its board's quota of calls holds it back (`nextAt`; Scrape now runs it any time).
+ * the schedule runs it next if its board's quota of calls holds it back (`nextAt`; Scrape now runs it any time),
+ * and when a follow-up reads what its last run couldn't (lib/listings/pipeline/follow-up.ts).
  */
 export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: number | null }) {
   const { formatTime } = useZone();
@@ -67,6 +70,15 @@ export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: n
     <span className="text-muted-foreground">
       {' '}
       · scheduled again after {formatTime(nextAt)} (its board’s quota of calls; Scrape now runs it any time)
+    </span>
+  );
+  const pending = scraper.followUp;
+  const unread = pending && [plural(pending.pages.length, 'page'), plural(pending.ads.length, 'ad')].filter(Boolean);
+  const followUp = scraper.enabled && pending && (
+    <span className="text-muted-foreground">
+      {' '}
+      · a follow-up after {formatTime(pending.at)} reads {unread?.length ? `the ${unread.join(' and ')}` : 'what'} its
+      last run couldn’t (its board turns a burst of requests away)
     </span>
   );
   if (!scraper.lastRunAt) return <p className="m-0 mt-0.5 text-xs text-muted-foreground">Not run yet{firstRun}</p>;
@@ -89,6 +101,7 @@ export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: n
       )}
       {via && <span className="text-muted-foreground"> · {via}</span>}
       {waits}
+      {followUp}
       {firstRun}
     </p>
   );

@@ -34,6 +34,7 @@ import type { JobDetails, OfferLink } from '../ads/details';
 import type { Check } from '../ai/openai';
 import type { AlertOutcome } from '../listings/alert-email';
 import type { ScraperConfig } from '../listings/config';
+import type { FollowUp } from '../listings/types';
 import { KIND_IDS, type KindId } from '../listings/kinds';
 import type { HistoryEntry, OutcomeId, StageId } from '../stages';
 
@@ -276,6 +277,9 @@ export const scrapers = pgTable(
     // the last run that got every page and every ad its keyword check needed: the next one's {since}
     // looks back to an hour before it (lib/listings/match.ts sinceSeconds); null = none yet
     lastCompleteAt: timestamptz('last_complete_at'),
+    // a paced board's (LinkedIn): what its last run couldn't read, for a follow-up a few minutes later
+    // (lib/listings/pipeline/follow-up.ts); null = nothing waits
+    followUp: jsonb('follow_up').$type<FollowUp>(),
     createdAt: createdAt(),
     updatedAt: timestamptz('updated_at').notNull().defaultNow(),
   },

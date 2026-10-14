@@ -44,6 +44,7 @@ const result = (kept: Found[], extra: Partial<ScrapeResult> = {}): ScrapeResult 
   pages: [],
   proxied: 0,
   complete: true,
+  unread: { pages: [], ads: [] },
   ms: 5,
   ...extra,
 });
@@ -56,6 +57,8 @@ const added = (id: string, titleKey: string, seenBefore = false, src = 'justjoin
 });
 
 const settings = { mute: ['java'], cities: ['warszaw'] };
+const STARTED = Date.parse('2026-10-14T07:20:00Z');
+const NOW = STARTED + 4_000;
 
 describe('pickOwners', () => {
   it('the first scraper that found an offer owns it', () => {
@@ -162,7 +165,7 @@ describe('outcomes', () => {
   });
 
   it('moves the watermark only on success; a first run marks "has run" with 0; complete only with every page', () => {
-    expect(scraperOutcomes(fetched, addedPerScraper(rows, owners))).toEqual([
+    expect(scraperOutcomes(fetched, addedPerScraper(rows, owners), STARTED, NOW)).toEqual([
       {
         id: 'ok',
         outcome: {
@@ -174,7 +177,8 @@ describe('outcomes', () => {
           ms: 5,
           proxied: 0,
           mark: 300,
-          complete: false,
+          completeAt: null,
+          followUp: null,
         },
       },
       {
@@ -188,18 +192,31 @@ describe('outcomes', () => {
           ms: 5,
           proxied: 0,
           mark: 50,
-          complete: false,
+          completeAt: null,
+          followUp: null,
         },
       },
       {
         id: 'fresh',
-        outcome: { ok: true, found: 1, kept: 1, added: 1, error: null, ms: 5, proxied: 0, mark: 0, complete: true },
+        outcome: {
+          ok: true,
+          found: 1,
+          kept: 1,
+          added: 1,
+          error: null,
+          ms: 5,
+          proxied: 0,
+          mark: 0,
+          // a board without a pace: from now (it has no follow-ups to wait for)
+          completeAt: new Date(NOW).toISOString(),
+          followUp: null,
+        },
       },
     ]);
     // a newer watermark than what the pages had stays
-    expect(scraperOutcomes([{ scraper: ok, result: result([], { maxSort: 10 }) }], new Map())[0].outcome.mark).toBe(
-      100,
-    );
+    expect(
+      scraperOutcomes([{ scraper: ok, result: result([], { maxSort: 10 }) }], new Map(), STARTED)[0].outcome.mark,
+    ).toBe(100);
   });
 
   it('sums up the run, with the failed scrapers as errors', () => {

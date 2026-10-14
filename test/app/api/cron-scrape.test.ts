@@ -86,6 +86,21 @@ describe('/api/cron/scrape', () => {
     });
   });
 
+  it("a follow-up between the runs: what LinkedIn's scrapers left, without moving the schedule", async () => {
+    vi.mocked(checkDue).mockResolvedValue({ due: true, followUp: true });
+    expect(await (await call()).json()).toEqual({ jobwatch: 'started', followUp: true });
+    await runAfterAnswer();
+    expect(lock).toHaveBeenCalledWith(expect.any(Number), false);
+    expect(runAll).toHaveBeenCalledWith('follow-up', { locked: true, followUp: true });
+    expect(order).toEqual(['scrape', 'ai runs']);
+
+    vi.mocked(checkDue).mockResolvedValue({ due: true });
+    await call();
+    await runAfterAnswer();
+    expect(lock).toHaveBeenLastCalledWith(expect.any(Number), true);
+    expect(runAll).toHaveBeenLastCalledWith('cron', { locked: true });
+  });
+
   it('?wait=1 answers with the run, the AI runs after', async () => {
     const response = await GET(new NextRequest('https://jobwatch.test/api/cron/scrape?wait=1'));
     expect(await response.json()).toEqual({ jobwatch: 'done', ...SUMMARY });

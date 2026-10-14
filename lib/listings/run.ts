@@ -13,6 +13,7 @@ import { aiFilter, aiWaiting } from './pipeline/ai-filter';
 import { fetchAlerts } from './pipeline/alerts';
 import { newJobs, selectAnnouncable } from './pipeline/announce';
 import { fetchListings, scrapersToRun } from './pipeline/fetch';
+import { scrapersToFollowUp } from './pipeline/follow-up';
 import type { RunError, RunSummary } from './pipeline/model';
 import { notify, type Notified } from './pipeline/notify';
 import { addedPerScraper, scraperOutcomes, summarize } from './pipeline/outcomes';
@@ -26,6 +27,7 @@ export type { RunSummary } from './pipeline/model';
 // One run = every enabled scraper, and the jobs LinkedIn's alert emails named: fetch, parse, filter, save
 // new offers, queue the new jobs for the notification channels (Telegram, push), check them against the
 // active AI profile and send the matches (unless muted); then judge the earlier jobs whose ad couldn't be read.
+// A follow-up is a run of only what LinkedIn's scrapers couldn't read a few minutes before (follow-up.ts).
 // The steps are in ./pipeline; this file puts them in order, under the lock, with the run log.
 
 const EMPTY = { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] as RunError[], ms: 0 };
@@ -34,7 +36,8 @@ const EMPTY = { found: 0, kept: 0, added: 0, fresh: 0, notified: 0, errors: [] a
  * Runs every enabled scraper. `locked`: the caller already took the lock (the endpoint does,
  * so it can answer "busy" right away). `background`: the AI check and the notifications go on
  * after the answer (the "Scrape now" button doesn't wait for OpenAI). `scraper`: that one only
- * (its run button in Settings), switched on or not.
+ * (its run button in Settings), switched on or not, its whole search. `followUp`: only the scrapers whose
+ * follow-up is due, only what their earlier run left (and the jobs alert emails queued).
  */
 export async function runAll(
   trigger: Trigger,
@@ -42,6 +45,7 @@ export async function runAll(
     locked?: boolean;
     background?: boolean;
     scraper?: string;
+    followUp?: boolean;
   } = {},
 ): Promise<RunSummary> {
   if (!opts.locked && !(await stateRepo.lock(SCRAPE_LOCK_SECONDS)))
@@ -52,9 +56,12 @@ export async function runAll(
   try {
     const [settings, scrapers] = await Promise.all([settingsRepo.get(), scrapersRepo.list()]);
     const chosen = opts.scraper
-      ? scrapers.filter((scraper) => scraper.id === opts.scraper)
-      : scrapersToRun(scrapers, settings, trigger === 'cron');
+      ? scrapers.filter((scraper) => scraper.id === opts.scraper).map((scraper) => ({ ...scraper, followUp: null }))
+      : opts.followUp
+        ? scrapersToFollowUp(scrapers)
+        : scrapersToRun(scrapers, settings, trigger === 'cron');
     if (opts.scraper && !chosen.length) return { ...EMPTY, skipped: 'This scraper no longer exists.' };
+    if (opts.followUp && !chosen.length) return { ...EMPTY, skipped: 'Nothing waits for a follow-up.' };
     runId = await runsRepo.start(trigger);
 
     const scraped = await fetchListings(chosen, settings);
@@ -72,7 +79,7 @@ export async function runAll(
     await alerts?.settle();
     const fresh = selectAnnouncable(added, owners, settings);
     const addedBy = addedPerScraper(added, owners);
-    const outcomes = scraperOutcomes(scraped, addedBy); // the alerts' isn't a scraper's row
+    const outcomes = scraperOutcomes(scraped, addedBy, startedAt); // the alerts' isn't a scraper's row
     await recordOutcomes(outcomes);
 
     const summary = summarize({ fetched, owners, added, fresh, ms: Date.now() - startedAt });

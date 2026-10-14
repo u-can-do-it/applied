@@ -1,5 +1,6 @@
 import type { Queued } from '../../db/repos/notify-queue';
 import type { ScraperOutcome } from '../../db/repos/scrapers';
+import { afterRun } from './follow-up';
 import { offerKey, type AddedOffer, type Fetched, type Owners, type RunError, type RunSummary } from './model';
 
 // Step 5, the outcomes (pure): what each scraper's run did, its new watermark, and the run's counts.
@@ -17,13 +18,17 @@ export function addedPerScraper(added: readonly AddedOffer[], owners: Owners): M
 
 export type ScraperRunOutcome = { id: string; outcome: ScraperOutcome };
 
+/** `startedAt`: the run's start, the one a paced board's follow-ups complete. */
 export function scraperOutcomes(
   fetched: readonly Fetched[],
   addedBy: ReadonlyMap<string, number>,
+  startedAt: number,
+  now = Date.now(),
 ): ScraperRunOutcome[] {
   return fetched.map(({ scraper, result }) => ({
     id: scraper.id,
     outcome: {
+      ...afterRun(scraper, result, startedAt, now),
       ok: result.ok,
       found: result.found,
       kept: result.kept.length,
@@ -33,7 +38,6 @@ export function scraperOutcomes(
       proxied: result.proxied,
       // the watermark moves only on a successful run; null -> "has run" even with nothing dated
       mark: result.ok ? Math.max(scraper.mark ?? -Infinity, result.maxSort ?? -Infinity, 0) : scraper.mark,
-      complete: result.complete,
     },
   }));
 }

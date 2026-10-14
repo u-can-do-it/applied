@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
+import { ScraperBrief } from '@/features/scraping/scraper-status';
 import { ScrapersPanel } from '@/features/scraping/scrapers-panel';
 import type { Scraper } from '@/lib/db/repos/scrapers';
 import { fail, ok } from '@/lib/shared/result';
@@ -36,6 +37,7 @@ const scraper = (id: string, name: string): Scraper => ({
   lastMs: null,
   lastProxied: null,
   lastCompleteAt: null,
+  followUp: null,
 });
 
 const SUMMARY = { found: 3, kept: 2, added: 1, fresh: 1, notified: 0, notifyLater: true, errors: [], ms: 5 };
@@ -81,5 +83,20 @@ describe('ScrapersPanel', () => {
 
     expect((await screen.findByRole('alert')).textContent).toBe('Remote: connect ECONNREFUSED');
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('ScraperBrief', () => {
+  it("says when a follow-up reads what the scraper's last run couldn't", () => {
+    const pages = [{ keyword: 'React', page: 4 }];
+    const ads = [
+      { src: 'linkedin', id: '9' },
+      { src: 'linkedin', id: '10' },
+    ] as NonNullable<Scraper['followUp']>['ads'];
+    const followUp = { from: '2026-10-14T07:20:00Z', at: '2026-10-14T07:25:00Z', tries: 0, pages, ads };
+    render(<ScraperBrief scraper={{ ...scraper('s1', 'LinkedIn'), lastRunAt: '2026-10-14T07:20:00Z', followUp }} />);
+    expect(screen.getByText(/a follow-up after/).textContent).toMatch(
+      /a follow-up after .+ reads the 1 page and 2 ads its last run couldn’t/,
+    );
   });
 });

@@ -5,6 +5,7 @@ import { linkedin } from '../../boards/linkedin';
 import * as alertsRepo from '../../db/repos/alert-jobs';
 import * as offersRepo from '../../db/repos/offers';
 import type { Scraper } from '../../db/repos/scrapers';
+import { Deferred } from '../../pace';
 import { message } from '../../shared/errors';
 import type { AlertOutcome } from '../alert-email';
 import { seniorityOf } from '../extract';
@@ -21,7 +22,8 @@ import type { Fetched } from './model';
 // (lib/ads/linkedin.ts): its title, company, place and ad, which the filters check as they do the LinkedIn
 // scrapers' offers (a keyword in the title or the ad). One a scraper has (saved before, or kept in this
 // run) isn't read. Read as the ad check reads: one at a time, at most MAX_READS a run, none after one
-// that fails or comes back empty, nor past the deadline; the rest wait for the next run.
+// that fails or comes back empty, nor past the deadline or LinkedIn's batch (lib/pace.ts); the rest wait
+// for the next run, or a follow-up's.
 
 /** Their place in a run: a scraper of their own, not in the scrapers table (its outcome isn't saved). */
 export const ALERTS: Scraper = {
@@ -42,6 +44,7 @@ export const ALERTS: Scraper = {
   lastMs: null,
   lastProxied: null,
   lastCompleteAt: null,
+  followUp: null,
 };
 
 /** waiting jobs looked at in a run: the ones a scraper has cost nothing, the rest are read up to MAX_READS */
@@ -90,7 +93,7 @@ export async function fetchAlerts(
       posting = await readPosting(id);
       if (!posting.title || !isAdText(posting.text)) throw new Error('it came back empty (a login wall?)');
     } catch (failure) {
-      error = `job ${id}: ${message(failure)}`;
+      if (!(failure instanceof Deferred)) error = `job ${id}: ${message(failure)}`;
       break;
     }
     const offer = toOffer(id, posting);
@@ -115,6 +118,7 @@ export async function fetchAlerts(
     pages: [],
     proxied: 0,
     complete: !left,
+    unread: { pages: [], ads: [] }, // they wait in alert_jobs
     ms: Date.now() - startedAt,
   };
   return { fetched: { scraper: ALERTS, result }, settle: () => alertsRepo.settle(src, outcomes) };
@@ -145,5 +149,6 @@ const failed = (error: string, startedAt: number): ScrapeResult => ({
   pages: [],
   proxied: 0,
   complete: false,
+  unread: { pages: [], ads: [] },
   ms: Date.now() - startedAt,
 });

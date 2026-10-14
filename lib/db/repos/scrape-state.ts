@@ -46,13 +46,17 @@ export const unlock = () => patch({ lockedUntil: null });
 export const markAlertEmail = (jobs: number) => patch({ alertEmailAt: new Date().toISOString(), alertEmailJobs: jobs });
 
 /**
- * Takes the run lock for `seconds` (and stamps last_run_at): false = another run holds it. One
- * statement, so of two callers at once only one gets it; a crashed run's lock runs out by itself.
+ * Takes the run lock for `seconds` (and stamps last_run_at, unless `stamp` is false: a follow-up doesn't
+ * move the schedule): false = another run holds it. One statement, so of two callers at once only one gets
+ * it; a crashed run's lock runs out by itself.
  */
-export async function lock(seconds: number): Promise<boolean> {
+export async function lock(seconds: number, stamp = true): Promise<boolean> {
   const got = await db()
     .update(scrapeState)
-    .set({ lockedUntil: sql`now() + make_interval(secs => ${seconds}::int)`, lastRunAt: sql`now()` })
+    .set({
+      lockedUntil: sql`now() + make_interval(secs => ${seconds}::int)`,
+      ...(stamp && { lastRunAt: sql`now()` }),
+    })
     .where(and(eq(scrapeState.id, true), or(isNull(scrapeState.lockedUntil), lt(scrapeState.lockedUntil, sql`now()`))))
     .returning({ id: scrapeState.id });
   return got.length > 0;

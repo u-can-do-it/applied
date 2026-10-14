@@ -2,16 +2,19 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { hmac, sameString } from '../hmac';
 import * as cronRepo from '../db/repos/cron';
+import * as scrapersRepo from '../db/repos/scrapers';
 import * as settingsRepo from '../db/repos/scrape-settings';
 import * as stateRepo from '../db/repos/scrape-state';
 import { zoneOf } from '../dates';
 import { env } from '../env';
 import { message } from '../shared/errors';
 import { cronSchedule } from './cron';
+import { scrapersToFollowUp } from './pipeline/follow-up';
 import { effectiveTimeZone, inHours, intervalAt, type ScrapeSettings } from './settings';
 
 // Who may call /api/cron/scrape, and whether a run is due when it's called. Supabase Cron just
-// knocks every few minutes; interval, hours and the pause live in Settings.
+// knocks every five minutes; interval, hours and the pause live in Settings. On a knock between the
+// runs, a follow-up may be due: what LinkedIn's scrapers couldn't read (lib/listings/pipeline/follow-up.ts).
 
 /** CRON_SECRET if set, else derived from APP_PASSWORD. */
 export async function cronSecret(): Promise<string | null> {
@@ -27,7 +30,8 @@ export async function isCronRequest(req: Request) {
   return sameString(req.headers.get('authorization') ?? '', `Bearer ${secret}`);
 }
 
-export async function checkDue(now = new Date()): Promise<{ due: boolean; reason?: string }> {
+/** `followUp`: no run is due, but a follow-up is. */
+export async function checkDue(now = new Date()): Promise<{ due: boolean; followUp?: true; reason?: string }> {
   const [settings, state] = await Promise.all([settingsRepo.get(), stateRepo.get(), stateRepo.markCall()]);
   if (!settings.enabled) return { due: false, reason: 'scraping is paused in Settings' };
   const zone = zoneOf(effectiveTimeZone(settings)); // the hours are the app's time zone's
@@ -37,7 +41,10 @@ export async function checkDue(now = new Date()): Promise<{ due: boolean; reason
   // a minute of slack: calls every N min aren't exactly N min apart
   const every = intervalAt(settings, now); // the weekend one on Saturday and Sunday
   const since = now.getTime() - (state.lastRunAt ? Date.parse(state.lastRunAt) : 0);
-  if (since < every * 60_000 - 60_000) return { due: false, reason: `the last run was less than ${every} min ago` };
+  if (since < every * 60_000 - 60_000) {
+    if (scrapersToFollowUp(await scrapersRepo.list(), now.getTime()).length) return { due: true, followUp: true };
+    return { due: false, reason: `the last run was less than ${every} min ago` };
+  }
   return { due: true };
 }
 

@@ -23,6 +23,11 @@ export type Board<Id extends string = string> = {
    * refuses is fetched again through ScrapingAnt (lib/scraping-ant.ts) when SCRAPINGANT_API_KEY is set
    */
   blocksServer?: true;
+  /**
+   * It turns a burst of requests away (HTTP 429): its requests are paced (lib/pace.ts), and what a run of its
+   * scraper couldn't read waits for a follow-up a few minutes later (lib/listings/pipeline/follow-up.ts)
+   */
+  pace?: Pace;
   /** in the board filter from the start; the others once one of your scrapers uses them */
   alwaysInFilters?: boolean;
   /** the offer's id on the board, when its link shows it: what the board's ad reader and pages take */
@@ -34,6 +39,9 @@ export type Board<Id extends string = string> = {
   /** how to search it, for a board Jobwatch scrapes */
   listing?: Listing;
 };
+
+/** Requests to a board one at a time, `gapMs` apart, and at most `batch` of them in any `windowMs`. */
+export type Pace = { gapMs: number; batch: number; windowMs: number };
 
 /** A board's own listing: a scraper kind with a fixed parser (lib/listings/registry.ts) and a fixed src. */
 export type Listing = {

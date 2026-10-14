@@ -139,15 +139,18 @@ migrates it again. Supabase Cron can't call a dev server on localhost; use "Scra
 ## Supabase Cron
 
 Supabase Cron (`pg_cron` + `pg_net`, both on every Supabase plan) calls `/api/cron/scrape` on the schedule
-Settings makes: the interval, only within the hours (in UTC, an hour wider where clocks change), none while
-paused. The app then checks again whether a run is due. Vercel's own cron can't do this on the free plan
+Settings makes: every 5 minutes, only within the hours (in UTC, an hour wider where clocks change), none while
+paused. The app then checks whether a run is due (the interval passed), or else a follow-up of what LinkedIn's
+scrapers couldn't read ([ARCHITECTURE.md](ARCHITECTURE.md#linkedins-pace-and-the-follow-up)); most calls
+answer "skipped". Vercel's own cron can't do this on the free plan
 (Hobby allows one run a day).
 
 - **Connect:** Settings → **Connect Supabase Cron**, from the deployed app (the job is given this
   deployment's address, `VERCEL_PROJECT_PRODUCTION_URL`, and the [cron secret](#environment-variables)). If it
   says `pg_cron` or `pg_net` isn't enabled: Supabase → Integrations → Cron, or Database → Extensions, then
   `npm run db:migrate` again.
-- **Changing** the interval, hours, time zone or pause reschedules the job by itself.
+- **Changing** the hours, time zone or pause reschedules the job by itself (the interval is the app's to keep).
+  Migration `0022` moved a job connected before to every 5 minutes.
 - **Reconnect** when the Health card says so: the job calls another address (a new domain), its schedule isn't
   the settings' (it was switched off or edited in Supabase), or the app refused its last call with 401 (the
   secret changed: `APP_PASSWORD` or `CRON_SECRET`).

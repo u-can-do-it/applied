@@ -10,6 +10,8 @@ import { log } from '@/lib/log';
 // Supabase Cron calls it on the schedule Settings makes (the interval within the hours; paused =
 // no calls), and the app checks again whether a run is due (lib/listings/schedule.ts).
 //   ?force=1  run even if not due     ?wait=1  answer with the result instead of right away
+// A knock between the runs may start a follow-up instead: what LinkedIn's scrapers couldn't read in the
+// run before (lib/listings/pipeline/follow-up.ts); it doesn't move the schedule.
 // Every answer has "jobwatch" in it: Settings finds Supabase Cron's last call by that.
 //
 // After the scrape (or instead of it, when none is due), the same call continues the open AI runs
@@ -30,33 +32,35 @@ async function handle(request: NextRequest) {
       },
       (error: unknown) => log.error('Continuing AI runs failed', { route: ROUTE, error }),
     );
+  const params = request.nextUrl.searchParams;
+  const due: Awaited<ReturnType<typeof checkDue>> = params.get('force') === '1' ? { due: true } : await checkDue();
+  const followUp = due.followUp === true;
+  const run = () => (followUp ? runAll('follow-up', { locked: true, followUp }) : runAll('cron', { locked: true }));
   const scrape = () =>
-    runAll('cron', { locked: true }).catch((error: unknown) => {
+    run().catch((error: unknown) => {
       log.error('Cron scrape run failed', { route: ROUTE, error });
       return null;
     });
 
-  const params = request.nextUrl.searchParams;
-  const due = params.get('force') === '1' ? { due: true } : await checkDue();
   if (!due.due) {
     after(continueAi);
     return NextResponse.json({ jobwatch: 'skipped', reason: due.reason });
   }
-  if (!(await lock(SCRAPE_LOCK_SECONDS))) {
+  if (!(await lock(SCRAPE_LOCK_SECONDS, !followUp))) {
     after(continueAi);
     return NextResponse.json({ jobwatch: 'busy', reason: 'another run is still going' });
   }
   if (params.get('wait') === '1') {
-    const summary = await runAll('cron', { locked: true });
+    const summary = await run();
     after(continueAi);
-    return NextResponse.json({ jobwatch: 'done', ...summary });
+    return NextResponse.json({ jobwatch: 'done', ...(followUp && { followUp }), ...summary });
   }
   // answer at once (Supabase Cron waits only a few seconds), scrape after the response, then the AI runs
   after(async () => {
     await scrape();
     await continueAi();
   });
-  return NextResponse.json({ jobwatch: 'started' }, { status: 202 });
+  return NextResponse.json({ jobwatch: 'started', ...(followUp && { followUp }) }, { status: 202 });
 }
 
 export const GET = handle;

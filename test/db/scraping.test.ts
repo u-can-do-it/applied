@@ -45,7 +45,8 @@ describeDb('scrapers', () => {
       ms: 1234,
       proxied: 2,
       mark: 42,
-      complete: true,
+      completeAt: '2026-10-14T07:20:00.000Z',
+      followUp: null,
     };
     await scrapersRepo.saveOutcome(first, outcome);
     let scraper = await scrapersRepo.get(first);
@@ -59,14 +60,24 @@ describeDb('scrapers', () => {
       lastProxied: 2,
     });
     expect(scraper?.lastRunAt).toMatch(ISO);
-    expect(scraper?.lastCompleteAt).toBe(scraper?.lastRunAt);
-    // a run that missed a page: its time is the last run's, not the last complete one's
-    await exec(sql`update public.scrapers set last_complete_at = now() - interval '9 hours' where id = ${first}`);
+    expect(Date.parse(scraper?.lastCompleteAt ?? '')).toBe(Date.parse(outcome.completeAt));
+    // a run that missed a page: its time is the last run's, not the last complete one's; what it left waits
     const complete = (await scrapersRepo.get(first))?.lastCompleteAt;
-    await scrapersRepo.saveOutcome(first, { ...outcome, error: 'page 2: HTTP 429', complete: false });
+    const followUp = {
+      from: '2026-10-14T07:30:00.000Z',
+      at: '2026-10-14T07:35:00.000Z',
+      tries: 0,
+      pages: [{ keyword: 'React', page: 2 }],
+      ads: [],
+    };
+    await scrapersRepo.saveOutcome(first, { ...outcome, error: 'page 2: HTTP 429', completeAt: null, followUp });
     scraper = await scrapersRepo.get(first);
     expect(scraper?.lastCompleteAt).toBe(complete);
     expect(scraper?.lastRunAt).not.toBe(complete);
+    expect(scraper?.followUp).toEqual(followUp);
+    // a changed search: the old one's pages don't wait any more
+    await scrapersRepo.update(first, { config: search('First', 'boarda').config });
+    expect((await scrapersRepo.get(first))?.followUp).toBeNull();
     expect(scraper?.config).toEqual(search('First', 'boarda').config);
     const [json] = await exec(sql`select jsonb_typeof(config) as config from public.scrapers where id = ${first}`);
     expect(json).toEqual({ config: 'object' });
