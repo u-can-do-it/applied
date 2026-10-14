@@ -1,32 +1,16 @@
 'use client';
 
-import { lazy, startTransition, Suspense, useOptimistic, useState, useTransition } from 'react';
+import { startTransition, useOptimistic, useState, useTransition } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, XIcon } from 'lucide-react';
 import { useConfirm } from '@/components/confirm';
-import { TimeZone } from '@/components/time-zone';
 import { Button } from '@/components/ui/button';
-import type { ApplicationWithContent } from '@/lib/applications';
 import { zoneOf } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
-import { message } from '@/lib/shared/errors';
 import { applyAction, unapplyAction } from '@/features/applications/actions';
-import { applicationKey, loadApplication } from '@/features/applications/use-application';
+import { applicationKey } from '@/features/applications/use-application';
+import { useApplicationWindow } from './application-window';
 import { ON_HOVER } from './offer-actions';
-
-// The application's window (as on the Applied tab) loads when it's first opened: the offers don't
-// need its editors until then. It loads alongside the application, so it's in when that is.
-const loadSheet = () => import('@/features/applications/application-sheet');
-const ApplicationSheet = lazy(() => loadSheet().then((module) => ({ default: module.ApplicationSheet })));
-
-// fetched as you point at the badge (or tab to it), so the click finds it in: younger than this, the
-// click uses it; the window then checks it again as it opens, as on the Applied tab
-const PREFETCHED_FOR_MS = 30_000;
-const applicationQuery = (jobId: string) => ({
-  queryKey: applicationKey(jobId),
-  queryFn: () => loadApplication(jobId),
-  staleTime: PREFETCHED_FOR_MS,
-});
 
 const PILL =
   'rounded-full bg-transparent font-normal hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent';
@@ -56,8 +40,7 @@ export function ApplyButton({
   const confirm = useConfirm();
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const [opening, setOpening] = useState(false);
-  const [shown, setShown] = useState<ApplicationWithContent | null>(null); // its window is open
+  const application = useApplicationWindow({ jobId, labels, tz, onError: setError });
 
   const mark = () => {
     setError(null);
@@ -87,28 +70,6 @@ export function ApplyButton({
     });
   };
 
-  // the application and the window's code, on the way before the click; a failure shows on the click
-  const prefetch = () => {
-    if (shown || pending) return;
-    void queryClient.query(applicationQuery(jobId)).catch(() => {});
-    void loadSheet().catch(() => {});
-  };
-
-  // the window opens with the application as the database has it (the list has only the day)
-  const open = async () => {
-    if (shown || opening) return;
-    setError(null);
-    setOpening(true);
-    try {
-      const [app] = await Promise.all([queryClient.query(applicationQuery(jobId)), loadSheet()]);
-      setShown(app);
-    } catch (failed) {
-      setError(message(failed));
-    } finally {
-      setOpening(false);
-    }
-  };
-
   return (
     <>
       {applied ? (
@@ -120,11 +81,11 @@ export function ApplyButton({
             className={cn(PILL, 'border-0 text-success hover:text-success hover:underline')}
             // marked a moment ago: the application is saved once the server answers
             disabled={pending}
-            onPointerEnter={prefetch}
-            onFocus={prefetch}
-            onClick={() => void open()}
+            onPointerEnter={() => !pending && application.prefetch()}
+            onFocus={() => !pending && application.prefetch()}
+            onClick={() => void application.open()}
             aria-haspopup="dialog"
-            aria-busy={pending || opening || undefined}
+            aria-busy={pending || application.opening || undefined}
             title="Open the application"
           >
             {/* the × takes its place: the badge keeps its width */}
@@ -167,20 +128,7 @@ export function ApplyButton({
           {error}
         </span>
       )}
-      {shown && (
-        <TimeZone tz={tz}>
-          <Suspense fallback={null}>
-            <ApplicationSheet
-              initial={shown}
-              labels={labels}
-              onClose={() => setShown(null)}
-              // no notes in the offer list: the window saves them, the Applied tab shows them
-              onNoteSaved={() => {}}
-              onNoteStale={() => {}}
-            />
-          </Suspense>
-        </TimeZone>
-      )}
+      {application.window}
     </>
   );
 }

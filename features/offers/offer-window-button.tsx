@@ -1,10 +1,12 @@
 'use client';
 
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, type ComponentProps } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PanelRightOpenIcon } from 'lucide-react';
+import { toast } from 'sonner';
 import { TimeZone } from '@/components/time-zone';
 import { Button } from '@/components/ui/button';
+import { useApplicationWindow } from './application-window';
 import type { OfferJob } from './offer-sheet';
 import { offerQuery } from './use-offer';
 
@@ -13,8 +15,35 @@ import { offerQuery } from './use-offer';
 const loadSheet = () => import('./offer-sheet');
 const OfferSheet = lazy(() => loadSheet().then((module) => ({ default: module.OfferSheet })));
 
-/** After an offer's title: opens its window (the ad, your note, the fit); counts as opening it (seen). */
-export function OfferWindowButton({ job, labels, tz }: { job: OfferJob; labels: Record<string, string>; tz: string }) {
+type Props = { job: OfferJob; labels: Record<string, string>; tz: string };
+
+/**
+ * After an offer's title: opens its window (the ad, your note, the fit); counts as opening it (seen).
+ * Once it's applied to, the window is the application's (its note went there), as from the Applied badge.
+ */
+export function OfferWindowButton({ applied, ...props }: Props & { applied: boolean }) {
+  return applied ? <ApplicationWindowButton {...props} /> : <OfferOnlyWindowButton {...props} />;
+}
+
+function WindowButton({ job, ...props }: { job: OfferJob } & ComponentProps<typeof Button>) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      className="ml-0.5 align-[-3px] text-muted-foreground hover:text-foreground "
+      data-marks-seen
+      aria-haspopup="dialog"
+      aria-label={`Details of ${job.title}`}
+      title="Details: the ad, your note, the fit"
+      {...props}
+    >
+      <PanelRightOpenIcon />
+    </Button>
+  );
+}
+
+function OfferOnlyWindowButton({ job, labels, tz }: Props) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -26,21 +55,7 @@ export function OfferWindowButton({ job, labels, tz }: { job: OfferJob; labels: 
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        className="ml-0.5 align-[-3px] text-muted-foreground hover:text-foreground "
-        data-marks-seen
-        onPointerEnter={prefetch}
-        onFocus={prefetch}
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        aria-label={`Details of ${job.title}`}
-        title="Details: the ad, your note, the fit"
-      >
-        <PanelRightOpenIcon />
-      </Button>
+      <WindowButton job={job} onPointerEnter={prefetch} onFocus={prefetch} onClick={() => setOpen(true)} />
       {open && (
         <TimeZone tz={tz}>
           <Suspense fallback={null}>
@@ -48,6 +63,28 @@ export function OfferWindowButton({ job, labels, tz }: { job: OfferJob; labels: 
           </Suspense>
         </TimeZone>
       )}
+    </>
+  );
+}
+
+function ApplicationWindowButton({ job, labels, tz }: Props) {
+  const application = useApplicationWindow({
+    jobId: job.jobId,
+    labels,
+    tz,
+    onError: (error) => error && toast.error(error),
+  });
+
+  return (
+    <>
+      <WindowButton
+        job={job}
+        onPointerEnter={application.prefetch}
+        onFocus={application.prefetch}
+        onClick={() => void application.open()}
+        aria-busy={application.opening || undefined}
+      />
+      {application.window}
     </>
   );
 }
