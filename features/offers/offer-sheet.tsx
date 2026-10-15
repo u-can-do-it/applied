@@ -2,22 +2,18 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { ExternalLinkIcon, TriangleAlertIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ListedJob } from '@/lib/jobs';
 import type { OfferAd, OfferWindow } from '@/lib/offer-window';
 import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
-import { useReturnFocus } from '@/components/return-focus';
-import { keepOpenOnToast } from '@/components/toasts';
-import { Alert, AlertTitle } from '@/components/ui/alert';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { applyAction } from '@/features/applications/actions';
 import { AdDetails } from '@/features/applications/ad-details';
 import { AdText, type ShownAd } from '@/features/applications/ad-text';
-import { ApplicationFit, FitSummary, useFitCheck, type ShownFit } from '@/features/applications/application-fit';
+import { useFitCheck, type ShownFit } from '@/features/applications/application-fit';
+import { JobSheet, JobSheetBody, JobSheetFooter, JobSheetHeader, OpenOnBoard } from '@/features/applications/job-sheet';
 import { NoteEditor, type NoteHandle } from '@/features/applications/note-editor';
 import { useDay } from '@/features/applications/use-day';
 import { assessJobFitAction, setJobNoteAction } from './actions';
@@ -29,8 +25,8 @@ import { loadOffer, offerKey, useOffer } from './use-offer';
 // besides, your note, the AI's fit; marking it applied, archiving it. Opens with what the list has
 // (title, company, verdict); the ad and the note load into their places. The ad is yours to edit, or to
 // paste (or read from a link) when the board page doesn't give it: it saves itself, and once you're done
-// the AI judges the job from it. Not modal, as an
-// application's window: the list stays in use, a click anywhere else closes it (the note saved on the way).
+// the AI judges the job from it. The same window as an application's (JobSheet): the list stays in use, a
+// click anywhere else closes it (the note saved on the way).
 
 export type OfferJob = Pick<ListedJob, 'jobId' | 'src' | 'id' | 'title' | 'company' | 'url' | 'firstSeen' | 'ai'>;
 
@@ -48,8 +44,6 @@ export function OfferSheet({
   const { jobId } = job;
   const day = useDay();
   const [open, setOpen] = useState(true);
-  const focus = useReturnFocus();
-  const clickedAway = useRef(false);
   const note = useRef<NoteHandle>(null);
   const moved = useRef(false); // marked applied: the note went with it
   const row = useArchiveRow();
@@ -126,117 +120,80 @@ export function OfferSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={(next) => !next && close()} modal={false}>
-      <SheetContent
-        className="gap-0 shadow-2xl outline-none data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]"
-        // the window itself takes the focus, not its first button: on the fit badge, its checklist would open
-        onOpenAutoFocus={(event) => {
-          event.preventDefault();
-          if (event.target instanceof HTMLElement) event.target.focus();
-        }}
-        onPointerDownOutside={(event) => {
-          keepOpenOnToast(event);
-          clickedAway.current = !event.defaultPrevented;
-        }}
-        // the focus going elsewhere (a toast, the list) isn't leaving
-        onFocusOutside={(event) => event.preventDefault()}
-        onCloseAutoFocus={(event) => {
-          if (clickedAway.current) event.preventDefault();
-          else focus.onCloseAutoFocus(event);
-          onClose();
-        }}
-      >
-        <SheetHeader className="group/header gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">
-          <div className="flex items-start gap-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <SheetTitle className="text-lg font-semibold">{job.title}</SheetTitle>
-              <SheetDescription className="text-[13px]">
-                {job.company && <>{job.company} · </>}
-                {board} · first seen {day(job.firstSeen)}
-              </SheetDescription>
+    <JobSheet open={open} onDismiss={close} onGone={onClose}>
+      <JobSheetHeader
+        title={job.title}
+        company={job.company}
+        board={board}
+        when={`first seen ${day(job.firstSeen)}`}
+        fit={shown}
+        checking={fit.checking}
+        onCheck={fit.check}
+      />
+
+      <JobSheetBody>
+        {data ? (
+          <NoteEditor
+            ref={note}
+            jobId={jobId}
+            store={{
+              save: (text, seenAt) => setJobNoteAction({ jobId, note: text, seenAt }),
+              load: () => loadOffer(jobId),
+            }}
+            initial={data.note ?? ''}
+            seenAt={data.noteUpdatedAt}
+            editedAt={data.noteUpdatedAt}
+            placeholder={NOTE_PLACEHOLDER}
+            onSaved={() => {}}
+            onStale={() => {}}
+          />
+        ) : (
+          !loaded.error && (
+            <div className="flex flex-col gap-1.5" role="status" aria-label="Loading the note">
+              <Skeleton className="h-4 w-12 rounded-sm" />
+              <Skeleton className="h-[4.6em] rounded-md" />
             </div>
-            <ApplicationFit app={shown} checking={fit.checking} onCheck={fit.check} />
-          </div>
-          <FitSummary app={shown} />
-        </SheetHeader>
+          )
+        )}
+        <AdDetails details={data?.details ?? null} />
+        {editing && data ? (
+          <AdEditor
+            ref={adEditor}
+            jobId={jobId}
+            initial={data.contentStatus === 'ok' ? (data.content ?? '') : ''}
+            onSaved={adSaved}
+            onDone={doneEditingAd}
+          />
+        ) : (
+          <AdText
+            ad={shown}
+            loadError={loaded.error ? message(loaded.error) : null}
+            onEdit={data ? editAd : undefined}
+          />
+        )}
+      </JobSheetBody>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-3.5 py-3 [scrollbar-gutter:stable] *:shrink-0 sm:px-5 sm:py-3.5">
-          {data ? (
-            <NoteEditor
-              ref={note}
-              jobId={jobId}
-              store={{
-                save: (text, seenAt) => setJobNoteAction({ jobId, note: text, seenAt }),
-                load: () => loadOffer(jobId),
-              }}
-              initial={data.note ?? ''}
-              seenAt={data.noteUpdatedAt}
-              editedAt={data.noteUpdatedAt}
-              placeholder={NOTE_PLACEHOLDER}
-              onSaved={() => {}}
-              onStale={() => {}}
-            />
-          ) : (
-            !loaded.error && (
-              <div className="flex flex-col gap-1.5" role="status" aria-label="Loading the note">
-                <Skeleton className="h-4 w-12 rounded-sm" />
-                <Skeleton className="h-[4.6em] rounded-md" />
-              </div>
-            )
-          )}
-          <AdDetails details={data?.details ?? null} />
-          {editing && data ? (
-            <AdEditor
-              ref={adEditor}
-              jobId={jobId}
-              initial={data.contentStatus === 'ok' ? (data.content ?? '') : ''}
-              onSaved={adSaved}
-              onDone={doneEditingAd}
-            />
-          ) : (
-            <AdText
-              ad={shown}
-              loadError={loaded.error ? message(loaded.error) : null}
-              onEdit={data ? editAd : undefined}
-            />
-          )}
-        </div>
-
-        <SheetFooter className="mt-0 flex-row flex-wrap items-center justify-end gap-2 border-t px-3.5 py-2.5 sm:px-5 sm:py-3">
-          {error && (
-            <Alert variant="destructive" className="basis-full">
-              <TriangleAlertIcon />
-              <AlertTitle className="font-normal">{error}</AlertTitle>
-            </Alert>
-          )}
-          {row && (
-            <Button type="button" variant="ghost" className="mr-auto" disabled={busy} onClick={archive}>
-              {row.archived ? 'Restore' : 'Archive'}
-            </Button>
-          )}
-          <a
-            className={buttonVariants({ variant: 'outline' })}
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open on {board} <ExternalLinkIcon />
-          </a>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy || !data}
-            aria-busy={busy || undefined}
-            title={data ? 'Saves that you applied, with the complete ad text and this note' : 'Once the note is in'}
-            onClick={markApplied}
-          >
-            Mark applied
+      <JobSheetFooter error={error}>
+        {row && (
+          <Button type="button" variant="ghost" className="mr-auto" disabled={busy} onClick={archive}>
+            {row.archived ? 'Restore' : 'Archive'}
           </Button>
-          <Button type="button" onClick={close}>
-            Close
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        )}
+        <OpenOnBoard url={job.url} board={board} />
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy || !data}
+          aria-busy={busy || undefined}
+          title={data ? 'Saves that you applied, with the complete ad text and this note' : 'Once the note is in'}
+          onClick={markApplied}
+        >
+          Mark applied
+        </Button>
+        <Button type="button" onClick={close}>
+          Close
+        </Button>
+      </JobSheetFooter>
+    </JobSheet>
   );
 }

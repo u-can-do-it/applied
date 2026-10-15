@@ -1,55 +1,36 @@
-import { SparklesIcon } from 'lucide-react';
 import type { Zone } from '@/lib/dates';
 import type { ListedJob } from '@/lib/jobs';
 import { cn } from '@/lib/shared/cn';
-import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
 import { ArchiveButton, ArchiveRow } from './archive';
-import { FitScore } from './fit-score';
+import { JOB_ROW, JobRow } from './job-row';
 import { OfferWindowButton } from './offer-window-button';
-import { RentADev } from './rent-a-dev';
 import { SeenItem, SeenMark } from './seen';
 
 // shared with the skeleton, so the rows don't move when the list comes in
-export const OFFER = 'grid grid-cols-[44px_1fr_auto] items-start gap-3 px-3.5 py-3 max-[560px]:grid-cols-[1fr_auto]';
+export const OFFER = cn(JOB_ROW, 'grid-cols-[44px_1fr_auto] max-[560px]:grid-cols-[1fr_auto]');
 
 /** "Thu 02.10.2026, 14:05", in the app's time zone */
 const fullLabel = (zone: Zone, at: string) => `${zone.weekday(at)} ${zone.formatDayOf(at)}, ${zone.formatTime(at)}`;
 
-/** The boards this job was posted on, one link each (earliest first, aggregators last). */
-function BoardLinks({ job, labels }: { job: ListedJob; labels: Record<string, string> }) {
+/** The boards this job was posted on, each once, with its offer's link (earliest first, aggregators last). */
+const boardsOf = (job: ListedJob) => {
   const seen = new Set<string>();
-  const links = job.offers.filter((offer) => !seen.has(offer.src) && seen.add(offer.src));
-  return (
-    <span className="flex flex-wrap justify-end gap-1">
-      {links.map((offer) => (
-        <Badge key={offer.src} variant="quiet" className="rounded-md no-underline" asChild>
-          <a
-            href={offer.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`Open on ${labels[offer.src] ?? offer.src}`}
-          >
-            {labels[offer.src] ?? offer.src}
-          </a>
-        </Badge>
-      ))}
-    </span>
-  );
-}
+  return job.offers
+    .filter((offer) => !seen.has(offer.src) && seen.add(offer.src))
+    .map(({ src, url }) => ({ src, url }));
+};
 
 /**
- * One job in the list. A job the latest scrape run that brought new jobs brought is marked "new", with a
- * faint tint, so what came in last time stands out; one you opened before has a check mark after its title,
- * and then the button of its window (the ad, your note, the fit; once applied to, the application's).
- * The archive button takes it out of the list (or, in the archived list, back into the others). With a
- * mouse, the archive and "Mark applied" buttons show on the row's hover (or keyboard focus) only. A job
- * the active profile judged has its fit badge, and the verdict's line under its title; "Rent-a-dev" when
- * it says the job is a software house's / body leasing firm's. A search's
- * words are marked in yellow in the title and the company. Under a day's heading the row shows the hour it
- * came in; in a list not grouped by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier
- * this week, "02/10" before, in a wider first column.
+ * One job in the offer list, as JobRow shows a job on either tab. A job the latest scrape run that brought
+ * new jobs brought is marked "new", with a faint tint, so what came in last time stands out; one you opened
+ * before has a check mark after its title, and then the button of its window (the ad, your note, the fit;
+ * once applied to, the application's). The archive button takes it out of the list (or, in the archived
+ * list, back into the others). With a mouse, the archive and "Mark applied" buttons show on the row's hover
+ * (or keyboard focus) only. Under a day's heading the row shows the hour it came in; in a list not grouped
+ * by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier this week, "02/10" before, in
+ * a wider first column.
  */
 export function OfferRow({
   job,
@@ -82,77 +63,62 @@ export function OfferRow({
         >
           {dated ? zone.shortDay(job.firstSeen) : zone.formatTime(job.firstSeen)}
         </time>
-        <div className="min-w-0">
-          {job.isNew && (
-            <Badge variant="success" className="mr-1.5 align-[1px]" title="Brought by the latest scrape run">
-              new
-            </Badge>
-          )}
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold no-underline [overflow-wrap:anywhere] visited:text-muted-foreground hover:text-brand hover:underline hover:underline-offset-2"
-          >
-            <Marked text={job.title} marks={job.marks?.title} />
-          </a>
-          <SeenMark />
-          <OfferWindowButton
-            job={{
-              jobId: job.jobId,
-              src: job.src,
-              id: job.id,
-              title: job.title,
-              company: job.company,
-              url: job.url,
-              firstSeen: job.firstSeen,
-              ai: job.ai,
-            }}
-            labels={labels}
-            tz={zone.tz}
-            applied={!!job.appliedAt}
-          />
-          <div className="mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']">
-            {job.company && (
-              <span>
-                <Marked text={job.company} marks={job.marks?.company} />
-              </span>
-            )}
-            {job.seniority && job.seniority !== 'unknown' && <span>{job.seniority}</span>}
-            <span className={job.remote ? 'text-success' : undefined}>{job.remote ? 'Remote' : 'Office / hybrid'}</span>
-          </div>
-          {job.ai?.summary && (
-            <p className="mt-1 mb-0 text-xs text-brand">
-              <SparklesIcon /> {job.ai.summary}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-1.5">
-          {job.ai && (
-            <span className="flex flex-wrap items-center justify-end gap-1">
-              {job.ai.bodyLeasing && <RentADev />}
-              <FitScore
-                match={job.ai.match}
-                score={job.ai.score}
-                summary={job.ai.summary}
-                checks={job.ai.checks}
-                hadDescription={job.ai.hadDescription}
+        <JobRow
+          title={job.title}
+          href={job.url}
+          company={job.company}
+          facts={[
+            ...(job.seniority && job.seniority !== 'unknown' ? [{ key: 'seniority', text: job.seniority }] : []),
+            job.remote
+              ? { key: 'mode', text: 'Remote', className: 'text-success' }
+              : { key: 'mode', text: 'Office / hybrid' },
+          ]}
+          verdict={job.ai}
+          rentADev={Boolean(job.ai?.bodyLeasing)}
+          marks={job.marks}
+          boards={boardsOf(job)}
+          labels={labels}
+          before={
+            job.isNew && (
+              <Badge variant="success" className="mr-1.5 align-[1px]" title="Brought by the latest scrape run">
+                new
+              </Badge>
+            )
+          }
+          after={
+            <>
+              <SeenMark />
+              <OfferWindowButton
+                job={{
+                  jobId: job.jobId,
+                  src: job.src,
+                  id: job.id,
+                  title: job.title,
+                  company: job.company,
+                  url: job.url,
+                  firstSeen: job.firstSeen,
+                  ai: job.ai,
+                }}
+                labels={labels}
+                tz={zone.tz}
+                applied={!!job.appliedAt}
               />
-            </span>
-          )}
-          <BoardLinks job={job} labels={labels} />
-          <div className="flex flex-wrap items-center justify-end gap-1">
-            <ArchiveButton />
-            <ApplyButton
-              jobId={job.jobId}
-              src={job.src}
-              id={job.id}
-              appliedAt={job.appliedAt}
-              labels={labels}
-              tz={zone.tz}
-            />
-          </div>
-        </div>
+            </>
+          }
+          bottom={
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              <ArchiveButton />
+              <ApplyButton
+                jobId={job.jobId}
+                src={job.src}
+                id={job.id}
+                appliedAt={job.appliedAt}
+                labels={labels}
+                tz={zone.tz}
+              />
+            </div>
+          }
+        />
       </SeenItem>
     </ArchiveRow>
   );

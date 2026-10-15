@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rank } from '@/lib/shared/search';
+import { marksWithin, rank } from '@/lib/shared/search';
 
 // newest first, as lib/db/repos/offers.ts searchable() lists them
 const jobs = [
@@ -44,12 +44,31 @@ describe('rank', () => {
 
   it('says where it matched, in the title and the company', () => {
     const found = rank(jobs, 'pyhton lodz');
-    expect(found?.marks.get('python')).toEqual({ title: [0, 6], company: [0, 4] });
-    expect(rank(jobs, 'acme react')?.marks.get('react')).toEqual({ title: [27, 32], company: [0, 4] });
+    expect(found?.marks.get('python')).toEqual({ title: [0, 6], company: [0, 4], note: [] });
+    expect(rank(jobs, 'acme react')?.marks.get('react')).toEqual({ title: [27, 32], company: [0, 4], note: [] });
+  });
+
+  it('an application’s note is searched too, and marked', () => {
+    const apps = [
+      { jobId: 'scala', title: 'Fullstack Developer', company: 'Scanye', note: 'Asked about the Scala part' },
+      { jobId: 'none', title: 'Frontend Developer', company: null, note: null },
+    ];
+    const found = rank(apps, 'scala');
+    expect(found?.ids).toEqual(['scala']);
+    expect(found?.marks.get('scala')).toEqual({ title: [], company: [], note: [16, 21] });
+    expect(rank(apps, 'scan')?.marks.get('scala')).toEqual({ title: [], company: [0, 4], note: [] });
   });
 
   it('nothing to look for: null, the list stays as it is', () => {
     expect(rank(jobs, '%%')).toBeNull();
     expect(rank([], 'java')).toEqual({ ids: [], marks: new Map() });
+  });
+});
+
+describe('marksWithin', () => {
+  it('the marks in a part of the text, from its start, cut at its ends', () => {
+    expect(marksWithin([0, 3, 5, 9, 12, 14], 4, 10)).toEqual([1, 5]);
+    expect(marksWithin([2, 8], 4, 6)).toEqual([0, 2]);
+    expect(marksWithin(undefined, 0, 5)).toEqual([]);
   });
 });

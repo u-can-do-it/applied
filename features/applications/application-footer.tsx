@@ -1,15 +1,15 @@
 'use client';
 
 import type { Ref } from 'react';
-import { ExternalLinkIcon, PencilIcon, TriangleAlertIcon } from 'lucide-react';
-import { Alert, AlertTitle } from '@/components/ui/alert';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { SheetFooter } from '@/components/ui/sheet';
+import { PencilIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { JobSheetFooter, OpenOnBoard } from './job-sheet';
 import type { Shown } from './use-application';
 
 /** The application window's buttons, and what went wrong with the last one. */
 export function ApplicationFooter({
   app,
+  board,
   busy,
   error,
   editButton,
@@ -19,6 +19,7 @@ export function ApplicationFooter({
   onClose,
 }: {
   app: Shown;
+  board: string;
   busy: boolean;
   error: string | null;
   editButton: Ref<HTMLButtonElement>;
@@ -30,13 +31,7 @@ export function ApplicationFooter({
   const waiting = app.content === undefined || app.contentStatus === 'pending';
   const hasText = app.contentStatus === 'ok' && !!app.content;
   return (
-    <SheetFooter className="mt-0 flex-row flex-wrap items-center justify-end gap-2 border-t px-3.5 py-2.5 sm:px-5 sm:py-3">
-      {error && (
-        <Alert variant="destructive" className="basis-full">
-          <TriangleAlertIcon />
-          <AlertTitle className="font-normal">{error}</AlertTitle>
-        </Alert>
-      )}
+    <JobSheetFooter error={error}>
       <Button
         type="button"
         variant="destructive"
@@ -62,14 +57,10 @@ export function ApplicationFooter({
           Fetch again
         </Button>
       )}
-      {app.url && (
-        <a className={buttonVariants({ variant: 'outline' })} href={app.url} target="_blank" rel="noopener noreferrer">
-          Open original <ExternalLinkIcon />
-        </a>
-      )}
+      {app.url && <OpenOnBoard url={app.url} board={board} />}
       <Button type="button" onClick={onClose}>
         Close
       </Button>
-    </SheetFooter>
+    </JobSheetFooter>
   );
 }

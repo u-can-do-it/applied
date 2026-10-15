@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
+import { rank } from '@/lib/shared/search';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { searchBox, searchInput } from '@/components/search-field';
@@ -115,13 +116,13 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
   // the ones you applied for in the dates: the statistics count these, the list shows them
   const inRange = useMemo(() => (range ? apps.filter(range.test) : apps), [apps, range]);
 
-  const shown = useMemo(() => {
-    const words = search.toLowerCase().split(/\s+/).filter(Boolean);
-    return inRange.filter(
-      (app) =>
-        (!filter || filter.test(app)) &&
-        words.every((word) => `${app.title} ${app.company ?? ''} ${app.note ?? ''}`.toLowerCase().includes(word)),
-    );
+  // the search is the offers' (lib/shared/search.ts), its words marked in the rows; the list stays by day
+  const { shown, marks } = useMemo(() => {
+    const filtered = filter ? inRange.filter((app) => filter.test(app)) : inRange;
+    const found = search.trim() ? rank(filtered, search) : null;
+    if (!found) return { shown: filtered, marks: undefined };
+    const ids = new Set(found.ids);
+    return { shown: filtered.filter((app) => ids.has(app.jobId)), marks: found.marks };
   }, [inRange, search, filter]);
 
   if (!apps.length) {
@@ -212,6 +213,7 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
                   <ApplicationRow
                     app={app}
                     labels={labels}
+                    marks={marks?.get(app.jobId)}
                     active={open?.jobId === app.jobId}
                     onOpen={() => void show(app)}
                   />

@@ -8,9 +8,6 @@ import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { cn } from '@/lib/shared/cn';
 import { useConfirm } from '@/components/confirm';
-import { useReturnFocus } from '@/components/return-focus';
-import { keepOpenOnToast } from '@/components/toasts';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
   assessFitAction,
   refetchContentAction,
@@ -21,8 +18,9 @@ import {
 } from './actions';
 import { AdDetails } from './ad-details';
 import { AdText } from './ad-text';
-import { ApplicationFit, FitSummary, useFitCheck } from './application-fit';
+import { useFitCheck } from './application-fit';
 import { ApplicationFooter } from './application-footer';
+import { JobSheet, JobSheetBody, JobSheetHeader } from './job-sheet';
 import { moveDraft, writeDraft } from './note-drafts';
 import { LazyApplicationForm, loadApplicationForm } from './lazy-application-form';
 import { NoteEditor, type NoteHandle } from './note-editor';
@@ -34,7 +32,7 @@ import { useDay } from './use-day';
 // status, details, note) and keeps one height: only the ad text loads, into its own box, and
 // everything between the title and the buttons scrolls inside the window. "Edit" shows the "Add
 // application" form in its place.
-// Not modal: no backdrop, the page keeps scrolling, and the list beside it stays in use: a click on
+// The same window as an offer's (JobSheet): not modal, the list beside it stays in use, and a click on
 // another application shows that one here (the list asks leave() first); a click anywhere else closes it.
 
 export type SheetHandle = {
@@ -66,7 +64,6 @@ export function ApplicationSheet({
   useEffect(() => void loadApplicationForm(), []); // "Edit"'s form, so it's in before it's wanted
   const [open, setOpen] = useState(true);
   const confirm = useConfirm();
-  const focus = useReturnFocus();
   const note = useRef<NoteHandle>(null);
   const editButton = useRef<HTMLButtonElement>(null);
   // back from the form to the window: focus where you left it (the form, now gone, had it)
@@ -75,7 +72,6 @@ export function ApplicationSheet({
     requestAnimationFrame(() => editButton.current?.focus());
   };
   const closedWith = useRef<string | null | undefined>(undefined); // the note as the window closed
-  const clickedAway = useRef(false); // closed by a click elsewhere on the page: the focus stays there
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, start] = useTransition();
@@ -197,114 +193,77 @@ export function ApplicationSheet({
       close();
     });
   };
-  const subtitle = (
-    <>
-      {app.company && <>{app.company} · </>}
-      {labels[app.src] ?? app.src} · applied {day(app.appliedAt)}
-    </>
-  );
+  const board = labels[app.src] ?? app.src;
 
-  // A side panel: it reads like a page about one application, as tall as the screen, with the list
-  // still in view beside it on a wide one
   return (
-    <Sheet open={open} onOpenChange={(next) => !next && close()} modal={false}>
-      <SheetContent
-        className={cn(
-          'gap-0 shadow-2xl outline-none data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]',
-          switched && 'data-open:animate-none',
-        )}
-        showCloseButton={!editing}
-        // the window itself takes the focus, not its first button: on the fit badge, its checklist would open
-        onOpenAutoFocus={(event) => {
-          event.preventDefault();
-          if (event.target instanceof HTMLElement) event.target.focus();
-        }}
-        // editing: Esc goes back to the window, and a click outside does nothing (the form would be lost)
-        onEscapeKeyDown={(event) => {
-          if (!editing) return;
-          event.preventDefault();
-          stopEditing();
-        }}
-        // a click in the list picks another application (the list switches the window); elsewhere, it closes
-        onPointerDownOutside={(event) => {
-          const target = event.target instanceof Element ? event.target : null;
-          if (editing || target?.closest('[data-application-list]')) event.preventDefault();
-          else keepOpenOnToast(event);
-          clickedAway.current = !event.defaultPrevented;
-        }}
-        // the focus going elsewhere (a confirmation, a toast, the list) isn't leaving
-        onFocusOutside={(event) => event.preventDefault()}
-        onCloseAutoFocus={(event) => {
-          // still open: it's going because another application took its place (leave() said the rest)
-          if (open) {
-            event.preventDefault();
-            return;
-          }
-          if (clickedAway.current) event.preventDefault();
-          else focus.onCloseAutoFocus(event);
-          onClose(closedWith.current, jobId);
-        }}
-      >
-        {editing && <LazyApplicationForm app={app as ApplicationWithContent} onCancel={stopEditing} onSaved={saved} />}
-        {/* hidden, not gone, while editing: the note keeps what you typed */}
-        <div className={cn('flex min-h-0 flex-1 flex-col', editing && 'hidden')}>
-          <SheetHeader className="group/header gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">
-            <div className="flex items-start gap-3">
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                {/* the form has the window's title while it's open */}
-                {editing ? (
-                  <h2 className="m-0 text-lg font-semibold">{app.title}</h2>
-                ) : (
-                  <SheetTitle className="text-lg font-semibold">{app.title}</SheetTitle>
-                )}
-                {editing ? (
-                  <p className="m-0 text-[13px] text-muted-foreground">{subtitle}</p>
-                ) : (
-                  <SheetDescription className="text-[13px]">{subtitle}</SheetDescription>
-                )}
-              </div>
-              <ApplicationFit app={app} checking={fit.checking} onCheck={fit.check} />
-            </div>
-            <FitSummary app={app} />
-          </SheetHeader>
+    <JobSheet
+      open={open}
+      onDismiss={close}
+      onGone={() => onClose(closedWith.current, jobId)}
+      // editing: a click outside does nothing (the form would be lost); a click in the list picks
+      // another application (the list switches the window)
+      keepOpen={(target) => editing || Boolean(target?.closest('[data-application-list]'))}
+      // editing: Esc goes back to the window
+      onEscapeKeyDown={(event) => {
+        if (!editing) return;
+        event.preventDefault();
+        stopEditing();
+      }}
+      switched={switched}
+      showCloseButton={!editing}
+    >
+      {editing && <LazyApplicationForm app={app as ApplicationWithContent} onCancel={stopEditing} onSaved={saved} />}
+      {/* hidden, not gone, while editing: the note keeps what you typed */}
+      <div className={cn('flex min-h-0 flex-1 flex-col', editing && 'hidden')}>
+        <JobSheetHeader
+          title={app.title}
+          company={app.company}
+          board={board}
+          when={`applied ${day(app.appliedAt)}`}
+          fit={app}
+          checking={fit.checking}
+          onCheck={fit.check}
+          // the form has the window's title while it's open
+          plain={editing}
+        />
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-3.5 py-3 [scrollbar-gutter:stable] *:shrink-0 sm:px-5 sm:py-3.5">
-            <StatusEditor app={app} busy={busy} onStatus={setStatus} onRemoveStep={(i) => void removeStep(i)} />
-            <NoteEditor
-              ref={note}
-              jobId={jobId}
-              store={{
-                save: (text, seenAt) => setApplicationNoteAction({ jobId, note: text, seenAt }),
-                load: () => loadApplication(jobId),
-              }}
-              initial={initial.note ?? ''}
-              seenAt={initial.noteUpdatedAt}
-              editedAt={app.noteUpdatedAt}
-              onSaved={(text, at) => onNoteSaved(jobId, text, at)}
-              onStale={() => onNoteStale(jobId)}
-            />
-            <AdDetails details={app.details} />
-            <AdText ad={app} loadError={loaded.error ? message(loaded.error) : null} />
-          </div>
-
-          <ApplicationFooter
-            app={app}
-            busy={busy}
-            error={actionError}
-            editButton={editButton}
-            onUnmark={() => void unmark()}
-            onEdit={() => setEditing(true)}
-            onFetchAgain={() => {
-              show({ ...app, content: undefined }); // back to the placeholder while it fetches
-              act(async () => {
-                unwrap(await refetchContentAction({ jobId }));
-                await reload();
-              });
+        <JobSheetBody>
+          <StatusEditor app={app} busy={busy} onStatus={setStatus} onRemoveStep={(i) => void removeStep(i)} />
+          <NoteEditor
+            ref={note}
+            jobId={jobId}
+            store={{
+              save: (text, seenAt) => setApplicationNoteAction({ jobId, note: text, seenAt }),
+              load: () => loadApplication(jobId),
             }}
-            onClose={close}
+            initial={initial.note ?? ''}
+            seenAt={initial.noteUpdatedAt}
+            editedAt={app.noteUpdatedAt}
+            onSaved={(text, at) => onNoteSaved(jobId, text, at)}
+            onStale={() => onNoteStale(jobId)}
           />
-        </div>
-      </SheetContent>
-    </Sheet>
+          <AdDetails details={app.details} />
+          <AdText ad={app} loadError={loaded.error ? message(loaded.error) : null} />
+        </JobSheetBody>
+
+        <ApplicationFooter
+          app={app}
+          board={board}
+          busy={busy}
+          error={actionError}
+          editButton={editButton}
+          onUnmark={() => void unmark()}
+          onEdit={() => setEditing(true)}
+          onFetchAgain={() => {
+            show({ ...app, content: undefined }); // back to the placeholder while it fetches
+            act(async () => {
+              unwrap(await refetchContentAction({ jobId }));
+              await reload();
+            });
+          }}
+          onClose={close}
+        />
+      </div>
+    </JobSheet>
   );
 }

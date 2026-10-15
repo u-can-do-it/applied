@@ -2,6 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import type { ListedApplication } from '@/lib/applications';
+import type { Marks } from '@/lib/shared/search';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ApplicationRow } from '@/features/applications/application-row';
 import { RENT_A_DEV } from '@/features/offers/rent-a-dev';
@@ -23,10 +24,15 @@ const app = (fit: ListedApplication['fit'], bodyLeasing: boolean | null = null) 
     fit,
   }) as unknown as ListedApplication;
 
-const row = (fit: ListedApplication['fit'], bodyLeasing: boolean | null = null) => {
+const row = (fit: ListedApplication['fit'], bodyLeasing: boolean | null = null, marks?: Marks, note?: string) => {
   render(
     <TooltipProvider>
-      <ApplicationRow app={app(fit, bodyLeasing)} labels={{ justjoin: 'JustJoin' }} onOpen={() => {}} />
+      <ApplicationRow
+        app={{ ...app(fit, bodyLeasing), ...(note && { note }) }}
+        labels={{ justjoin: 'JustJoin' }}
+        marks={marks}
+        onOpen={() => {}}
+      />
     </TooltipProvider>,
   );
   return screen.getByRole('button');
@@ -71,4 +77,10 @@ it('Rent-a-dev: by the verdict, unless the application has its own call on it', 
   cleanup();
   row({ ...fit, bodyLeasing: null }); // judged before it was asked
   expect(screen.queryByText(RENT_A_DEV.label)).toBeNull();
+});
+
+it('a search’s words marked, as on the offers: in the title, the company and the note’s first line', () => {
+  const button = row(null, null, { title: [0, 5], company: [0, 2], note: [6, 11, 12, 16] }, '  Ask Scala team\nlater');
+  const marked = [...button.querySelectorAll('mark')].map((mark) => mark.textContent);
+  expect(marked).toEqual(['Front', 'Ac', 'Scala', 'team']);
 });
