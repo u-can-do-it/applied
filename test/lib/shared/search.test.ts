@@ -25,6 +25,16 @@ describe('rank', () => {
     expect(ids('ptyhno')).toEqual([]); // two
   });
 
+  it('forgives a typo only when nothing is found as typed', () => {
+    const companies = [
+      { jobId: 'telemedi', title: 'Full Stack Developer', company: 'Telemedi - digital health' },
+      { jobId: 'digis', title: 'React Developer', company: 'Digis' },
+    ];
+    expect(rank(companies, 'digis')?.ids).toEqual(['digis']);
+    expect(rank(companies, 'digit')?.ids).toEqual(['telemedi']);
+    expect(rank(companies, 'digiz')?.ids.sort()).toEqual(['digis', 'telemedi']);
+  });
+
   it('ranks a whole word at the start first, then the newest', () => {
     expect(ids('dev')).toEqual(['advocate', 'java', 'dotnet', 'react']);
     expect(ids('developer')).toEqual(['advocate', 'java', 'dotnet', 'react']);

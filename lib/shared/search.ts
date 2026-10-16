@@ -1,8 +1,8 @@
 import uFuzzy from '@leeoniya/ufuzzy';
 
 // The lists' search (the offers', the Applied tab's): every word of it in the title, the company or the
-// note (an application's), in any order, a typo in a longer word forgiven ("devloper", "pyhton"), accents
-// ignored ("lodz" finds Łódź); "quotes" for an exact phrase, -word to leave a word out. The best matches
+// note (an application's), in any order, a typo in a longer word forgiven ("devloper", "pyhton") when
+// nothing is found as typed ("digis" finds Digis, not digital, if there's a Digis), accents ignored ("lodz" finds Łódź); "quotes" for an exact phrase, -word to leave a word out. The best matches
 // first (whole words, at the start, fewer typos), newest first among equal ones. A word with # + or . in
 // it (C#, C++, .NET, Node.js) is looked for as it is: uFuzzy would split it at those. uFuzzy
 // (https://github.com/leeoniya/uFuzzy) does the matching.
@@ -21,6 +21,8 @@ const SEP = ' · ';
 /** words past these aren't tried in every order: more would be up to 6! tries */
 const IN_ANY_ORDER = 5;
 
+// as typed: the letters of a word one after another, no typo
+const exact = new uFuzzy({ intraIns: 0 });
 const uf = new uFuzzy({
   // one typo per word: a wrong, missing, extra or swapped letter
   // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- IntraMode.SingleError: a const enum, there's no value to import
@@ -64,7 +66,9 @@ export function rank(jobs: readonly Searchable[], query: string): Ranked | null 
     jobs.map((job) => job.title + SEP + (job.company ?? '') + (job.note ? SEP + job.note : '')),
   );
   const needle = uFuzzy.latinize(keepPunctuation(query));
-  const [idxs, info] = uf.search(haystack, needle, IN_ANY_ORDER, Infinity);
+  let [idxs, info] = exact.search(haystack, needle, IN_ANY_ORDER, Infinity);
+  // found nothing as typed: a typo, then
+  if (idxs?.length === 0) [idxs, info] = uf.search(haystack, needle, IN_ANY_ORDER, Infinity);
   if (!idxs) return null;
   const marks = new Map<string, Marks>();
   // more words than are tried in every order, or only words left out: no ranking, the newest first
