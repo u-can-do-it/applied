@@ -16,11 +16,12 @@ export const pracuj: ScrapedBoard<'pracuj'> = {
       'An it.pracuj.pl search page (its Next.js data), 50 jobs a page, read through ScrapingAnt (its Cloudflare turns ' +
       'this server away). /praca/<keyword>;kw searches, sc=0 is the newest first (promoted offers lead each part of ' +
       'the list). A job in several cities is one offer with each city. ' +
-      'Every page costs a ScrapingAnt credit, so the schedule makes one call every 20 minutes between its scrapers.',
+      'Every page costs a ScrapingAnt credit, so the schedule makes one call every 10 minutes between its scrapers.',
     defaults: { url: 'https://it.pracuj.pl/praca/{keyword};kw?sc=0', checkKeyword: true, checkLocation: true },
-    // ScrapingAnt's free 10,000 credits a month, shared: one page every 20 minutes from 7 to 22 is ~1,350 (15 would
-    // be every 10: a scraper is due 5 minutes early, lib/listings/quota.ts). A scraper may set its own (everyMinutes)
-    minutesPerCall: 20,
+    // ScrapingAnt's free 10,000 credits a month, its only two boards since Eldorado's search left it: a page a run of
+    // a 10-minute schedule from 7 to 22 is ~2,700 a month (~2,060 with hourly weekends). More keywords share the
+    // calls; a scraper may set its own interval (everyMinutes)
+    minutesPerCall: 10,
     seeds: [{ name: 'Pracuj.pl' }],
   },
 };

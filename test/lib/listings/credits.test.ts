@@ -37,13 +37,13 @@ describe('ScrapingAnt credits a month', () => {
       config: { url: 'https://it.pracuj.pl/praca/{keyword};kw?sc=0', everyMinutes: 60 },
     });
     const justjoin = scraper('justjoin', 'https://justjoin.it/api/candidate-api/offers?keywords={keyword}');
-    // 15 hours a day for 30 days: every 20 minutes 1,350 pages, every hour 450
-    expect(credits([protocol, eldorado, own, justjoin])).toEqual({ theprotocol: 1350, pracuj: 450 });
-    // two keywords: twice the pages, and the board's share every 40 minutes: the same credits
-    expect(credits([protocol], { keywords: ['React', 'Vue'] })).toEqual({ theprotocol: 1350 });
+    // 15 hours a day for 30 days: every 10 minutes 2,700 pages, every hour 450
+    expect(credits([protocol, eldorado, own, justjoin])).toEqual({ theprotocol: 2700, pracuj: 450 });
+    // two keywords: twice the pages, and the board's share every 20 minutes: the same credits
+    expect(credits([protocol], { keywords: ['React', 'Vue'] })).toEqual({ theprotocol: 2700 });
     // off: nothing; all day (from = to): 24 hours
     expect(credits([{ ...protocol, enabled: false }])).toEqual({});
-    expect(credits([protocol], { fromHour: 0, toHour: 0 })).toEqual({ theprotocol: 2160 });
+    expect(credits([protocol], { fromHour: 0, toHour: 0 })).toEqual({ theprotocol: 4320 });
   });
 
   it('what they would spend until the credits reset, at that pace', () => {

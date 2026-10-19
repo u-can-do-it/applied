@@ -123,9 +123,9 @@ describe('ScrapingAntCredits', () => {
       );
       return answer;
     });
-    // 45 calls a weekday (every 20 minutes for 15 hours), 30 a weekend day (every 30): ~1,221 a month
+    // 90 calls a weekday (every 10 minutes for 15 hours), 30 a weekend day (every 30): ~2,186 a month
     expect(screen.getByText(/100 of 10,000 credits left/)).toBeTruthy();
-    expect(screen.getByText(/Pracuj\.pl 1,221/)).toBeTruthy();
+    expect(screen.getByText(/Pracuj\.pl 2,186/)).toBeTruthy();
     expect(screen.getByText(/more than is left/)).toBeTruthy();
   });
 });

@@ -107,8 +107,8 @@ describe('the quota of calls', () => {
       });
     const shared = protocol();
     const own = protocol({ config: { ...shared.config, everyMinutes: 180 } });
-    // the board's 20 minutes a call, two keywords: 40; its own interval doesn't count against it
-    expect(intervalOf(shared, [shared, own], keywords)).toBe(40);
+    // the board's 10 minutes a call, two keywords: 20; its own interval doesn't count against it
+    expect(intervalOf(shared, [shared, own], keywords)).toBe(20);
     expect(intervalOf(own, [shared, own], keywords)).toBe(180);
     expect(isDue({ ...own, lastRunAt: ago(170) }, [own], keywords, now)).toBe(false);
     expect(isDue({ ...own, lastRunAt: ago(176) }, [own], keywords, now)).toBe(true);
