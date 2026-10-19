@@ -1,4 +1,4 @@
-// bulldogjob.pl: its listing: lib/listings/parsers/bulldog.ts; its ads: the page's JobPosting.
+// bulldogjob.pl: its listing: lib/listings/parsers/bulldog.ts; its ads: lib/ads/bulldog.ts.
 import { pathOf } from './links.ts';
 import type { ScrapedBoard } from './types.ts';
 
