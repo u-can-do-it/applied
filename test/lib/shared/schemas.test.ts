@@ -250,6 +250,7 @@ describe('scraperSchema', () => {
     expect(board('theprotocol', 60)).toBe(60);
     expect(board('eldorado', 60)).toBeUndefined(); // its MCP search costs no credits
     expect(board('pracuj', 0)).toBeUndefined(); // its board's share
+    expect(board('pracuj', 10)).toBe(10);
     expect(board('pracuj', 7)).toBeUndefined();
     expect(board('justjoin', 180)).toBeUndefined();
   });

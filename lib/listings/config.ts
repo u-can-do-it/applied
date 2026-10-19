@@ -47,7 +47,7 @@ export type ScraperConfig = {
 };
 
 /** A scraper's own interval: whole schedule steps, as a scraper is due 5 minutes early (lib/listings/quota.ts). */
-export const SCRAPER_INTERVALS = [20, 30, 60, 120, 180, 360, 720] as const;
+export const SCRAPER_INTERVALS = [10, 20, 30, 60, 120, 180, 360, 720] as const;
 
 /** The search a board's own scraper starts with. */
 export type SearchDefaults = Pick<ScraperConfig, 'url' | 'pages' | 'headers' | 'checkKeyword' | 'checkLocation'>;
