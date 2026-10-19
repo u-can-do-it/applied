@@ -69,9 +69,9 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
    result, never the run's. After the scrapers, the jobs LinkedIn's alert emails queued (`alerts.ts`): each one a
    scraper hasn't got has its posting read (title, company, place, ad; the ad check's limits) and the same
    filters applied; what became of them is saved once the offers are. A board with a quota
-   of calls (`listing.minutesPerCall`: Adzuna and Himalayas one every 20 minutes, Jobicy and Remote OK one an hour, Remotive one every 6 hours, as their terms ask) is scraped by the schedule only as often as its
+   of calls (`listing.minutesPerCall`: Adzuna and Himalayas one every 20 minutes, Jobicy and Remote OK one an hour, Remotive one every 6 hours, as their terms ask; The Protocol one every 15 minutes, for ScrapingAnt's credits) is scraped by the schedule only as often as its
    scrapers' calls allow ([`lib/listings/quota.ts`](../lib/listings/quota.ts)): `scrapersToRun` leaves them
-   out of a cron run in between; "Scrape now" and `/scrape` take them anyway. What its API needs in every link (the keys, from the environment, and
+   out of a cron run in between; "Scrape now" and `/scrape` take them anyway. What its API needs in every link (the keys and The Protocol's trackingId, from the environment, and
    Adzuna's `content-type`) is added to the request only (`lib/listings/api-params.ts`); an `ats` scraper's
    careers link is requested as its ATS's public API ([`lib/listings/ats.ts`](../lib/listings/ats.ts)).
 2. **`pickOwners`** (`owners.ts`, pure): the first scraper that found an offer owns it.

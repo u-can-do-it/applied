@@ -15,6 +15,7 @@ import { parseRemoteok } from './parsers/remoteok';
 import { parseRemotive } from './parsers/remotive';
 import { parseRss } from './parsers/rss';
 import { parseSolidjobs } from './parsers/solidjobs';
+import { parseTheprotocol } from './parsers/theprotocol';
 import type { ListingParser } from './types';
 
 /** Each scraper kind's parser: a scraped board's own (lib/boards/ has the board), or a generic one. */
@@ -31,6 +32,7 @@ export const PARSERS = {
   remotive: parseRemotive,
   jobicy: parseJobicy,
   remoteok: parseRemoteok,
+  theprotocol: parseTheprotocol,
   json: parseJson,
   html: parseHtmlListing,
   rss: parseRss,

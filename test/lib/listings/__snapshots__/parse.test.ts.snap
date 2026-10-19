@@ -820,3 +820,140 @@ exports[`built-in board parsers > solidjobs: the public API 1`] = `
   },
 ]
 `;
+
+exports[`built-in board parsers > theprotocol: a listing page; remote when a work mode is, in either language; dated in UTC 1`] = `
+[
+  {
+    "company": "ASTEK Polska",
+    "id": "01000000-d734-1a7d-9c13-08df2dc36c56",
+    "locations": [
+      "Wrocław",
+    ],
+    "remote": false,
+    "seniority": "mid",
+    "skills": [
+      "Jira",
+      "Postman",
+      "SQL",
+      "SoapUI",
+    ],
+    "sort": 1792402144133,
+    "src": "theprotocol",
+    "title": "Tester Manualny - bankowość (K/M)",
+    "url": "https://theprotocol.it/szczegoly/praca/tester-manualny---bankowosc-k-m-wroclaw,oferta,01000000-d734-1a7d-9c13-08df2dc36c56",
+  },
+  {
+    "company": "UPVANTA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+    "id": "01000000-094d-0a29-ea17-08df2dc3c05b",
+    "locations": [
+      "Gdańsk",
+    ],
+    "remote": true,
+    "seniority": "mid",
+    "skills": [
+      "Flutter",
+      "Dart",
+    ],
+    "sort": 1792402285313,
+    "src": "theprotocol",
+    "title": "Flutter Developer (Mid) (m/k/n)",
+    "url": "https://theprotocol.it/szczegoly/praca/flutter-developer-mid-m-k-n-gdansk,oferta,01000000-094d-0a29-ea17-08df2dc3c05b",
+  },
+  {
+    "company": "VIEGA sp. z o.o.",
+    "id": "01000000-d734-1a7d-144d-08df2dc3b501",
+    "locations": [
+      "Kraków",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [
+      "Windows",
+      "Linux",
+      "Cloud",
+      "Vulnerability Management",
+    ],
+    "sort": 1792402266107,
+    "src": "theprotocol",
+    "title": "IT Security Engineer (M/K/N)",
+    "url": "https://theprotocol.it/szczegoly/praca/it-security-engineer-m-k-n-krakow-pawia-9,oferta,01000000-d734-1a7d-144d-08df2dc3b501",
+  },
+]
+`;
+
+exports[`built-in board parsers > theprotocol: the recommendations API, undated (ranked for you) 1`] = `
+[
+  {
+    "company": "PITax sp. z o.o.",
+    "id": "01000000-183e-46c7-a442-08df17afa3f7",
+    "locations": [
+      "Wrocław",
+    ],
+    "remote": false,
+    "seniority": "mid",
+    "skills": [
+      "JavaScript",
+      "CSS",
+      "SEO",
+      "HTML",
+      "React.js",
+      "Claude Code",
+      "PHP",
+    ],
+    "sort": undefined,
+    "src": "theprotocol",
+    "title": "Frontend Developer (AI-first)",
+    "url": "https://theprotocol.it/szczegoly/praca/frontend-developer-ai-first-wroclaw-szczytnicka-11,oferta,01000000-183e-46c7-a442-08df17afa3f7",
+  },
+  {
+    "company": "NATEK POLAND",
+    "id": "01000000-9f03-57f4-3b1c-08df1d62940b",
+    "locations": [
+      "Warszawa",
+    ],
+    "remote": true,
+    "seniority": "mid",
+    "skills": [
+      "Angular",
+      "TypeScript",
+      "JavaScript",
+      "RxJS",
+      "Nx",
+      "REST API",
+      "HTML",
+      "CSS",
+      "Git",
+      "SQL",
+    ],
+    "sort": undefined,
+    "src": "theprotocol",
+    "title": "Frontend Developer (m/f)",
+    "url": "https://theprotocol.it/szczegoly/praca/frontend-developer-m-f-warszawa,oferta,01000000-9f03-57f4-3b1c-08df1d62940b",
+  },
+  {
+    "company": "Sii Sp. z o.o.",
+    "id": "01000000-97b9-4ab4-6b70-08df29329be8",
+    "locations": [
+      "Rzeszów",
+    ],
+    "remote": true,
+    "seniority": "senior",
+    "skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL",
+      "SQLAlchemy",
+      "Alembic",
+      "Pydantic AI",
+      "REST",
+      "AWS",
+      "React.js",
+      "JavaScript",
+    ],
+    "sort": undefined,
+    "src": "theprotocol",
+    "title": "Senior Python Developer (f/m/x)",
+    "url": "https://theprotocol.it/szczegoly/praca/senior-python-developer-f-m-x-rzeszow-aleja-tadeusza-rejtana-20b,oferta,01000000-97b9-4ab4-6b70-08df29329be8",
+  },
+]
+`;

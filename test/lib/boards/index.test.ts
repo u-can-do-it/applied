@@ -165,6 +165,12 @@ describe('boardIdOf', () => {
     expect(boardIdOf('remoteok', 'https://remoteOK.com/remote-jobs/remote-frontend-engineer-bjak-1137420')).toBe(
       '1137420',
     );
+    expect(
+      boardIdOf(
+        'theprotocol',
+        'https://theprotocol.it/szczegoly/praca/frontend-developer-wroclaw,oferta,01000000-183E-46c7-a442-08df17afa3f7?sug=listing_bd_1',
+      ),
+    ).toBe('01000000-183e-46c7-a442-08df17afa3f7');
     expect(boardIdOf('linkedin', 'https://www.linkedin.com/jobs/view/4123456789/')).toBe('4123456789');
     expect(boardIdOf('linkedin', 'https://pl.linkedin.com/jobs/view/senior-dev-at-acme-4123456789')).toBe('4123456789');
     expect(

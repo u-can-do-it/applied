@@ -175,6 +175,40 @@ describe('built-in board parsers', () => {
     expect(result.items).toMatchSnapshot();
   });
 
+  it('theprotocol: a listing page; remote when a work mode is, in either language; dated in UTC', () => {
+    const result = parse('theprotocol', fixture('theprotocol.html'));
+    expect(result.total).toBe(3);
+    const [office, polish, english] = result.items;
+    expect(office).toMatchObject({ src: 'theprotocol', remote: false, seniority: 'mid', locations: ['Wrocław'] });
+    expect(polish).toMatchObject({ remote: true, locations: ['Gdańsk'] });
+    expect(english).toMatchObject({ remote: true, seniority: 'senior', locations: ['Kraków'] });
+    // "2026-10-19T09:31:25.313", without its Z: UTC, whatever the server's time zone
+    expect(polish.sort).toBe(Date.UTC(2026, 9, 19, 9, 31, 25, 313));
+    for (const offer of result.items) {
+      expect(offer.url).toMatch(new RegExp(`^https://theprotocol\\.it/szczegoly/praca/[^?]+,oferta,${offer.id}$`));
+      expect(offer.skills.length).toBeGreaterThan(0);
+    }
+    expect(result.items).toMatchSnapshot();
+  });
+
+  it('theprotocol: the recommendations API, undated (ranked for you)', () => {
+    const result = parse('theprotocol', fixture('theprotocol.json'));
+    expect(result.total).toBe(3);
+    const [office, polish, english] = result.items;
+    expect(office).toMatchObject({ src: 'theprotocol', remote: false, seniority: 'mid', locations: ['Wrocław'] });
+    // "zdalna" among its modes, and two levels: the first one counts
+    expect(polish).toMatchObject({ remote: true, seniority: 'mid', locations: ['Warszawa'] });
+    expect(english).toMatchObject({ remote: true, seniority: 'senior', locations: ['Rzeszów'] });
+    for (const offer of result.items) {
+      // without the ?sug= it came with
+      expect(offer.url).toBe(`https://theprotocol.it/szczegoly/praca/${offer.url.split('/').pop()}`);
+      expect(offer.url).toMatch(new RegExp(`,oferta,${offer.id}$`));
+      expect(offer.sort).toBeUndefined();
+      expect(offer.skills.length).toBeGreaterThan(0);
+    }
+    expect(result.items).toMatchSnapshot();
+  });
+
   it('adzuna: the search API', () => {
     const result = parse('adzuna', fixture('adzuna.json'));
     expect(result.total).toBe(3);
@@ -260,6 +294,11 @@ describe('board parser edge cases', () => {
     expect(() => parse('remotive', '{"jobs":null}')).toThrow('Remotive: no jobs list (got jobs)');
     expect(() => parse('jobicy', '{"success":false}')).toThrow('Jobicy: no jobs list (got success)');
     expect(() => parse('remoteok', '{"error":"rate limited"}')).toThrow('Remote OK: no jobs list (got error)');
+    expect(() => parse('theprotocol', '{"errors":[]}')).toThrow('theprotocol.it: no offers list (got errors)');
+    // Cloudflare's challenge, had ScrapingAnt not got through
+    expect(() => parse('theprotocol', '<!DOCTYPE html><title>Just a moment...</title>')).toThrow(
+      /no offers in the page/,
+    );
     // what it answers a browser's Accept without content-type=application/json (lib/listings/api-params.ts)
     expect(() => parse('adzuna', '<!DOCTYPE html><title>Adzuna API</title>')).toThrow(/is not JSON/);
   });

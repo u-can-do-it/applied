@@ -40,11 +40,12 @@ export const SCRAPED_BOARDS = [
   remotive,
   jobicy,
   remoteok,
+  theprotocol,
 ] as const;
 export type ScrapedBoardId = (typeof SCRAPED_BOARDS)[number]['id'];
 
 /** Every board: the scraped ones, then the ones known by their links only (an application's link). */
-export const BOARDS = [...SCRAPED_BOARDS, theprotocol, pracuj, rocketjobs, indeed, olx] as const;
+export const BOARDS = [...SCRAPED_BOARDS, pracuj, rocketjobs, indeed, olx] as const;
 export type BoardId = (typeof BOARDS)[number]['id'];
 type KnownBoard = (typeof BOARDS)[number];
 

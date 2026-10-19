@@ -6,7 +6,7 @@ import type { KindId } from './kinds';
 // What a board's API wants in every request's link: its keys, from the environment, and what makes it answer
 // JSON. Added to the request only, so the keys are never in scrapers.config, in Settings or in a run's results.
 
-type KeyName = 'ADZUNA_APP_ID' | 'ADZUNA_APP_KEY';
+type KeyName = 'ADZUNA_APP_ID' | 'ADZUNA_APP_KEY' | 'THEPROTOCOL_TRACKING_ID';
 type Params = { fixed?: Record<string, string>; keys?: Record<string, KeyName> };
 
 const PARAMS: Partial<Record<KindId, Params>> = {
@@ -15,6 +15,8 @@ const PARAMS: Partial<Record<KindId, Params>> = {
     fixed: { 'content-type': 'application/json' },
     keys: { app_id: 'ADZUNA_APP_ID', app_key: 'ADZUNA_APP_KEY' },
   },
+  // whose recommendations: without one it answers 400, with an unknown one an empty list
+  theprotocol: { keys: { trackingId: 'THEPROTOCOL_TRACKING_ID' } },
 };
 
 function value(name: KeyName): string {

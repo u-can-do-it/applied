@@ -25,6 +25,15 @@ describe('withApiParams', () => {
     expect(withApiParams('adzuna', own)).toBe(own);
   });
 
+  it('asks The Protocol for your recommendations, unless the link names whose', () => {
+    const link = 'https://apus-api.theprotocol.it/v2/recommendations?context=listing&limit=100';
+    vi.stubEnv('THEPROTOCOL_TRACKING_ID', 'the-visitor');
+    expect(withApiParams('theprotocol', link)).toBe(`${link}&trackingId=the-visitor`);
+    expect(withApiParams('theprotocol', `${link}&trackingId=mine`)).toBe(`${link}&trackingId=mine`);
+    vi.stubEnv('THEPROTOCOL_TRACKING_ID', '');
+    expect(() => withApiParams('theprotocol', link)).toThrow(/^THEPROTOCOL_TRACKING_ID is not set/);
+  });
+
   it('says which variable is missing', () => {
     vi.stubEnv('ADZUNA_APP_ID', 'the-id');
     vi.stubEnv('ADZUNA_APP_KEY', '');

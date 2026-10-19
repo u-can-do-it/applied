@@ -162,6 +162,13 @@
       "when": 1791963516397,
       "tag": "0022_scraper_follow_up",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792401777273,
+      "tag": "0023_theprotocol_kind",
+      "breakpoints": true
     }
   ]
 }

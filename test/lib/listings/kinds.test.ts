@@ -51,6 +51,8 @@ describe('scraper kinds', () => {
       ['Remotive', 'remotive'],
       ['Jobicy', 'jobicy'],
       ['Remote OK', 'remoteok'],
+      ['The Protocol', 'theprotocol'],
+      ['The Protocol – recommended', 'theprotocol'],
     ]);
     for (const seed of SEED_SCRAPERS) expect(seed.src).toBe(seed.kind);
     expect(SEED_SCRAPERS[0].config).toEqual(kindOf('justjoin').defaults);
