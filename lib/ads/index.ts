@@ -1,12 +1,13 @@
 // Full ad text for one offer, from the board itself (the listings only have its title and the like).
 // A board with its own way of reading an ad has a file here; the others' pages have a schema.org
-// JobPosting (Eldorado, Bulldog, Solid.jobs), and any other site gives its <main> text.
+// JobPosting (Bulldog, Solid.jobs), and any other site gives its <main> text.
 import 'server-only';
 import { byId, type BoardId } from '../boards';
 import { mainText, pageTitle, parsePage } from '../dom';
 import { htmlToText } from '../shared/html';
 import { readBuiltin } from './builtin';
 import { isAdText, type Ad, type AdReader, type JobDetails, type OfferLink } from './details';
+import { readEldorado } from './eldorado';
 import { get } from './fetch';
 import { readHimalayas } from './himalayas';
 import { findJobPosting, fromJobPosting } from './job-posting';
@@ -26,6 +27,7 @@ const READERS: Partial<Record<BoardId, AdReader>> = {
   builtin: readBuiltin,
   linkedin: readLinkedin,
   himalayas: readHimalayas,
+  eldorado: readEldorado,
 };
 
 function readAd(offer: OfferLink): Promise<Ad> {

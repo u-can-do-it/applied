@@ -34,6 +34,8 @@ The residential proxy fallback is gone with it; Eldorado no longer counts as a b
 - Eldorado costs no ScrapingAnt credits, and its scraper runs on every scheduled run again.
 - It depends on a beta: the tool may change shape or go away without notice. A changed answer fails the scraper
   with what's wrong (Activity shows it); then the search page through a residential proxy is the fallback.
-- Its ads still can't be read (its pages stay behind the challenge): the AI filter sees an Eldorado offer's title,
-  skills and places only, and an offer found only there comes without its ad text.
+- Its ad pages still can't be read (they stay behind the challenge), so an Eldorado offer's ad is what the same
+  tool lists about it, searched by its id (`#<id>`, [`lib/ads/eldorado.ts`](../../lib/ads/eldorado.ts)): the
+  window's salary, contract, places, work mode, date and skills, and a text of them for the AI filter. The ad's
+  own words aren't there.
 - No paging: 50 jobs a search, plenty for a run every 10 minutes.
