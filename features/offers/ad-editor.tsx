@@ -30,7 +30,7 @@ const STATUS: Record<AutosaveStatus, string> = {
 };
 
 /**
- * The ad in an offer's window as you edit it, in the place and size of its text (AdText). It saves
+ * The ad in an offer's window as you edit it, in the place of its text (AdText), taller. It saves
  * itself as the job's ad: at once when you paste, else when you stop typing or leave the box. A link
  * pasted (or Enter) reads the ad from its page, with what the board didn't say besides. `onSaved`: each
  * save's ad, as the window now shows it; `onDone`: you're done editing, everything saved.
@@ -159,7 +159,8 @@ export function AdEditor({
       {warning && <p className="m-0 -mt-1.5 text-xs text-warning">{warning}</p>}
       <Textarea
         aria-label="The ad text"
-        className="min-h-[180px] flex-[1_0_auto]! rounded-lg bg-background px-3.5 py-3 leading-[1.55] md:text-sm"
+        // half the screen at least, for an ad pasted in whole; dvh: with a phone's keyboard up, less
+        className="min-h-[max(180px,50dvh)] flex-[1_0_auto]! rounded-lg bg-background px-3.5 py-3 leading-[1.55] md:text-sm"
         placeholder={AD_PLACEHOLDER}
         value={text}
         disabled={reading}
