@@ -169,6 +169,13 @@
       "when": 1792401777273,
       "tag": "0023_theprotocol_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792403650304,
+      "tag": "0024_pracuj_kind",
+      "breakpoints": true
     }
   ]
 }

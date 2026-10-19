@@ -11,6 +11,7 @@ import { parseJobicy } from './parsers/jobicy';
 import { parseJustjoin } from './parsers/justjoin';
 import { parseLinkedin } from './parsers/linkedin';
 import { parseNofluff } from './parsers/nofluff';
+import { parsePracuj } from './parsers/pracuj';
 import { parseRemoteok } from './parsers/remoteok';
 import { parseRemotive } from './parsers/remotive';
 import { parseRss } from './parsers/rss';
@@ -33,6 +34,7 @@ export const PARSERS = {
   jobicy: parseJobicy,
   remoteok: parseRemoteok,
   theprotocol: parseTheprotocol,
+  pracuj: parsePracuj,
   json: parseJson,
   html: parseHtmlListing,
   rss: parseRss,

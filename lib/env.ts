@@ -58,10 +58,6 @@ const schema = z.object({
   ADZUNA_APP_ID: optional,
   ADZUNA_APP_KEY: optional,
 
-  // theprotocol.it's recommendations (optional: without it its scraper fails with "THEPROTOCOL_TRACKING_ID is not
-  // set"); your visitor id there: DevTools → Network → a request to apus-api.theprotocol.it/v2/recommendations
-  THEPROTOCOL_TRACKING_ID: optional,
-
   // ScrapingAnt (optional: without it a board that blocks this server stays blocked, lib/scraping-ant.ts);
   // app.scrapingant.com → Dashboard → API token
   SCRAPINGANT_API_KEY: optional,

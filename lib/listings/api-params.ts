@@ -6,24 +6,14 @@ import type { KindId } from './kinds';
 // What a board's API wants in every request's link: its keys, from the environment, and what makes it answer
 // JSON. Added to the request only, so the keys are never in scrapers.config, in Settings or in a run's results.
 
-type KeyName = 'ADZUNA_APP_ID' | 'ADZUNA_APP_KEY' | 'THEPROTOCOL_TRACKING_ID';
-type Params = {
-  fixed?: Record<string, string>;
-  keys?: Record<string, KeyName>;
-  /** only for the links this matches (a board whose scrapers read more than its API); else every link */
-  links?: RegExp;
-};
+type KeyName = 'ADZUNA_APP_ID' | 'ADZUNA_APP_KEY';
+type Params = { fixed?: Record<string, string>; keys?: Record<string, KeyName> };
 
 const PARAMS: Partial<Record<KindId, Params>> = {
   // without content-type it answers a browser's Accept (the scraper sends one) with its HTML docs page
   adzuna: {
     fixed: { 'content-type': 'application/json' },
     keys: { app_id: 'ADZUNA_APP_ID', app_key: 'ADZUNA_APP_KEY' },
-  },
-  // whose recommendations: without one it answers 400, with an unknown one an empty list. Its listing pages need none
-  theprotocol: {
-    keys: { trackingId: 'THEPROTOCOL_TRACKING_ID' },
-    links: /^https:\/\/apus-api\.theprotocol\.it\/v2\/recommendations\b/i,
   },
 };
 
@@ -40,7 +30,7 @@ function value(name: KeyName): string {
 export function withApiParams(kind: KindId, link: string): string {
   if (kind === 'ats') return atsApiUrl(link);
   const params = PARAMS[kind];
-  if (!params || (params.links && !params.links.test(link))) return link;
+  if (!params) return link;
   const url = new URL(link);
   const added = new URLSearchParams();
   for (const [param, fixed] of Object.entries(params.fixed ?? {}))

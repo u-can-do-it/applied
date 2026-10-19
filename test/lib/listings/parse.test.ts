@@ -191,19 +191,23 @@ describe('built-in board parsers', () => {
     expect(result.items).toMatchSnapshot();
   });
 
-  it('theprotocol: the recommendations API, undated (ranked for you)', () => {
-    const result = parse('theprotocol', fixture('theprotocol.json'));
+  it('pracuj: the search page; a job in several cities is one offer; its level in brackets', () => {
+    const result = parse('pracuj', fixture('pracuj.html'));
     expect(result.total).toBe(3);
-    const [office, polish, english] = result.items;
-    expect(office).toMatchObject({ src: 'theprotocol', remote: false, seniority: 'mid', locations: ['Wrocław'] });
-    // "zdalna" among its modes, and two levels: the first one counts
-    expect(polish).toMatchObject({ remote: true, seniority: 'mid', locations: ['Warszawa'] });
-    expect(english).toMatchObject({ remote: true, seniority: 'senior', locations: ['Rzeszów'] });
+    const [cities, remote, junior] = result.items;
+    // the first city's offer stands for the job, with every city
+    expect(cities).toMatchObject({
+      src: 'pracuj',
+      remote: false,
+      seniority: 'senior',
+      locations: ['Gdańsk', 'Warszawa'],
+    });
+    expect(remote).toMatchObject({ remote: true, seniority: 'mid', locations: ['Warszawa'] });
+    expect(junior).toMatchObject({ remote: false, seniority: 'junior' });
+    // its first publication, not the last time it was published again
+    expect(cities.sort).toBe(Date.parse('2026-10-16T08:59:22.243Z'));
     for (const offer of result.items) {
-      // without the ?sug= it came with
-      expect(offer.url).toBe(`https://theprotocol.it/szczegoly/praca/${offer.url.split('/').pop()}`);
-      expect(offer.url).toMatch(new RegExp(`,oferta,${offer.id}$`));
-      expect(offer.sort).toBeUndefined();
+      expect(offer.url).toMatch(new RegExp(`^https://www\\.pracuj\\.pl/praca/[^?]+,oferta,${offer.id}$`));
       expect(offer.skills.length).toBeGreaterThan(0);
     }
     expect(result.items).toMatchSnapshot();
@@ -294,10 +298,11 @@ describe('board parser edge cases', () => {
     expect(() => parse('remotive', '{"jobs":null}')).toThrow('Remotive: no jobs list (got jobs)');
     expect(() => parse('jobicy', '{"success":false}')).toThrow('Jobicy: no jobs list (got success)');
     expect(() => parse('remoteok', '{"error":"rate limited"}')).toThrow('Remote OK: no jobs list (got error)');
-    expect(() => parse('theprotocol', '{"errors":[]}')).toThrow('theprotocol.it: no offers list (got errors)');
     // Cloudflare's challenge, had ScrapingAnt not got through
-    expect(() => parse('theprotocol', '<!DOCTYPE html><title>Just a moment...</title>')).toThrow(
-      /no offers in the page/,
+    expect(() => parse('theprotocol', '<!DOCTYPE html><title>Just a moment...</title>')).toThrow(/no __NEXT_DATA__/);
+    expect(() => parse('pracuj', '<!DOCTYPE html><title>Just a moment...</title>')).toThrow(/no __NEXT_DATA__/);
+    expect(() => parse('pracuj', '<script id="__NEXT_DATA__">{"props":{"pageProps":{}}}</script>')).toThrow(
+      /no groupedOffers/,
     );
     // what it answers a browser's Accept without content-type=application/json (lib/listings/api-params.ts)
     expect(() => parse('adzuna', '<!DOCTYPE html><title>Adzuna API</title>')).toThrow(/is not JSON/);
