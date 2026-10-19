@@ -32,6 +32,9 @@ describe('withApiParams', () => {
     expect(withApiParams('theprotocol', `${link}&trackingId=mine`)).toBe(`${link}&trackingId=mine`);
     vi.stubEnv('THEPROTOCOL_TRACKING_ID', '');
     expect(() => withApiParams('theprotocol', link)).toThrow(/^THEPROTOCOL_TRACKING_ID is not set/);
+    // its listing pages are nobody's: they need no trackingId, set or not
+    const page = 'https://theprotocol.it/praca?sort=date&pageNumber=1';
+    expect(withApiParams('theprotocol', page)).toBe(page);
   });
 
   it('says which variable is missing', () => {
