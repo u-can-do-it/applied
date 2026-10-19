@@ -1,13 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { countPending, latestRun, needsWorker, rangeStats, startRun } from '@/lib/ai/runs';
 import * as pairsRepo from '@/lib/db/repos/ai-dup-pairs';
 import * as runsRepo from '@/lib/db/repos/ai-runs';
 import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as verdictsRepo from '@/lib/db/repos/ai-verdicts';
 import * as offersRepo from '@/lib/db/repos/offers';
+import * as scrapeRunsRepo from '@/lib/db/repos/scrape-runs';
+import * as settingsRepo from '@/lib/db/repos/scrape-settings';
+import * as stateRepo from '@/lib/db/repos/scrape-state';
 import { getJobs } from '@/lib/jobs';
 import { activateProfile, fitOf, getProfile, listProfiles, saveProfile } from '@/lib/ai/profiles';
+import { SCRAPE_LOCK_SECONDS } from '@/lib/budgets';
+import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { describeDb, exec, ISO } from './database';
 
 const job = (src: string, id: string, title: string, company: string) => ({
@@ -133,13 +138,42 @@ describeDb('AI verdicts and runs', () => {
     );
 
     // all offers: every job, the judged ones with their verdict (the fit badge), the others without
-    const all = await getJobs({ q: '', src: '', page: 0, verdictsOf: ai });
+    const all = await getJobs({ q: '', src: '', page: 0, verdictsOf: { ...ai, usable: true } });
     expect(all.total).toBe(3);
     expect(all.jobs.map((job) => job.dayCount)).toEqual([3, 3, 3]);
     const verdicts = Object.fromEntries(all.jobs.map((job) => [job.jobId, job.ai && [job.ai.match, job.ai.score]]));
     expect(verdicts).toEqual({ [first]: [true, 90], [second]: [false, 20], [third]: undefined });
     expect(all.jobs.find((job) => job.jobId === third)).not.toHaveProperty('ai');
     expect((await getJobs({ q: '', src: '', page: 0 })).jobs.every((job) => !job.ai)).toBe(true);
+  });
+
+  it('marks the jobs a scrape run is still checking as matching, until judged or the run lets go', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'sk-test');
+    const id = await saveProfile({ name: 'P', prompt: 'React', file: 'keep' });
+    const profile = { id, version: 1 };
+    const [before] = await offersRepo.ingest([job('nofluff', '9', 'Go Developer', 'Delta')]);
+    await stateRepo.lock(SCRAPE_LOCK_SECONDS);
+    await scrapeRunsRepo.start('cron');
+    const [first, second, third] = await threeJobs();
+    await verdictsRepo.save([verdict(profile, first, true)]);
+
+    const matching = async (usable = true) =>
+      (await getJobs({ q: '', src: '', page: 0, verdictsOf: { profileId: id, version: 1, usable } })).jobs
+        .filter((row) => row.matching)
+        .map((row) => row.jobId)
+        .sort();
+    // the run's new jobs without a verdict; not the judged one, nor one from before the run (its check is over)
+    expect(await matching()).toEqual([second, third]);
+    expect(await matching()).not.toContain(before.titleKey);
+    // a profile that can't judge, or the AI filter off: nothing is being checked
+    expect(await matching(false)).toEqual([]);
+    await settingsRepo.save({ ...DEFAULT_SETTINGS, aiFilter: false });
+    expect(await matching()).toEqual([]);
+    await settingsRepo.save(DEFAULT_SETTINGS);
+    // the run's AI check is over: the ones left without a verdict aren't coming
+    await stateRepo.unlock();
+    expect(await matching()).toEqual([]);
+    vi.unstubAllEnvs();
   });
 
   it('a job whose ads all have no text is never pending; one judged on its title alone waits for its ad', async () => {

@@ -4,6 +4,7 @@ import { marksWithin, type Marks } from '@/lib/shared/search';
 import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
 import { FitScore } from './fit-score';
+import { MatchingBadge } from './matching-badge';
 import { RentADev } from './rent-a-dev';
 
 // One job in a list, the offers' or the Applied tab's: the same title, facts, verdict, badges and search
@@ -43,7 +44,8 @@ function NoteLine({ note, marks }: { note: string; marks?: number[] }) {
 /**
  * The row's columns: the title (`before` and `after` it, say a "new" badge, a seen mark, the window's
  * button), the company and `facts`, the verdict's line, the note's first line; then the badges: `top`, the
- * Rent-a-dev, fit and board badges, `bottom`. A search's words are marked in the title, the company and the note.
+ * Rent-a-dev, fit (or, while the AI is `matching` the job, its "matching…") and board badges, `bottom`. A
+ * search's words are marked in the title, the company and the note.
  */
 export function JobRow({
   title,
@@ -51,6 +53,7 @@ export function JobRow({
   company,
   facts,
   verdict,
+  matching = false,
   rentADev,
   note,
   marks,
@@ -68,6 +71,8 @@ export function JobRow({
   company: string | null;
   facts: Fact[];
   verdict?: Verdict | null;
+  /** no verdict yet, and the AI is judging it now */
+  matching?: boolean;
   rentADev: boolean;
   note?: string | null;
   marks?: Marks;
@@ -127,6 +132,7 @@ export function JobRow({
         {top}
         <Box className="flex flex-wrap items-center justify-end gap-1">
           {rentADev && <RentADev />}
+          {!verdict && matching && <MatchingBadge />}
           {verdict && (
             <FitScore
               match={verdict.match}

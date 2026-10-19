@@ -74,6 +74,7 @@ export function OfferRow({
               : { key: 'mode', text: 'Office / hybrid' },
           ]}
           verdict={job.ai}
+          matching={job.matching}
           rentADev={Boolean(job.ai?.bodyLeasing)}
           marks={job.marks}
           boards={boardsOf(job)}

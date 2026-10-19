@@ -1,7 +1,12 @@
 import 'server-only';
+import { checkingSince, isMatching } from './ai/matching';
 import type { DateFilter } from './dates';
 import * as offersRepo from './db/repos/offers';
 import * as runsRepo from './db/repos/scrape-runs';
+import * as settingsRepo from './db/repos/scrape-settings';
+import * as stateRepo from './db/repos/scrape-state';
+import { first } from './db/rows';
+import { env } from './env';
 import type { AiVerdictRow } from './db/schema';
 import { rank, type Marks } from './shared/search';
 import { appZone } from './time-zone';
@@ -10,8 +15,9 @@ import { appZone } from './time-zone';
  * A job as the lists show it: its earliest offer (a board's own over an aggregator's), every board's offer, when you applied, whether it
  * came in with the latest scrape run that brought new jobs (`isNew`), whether you opened it before
  * (`seen`), whether you archived it (`archived`), how many the list has on its day, every page's
- * (`dayCount`, in the app's time zone); the active profile's verdict, if it judged it; where the
- * search matched its title and company (`marks`), when there's a search.
+ * (`dayCount`, in the app's time zone); the active profile's verdict, if it judged it, or whether the AI
+ * is matching it right now (`matching`, lib/ai/matching.ts); where the search matched its title and
+ * company (`marks`), when there's a search.
  */
 export type ListedJob = offersRepo.Job & {
   isNew: boolean;
@@ -19,6 +25,7 @@ export type ListedJob = offersRepo.Job & {
   archived: boolean;
   dayCount: number;
   marks?: Marks;
+  matching?: boolean;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription' | 'bodyLeasing'>;
 };
 
@@ -31,8 +38,11 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
     archived?: boolean;
     /** ?fit=: the jobs this profile version judged, its matches or the rejected ones */
     ai?: { profileId: string; version: number; rejected: boolean };
-    /** every job, each with this profile version's verdict when it has one */
-    verdictsOf?: { profileId: string; version: number };
+    /**
+     * every job, each with this profile version's verdict when it has one; `usable`: the profile can judge
+     * (lib/ai/profiles.ts isUsable), so a job the scrape is checking with it is `matching`
+     */
+    verdictsOf?: { profileId: string; version: number; usable: boolean };
   };
 
 /**
@@ -66,15 +76,13 @@ export async function getJobs(opts: Query): Promise<JobPage> {
   const marked = (job: ListedJob): ListedJob => (found ? { ...job, marks: found.marks.get(job.jobId) } : job);
   const byMatch = Boolean(found);
   if (!opts.ai) {
-    const { rows, ...numbers } = await offersRepo.pageOfJobs(
-      filter,
-      opts.page,
-      PAGE_SIZE,
-      zone.tz,
-      latest,
-      opts.verdictsOf,
-    );
-    return { byMatch, jobs: rows.map(withVerdict).map(marked), ...numbers, latest };
+    const verdictsOf = opts.verdictsOf && { profileId: opts.verdictsOf.profileId, version: opts.verdictsOf.version };
+    const [{ rows, ...numbers }, since] = await Promise.all([
+      offersRepo.pageOfJobs(filter, opts.page, PAGE_SIZE, zone.tz, latest, verdictsOf),
+      opts.verdictsOf?.usable ? matchingSince() : null,
+    ]);
+    const matched = (job: ListedJob): ListedJob => (isMatching(job, since) ? { ...job, matching: true } : job);
+    return { byMatch, jobs: rows.map(withVerdict).map(matched).map(marked), ...numbers, latest };
   }
   const { profileId, version, rejected } = opts.ai;
   const verdicts = { profileId, version, match: !rejected };
@@ -87,6 +95,17 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     latest,
   );
   return { byMatch, jobs: rows.map(withVerdict).map(marked), ...numbers, latest };
+}
+
+/** Since when the jobs without a verdict are being matched (lib/ai/matching.ts); null: none are. */
+async function matchingSince(): Promise<string | null> {
+  const [settings, state, runs] = await Promise.all([settingsRepo.get(), stateRepo.get(), runsRepo.list(1)]);
+  return checkingSince({
+    aiOn: settings.aiFilter && Boolean(env.OPENAI_API_KEY),
+    lockedUntil: state.lockedUntil,
+    run: first(runs),
+    now: Date.now(),
+  });
 }
 
 type Verdict = NonNullable<ListedJob['ai']>;

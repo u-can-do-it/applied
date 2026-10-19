@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { NavLink } from './nav';
 import { OFFER, OfferRow } from './offer-row';
 import { ArchivedCount, NewCount } from './new-count';
+import { RefreshWhileMatching } from './refresh-while-matching';
 
 const fmt = (count: number) => count.toLocaleString('en-GB');
 
@@ -61,8 +62,9 @@ export async function Results({
         ]);
       }
     } else {
-      // every job, the judged ones with their fit badge; in parallel, (if filtered) the unfiltered count
-      const verdictsOf = profile && { profileId: profile.id, version: profile.version };
+      // every job, the judged ones with their fit badge, the ones being judged marked; in parallel, (if
+      // filtered) the unfiltered count
+      const verdictsOf = profile && { profileId: profile.id, version: profile.version, usable: isUsable(profile) };
       [data, all] = await Promise.all([
         getJobs({ ...query, verdictsOf }),
         filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
@@ -91,6 +93,7 @@ export async function Results({
 
   return (
     <>
+      <RefreshWhileMatching matching={data.jobs.flatMap((job) => (job.matching ? job.jobId : []))} />
       {archived ? (
         <p className={COUNT}>
           {/* "3 archived offers · last 7 days · show all" */}
