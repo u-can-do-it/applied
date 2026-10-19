@@ -18,6 +18,8 @@ import { botAnswer, cronInfo, profileList } from '@/lib/health/reads';
 import { appSettings } from '@/lib/time-zone';
 import { vapidPublicKey } from '@/lib/push';
 import { telegramReady } from '@/lib/telegram';
+import { creditsLeft } from '@/lib/scraping-ant';
+import type { CreditsAnswer } from '@/lib/listings/credits';
 import { Header } from '@/features/shell/header';
 import { Tabs, TabsFallback } from '@/features/shell/tabs';
 import { LoadError } from '@/components/load-error';
@@ -57,6 +59,11 @@ export default function SettingsPage() {
 
 async function Settings() {
   await connection(); // always fresh: statuses change all the time
+  // ScrapingAnt's credits left, over the network: its line in the scrapers list waits for it, nothing else
+  const credits: Promise<CreditsAnswer> = creditsLeft().then(
+    (left) => ({ credits: left }),
+    (error: unknown) => ({ error: message(error) }),
+  );
   // the same answers the Health card above got (read once per request), asked alongside the rest
   const extras = Promise.all([
     cronInfo(),
@@ -117,7 +124,13 @@ async function Settings() {
           webhookUrl={`${origin}/api/telegram`}
         />
       </Suspense>
-      <ScrapersPanel scrapers={scrapers} counts={counts} keywords={settings.keywords} schedule={settings} />
+      <ScrapersPanel
+        scrapers={scrapers}
+        counts={counts}
+        keywords={settings.keywords}
+        schedule={settings}
+        credits={credits}
+      />
       <AlertsPanel
         lastEmailAt={state.alertEmailAt}
         lastEmailJobs={state.alertEmailJobs}

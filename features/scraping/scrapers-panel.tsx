@@ -1,6 +1,6 @@
 'use client';
 
-import { useOptimistic, useState } from 'react';
+import { Suspense, useOptimistic, useState } from 'react';
 import { PlayIcon, PlusIcon, RotateCwIcon } from 'lucide-react';
 import { PanelHeading } from '@/components/help';
 import { useZone } from '@/components/time-zone';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/shared/cn';
+import type { CreditsAnswer } from '@/lib/listings/credits';
 import { kindOf } from '@/lib/listings/kinds';
 import { nextScheduledAt } from '@/lib/listings/quota';
 import type { ScrapeSettings } from '@/lib/listings/settings';
@@ -20,6 +21,7 @@ import { useScrapeNow } from './scrape-button';
 import { blank, toDraft, type Draft } from './scraper-draft';
 import { LazyScraperEditor, loadEditor } from './lazy-scraper-editor';
 import { ScraperBrief } from './scraper-status';
+import { ScrapingAntCredits } from './scraping-ant-credits';
 
 // The scrapers: the built-in boards, plus your own (JSON / HTML / RSS) set up here.
 
@@ -47,12 +49,15 @@ export function ScrapersPanel({
   counts,
   keywords,
   schedule,
+  credits,
 }: {
   scrapers: Scraper[];
   counts: Partial<Record<string, { offers: number }>>;
   keywords: string[];
   /** when the schedule runs: a scraper its board's quota holds back says when it runs again */
-  schedule: Pick<ScrapeSettings, 'enabled' | 'fromHour' | 'toHour'>;
+  schedule: Pick<ScrapeSettings, 'enabled' | 'fromHour' | 'toHour' | 'everyMinutes' | 'weekendEveryMinutes'>;
+  /** ScrapingAnt's credits left, asked when the page loads (a slow answer holds up only its line) */
+  credits: Promise<CreditsAnswer>;
 }) {
   const zone = useZone();
   const [open, setOpen] = useState<{ draft: Draft; test: boolean; n: number } | null>(null);
@@ -78,6 +83,9 @@ export function ScrapersPanel({
             <PlusIcon /> Add scraper
           </Button>
         </PanelHeading>
+        <Suspense fallback={null}>
+          <ScrapingAntCredits answer={credits} scrapers={list} schedule={{ ...schedule, keywords }} />
+        </Suspense>
       </CardHeader>
       <CardContent className="px-4">
         <ul className="m-0 list-none border-t p-0">

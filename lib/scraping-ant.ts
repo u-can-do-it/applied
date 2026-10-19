@@ -2,6 +2,7 @@ import 'server-only';
 import { byHost } from './boards';
 import { SCRAPING_ANT_TIMEOUT_MS, SCRAPING_ANT_WAIT_MS } from './budgets';
 import { env } from './env';
+import type { CreditsLeft } from './listings/credits';
 
 // ScrapingAnt (scrapingant.com), for a board whose site turns this server away (its `blocksServer`:
 // Eldorado's Cloudflare answers a datacenter with a challenge). fetchOutbound (lib/outbound.ts) asks the
@@ -16,6 +17,9 @@ import { env } from './env';
 // SCRAPINGANT_API_KEY the refusal stays.
 
 const API = 'https://api.scrapingant.com/v2/general';
+const USAGE_API = 'https://api.scrapingant.com/v2/usage';
+/** Settings waits this long for the credits left, then says it couldn't tell */
+const USAGE_TIMEOUT_MS = 4_000;
 /** no browser, a datacenter proxy in Poland: the cheapest request (1 credit), and enough for a page's HTML */
 const PARAMS = { browser: 'false', proxy_type: 'datacenter', proxy_country: 'PL' };
 /** a refusal: Cloudflare's challenge is a 403 ("Just a moment…"), a rate limit 429, an overloaded site 503 */
@@ -103,4 +107,21 @@ export function throughScrapingAnt(url: string): Promise<Response> {
       });
     }
   });
+}
+
+/** What's left of the plan's credits (its usage API: free, the key in the query as for a page); null without a key. */
+export async function creditsLeft(): Promise<CreditsLeft | null> {
+  if (!env.SCRAPINGANT_API_KEY) return null;
+  const api = new URL(USAGE_API);
+  api.searchParams.set('x-api-key', env.SCRAPINGANT_API_KEY);
+  const res = await fetch(api, { cache: 'no-store', signal: AbortSignal.timeout(USAGE_TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`ScrapingAnt ${res.status}: ${await detailOf(res)}`);
+  const usage = (await res.json()) as { plan_total_credits?: unknown; remained_credits?: unknown; end_date?: unknown };
+  const end = typeof usage.end_date === 'string' ? usage.end_date : '';
+  return {
+    total: Number(usage.plan_total_credits) || 0,
+    left: Number(usage.remained_credits) || 0,
+    // "2026-11-09T12:39:35.296729": UTC without saying so
+    resetsAt: end && !/[zZ]|[+-]\d\d:?\d\d$/.test(end) ? `${end}Z` : end,
+  };
 }

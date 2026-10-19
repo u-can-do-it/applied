@@ -14,10 +14,10 @@ type QuotaScraper = Pick<Scraper, 'kind' | 'enabled' | 'config' | 'lastRunAt'>;
 
 // a run's scrapers are recorded a little after it starts, so the next one an interval later finds a little
 // less gone: within this, it's due
-const EARLY_MS = 5 * 60_000;
+export const EARLY_MS = 5 * 60_000;
 
 /** The calls one run of a scraper makes: one per keyword with {keyword}, per page. */
-function callsOf(scraper: QuotaScraper, keywords: string[]): number {
+export function callsOf(scraper: QuotaScraper, keywords: string[]): number {
   try {
     return expandUrl(scraper.config.url, keywords, scraper.config.pages).length;
   } catch {

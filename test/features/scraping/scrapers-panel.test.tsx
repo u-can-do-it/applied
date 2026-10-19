@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
 import { ScraperBrief } from '@/features/scraping/scraper-status';
@@ -48,7 +48,8 @@ function show() {
       scrapers={[scraper('s1', 'Warszawa'), scraper('s2', 'Remote')]}
       counts={{}}
       keywords={['React']}
-      schedule={{ enabled: true, fromHour: 0, toHour: 24 }}
+      schedule={{ enabled: true, fromHour: 0, toHour: 24, everyMinutes: 10, weekendEveryMinutes: 30 }}
+      credits={Promise.resolve({ credits: null })}
     />,
   );
 }
@@ -98,5 +99,33 @@ describe('ScraperBrief', () => {
     expect(screen.getByText(/a follow-up after/).textContent).toMatch(
       /a follow-up after .+ reads the 1 page and 2 ads its last run couldn’t/,
     );
+  });
+});
+
+describe('ScrapingAntCredits', () => {
+  it('says what ScrapingAnt has left and what its boards’ scrapers spend a month, warning when it runs short', async () => {
+    const pracuj: Scraper = {
+      ...scraper('p', 'Pracuj.pl'),
+      kind: 'pracuj',
+      src: 'pracuj',
+      config: { url: 'https://it.pracuj.pl/praca/{keyword};kw?sc=0' },
+    };
+    const answer = Promise.resolve({ credits: { total: 10_000, left: 100, resetsAt: '2099-01-01T00:00:00Z' } });
+    await act(() => {
+      render(
+        <ScrapersPanel
+          scrapers={[scraper('s1', 'Warszawa'), pracuj]}
+          counts={{}}
+          keywords={['React']}
+          schedule={{ enabled: true, fromHour: 7, toHour: 22, everyMinutes: 10, weekendEveryMinutes: 30 }}
+          credits={answer}
+        />,
+      );
+      return answer;
+    });
+    // 45 calls a weekday (every 20 minutes for 15 hours), 30 a weekend day (every 30): ~1,221 a month
+    expect(screen.getByText(/100 of 10,000 credits left/)).toBeTruthy();
+    expect(screen.getByText(/Pracuj\.pl 1,221/)).toBeTruthy();
+    expect(screen.getByText(/more than is left/)).toBeTruthy();
   });
 });
