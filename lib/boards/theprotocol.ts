@@ -19,11 +19,12 @@ export const theprotocol: ScrapedBoard<'theprotocol'> = {
     hint:
       'A theprotocol.it search page (its Next.js data), 50 offers a page, read through ScrapingAnt (its Cloudflare turns ' +
       'this server away). kw= is one keyword (two kw= must both match), sort=date the newest first; /filtry/react.js;t ' +
-      'filters by technology instead. Every page costs a ScrapingAnt credit, so the schedule makes one call every 15 ' +
+      'filters by technology instead. Every page costs a ScrapingAnt credit, so the schedule makes one call every 20 ' +
       'minutes between its scrapers.',
     defaults: { url: 'https://theprotocol.it/praca?kw={keyword}&sort=date', checkKeyword: true, checkLocation: true },
-    // ScrapingAnt's free 10,000 credits a month, shared: one page every 15 minutes from 7 to 22 is ~1,800
-    minutesPerCall: 15,
+    // ScrapingAnt's free 10,000 credits a month, shared: one page every 20 minutes from 7 to 22 is ~1,350 (15 would
+    // be every 10: a scraper is due 5 minutes early, lib/listings/quota.ts). A scraper may set its own (everyMinutes)
+    minutesPerCall: 20,
     seeds: [{ name: 'The Protocol' }],
   },
 };

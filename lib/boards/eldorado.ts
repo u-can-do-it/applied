@@ -23,7 +23,7 @@ export const eldorado: ScrapedBoard<'eldorado'> = {
       checkLocation: true,
     },
     // a residential proxy's 25 credits a page: one search every 3 hours from 7 to 22 is ~3,750 a month, next to
-    // The Protocol's and Pracuj.pl's ~1,800 each within ScrapingAnt's free 10,000
+    // The Protocol's and Pracuj.pl's ~1,350 each within ScrapingAnt's free 10,000
     minutesPerCall: 180,
     seeds: [{ name: 'Eldorado' }],
   },

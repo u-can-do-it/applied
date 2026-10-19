@@ -14,6 +14,8 @@ export type Draft = {
   enabled: boolean;
   url: string;
   pages: number;
+  /** its own interval in minutes; 0: its board's share */
+  everyMinutes: number;
   headers: string; // "Name: value" per line
   checkKeyword: boolean;
   checkLocation: boolean;
@@ -47,6 +49,7 @@ export function toDraft(scraper: Scraper): Draft {
     enabled: scraper.enabled,
     url: scraper.config.url,
     pages: scraper.config.pages ?? 1,
+    everyMinutes: scraper.config.everyMinutes ?? 0,
     headers: headerText(scraper.config.headers),
     checkKeyword: Boolean(scraper.config.checkKeyword),
     checkLocation: Boolean(scraper.config.checkLocation),
@@ -67,6 +70,7 @@ export function blank(kind: KindId, keep?: Partial<Draft>): Draft {
     enabled: true,
     url: defaults?.url ?? keep?.url ?? '',
     pages: defaults?.pages ?? 1,
+    everyMinutes: 0,
     headers: headerText(defaults?.headers),
     checkKeyword: defaults?.checkKeyword ?? true,
     checkLocation: defaults?.checkLocation ?? true,
@@ -86,6 +90,7 @@ export const toForm = (draft: Draft): ScraperForm => ({
   config: {
     url: draft.url.trim(),
     pages: draft.pages,
+    everyMinutes: draft.everyMinutes,
     headers: parseHeaders(draft.headers),
     checkKeyword: draft.checkKeyword,
     checkLocation: draft.checkLocation,

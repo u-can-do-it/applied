@@ -242,6 +242,17 @@ const scraper: ScraperForm = {
 };
 
 describe('scraperSchema', () => {
+  it("keeps a scraper's own interval only for a board read through ScrapingAnt, and only an offered one", () => {
+    const board = (kind: ScraperForm['kind'], everyMinutes: number) =>
+      scraperSchema.parse({ kind, name: 'x', src: '', config: { url: 'https://example.com/{keyword}', everyMinutes } })
+        .scraper.config.everyMinutes;
+    expect(board('pracuj', 180)).toBe(180);
+    expect(board('eldorado', 60)).toBe(60);
+    expect(board('pracuj', 0)).toBeUndefined(); // its board's share
+    expect(board('pracuj', 7)).toBeUndefined();
+    expect(board('justjoin', 180)).toBeUndefined();
+  });
+
   it('keeps what makes sense', () => {
     expect(scraperSchema.parse(scraper)).toEqual({
       id: undefined,

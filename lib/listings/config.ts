@@ -32,6 +32,11 @@ export type ScraperConfig = {
   checkKeyword?: boolean;
   /** remote, or in one of the cities */
   checkLocation?: boolean;
+  /**
+   * A board read through ScrapingAnt (its `blocksServer`): this scraper's own interval, in minutes (one of
+   * SCRAPER_INTERVALS), instead of its share of the board's quota of calls (lib/listings/quota.ts)
+   */
+  everyMinutes?: number;
   /** json: where the JSON is */
   from?: JsonSource;
   scriptId?: string;
@@ -40,6 +45,9 @@ export type ScraperConfig = {
   /** json: a path per field ({path} placeholders allowed for the link); html: a CSS selector (@attr for an attribute) */
   fields?: Partial<Record<FieldId, string>>;
 };
+
+/** A scraper's own interval: whole schedule steps, as a scraper is due 5 minutes early (lib/listings/quota.ts). */
+export const SCRAPER_INTERVALS = [20, 30, 60, 120, 180, 360, 720] as const;
 
 /** The search a board's own scraper starts with. */
 export type SearchDefaults = Pick<ScraperConfig, 'url' | 'pages' | 'headers' | 'checkKeyword' | 'checkLocation'>;

@@ -6,7 +6,9 @@ import { withForm } from '@/components/form';
 import { Input } from '@/components/ui/input';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { ATS_NAMES, atsOf } from '@/lib/listings/ats';
+import { SCRAPER_INTERVALS } from '@/lib/listings/config';
 import { KIND_IDS, isGeneric, kindOf, type KindId } from '@/lib/listings/kinds';
+import { describeInterval } from '@/lib/listings/settings';
 import type { Draft } from './scraper-draft';
 
 // The scraper editor's fields that every scraper has (mapping-fields.tsx: a generic one's mapping).
@@ -27,6 +29,7 @@ export const ScraperFields = withForm({
     const generic = isGeneric(kind) && !ats;
     const usesKeyword = /\{keyword(_slug|s)?\}/.test(url);
     const paged = /\{(start|page)\}/.test(url);
+    const { proxied, minutesPerCall } = kindOf(kind);
     return (
       <>
         <div className={ROW}>
@@ -122,6 +125,29 @@ export const ScraperFields = withForm({
                 controlClassName="w-24"
                 clamp={(pages) => Math.max(1, Math.min(5, pages || 1))}
               />
+            )}
+          </form.AppField>
+        )}
+        {proxied && (
+          <form.AppField name="everyMinutes">
+            {(field) => (
+              <field.SelectField
+                label="Runs every"
+                hint="Its pages come through ScrapingAnt, and each costs credits (10,000 a month): its own interval, or its board’s, split between its scrapers without one of their own. Scrape now runs it any time."
+                toValue={Number}
+                controlClassName="w-full max-w-80"
+              >
+                <NativeSelectOption value={0}>
+                  {minutesPerCall
+                    ? `board’s share: every ${describeInterval(minutesPerCall)}`
+                    : 'every run of the schedule'}
+                </NativeSelectOption>
+                {SCRAPER_INTERVALS.map((minutes) => (
+                  <NativeSelectOption key={minutes} value={minutes}>
+                    {describeInterval(minutes)}
+                  </NativeSelectOption>
+                ))}
+              </field.SelectField>
             )}
           </form.AppField>
         )}

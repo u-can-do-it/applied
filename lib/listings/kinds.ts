@@ -40,10 +40,12 @@ export type Kind = {
   skipHourStart?: number;
   /** a title without a keyword has its ad read for one (the board's listing.keywordsInAd) */
   keywordsInAd?: true;
+  /** its board's pages come through ScrapingAnt (the board's blocksServer): its scrapers may set their own interval */
+  proxied?: true;
 };
 
 const KINDS: Kind[] = [
-  ...SCRAPED_BOARDS.map(({ id, listing }) => ({
+  ...SCRAPED_BOARDS.map(({ id, listing, blocksServer }) => ({
     id,
     src: id,
     label: listing.label,
@@ -52,6 +54,7 @@ const KINDS: Kind[] = [
     minutesPerCall: listing.minutesPerCall,
     skipHourStart: listing.skipHourStart,
     keywordsInAd: listing.keywordsInAd,
+    proxied: blocksServer,
   })),
   ...GENERIC_KINDS,
 ];

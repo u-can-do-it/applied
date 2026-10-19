@@ -2,7 +2,14 @@
 import * as z from 'zod/mini';
 import { BOARD_RE, SCRAPED_BOARDS } from '../../boards';
 import { ATS_NAMES, atsOf } from '../../listings/ats';
-import { FIELDS, JSON_SOURCES, type FieldId, type JsonSource, type ScraperConfig } from '../../listings/config';
+import {
+  FIELDS,
+  JSON_SOURCES,
+  SCRAPER_INTERVALS,
+  type FieldId,
+  type JsonSource,
+  type ScraperConfig,
+} from '../../listings/config';
 import { KIND_IDS, isGeneric, kindOf } from '../../listings/kinds';
 import { MAX_PAGES } from '../../listings/match';
 import { problem, string, text } from './common';
@@ -29,6 +36,8 @@ const configSchema = z.object({
   checkKeyword: z._default(z.boolean(), false),
   checkLocation: z._default(z.boolean(), false),
   pages: z.optional(z.number()),
+  // 0 or none: its board's share
+  everyMinutes: z.optional(z.number()),
   from: z.catch(z._default(z.enum(JSON_SOURCE_IDS), 'body'), 'body'),
   scriptId: text(100),
   items: text(300),
@@ -77,6 +86,9 @@ export const scraperSchema = z.pipe(
       checkKeyword: given.checkKeyword,
       checkLocation: given.checkLocation,
     };
+    // its own interval: only a board read through ScrapingAnt, only the offered steps
+    if (kindOf(kind).proxied && (SCRAPER_INTERVALS as readonly number[]).includes(given.everyMinutes ?? 0))
+      config.everyMinutes = given.everyMinutes;
     if (/\{(start|page)\}/.test(given.url))
       config.pages = Math.max(1, Math.min(MAX_PAGES, Math.floor(given.pages ?? 1) || 1));
     if (kind === 'json' || kind === 'html') {

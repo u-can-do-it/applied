@@ -1,8 +1,9 @@
 // A board whose API has a quota of calls (its listing's minutesPerCall): the schedule runs its scrapers as
 // often as their calls allow, on average one call per that many minutes over all of them; the scheduled runs
 // in between skip them, as do the ones in the first minutes of an hour when its API turns calls away then
-// (skipHourStart). A run you start yourself takes them anyway (and counts: the next scheduled one waits
-// from it). Shared by the server (lib/listings/pipeline/fetch.ts) and Settings (when it runs next).
+// (skipHourStart). A scraper of a board read through ScrapingAnt may have its own interval instead
+// (config.everyMinutes): it runs on that, and the board's quota is shared by its other scrapers. A run you start
+// yourself takes them anyway (and counts: the next scheduled one waits from it). Shared by the server (lib/listings/pipeline/fetch.ts) and Settings (when it runs next).
 import type { Scraper } from '../db/repos/scrapers';
 import type { Zone } from '../dates';
 import { kindOf } from './kinds';
@@ -24,12 +25,16 @@ function callsOf(scraper: QuotaScraper, keywords: string[]): number {
   }
 }
 
-/** Minutes between two runs of the board's scrapers; null: no quota, every run. */
+/** Whether the scraper waits on its own interval (config.everyMinutes), not its board's quota. */
+export const hasOwnInterval = (scraper: Pick<QuotaScraper, 'config'>) => Boolean(scraper.config.everyMinutes);
+
+/** Minutes between two runs of the scraper: its own interval, else its board's quota; null: neither, every run. */
 export function intervalOf(scraper: QuotaScraper, scrapers: readonly QuotaScraper[], keywords: string[]) {
+  if (hasOwnInterval(scraper)) return scraper.config.everyMinutes ?? null;
   const perCall = kindOf(scraper.kind).minutesPerCall;
   if (!perCall) return null;
   const calls = scrapers
-    .filter((other) => other.enabled && other.kind === scraper.kind)
+    .filter((other) => other.enabled && other.kind === scraper.kind && !hasOwnInterval(other))
     .reduce((sum, other) => sum + callsOf(other, keywords), 0);
   return perCall * Math.max(1, calls);
 }

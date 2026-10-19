@@ -5,6 +5,7 @@ import { CheckIcon, TriangleAlertIcon, XIcon } from 'lucide-react';
 import { useZone } from '@/components/time-zone';
 import { byId } from '@/lib/boards';
 import type { Scraper } from '@/lib/db/repos/scrapers';
+import { describeInterval } from '@/lib/listings/settings';
 import { seconds } from '@/lib/shared/format';
 
 /** How a scraper's last run went. */
@@ -65,11 +66,13 @@ export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: n
   const firstRun = scraper.mark === null && (
     <span className="text-muted-foreground"> · its next run only saves (no notifications)</span>
   );
+  const own = scraper.config.everyMinutes;
+  const heldBy = own ? `its own interval, every ${describeInterval(own)}` : 'its board’s quota of calls';
   // a time already past still holds: the next run is after it
   const waits = scraper.enabled && nextAt && (
     <span className="text-muted-foreground">
       {' '}
-      · scheduled again after {formatTime(nextAt)} (its board’s quota of calls; Scrape now runs it any time)
+      · scheduled again after {formatTime(nextAt)} ({heldBy}; Scrape now runs it any time)
     </span>
   );
   const pending = scraper.followUp;
