@@ -1,14 +1,12 @@
 // ScrapingAnt's credits, for Settings: what the scrapers of the boards read through it (their `blocksServer`)
 // spend in a month, from how often the schedule runs them, and what's left. Shared by the server and the browser.
-import { byId } from '../boards';
 import type { Scraper } from '../db/repos/scrapers';
 import { kindOf } from './kinds';
 import { callsOf, EARLY_MS, intervalOf } from './quota';
 import type { ScrapeSettings } from './settings';
 
-/** a page through a datacenter proxy; through a residential one (its board's `residential`), measured October 2026 */
-export const DATACENTER_CREDITS = 1;
-export const RESIDENTIAL_CREDITS = 25;
+/** a page through a datacenter proxy (measured on the account's usage, October 2026) */
+export const PAGE_CREDITS = 1;
 
 const MONTH_DAYS = 30;
 const WEEKEND_DAYS = (MONTH_DAYS * 2) / 7;
@@ -44,10 +42,8 @@ export function monthlyCredits(
       const runs =
         (minutesADay / runsEvery(interval, schedule.everyMinutes)) * (MONTH_DAYS - WEEKEND_DAYS) +
         (minutesADay / runsEvery(interval, schedule.weekendEveryMinutes)) * WEEKEND_DAYS;
-      const perPage = byId(scraper.src)?.residential?.test(scraper.config.url)
-        ? RESIDENTIAL_CREDITS
-        : DATACENTER_CREDITS;
-      return { id: scraper.id, name: scraper.name, credits: Math.round(runs * callsOf(scraper, keywords) * perPage) };
+      const credits = Math.round(runs * callsOf(scraper, keywords) * PAGE_CREDITS);
+      return { id: scraper.id, name: scraper.name, credits };
     });
 }
 

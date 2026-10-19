@@ -69,11 +69,13 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
    result, never the run's. After the scrapers, the jobs LinkedIn's alert emails queued (`alerts.ts`): each one a
    scraper hasn't got has its posting read (title, company, place, ad; the ad check's limits) and the same
    filters applied; what became of them is saved once the offers are. A board with a quota
-   of calls (`listing.minutesPerCall`: Adzuna and Himalayas one every 20 minutes, Jobicy and Remote OK one an hour, Remotive one every 6 hours, as their terms ask; The Protocol and Pracuj.pl one every 20 minutes and Eldorado one every 3 hours, for ScrapingAnt's credits; a scraper of theirs may set its own interval instead, `config.everyMinutes`, and leaves the board's to the others) is scraped by the schedule only as often as its
+   of calls (`listing.minutesPerCall`: Adzuna and Himalayas one every 20 minutes, Jobicy and Remote OK one an hour, Remotive one every 6 hours, as their terms ask; The Protocol and Pracuj.pl one every 20 minutes, for ScrapingAnt's credits; a scraper of theirs may set its own interval instead, `config.everyMinutes`, and leaves the board's to the others) is scraped by the schedule only as often as its
    scrapers' calls allow ([`lib/listings/quota.ts`](../lib/listings/quota.ts)): `scrapersToRun` leaves them
    out of a cron run in between; "Scrape now" and `/scrape` take them anyway. What its API needs in every link (the keys, from the environment, and
    Adzuna's `content-type`) is added to the request only (`lib/listings/api-params.ts`); an `ats` scraper's
-   careers link is requested as its ATS's public API ([`lib/listings/ats.ts`](../lib/listings/ats.ts)).
+   careers link is requested as its ATS's public API ([`lib/listings/ats.ts`](../lib/listings/ats.ts)), and Eldorado's
+   search, its link's query, as a call to its MCP server's `search_jobs` tool
+   ([`lib/listings/eldorado-mcp.ts`](../lib/listings/eldorado-mcp.ts), [ADR 0010](decisions/0010-eldorado-through-its-mcp-server.md)).
 2. **`pickOwners`** (`owners.ts`, pure): the first scraper that found an offer owns it.
 3. **`ingest`** (`persist.ts`): `jw_ingest_offers` inserts the offers the database doesn't have and answers with
    them, each with its title key and whether that job was seen before.

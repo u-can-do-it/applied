@@ -7,8 +7,9 @@ import { Deferred, paced } from '../../pace';
 import { cameThroughScrapingAnt } from '../../scraping-ant';
 import { message } from '../../shared/errors';
 import { withApiParams } from '../api-params';
+import { searchEldorado } from '../eldorado-mcp';
 import { isObj, str, strip } from '../extract';
-import { kindOf } from '../kinds';
+import { kindOf, type KindId } from '../kinds';
 import { areaTest, expandUrl, keywordTest, PAGE_SIZE, sinceSeconds, titleTest } from '../match';
 import { parseBody } from '../parse';
 import { isDue } from '../quota';
@@ -54,6 +55,12 @@ export async function fetchPage(
     );
   }
   return { text: await readText(res), proxied: cameThroughScrapingAnt(res) };
+}
+
+/** A scraper's page: Eldorado's is a search on its MCP server (lib/listings/eldorado-mcp.ts), the others a fetch. */
+function fetchListing(kind: KindId, url: string, headers: Record<string, string> | undefined) {
+  if (kind === 'eldorado') return searchEldorado(url).then((text) => ({ text, proxied: false }));
+  return fetchPage(withApiParams(kind, url), headers);
 }
 
 /**
@@ -176,7 +183,7 @@ export async function scrape(
     const { keyword, page, url } = target;
     if (ended.has(keyword)) continue;
     try {
-      const { text, proxied } = await fetchPage(withApiParams(scraper.kind, url), config.headers);
+      const { text, proxied } = await fetchListing(scraper.kind, url, config.headers);
       const parsed = parseBody(scraper.kind, text, { src: scraper.src, url, config });
       sample ??= parsed.sample;
       found += parsed.total;

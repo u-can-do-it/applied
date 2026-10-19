@@ -55,28 +55,20 @@ describe('built-in board parsers', () => {
     expect(result.items).toMatchSnapshot();
   });
 
-  it('eldorado: the app router flight data, split over chunks', () => {
-    const result = parse('eldorado', fixture('eldorado.html'));
+  it('eldorado: its MCP search; remote when it can be done remotely; its id from the link, without the tag', () => {
+    const result = parse('eldorado', fixture('eldorado.json'));
     expect(result.total).toBe(3);
-    expect(result.items).toHaveLength(3);
+    const [remote, cities, office] = result.items;
+    expect(remote).toMatchObject({ src: 'eldorado', remote: true, locations: ['Kraków'] });
+    // "other": read from the title, like the boards without a level
+    expect(remote.seniority).toBe('unknown');
+    expect(cities).toMatchObject({ remote: false, seniority: 'senior', locations: ['Gdańsk', 'Warszawa'] });
+    expect(office).toMatchObject({ remote: false, seniority: 'mid' });
     for (const offer of result.items) {
-      expect(offer.url).toMatch(new RegExp(`^https://czyjesteldorado\\.pl/praca/${offer.id}-`));
+      expect(offer.url).toMatch(new RegExp(`^https://czyjesteldorado\\.pl/praca/${offer.id}-[^?]+$`));
       expect(offer.sort).toBe(Number(offer.id));
       expect(offer.skills.length).toBeGreaterThan(0);
     }
-    // the keywords, then the categories (ids, read as words)
-    expect(result.items[0].skills).toEqual([
-      'Azure DevOps',
-      'ASP.NET Core MVC',
-      'JavaScript',
-      'React.js',
-      'Angular',
-      'Git',
-      'Microsoft SQL Server',
-      'PostgreSQL',
-      'project management',
-      'agile',
-    ]);
     expect(result.items).toMatchSnapshot();
   });
 
@@ -291,7 +283,7 @@ describe('board parser edge cases', () => {
     expect(() => parse('solidjobs', '{}')).toThrow(/no jobs list/);
     expect(() => parse('bulldog', '<html></html>')).toThrow(/no __NEXT_DATA__/);
     expect(() => parse('bulldog', '<script id="__NEXT_DATA__">{"props":{}}</script>')).toThrow(/is not a list/);
-    expect(() => parse('eldorado', '<html></html>')).toThrow(/no jobs/);
+    expect(() => parse('eldorado', '{"error":"x"}')).toThrow('Eldorado: no jobs list (got error)');
     expect(() => parse('builtin', '<html></html>')).toThrow(/no job cards/);
     expect(() => parse('adzuna', '{"count":0}')).toThrow('Adzuna: no results list (got count)');
     expect(() => parse('himalayas', '{"totalCount":0}')).toThrow('Himalayas: no jobs list (got totalCount)');
@@ -335,15 +327,6 @@ describe('board parser edge cases', () => {
       ],
     });
     expect(parse('justjoin', body).items[0].locations).toEqual(['Gdańsk', 'Warszawa']);
-  });
-
-  it('eldorado: skills from an older page with tags only', () => {
-    const jobs = [
-      { id: 1, slug: 's', title: 'A', tags: ['React', { name: 'TS' }] },
-      { id: 2, slug: 's', title: 'B', keywords: [], categories: [] },
-    ];
-    const body = `<script>self.__next_f.push([1,${JSON.stringify(JSON.stringify({ jobs }))}])</script>`;
-    expect(parse('eldorado', body).items.map((offer) => offer.skills)).toEqual([['React', 'TS'], []]);
   });
 
   it('builtin and linkedin: the same seniority from the same title', () => {

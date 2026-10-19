@@ -25,8 +25,12 @@ export function callsOf(scraper: QuotaScraper, keywords: string[]): number {
   }
 }
 
-/** Whether the scraper waits on its own interval (config.everyMinutes), not its board's quota. */
-export const hasOwnInterval = (scraper: Pick<QuotaScraper, 'config'>) => Boolean(scraper.config.everyMinutes);
+/**
+ * Whether the scraper waits on its own interval (config.everyMinutes), not its board's quota: only a board read
+ * through ScrapingAnt has one (one kept from before its board stopped being one is left alone).
+ */
+export const hasOwnInterval = (scraper: Pick<QuotaScraper, 'kind' | 'config'>) =>
+  Boolean(scraper.config.everyMinutes && kindOf(scraper.kind).proxied);
 
 /** Minutes between two runs of the scraper: its own interval, else its board's quota; null: neither, every run. */
 export function intervalOf(scraper: QuotaScraper, scrapers: readonly QuotaScraper[], keywords: string[]) {

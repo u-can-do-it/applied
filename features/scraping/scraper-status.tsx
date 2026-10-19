@@ -5,6 +5,7 @@ import { CheckIcon, TriangleAlertIcon, XIcon } from 'lucide-react';
 import { useZone } from '@/components/time-zone';
 import { byId } from '@/lib/boards';
 import type { Scraper } from '@/lib/db/repos/scrapers';
+import { hasOwnInterval } from '@/lib/listings/quota';
 import { describeInterval } from '@/lib/listings/settings';
 import { seconds } from '@/lib/shared/format';
 
@@ -44,7 +45,7 @@ export function ScraperStatus({ scraper }: { scraper: Scraper }) {
 }
 
 /**
- * How a board that turns the server away (its `blocksServer`: Eldorado) was reached in the scraper's
+ * How a board that turns the server away (its `blocksServer`: The Protocol, Pracuj.pl) was reached in the scraper's
  * last run: as any other, or through ScrapingAnt (lib/scraping-ant.ts). Nothing for the other boards.
  */
 export function fetchedVia(scraper: Pick<Scraper, 'src' | 'lastProxied'>): string | null {
@@ -66,7 +67,7 @@ export function ScraperBrief({ scraper, nextAt }: { scraper: Scraper; nextAt?: n
   const firstRun = scraper.mark === null && (
     <span className="text-muted-foreground"> · its next run only saves (no notifications)</span>
   );
-  const own = scraper.config.everyMinutes;
+  const own = hasOwnInterval(scraper) && scraper.config.everyMinutes;
   const heldBy = own ? `its own interval, every ${describeInterval(own)}` : 'its board’s quota of calls';
   // a time already past still holds: the next run is after it
   const waits = scraper.enabled && nextAt && (

@@ -112,5 +112,11 @@ describe('the quota of calls', () => {
     expect(intervalOf(own, [shared, own], keywords)).toBe(180);
     expect(isDue({ ...own, lastRunAt: ago(170) }, [own], keywords, now)).toBe(false);
     expect(isDue({ ...own, lastRunAt: ago(176) }, [own], keywords, now)).toBe(true);
+    // a board that no longer goes through ScrapingAnt (Eldorado, since its MCP search): an interval left on it is ignored
+    const eldorado = scraper({
+      kind: 'eldorado',
+      config: { url: 'https://czyjesteldorado.pl/_mcp', everyMinutes: 120 },
+    });
+    expect(intervalOf(eldorado, [eldorado], keywords)).toBeNull();
   });
 });

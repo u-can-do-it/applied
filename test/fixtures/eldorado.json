@@ -1,0 +1,125 @@
+{
+  "jobs": [
+    {
+      "title": "IT Software Engineer",
+      "keywords": [
+        "Python",
+        "FastAPI",
+        "FastMCP",
+        "Node.js",
+        "TypeScript",
+        "React",
+        "Microsoft Graph API",
+        "Google Workspace APIs",
+        "OAuth 2.0",
+        "Model Context Protocol"
+      ],
+      "company": "Cisco",
+      "cities": [
+        "Kraków"
+      ],
+      "work_modes": [
+        "remote"
+      ],
+      "contract_types": [],
+      "workload_types": [
+        "full_time"
+      ],
+      "seniority": "other",
+      "salary_from": null,
+      "salary_to": null,
+      "url": "https://czyjesteldorado.pl/praca/461116-it-software-engineer-cisco?utm_source=mcp",
+      "posted_at": "2026-10-19T05:19:34+00:00"
+    },
+    {
+      "title": "Senior Fullstack Developer (.NET & React)",
+      "keywords": [
+        "C#",
+        ".NET Framework",
+        ".NET Standard",
+        ".NET Core",
+        "React (18 and above)",
+        "TSQL",
+        "SQL Server Management Studio",
+        "Visual Studio",
+        "Agile (SCRUM)",
+        "DDD",
+        "Clean Code",
+        "SOLID",
+        "Postman",
+        "PlayWright",
+        "WCAG"
+      ],
+      "company": "ITDS",
+      "cities": [
+        "Gdańsk",
+        "Warszawa"
+      ],
+      "work_modes": [
+        "hybrid"
+      ],
+      "contract_types": [
+        "employment_contract",
+        "b2b"
+      ],
+      "workload_types": [
+        "full_time"
+      ],
+      "seniority": "senior",
+      "salary_from": 18900,
+      "salary_to": 24150,
+      "url": "https://czyjesteldorado.pl/praca/460556-senior-fullstack-developer-net-react-itds-polska-sp-z-o-o?utm_source=mcp",
+      "posted_at": "2026-10-16T08:59:22+00:00"
+    },
+    {
+      "title": "Software Engineer",
+      "keywords": [
+        "Python",
+        "Django",
+        "PostgreSQL",
+        "RabbitMQ",
+        "Redis",
+        "WebSocket",
+        "ASGI",
+        "Gunicorn",
+        "Sentry",
+        "New Relic",
+        "React",
+        "MobX",
+        "mobx-spine",
+        "JavaScript",
+        "Semantic UI",
+        "styled-components",
+        "Leaflet",
+        "Flutter",
+        "Android",
+        "Kotlin",
+        "Microsoft Graph",
+        "Firebase",
+        "Docker Compose",
+        "GitLab CI",
+        "Cypress"
+      ],
+      "company": "Egala",
+      "cities": [
+        "Żerniki (pow. Poznański; gm. Kórnik)"
+      ],
+      "work_modes": [
+        "office"
+      ],
+      "contract_types": [
+        "employment_contract"
+      ],
+      "workload_types": [
+        "full_time"
+      ],
+      "seniority": "mid",
+      "salary_from": 10000,
+      "salary_to": 14000,
+      "url": "https://czyjesteldorado.pl/praca/460945-software-engineer-egala?utm_source=mcp",
+      "posted_at": "2026-10-16T13:08:49+00:00"
+    }
+  ],
+  "shown_results": 3,
+  "total_results": 1190
+}

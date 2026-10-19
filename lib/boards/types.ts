@@ -19,16 +19,10 @@ export type Board<Id extends string = string> = {
    */
   aggregator?: true;
   /**
-   * Its site turns this server away (Eldorado's Cloudflare answers a datacenter with a challenge): a page it
+   * Its site turns this server away (The Protocol's Cloudflare answers a datacenter with a challenge): a page it
    * refuses is fetched again through ScrapingAnt (lib/scraping-ant.ts) when SCRAPINGANT_API_KEY is set
    */
   blocksServer?: true;
-  /**
-   * Its links that ScrapingAnt's datacenter proxies no longer get through to (Eldorado's search sees through them,
-   * October 2026): when those are seen through, they're asked again from a residential proxy, 25 credits a page
-   * instead of 1. Its other pages (its ads) stay on the datacenter ones.
-   */
-  residential?: RegExp;
   /**
    * It turns a burst of requests away (HTTP 429): its requests are paced (lib/pace.ts), and what a run of its
    * scraper couldn't read waits for a follow-up a few minutes later (lib/listings/pipeline/follow-up.ts)

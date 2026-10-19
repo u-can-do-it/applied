@@ -1,4 +1,5 @@
-// czyjesteldorado.pl: its listing: lib/listings/parsers/eldorado.ts; its ads: the page's JobPosting.
+// czyjesteldorado.pl: its listing: its MCP server's search (lib/listings/eldorado-mcp.ts, read by
+// lib/listings/parsers/eldorado.ts); its ads: the page's JobPosting.
 import { pathOf } from './links.ts';
 import type { ScrapedBoard } from './types.ts';
 
@@ -9,22 +10,24 @@ export const eldorado: ScrapedBoard<'eldorado'> = {
   // an employer's page opened from Eldorado counts as Eldorado
   tagsLinks: /czyjesteldorado/i,
   aggregator: true,
-  blocksServer: true,
-  // its search sees through ScrapingAnt's datacenter proxies; its ads stay on them (25 credits an ad is too many)
-  residential: /^https:\/\/(?:www\.)?czyjesteldorado\.pl\/search\b/i,
+  // its pages answer any datacenter with Cloudflare's challenge, ScrapingAnt's proxies included (since mid-October
+  // 2026; a residential proxy at 25 credits a page got through): its search goes to its MCP server instead, and its
+  // ads stay out of reach
   alwaysInFilters: true,
   idFromLink: (url) => pathOf(url).match(/\/praca\/(\d+)/)?.[1] ?? null,
   listing: {
-    label: 'Eldorado search',
-    hint: 'A czyjesteldorado.pl search page (its Next.js data). The tag is case-sensitive: React.',
+    label: 'Eldorado search (MCP)',
+    hint:
+      'Eldorado’s own MCP server (its search_jobs tool, a beta), the newest 50 jobs of a search. The link’s query is ' +
+      'the search: phrase= (quotes for an exact word, -word to leave one out), sortOrder=newest, and optionally ' +
+      'workModes=remote,hybrid,office, seniority=junior,mid,senior, contractTypes=b2b,employment_contract, ' +
+      'postedWithin=24h|3d|7d, minSalary= (PLN). Its ads can’t be read (Cloudflare), so the AI filter sees the title, ' +
+      'skills and places only.',
     defaults: {
-      url: 'https://czyjesteldorado.pl/search?tag%5B%5D={keyword}&sort=newest',
-      checkKeyword: false,
+      url: 'https://czyjesteldorado.pl/_mcp?phrase={keyword}&sortOrder=newest',
+      checkKeyword: true,
       checkLocation: true,
     },
-    // a residential proxy's 25 credits a page: one search every 3 hours from 7 to 22 is ~3,750 a month, next to
-    // The Protocol's and Pracuj.pl's ~1,350 each within ScrapingAnt's free 10,000
-    minutesPerCall: 180,
     seeds: [{ name: 'Eldorado' }],
   },
 };

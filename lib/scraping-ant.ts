@@ -5,15 +5,15 @@ import { env } from './env';
 import type { CreditsLeft } from './listings/credits';
 
 // ScrapingAnt (scrapingant.com), for a board whose site turns this server away (its `blocksServer`:
-// Eldorado's Cloudflare answers a datacenter with a challenge). fetchOutbound (lib/outbound.ts) asks the
+// The Protocol's and Pracuj.pl's Cloudflare answer a datacenter with a challenge). fetchOutbound (lib/outbound.ts) asks the
 // site first, as for any other; a page it refuses is fetched again through ScrapingAnt's proxies, which
 // hand back its HTML. So no credit is spent while the site lets the server in, nor on a dev machine.
 // A plain request through a Polish datacenter proxy costs 1 credit, and only when it gets through: the
 // site sees through some of those proxies (ScrapingAnt answers 423, free), so it's asked again, from
 // another one; 2 tries a page on average (Oct 2026). Its browser and other countries didn't get through
-// at all. Since mid-October Eldorado's search sees through every datacenter proxy: its search (its board's
-// `residential`) goes on to a residential proxy, which gets through at 25 credits a page. The free plan has
-// 10,000 credits a month and one request at a time, so here they go one after another. Without
+// at all. (Since mid-October 2026 Eldorado sees through every one, browser and other countries too: only a
+// residential proxy got through, at 25 credits a page; its search goes to its MCP server instead.) The free
+// plan has 10,000 credits a month and one request at a time, so here they go one after another. Without
 // SCRAPINGANT_API_KEY the refusal stays.
 
 const API = 'https://api.scrapingant.com/v2/general';
@@ -31,8 +31,6 @@ const BUSY_PAUSE_MS = 2_000;
 const DETECTED = 423;
 /** tries a page gets (busy or detected), all within SCRAPING_ANT_TIMEOUT_MS */
 const TRIES = 8;
-/** a page its board sends to a residential proxy (its `residential`) gets this many datacenter tries first */
-const DATACENTER_TRIES = 3;
 
 /** The site refused the server, it's a board that does that, and there's a key: worth asking ScrapingAnt. */
 export function refusedByBlockingBoard(url: string, res: Response): boolean {
@@ -80,15 +78,12 @@ export function throughScrapingAnt(url: string): Promise<Response> {
     }))
       api.searchParams.set(name, value);
 
-    const residential = Boolean(byHost(new URL(url).hostname)?.residential?.test(url));
     const signal = AbortSignal.timeout(SCRAPING_ANT_TIMEOUT_MS); // the page's, over all its tries
-    for (let tried = 1, detected = 0; ; tried++) {
+    for (let tried = 1; ; tried++) {
       const res = await fetch(api, { cache: 'no-store', signal });
       if ((res.status === BUSY || res.status === DETECTED) && tried < TRIES) {
         await res.body?.cancel();
         if (res.status === BUSY) await new Promise((resolve) => setTimeout(resolve, BUSY_PAUSE_MS));
-        // a detected try costs nothing; a residential page that comes through costs 25
-        else if (++detected === DATACENTER_TRIES && residential) api.searchParams.set('proxy_type', 'residential');
         continue;
       }
       // the error never quotes `api`: its query has the key

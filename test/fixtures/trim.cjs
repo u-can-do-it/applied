@@ -40,28 +40,6 @@ const scriptRe = (id) => new RegExp(`(<script[^>]*\\bid="${id}"[^>]*>)([\\s\\S]*
   d.props = { pageProps: { country: pp.country, totalCount: pp.totalCount, jobs: pp.jobs.slice(0, N) }, __N_SSP: d.props.__N_SSP };
   write('bulldog.html', `<!DOCTYPE html><html lang="pl"><head><title>Bulldogjob</title></head><body><div id="__next"></div>\n${m[1]}${JSON.stringify(d)}</script></body></html>\n`);
 }
-// Eldorado: Next.js app router flight chunks; the jobs array cut to N, the text split over two chunks
-{
-  const h = raw('eldorado.html');
-  let text = '';
-  for (const m of h.matchAll(/self\.__next_f\.push\(\[1,("(?:\\.|[^"\\])*")\]\)/g)) text += JSON.parse(m[1]);
-  const key = '"jobs":[';
-  const i = text.indexOf(key);
-  // the array: same bracket counting as the parser
-  let depth = 0, inStr = false, esc = false, end = -1;
-  for (let k = i + key.length - 1; k < text.length; k++) {
-    const c = text[k];
-    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
-    if (c === '"') inStr = true; else if (c === '[') depth++; else if (c === ']' && --depth === 0) { end = k + 1; break; }
-  }
-  const jobs = JSON.parse(text.slice(i + key.length - 1, end)).slice(0, N);
-  const lineStart = text.lastIndexOf('\n', i) + 1;
-  const lineEnd = text.indexOf('\n', end);
-  const line = text.slice(lineStart, i) + key.slice(0, -1) + JSON.stringify(jobs) + text.slice(end, lineEnd + 1);
-  const cut = Math.floor(line.length / 2);
-  const chunk = (s) => `<script>self.__next_f.push([1,${JSON.stringify(s).replace(/</g, '\\u003c')}])</script>`;
-  write('eldorado.html', `<!DOCTYPE html><html lang="pl"><head><title>Eldorado</title></head><body>\n<script>(self.__next_f=self.__next_f||[]).push([0])</script>\n${chunk('1:"$Sreact.fragment"\n')}\n${chunk(line.slice(0, cut))}\n${chunk(line.slice(cut))}\n</body></html>\n`);
-}
 // Built In: the job cards (the last one cut where the next section starts)
 {
   const h = raw('builtin.html');

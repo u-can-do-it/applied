@@ -247,7 +247,8 @@ describe('scraperSchema', () => {
       scraperSchema.parse({ kind, name: 'x', src: '', config: { url: 'https://example.com/{keyword}', everyMinutes } })
         .scraper.config.everyMinutes;
     expect(board('pracuj', 180)).toBe(180);
-    expect(board('eldorado', 60)).toBe(60);
+    expect(board('theprotocol', 60)).toBe(60);
+    expect(board('eldorado', 60)).toBeUndefined(); // its MCP search costs no credits
     expect(board('pracuj', 0)).toBeUndefined(); // its board's share
     expect(board('pracuj', 7)).toBeUndefined();
     expect(board('justjoin', 180)).toBeUndefined();

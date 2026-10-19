@@ -29,15 +29,16 @@ describe('ScrapingAnt credits a month', () => {
     expect(runsEvery(null, 10)).toBe(10);
   });
 
-  it("each scraper of a ScrapingAnt board, at its board's share or its own interval, 25 a residential page", () => {
+  it("each scraper of a ScrapingAnt board, at its board's share or its own interval, a credit a page", () => {
     const protocol = scraper('theprotocol', 'https://theprotocol.it/praca?kw={keyword}&sort=date');
-    const eldorado = scraper('eldorado', 'https://czyjesteldorado.pl/search?tag%5B%5D={keyword}&sort=newest');
+    // Eldorado's search goes to its MCP server: no ScrapingAnt, no credits
+    const eldorado = scraper('eldorado', 'https://czyjesteldorado.pl/_mcp?phrase={keyword}&sortOrder=newest');
     const own = scraper('pracuj', 'https://it.pracuj.pl/praca/{keyword};kw?sc=0', {
       config: { url: 'https://it.pracuj.pl/praca/{keyword};kw?sc=0', everyMinutes: 60 },
     });
     const justjoin = scraper('justjoin', 'https://justjoin.it/api/candidate-api/offers?keywords={keyword}');
-    // 15 hours a day for 30 days: every 20 minutes 1,350 pages, every 3 hours 150 (×25), every hour 450
-    expect(credits([protocol, eldorado, own, justjoin])).toEqual({ theprotocol: 1350, eldorado: 3750, pracuj: 450 });
+    // 15 hours a day for 30 days: every 20 minutes 1,350 pages, every hour 450
+    expect(credits([protocol, eldorado, own, justjoin])).toEqual({ theprotocol: 1350, pracuj: 450 });
     // two keywords: twice the pages, and the board's share every 40 minutes: the same credits
     expect(credits([protocol], { keywords: ['React', 'Vue'] })).toEqual({ theprotocol: 1350 });
     // off: nothing; all day (from = to): 24 hours
