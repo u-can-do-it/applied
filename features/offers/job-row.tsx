@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { NotebookPenIcon, SparklesIcon } from 'lucide-react';
+import { ExternalLinkIcon, NotebookPenIcon, SparklesIcon } from 'lucide-react';
 import { workModeOf, workModeText, type JobDetails } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { marksWithin, type Marks } from '@/lib/shared/search';
@@ -12,9 +12,10 @@ import { RentADev } from './rent-a-dev';
 import { RowBox } from './row-box';
 
 // One job in a list, the offers' or the Applied tab's: the same row in both. Its title opens the ad (a new
-// tab), its company searches the list for it, its boards' badges their offers, the fit badge its checklist;
-// a click anywhere else opens the job's window (RowBox). The tabs differ only in what they add: the offers'
-// time, "new", seen mark, archive and Mark applied buttons; the application's status.
+// tab, an icon after it on hover says so), its company searches the list for it, its boards' badges their
+// offers, the fit badge its checklist; a click anywhere else opens the job's window (RowBox). The tabs
+// differ only in what they add: the offers' time, "new", seen mark, archive and Mark applied buttons; the
+// application's status.
 
 export const JOB_ROW = 'grid grid-cols-[1fr_auto] items-start gap-3 px-3.5 py-3';
 
@@ -135,9 +136,15 @@ export function JobRow({
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold no-underline [overflow-wrap:anywhere] visited:text-muted-foreground hover:text-brand hover:underline hover:underline-offset-2"
+              title="Open the offer's page (a new tab)"
+              className="group/title font-semibold no-underline [overflow-wrap:anywhere] visited:text-muted-foreground hover:text-brand hover:underline hover:underline-offset-2"
             >
               {titleText}
+              {/* on hover (or keyboard focus): it opens the board's page, not the window */}
+              <ExternalLinkIcon
+                aria-hidden
+                className="ml-1 inline size-3.5 align-[-1px] opacity-0 transition-opacity group-hover/title:opacity-100 group-focus-visible/title:opacity-100"
+              />
             </a>
           ) : (
             <span className="font-semibold [overflow-wrap:anywhere]">{titleText}</span>

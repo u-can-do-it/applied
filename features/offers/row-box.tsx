@@ -20,7 +20,7 @@ function openWindow(event: MouseEvent<HTMLElement>) {
   currentTarget.querySelector<HTMLElement>('[data-opens-window]')?.click();
 }
 
-/** The row's box: a click on it opens the job's window. `active`: that window is open. */
+/** The row's box, tinted under the pointer: a click on it opens the job's window. `active`: that window is open. */
 export function RowBox({
   className,
   active = false,
@@ -33,7 +33,12 @@ export function RowBox({
   return (
     // the window button after the title is the keyboard's way in: the row's click only saves aiming at it
     <div
-      className={cn('cursor-pointer', active && 'bg-accent', className)}
+      className={cn(
+        // the list's first and last rows keep its rounded corners
+        'cursor-pointer transition-colors hover:bg-accent/50 in-[li:first-child]:rounded-t-[10px] in-[li:last-child]:rounded-b-[10px]',
+        active && 'bg-accent hover:bg-accent',
+        className,
+      )}
       aria-current={active || undefined}
       onClick={openWindow}
     >
@@ -42,14 +47,17 @@ export function RowBox({
   );
 }
 
-/** After the title: opens the job's window (the ad, your note, the fit; or the application). */
+/**
+ * After the title: opens the job's window (the ad, your note, the fit; or the application). Not shown: a
+ * click on the row clicks it; the keyboard reaches it (Tab), and it shows while it has the focus.
+ */
 export function WindowButton({ title, ...props }: { title: string } & ComponentProps<typeof Button>) {
   return (
     <Button
       type="button"
       variant="ghost"
       size="icon-xs"
-      className="ml-0.5 align-[-3px] text-muted-foreground hover:text-foreground"
+      className="sr-only ml-0.5 align-[-3px] text-muted-foreground hover:text-foreground focus-visible:not-sr-only"
       data-opens-window
       data-marks-seen
       aria-haspopup="dialog"
