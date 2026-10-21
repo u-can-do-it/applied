@@ -113,9 +113,10 @@ scripts/db-reset-local.sh postgresql://postgres:local@localhost:5432/postgres   
 - **`npm run db:verify`** ([`scripts/db-verify-migrations.sh`](../scripts/db-verify-migrations.sh)) starts two
   `supabase/postgres` containers and checks that (a) a database built by the pre-Drizzle SQL files (read from
   git at `a290945`), then used a little, is left as it was by `npm run db:migrate` (but for what `0004` and
-  `0005` change, and the tables `0006` onwards add); (b) an empty database gets the same schema from the
-  migrations alone, every migration can run twice, and a view built on `offers_unique` makes the migration
-  fail and roll back instead of being dropped; (c) `schema.ts` and the migrations agree. With
+  `0005` change, and the tables and columns `0006` onwards add: read from those migrations' `CREATE TABLE`
+  and `ADD COLUMN`, so a new one needs no change to the script); (b) an empty database gets the same schema
+  from the migrations alone, every migration can run twice, and a view built on `offers_unique` makes the
+  migration fail and roll back instead of being dropped; (c) `schema.ts` and the migrations agree. With
   `--from-dump file.sql`, (a) starts from a dump of a database's `public` schema instead. It refuses any
   database that isn't on localhost (`bash scripts/lib-local-db.sh` tests that guard) and needs the full git
   history (`git fetch --unshallow` in a shallow clone). Run it after changing a migration.

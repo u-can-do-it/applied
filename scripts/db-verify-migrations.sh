@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Checks the migrations in drizzle/ against two throwaway LOCAL databases (never production):
 #   (a) a database set up the old way is left exactly as it was by `npm run db:migrate`: same
-#       schema but the unused functions 0005 drops, the tables added since (0006…) and the scraper
-#       kinds of the boards added since (0009…), same rows (public and cron) but the board seed
-#       markers of 0004 and those new boards' seeded scrapers. "The old way" is either
+#       schema but the unused functions 0005 drops, the tables and columns added since (0006…, read
+#       from the migrations) and the scraper kinds of the boards added since (0009…), same rows
+#       (public and cron, without those columns) but the board seed markers of 0004 and those new
+#       boards' seeded scrapers. "The old way" is either
 #         - the old SQL files (supabase/reset.sql, ai-filter.sql, scraping.sql, as scripts/db-reset.sh +
 #           db-migrate.sh ran them), then some use: offers, a merged job, an application with its
 #           history, a profile and a verdict, scrapers edited and deleted, Supabase Cron connected; or
@@ -29,7 +30,7 @@ cd "$(dirname "$0")/.."
 LEGACY_REF=${LEGACY_REF:-a290945}
 IMAGE=${SUPABASE_IMAGE:-supabase/postgres:17.4.1.054}
 usage() {
-  sed -n '2,24p' "$0" >&2
+  sed -n '2,25p' "$0" >&2
   exit 1
 }
 
@@ -77,14 +78,46 @@ must_migrate() { migrate "$1" || {
 # the whole database's schema, except Drizzle's own bookkeeping; pg_dump's random \restrict key dropped
 schema_dump() { pg_tool pg_dump "$1" --schema-only --exclude-schema=drizzle | grep -Ev '^\\(un)?restrict ' >"$2"; }
 # the rows: the app's, and Supabase Cron's jobs (pg_dump leaves out cron.job: it belongs to the
-# extension, which lives in pg_catalog, so it's read with a query). The tables added since (not there
-# in (a) before the migration, empty after it) are left out.
+# extension, which lives in pg_catalog, so it's read with a query). The tables and columns added since
+# (not there in (a) before the migration, empty or their default after it) are left out.
 data_dump() {
   local added=()
   for table in ${ADDED_TABLES//|/ }; do added+=("--exclude-table=public.$table"); done
-  pg_tool pg_dump "$1" --data-only --schema=public --schema=cron "${added[@]}" | grep -Ev '^\\(un)?restrict ' >"$2"
+  pg_tool pg_dump "$1" --data-only --schema=public --schema=cron "${added[@]}" | grep -Ev '^\\(un)?restrict ' |
+    without_added_columns >"$2"
   pg_tool psql "$1" -X -qtA -c "select jobid, jobname, schedule, command, active, nodename, database, username
     from cron.job order by jobid" >>"$2"
+}
+# pg_dump's COPY blocks from stdin, the added columns taken out of their column list and of their rows
+# (tab-separated, in that list's order, up to "\.")
+without_added_columns() {
+  awk -v columns="$ADDED_COLUMNS" '
+    /^COPY public\./ {
+      table = substr($2, 8)
+      list = $0
+      sub(/^[^(]*[(]/, "", list)
+      sub(/[)] FROM stdin;$/, "", list)
+      n = split(list, names, ", ")
+      split("", dropped)
+      cut = 0
+      kept = ""
+      for (i = 1; i <= n; i++) {
+        column = names[i]
+        gsub(/"/, "", column)
+        if (index("|" columns "|", "|" table "." column "|")) { dropped[i] = 1; cut = 1 } else kept = kept (kept == "" ? "" : ", ") names[i]
+      }
+      if (cut) { print "COPY " $2 " (" kept ") FROM stdin;"; next }
+    }
+    /^\\\.$/ { cut = 0 }
+    cut {
+      n = split($0, fields, "\t")
+      row = ""
+      tab = ""
+      for (i = 1; i <= n; i++) if (!(i in dropped)) { row = row tab fields[i]; tab = "\t" }
+      print row
+      next
+    }
+    { print }'
 }
 # runs SQL from stdin; on failure shows what psql said
 run_sql() { psql_file "$1" >"$work/psql.log" 2>&1 || {
@@ -105,13 +138,23 @@ without_public_schema_acl() {
 # becomes one line (its statements joined by " ↵ "), the dropped functions' entries are left out and
 # the rest sorted: without those functions pg_dump may put the same entries in another order.
 DROPPED_FUNCTIONS='jw_set_application_status|jw_ghost_stale_applications|jw_scrape_lock|jw_source_counts|ai_results|ai_pending|ai_range_stats'
-# tables a later migration adds (0006_push_subscriptions, 0007_seen_jobs, 0008_archived_jobs): new in (a), so
-# their entries are left out of the comparison too, and checked to be there
-ADDED_TABLES='push_subscriptions|seen_jobs|archived_jobs'
-# boards added since (0009_adzuna_kind, 0010_himalayas_kind, 0012_remote_boards_kinds): a migration lets their kind into scrapers_kind_check, and
+# 0000…0005 build what the old SQL files built; the migrations after them add to it. Their statements,
+# in lower case without quotes, "public.", "if not exists" and "only": `npm run db:generate` writes
+# CREATE TABLE IF NOT EXISTS "t" and ALTER TABLE "t" ADD COLUMN IF NOT EXISTS "c", a hand-written one may not
+LATER_MIGRATIONS=$(printf '%s\n' drizzle/[0-9]*.sql | awk -F/ '$2 + 0 > 5')
+# shellcheck disable=SC2086 # file names without spaces
+later_statements() { awk '{ $0 = tolower($0); gsub(/"|public\.|if not exists |only /, ""); print }' $LATER_MIGRATIONS; }
+# the tables they create (0006_push_subscriptions, 0016_offer_window…): new in (a), so their entries
+# (grants included) are left out of the comparison too, and checked to be there
+ADDED_TABLES=$(later_statements | sed -nE 's/^create table ([a-z0-9_]+).*/\1/p' | paste -sd'|' -)
+# the columns they add to tables already there, as table.column (0015_body_leasing, 0017_scraper_last_proxied…):
+# their lines are left out of those tables' entries, with the commas ending the others' (pg_dump puts an
+# added column after the old ones, so the one before it gains a comma), and checked to be there
+ADDED_COLUMNS=$(later_statements | sed -nE 's/^alter table ([a-z0-9_]+) add column ([a-z0-9_]+).*/\1.\2/p' | paste -sd'|' -)
+# boards added since (0009_adzuna_kind, 0010_himalayas_kind, 0012_remote_boards_kinds, 0023_theprotocol_kind, 0024_pracuj_kind): a migration lets their kind into scrapers_kind_check, and
 # lib/db/seed.ts adds their scrapers after the migrations. Taken out of the kinds for the comparison,
 # and their seeded scrapers out of the rows, and checked to be there
-ADDED_BOARDS='adzuna|himalayas|remotive|jobicy|remoteok'
+ADDED_BOARDS='adzuna|himalayas|remotive|jobicy|remoteok|theprotocol|pracuj'
 # generic kinds added since (0011_ats_kind): after the others in scrapers_kind_check, so taken out with the
 # comma before them; no scrapers are seeded for them
 ADDED_KINDS='ats'
@@ -119,16 +162,26 @@ ADDED_KINDS='ats'
 # the view): their entries are left out of the comparison; (b) checks them against a fresh database's
 REDEFINED='jw_dup_key[(]|offers_unique;'
 entries_without_dropped_functions() {
-  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v boards="$ADDED_BOARDS" -v kinds="$ADDED_KINDS" -v redefined="$REDEFINED" '
+  awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v columns="$ADDED_COLUMNS" -v boards="$ADDED_BOARDS" \
+    -v kinds="$ADDED_KINDS" -v redefined="$REDEFINED" '
     function flush() { if (entry != "" && !skip) print entry; entry = "" }
     /^-- Name: / {
       flush()
       skip = ($0 ~ ("^-- Name: (FUNCTION )?(" names ")\\(")) || ($0 ~ ("^-- Name: (TABLE )?(" tables ")[ ;]")) ||
         ($0 ~ ("^-- Name: (" redefined ")"))
+      # a public table some columns were added to
+      split($0, words, /[ ;]+/)
+      table = ($0 ~ /; Type: TABLE; Schema: public;/ && index("|" columns, "|" words[3] ".")) ? words[3] : ""
       next
     }
     # comments, blank lines, and the SETs pg_dump puts before whichever entry comes before the first table
     /^--/ || /^$/ || /^SET default_table/ { next }
+    table != "" {
+      column = $1
+      gsub(/"/, "", column)
+      if (index("|" columns "|", "|" table "." column "|")) next
+      sub(/,$/, "")
+    }
     { gsub("\047(" boards ")\047::text, ", ""); gsub(", \047(" kinds ")\047::text", ""); entry = entry $0 " ↵ " }
     END { flush() }' "$1" | LC_ALL=C sort >"$2"
 }
@@ -136,13 +189,19 @@ entries_without_dropped_functions() {
 # rows (tab-separated) and in seed_rows (|-separated)
 without_added_boards() { grep -Ev "[|	]($ADDED_BOARDS)[|	]($ADDED_BOARDS)[|	]" "$1" >"$2" || true; }
 seed_rows() {
-  # config is left out: the seeds' URLs were updated after LEGACY_REF
+  # config is left out: the seeds' URLs were updated after LEGACY_REF; scrape_state's columns as the old files made it
   pg_tool psql "$1" -X -qtA -c 'select position, name, src, kind, enabled from public.scrapers order by position' \
-    -c 'select settings from public.scrape_settings' -c 'select * from public.scrape_state' \
+    -c 'select settings from public.scrape_settings' \
+    -c 'select id, locked_until, last_call_at, last_run_at, muted from public.scrape_state' \
     -c "select name from public.scrape_seeds where name not like 'board:%' order by name" >"$2"
 }
 # 0004_board_seeds marks the boards seeded so far (lib/db/seed.ts seeds any other one after the
 # migrations): the one change db:migrate makes to an existing database's rows
+# 0019_linkedin_since: the seeded LinkedIn searches' old link (the last hour) becomes the one looking back to the
+# last complete run, over 5 pages; the rows are compared with that done, and sorted (an updated row moves)
+as_after_0019() {
+  sed -E 's/(f_TPR=)r3600(&start=\{start\}", "pages": )[0-9]+/\1r{since}\25/' "$1" | LC_ALL=C sort >"$2"
+}
 board_markers() { pg_tool psql "$1" -X -qtA -c "select name from public.scrape_seeds where name like 'board:%' order by name" >"$2"; }
 same() {
   if diff -u "$2" "$3" >"$work/diff"; then
@@ -224,7 +283,7 @@ schema_dump "$url_a" "$work/a-after.sql"
 data_dump "$url_a" "$work/a-after-data.sql"
 entries_without_dropped_functions "$work/a-before.sql" "$work/a-before-kept.sql"
 entries_without_dropped_functions "$work/a-after.sql" "$work/a-after-kept.sql"
-same "schema unchanged but for the unused functions 0005 drops, the new tables and what is defined anew ($(wc -l <"$work/a-before.sql") lines of pg_dump)" \
+same "schema unchanged but for the unused functions 0005 drops, the new tables and columns and what is defined anew ($(wc -l <"$work/a-before.sql") lines of pg_dump)" \
   "$work/a-before-kept.sql" "$work/a-after-kept.sql"
 if grep -Eq "^CREATE FUNCTION public\.($DROPPED_FUNCTIONS)\(" "$work/a-after.sql"; then
   echo "   FAILED: an unused function is still there after db:migrate" >&2
@@ -236,6 +295,13 @@ for table in ${ADDED_TABLES//|/ }; do
     { echo "   FAILED: db:migrate didn't add public.$table" >&2 && exit 1; }
 done
 echo "   ok: the new tables are there (${ADDED_TABLES//|/, })"
+pg_tool psql "$url_a" -X -qtA -c "select table_name || '.' || column_name from information_schema.columns
+  where table_schema = 'public'" >"$work/a-columns.txt"
+for column in ${ADDED_COLUMNS//|/ }; do
+  grep -qx "$column" "$work/a-columns.txt" ||
+    { echo "   FAILED: db:migrate didn't add public.$column" >&2 && exit 1; }
+done
+echo "   ok: the new columns are there (${ADDED_COLUMNS//|/, })"
 for board in ${ADDED_BOARDS//|/ }; do
   grep -q "^CONSTRAINT scrapers_kind_check .*'$board'::text" <(grep -o "CONSTRAINT scrapers_kind_check.*" "$work/a-after.sql") ||
     { echo "   FAILED: db:migrate didn't let the $board kind into scrapers" >&2 && exit 1; }
@@ -248,9 +314,11 @@ for kind in ${ADDED_KINDS//|/ }; do
     { echo "   FAILED: db:migrate didn't let the $kind kind into scrapers" >&2 && exit 1; }
 done
 echo "   ok: the new kinds are allowed (${ADDED_KINDS//|/, })"
-grep -v '^board:' "$work/a-after-data.sql" | without_added_boards /dev/stdin "$work/a-after-rows.sql"
-same "rows unchanged but for the board seed markers and the new boards' scrapers ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
-  "$work/a-before-data.sql" "$work/a-after-rows.sql"
+grep -v '^board:' "$work/a-after-data.sql" | without_added_boards /dev/stdin "$work/a-after-unsorted.sql"
+as_after_0019 "$work/a-before-data.sql" "$work/a-before-rows.sql"
+LC_ALL=C sort "$work/a-after-unsorted.sql" >"$work/a-after-rows.sql"
+same "rows unchanged but for the board seed markers and the new boards' scrapers, without the new columns ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
+  "$work/a-before-rows.sql" "$work/a-after-rows.sql"
 applied=$(pg_tool psql "$url_a" -X -qtAc 'select count(*) from drizzle.__drizzle_migrations')
 echo "   ok: $applied migrations recorded in drizzle.__drizzle_migrations"
 
