@@ -38,23 +38,29 @@ export function findJobPosting(page: Page): Record<string, unknown> | null {
   return null;
 }
 
+type Amount = { minValue?: number; maxValue?: number; value?: number; unitText?: string };
+
+/**
+ * "10 000–17 000 PLN / month": the range in its QuantitativeValue (`value`), or on the MonetaryAmount
+ * itself (The Protocol's), or its one number.
+ */
+function salaryOf(raw: unknown) {
+  const salary = raw as (Omit<Amount, 'value'> & { currency?: string; value?: Amount | number | null }) | null;
+  const inner = salary?.value;
+  const value: Amount =
+    inner && typeof inner === 'object' ? inner : { ...salary, value: typeof inner === 'number' ? inner : undefined };
+  const range =
+    value.minValue != null && value.maxValue != null && value.minValue !== value.maxValue
+      ? `${money(value.minValue)}–${money(value.maxValue)}`
+      : money(value.value ?? value.minValue ?? value.maxValue);
+  const per = value.unitText ?? salary?.unitText;
+  return range
+    ? `${range} ${salary?.currency ?? ''}${per ? ` / ${unit(per)}` : ''}`.replace(/\s+/g, ' ').trim()
+    : undefined;
+}
+
 function detailsFromJobPosting(jp: Record<string, unknown>): JobDetails {
-  const salaries = ([] as unknown[]).concat(jp.baseSalary ?? []).map((raw) => {
-    const salary = raw as {
-      currency?: string;
-      value?: { minValue?: number; maxValue?: number; value?: number; unitText?: string };
-    } | null;
-    const value = salary?.value ?? {};
-    const range =
-      value.minValue != null && value.maxValue != null
-        ? `${money(value.minValue)}–${money(value.maxValue)}`
-        : money(value.value ?? value.minValue ?? value.maxValue);
-    return range
-      ? `${range} ${salary?.currency ?? ''}${value.unitText ? ` / ${unit(value.unitText)}` : ''}`
-          .replace(/\s+/g, ' ')
-          .trim()
-      : undefined;
-  });
+  const salaries = ([] as unknown[]).concat(jp.baseSalary ?? []).map(salaryOf);
   const places = ([] as unknown[])
     .concat(jp.jobLocation ?? [])
     .map((place) => (place as { address?: { addressLocality?: string } } | null)?.address?.addressLocality);
@@ -69,7 +75,7 @@ function detailsFromJobPosting(jp: Record<string, unknown>): JobDetails {
     workMode: asString(jp.jobLocationType).toUpperCase() === 'TELECOMMUTE' ? 'remote' : undefined,
     posted: day(jp.datePosted),
     validUntil: day(jp.validThrough),
-    company: asText((jp.hiringOrganization as { name?: string } | undefined)?.name) || undefined,
+    company: asText(jp.hiringOrganization) || undefined, // an Organization, or its name (The Protocol's)
   };
 }
 

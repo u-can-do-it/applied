@@ -1,4 +1,5 @@
-// theprotocol.it: its listing: lib/listings/parsers/theprotocol.ts; its ads: the page's JobPosting.
+// theprotocol.it: its listing: lib/listings/parsers/theprotocol.ts; its ads: lib/ads/theprotocol.ts (the page's
+// JobPosting, its salaries from the page's data).
 import { pathOf } from './links.ts';
 import type { ScrapedBoard } from './types.ts';
 

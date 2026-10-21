@@ -109,6 +109,23 @@ describe('ad readers', () => {
     });
   });
 
+  it("a JobPosting's salary: in its QuantitativeValue, on the MonetaryAmount itself, or one number", async () => {
+    const salaryOf = async (baseSalary: object) => {
+      answer(
+        `<script type="application/ld+json">${JSON.stringify({ '@type': 'JobPosting', description: LONG, baseSalary })}</script>`,
+      );
+      return (await scrapeOffer({ src: 'solidjobs', id: '1', url: 'https://solid.jobs/offer/1' })).details.salary;
+    };
+    expect(await salaryOf({ currency: 'PLN', value: { minValue: 20000, maxValue: 25000, unitText: 'MONTH' } })).toBe(
+      '20 000–25 000 PLN / month',
+    );
+    expect(await salaryOf({ currency: 'PLN', minValue: 10000, maxValue: 17000 })).toBe('10 000–17 000 PLN');
+    expect(await salaryOf({ currency: 'EUR', value: 90000, unitText: 'YEAR' })).toBe('90 000 EUR / year');
+    expect(await salaryOf({ currency: 'PLN', value: { minValue: 150, maxValue: 150, unitText: 'HOUR' } })).toBe(
+      '150 PLN / hour',
+    );
+  });
+
   it("an unknown site: the JobPosting, else the <main>, and the page's title", async () => {
     answer(`<html><head><title>Dev at Acme</title></head><body><main><p>${LONG}</p></main></body></html>`);
     expect(await readJobPage({ src: '', id: '', url: 'https://acme.test/job' })).toEqual({
