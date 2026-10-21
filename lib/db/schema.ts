@@ -236,7 +236,8 @@ export const offerDetails = pgTable(
   ],
 ).enableRLS();
 
-// your note on a job you haven't applied to (its window); marking it applied moves it to the application
+// your note on a job you haven't applied to (its window); marking it applied moves it to the application,
+// an AI merge to the kept job (both noted: the two notes, the kept one's first)
 export const jobNotes = pgTable(
   'job_notes',
   {
@@ -410,14 +411,14 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
 }).enableRLS();
 
 // The jobs you opened from a list (the title or a board's link): a check mark after the title, on
-// every device. A job's id, as the lists have it when it's opened (an AI merge doesn't move it).
+// every device. A job's id, as the lists have it when it's opened (an AI merge moves it to the kept job).
 export const seenJobs = pgTable('seen_jobs', {
   jobId: text('dup_key').primaryKey(),
   seenAt: timestamptz('seen_at').notNull().defaultNow(), // the first time
 }).enableRLS();
 
 // The jobs you archived from a list: left out of the lists (until restored), on every device. A job's id,
-// as the lists have it when it's archived (an AI merge doesn't move it).
+// as the lists have it when it's archived (an AI merge moves it to the kept job).
 export const archivedJobs = pgTable('archived_jobs', {
   jobId: text('dup_key').primaryKey(),
   archivedAt: timestamptz('archived_at').notNull().defaultNow(),

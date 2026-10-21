@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { expect, it } from 'vitest';
 import * as linksRepo from '@/lib/db/repos/job-links';
+import * as jobNotesRepo from '@/lib/db/repos/job-notes';
 import * as offersRepo from '@/lib/db/repos/offers';
 import { archive, restore } from '@/lib/db/repos/archived-jobs';
 import { markSeen } from '@/lib/db/repos/seen-jobs';
@@ -205,6 +206,43 @@ describeDb('offers', () => {
     expect(await getTotalCount()).toBe(1);
     expect(jobs[0].jobId).toBe(added[0].titleKey);
     expect(jobs[0].offers).toHaveLength(2);
+  });
+
+  it('keeps a merged job archived and seen when only the merged-away one was', async () => {
+    const [kept, alias] = await offersRepo.ingest([
+      offer('justjoin', '1', 'Frontend Engineer', 'Acme'),
+      offer('nofluff', '2', 'Front-end Engineer (React)', 'Acme'),
+    ]);
+    await archive(alias.titleKey);
+    await markSeen(alias.titleKey);
+    await linksRepo.mergeJobs(kept.titleKey, alias.titleKey);
+
+    expect((await page()).total).toBe(0);
+    const { jobs } = await page('', '', { archived: true });
+    expect(jobs.map((job) => [job.jobId, job.archived, job.seen])).toEqual([[kept.titleKey, true, true]]);
+    // nothing left under the merged-away id
+    expect(
+      await exec(sql`select dup_key from public.seen_jobs union all select dup_key from public.archived_jobs`),
+    ).toEqual([{ dup_key: kept.titleKey }, { dup_key: kept.titleKey }]);
+  });
+
+  it("moves the merged-away job's note to the kept one: added to its own, or alone", async () => {
+    const [kept, alias, other] = await offersRepo.ingest([
+      offer('justjoin', '1', 'Frontend Engineer', 'Acme'),
+      offer('nofluff', '2', 'Front-end Engineer (React)', 'Acme'),
+      offer('bulldog', '3', 'Frontend Developer', 'Acme'),
+    ]);
+    await jobNotesRepo.setIfUnchanged(kept.titleKey, 'Recruiter: Ola', null);
+    await jobNotesRepo.setIfUnchanged(alias.titleKey, 'Asked 20k', null);
+    await linksRepo.mergeJobs(kept.titleKey, alias.titleKey);
+    expect((await jobNotesRepo.get(kept.titleKey))?.note).toBe('Recruiter: Ola\n\nAsked 20k');
+    expect(await jobNotesRepo.get(alias.titleKey)).toBeNull();
+
+    // the kept job had none
+    await jobNotesRepo.setIfUnchanged(other.titleKey, 'Remote only', null);
+    await jobNotesRepo.take(kept.titleKey);
+    await linksRepo.mergeJobs(kept.titleKey, other.titleKey);
+    expect((await jobNotesRepo.get(kept.titleKey))?.note).toBe('Remote only');
   });
 
   it('finds an offer by the board id or by its link, and gives the title key the scrapers would', async () => {

@@ -159,8 +159,9 @@ ADDED_BOARDS='adzuna|himalayas|remotive|jobicy|remoteok|theprotocol|pracuj'
 # comma before them; no scrapers are seeded for them
 ADDED_KINDS='ats'
 # what a later migration defines anew (0013_title_key_gender_tags: the title key, 0014_offers_unique_own_board_first:
-# the view): their entries are left out of the comparison; (b) checks them against a fresh database's
-REDEFINED='jw_dup_key[(]|offers_unique;'
+# the view, 0025_merge_moves_marks: the merge): their entries are left out of the comparison; (b) checks them
+# against a fresh database's
+REDEFINED='jw_dup_key[(]|offers_unique;|jw_merge_jobs[(]'
 entries_without_dropped_functions() {
   awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v columns="$ADDED_COLUMNS" -v boards="$ADDED_BOARDS" \
     -v kinds="$ADDED_KINDS" -v redefined="$REDEFINED" '

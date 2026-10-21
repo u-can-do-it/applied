@@ -144,7 +144,7 @@ A run checks a date range against one profile version ([`lib/ai/runs.ts`](../lib
 1. **Duplicates** (phase `dedup`): `ai_dup_candidates` proposes pairs of jobs the title key misses (same company
    or one a prefix of the other, similar titles by `pg_trgm`, at most 45 days apart). The AI (low effort)
    decides each pair once (`ai_dup_pairs`); same pairs are merged (`jw_merge_jobs`: `job_links`, and the
-   verdicts and application move to the kept job, the earliest).
+   verdicts, application, note, seen and archived marks move to the kept job, the earliest).
 2. **Assessment** (phase `assess`): each job this profile version hasn't judged, 4 per OpenAI call, 3 calls at
    once, with its ad text. Verdicts are stored per profile version and job, so a second run sends only
    what's new, and editing a profile's text or file (a new version) has its jobs checked again – unless it's
@@ -249,8 +249,8 @@ live in [`lib/db/repos/`](../lib/db/repos), one file per table; the rules on top
 | `scrape_runs`        | the run log (two weeks)                                                       | `lib/listings/run.ts`                                                                                                                                        |
 | `notify_queue`       | new jobs waiting to be sent (every channel)                                   | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what no channel sent)                                        |
 | `push_subscriptions` | the browsers that get push notifications: endpoint, keys, device              | `features/notifications/actions.ts` (enable, disable), `lib/push.ts` (removes one the push service says is gone)                                             |
-| `seen_jobs`          | the jobs you opened from a list (title or board link), per job id             | `features/offers/actions.ts` (`markSeenAction`, on a click in the row, `features/offers/seen.tsx`)                                                           |
-| `archived_jobs`      | the jobs you archived from a list, per job id                                 | `features/offers/actions.ts` (`archiveAction`, `restoreAction`, from the row's button, `features/offers/archive.tsx`)                                        |
+| `seen_jobs`          | the jobs you opened from a list (title or board link), per job id             | `features/offers/actions.ts` (`markSeenAction`, on a click in the row, `features/offers/seen.tsx`); `jw_merge_jobs` moves them                               |
+| `archived_jobs`      | the jobs you archived from a list, per job id                                 | `features/offers/actions.ts` (`archiveAction`, `restoreAction`, from the row's button, `features/offers/archive.tsx`); `jw_merge_jobs` moves them            |
 | `offers_unique`      | view: each job once, its earliest offer, every board's link                   | read-only; defined in `0014_offers_unique_own_board_first` (a board's own offer over an aggregator's)                                                        |
 | `cron.job`           | Supabase Cron's job                                                           | `jw_cron_*` through `lib/db/repos/cron.ts`, from `features/scraping/actions.ts` and `syncCron` (`lib/listings/schedule.ts`)                                  |
 
@@ -409,15 +409,15 @@ the entry says so (_stored as_): those names stay (production data and applied m
 - **new**: A job first seen in the latest finished scrape run that brought new jobs: marked in the lists, listed by
   `?new=1` (`isNew`, `latestWithNewJobs`). Not a stored flag.
 - **seen**: A job whose offer you opened from a list (its title or a board's link): a check mark after its title,
-  on every device. An AI merge doesn't move it. _Stored as:_ `seen_jobs`.
+  on every device. An AI merge moves it to the kept job. _Stored as:_ `seen_jobs`.
 - **archived**: A job you took out of the lists with its archive button (a repost you already decided on, say):
   left out of the offers and their counts, listed by `?archived=1` (the count line's "3 archived"),
-  where the same button restores it. The job's later offers stay archived with it; an AI merge doesn't move it.
+  where the same button restores it. The job's later offers stay archived with it; an AI merge moves it to the kept job.
   _Stored as:_ `archived_jobs`.
 - **channel**: Where new offers are sent: Telegram or push (`lib/channels/`, `Channel`). A **device** is one
   browser subscribed to push. _Stored as:_ `push_subscriptions`.
 - **merge**: The AI deciding two jobs are one (`lib/ai/merge-duplicates.ts`): the later one's title keys then
-  point at the kept job's id (`job_links`), and its verdicts and application follow. Not to be confused with
+  point at the kept job's id (`job_links`), and its verdicts, application, note, seen and archived marks follow. Not to be confused with
   `supabase/scripts/remove-duplicates.sql`, a one-off cleanup of duplicate rows.
   _Stored as:_ `job_links`, `ai_dup_pairs`, `jw_merge_jobs`.
 - **application**: Yours, per job: you applied to it. Keeps a snapshot of the ad (title, company, link, the
