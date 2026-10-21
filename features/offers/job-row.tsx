@@ -5,6 +5,7 @@ import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
 import { FitScore } from './fit-score';
 import { MatchingBadge } from './matching-badge';
+import { NavLink } from './nav';
 import { RentADev } from './rent-a-dev';
 
 // One job in a list, the offers' or the Applied tab's: the same title, facts, verdict, badges and search
@@ -45,12 +46,14 @@ function NoteLine({ note, marks }: { note: string; marks?: number[] }) {
  * The row's columns: the title (`before` and `after` it, say a "new" badge, a seen mark, the window's
  * button), the company and `facts`, the verdict's line, the note's first line; then the badges: `top`, the
  * Rent-a-dev, fit (or, while the AI is `matching` the job, its "matching…") and board badges, `bottom`. A
- * search's words are marked in the title, the company and the note.
+ * search's words are marked in the title, the company and the note. With `companyHref`, the company is a
+ * link (the list searching for it, say).
  */
 export function JobRow({
   title,
   href,
   company,
+  companyHref,
   facts,
   verdict,
   matching = false,
@@ -69,6 +72,8 @@ export function JobRow({
   /** the title links to the offer */
   href?: string;
   company: string | null;
+  /** the company links here (not in a button) */
+  companyHref?: string;
   facts: Fact[];
   verdict?: Verdict | null;
   /** no verdict yet, and the AI is judging it now */
@@ -112,7 +117,18 @@ export function JobRow({
         <Box className={META}>
           {company && (
             <span>
-              <Marked text={company} marks={marks?.company} />
+              {companyHref && !inButton ? (
+                <NavLink
+                  href={companyHref}
+                  scrollTop
+                  title={`Search for ${company}`}
+                  className="text-inherit no-underline hover:text-brand hover:underline hover:underline-offset-2"
+                >
+                  <Marked text={company} marks={marks?.company} />
+                </NavLink>
+              ) : (
+                <Marked text={company} marks={marks?.company} />
+              )}
             </span>
           )}
           {facts.map((fact) => (

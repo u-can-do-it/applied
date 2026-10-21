@@ -158,7 +158,7 @@ export async function Results({
         ? data.jobs.length > 0 && (
             <ol className={cn(DAY_LIST, 'mt-6')}>
               {data.jobs.map((job) => (
-                <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} dated />
+                <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} query={current} dated />
               ))}
             </ol>
           )
@@ -174,7 +174,7 @@ export async function Results({
               </h2>
               <ol className={DAY_LIST}>
                 {group.items.map((job) => (
-                  <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
+                  <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} query={current} />
                 ))}
               </ol>
             </section>

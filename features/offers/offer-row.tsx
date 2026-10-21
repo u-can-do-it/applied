@@ -1,6 +1,7 @@
 import type { Zone } from '@/lib/dates';
 import type { ListedJob } from '@/lib/jobs';
 import { cn } from '@/lib/shared/cn';
+import { withParams } from '@/lib/shared/search-params';
 import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
 import { ArchiveButton, ArchiveRow } from './archive';
@@ -30,17 +31,20 @@ const boardsOf = (job: ListedJob) => {
  * list, back into the others). With a mouse, the archive and "Mark applied" buttons show on the row's hover
  * (or keyboard focus) only. Under a day's heading the row shows the hour it came in; in a list not grouped
  * by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier this week, "02/10" before, in
- * a wider first column.
+ * a wider first column. The company links to the list (`query`, its other filters kept) searching for it.
  */
 export function OfferRow({
   job,
   zone,
   labels,
+  query,
   dated = false,
 }: {
   job: ListedJob;
   zone: Zone;
   labels: Record<string, string>;
+  /** the list's URL query */
+  query: URLSearchParams;
   dated?: boolean;
 }) {
   return (
@@ -67,6 +71,7 @@ export function OfferRow({
           title={job.title}
           href={job.url}
           company={job.company}
+          companyHref={job.company ? withParams(query, { q: job.company }) : undefined}
           facts={[
             ...(job.seniority && job.seniority !== 'unknown' ? [{ key: 'seniority', text: job.seniority }] : []),
             job.remote
