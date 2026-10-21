@@ -18,8 +18,8 @@ import { ApplicationRow } from './application-row';
 import { ApplicationSheet, type SheetHandle } from './application-sheet';
 import { useAppliedQuery } from './use-applied-query';
 
-// The Applied tab: statistics, the list (by the day you applied, like the offer lists), and one
-// application's window.
+// The Applied tab: the search, statistics, the list (by the day you applied, like the offer lists), and
+// one application's window.
 
 /** a note saved in the window, and its note_updated_at once the database answered */
 type NoteOverlay = { note: string | null; at?: string | null };
@@ -139,6 +139,20 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
 
   return (
     <>
+      <div className="mb-2.5 flex items-stretch gap-2 max-[560px]:flex-col">
+        <div className={cn(searchBox, 'flex-1')}>
+          <SearchIcon className="size-4.5" />
+          <input
+            type="search"
+            className={searchInput}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search title, company or note…"
+            aria-label="Search applied offers"
+          />
+        </div>
+        <AddApplication />
+      </div>
       <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] text-muted-foreground">
         <DateRangePicker
           label="Applied"
@@ -162,20 +176,6 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
 
       <AppliedStats apps={inRange} filter={filter?.id ?? null} setFilter={setFilter} />
 
-      <div className="flex items-stretch gap-2 max-[560px]:flex-col">
-        <div className={cn(searchBox, 'flex-1')}>
-          <SearchIcon className="size-4.5" />
-          <input
-            type="search"
-            className={searchInput}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search title, company or note…"
-            aria-label="Search applied offers"
-          />
-        </div>
-        <AddApplication />
-      </div>
       <p className="mt-1 mb-0 min-h-[19px] text-[13px] text-muted-foreground tabular-nums">
         <strong className="font-semibold text-foreground">{shown.length}</strong>
         {shown.length !== apps.length && <> of {apps.length}</>} applied
@@ -216,6 +216,7 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
                     marks={marks?.get(app.jobId)}
                     active={open?.jobId === app.jobId}
                     onOpen={() => void show(app)}
+                    onCompany={setSearch}
                   />
                 </li>
               ))}

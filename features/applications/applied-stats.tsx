@@ -45,7 +45,7 @@ export function AppliedStats({
 
   return (
     <section className="mb-3.5 flex flex-col gap-2.5" aria-label="Application statistics">
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(84px,1fr))] gap-1.5">
         {tiles.map((tile) => (
           <Card
             key={tile.id ?? 'sent'}
@@ -54,16 +54,18 @@ export function AppliedStats({
           >
             <button
               type="button"
-              className="flex flex-col items-start px-3 py-2.5 text-left focus-visible:outline-offset-[-2px]"
+              className="flex flex-col items-start px-2.5 py-1.5 text-left focus-visible:outline-offset-[-2px]"
               aria-pressed={tile.id ? on(tile.id) : undefined}
               onClick={() => (tile.id ? pick(tile.id) : setFilter(null))}
             >
-              <span className="text-[22px] leading-[1.2] font-bold tabular-nums">{tile.value}</span>
-              <span className="text-xs text-muted-foreground">{tile.id ? TILES[tile.id].label : 'Sent'}</span>
+              <span className="text-[17px] leading-[1.2] font-bold tabular-nums">{tile.value}</span>
+              <span className="text-[11px] leading-tight text-muted-foreground">
+                {tile.id ? TILES[tile.id].label : 'Sent'}
+              </span>
               {tile.sub && (
                 <span
                   className={cn(
-                    'text-xs tabular-nums',
+                    'text-[11px] leading-tight tabular-nums',
                     tile.tone === 'good' && 'text-success',
                     tile.tone === 'bad' && 'text-destructive',
                   )}
@@ -76,12 +78,12 @@ export function AppliedStats({
         ))}
         {/* the last one only counts: not a filter */}
         <Card size="sm" className="py-0" aria-disabled="true" title={RENT_A_DEV.title}>
-          <div className="flex flex-col items-start px-3 py-2.5 opacity-70">
-            <span className="text-[22px] leading-[1.2] font-bold tabular-nums">
+          <div className="flex flex-col items-start px-2.5 py-1.5 opacity-70">
+            <span className="text-[17px] leading-[1.2] font-bold tabular-nums">
               {leasing.yes} / {leasing.no}
             </span>
-            <span className="text-xs text-muted-foreground">{RENT_A_DEV.label} / normal</span>
-            <span className="text-xs text-warning-strong tabular-nums">
+            <span className="text-[11px] leading-tight text-muted-foreground">{RENT_A_DEV.label} / normal</span>
+            <span className="text-[11px] leading-tight text-warning-strong tabular-nums">
               {percentOf(leasing.yes, leasing.yes + leasing.no)}
             </span>
           </div>
@@ -89,13 +91,18 @@ export function AppliedStats({
       </div>
 
       {/* where applications are: each one at the stage of its last status (a stage it was taken back
-          from doesn't count), as a share of all sent */}
-      <Funnel
-        stages={counts.now.map((atStage) => ({ ...atStage, label: stageOf(atStage.stage).label }))}
-        sent={counts.sent}
-        isOn={(stage) => Boolean(on(stage))}
-        onPick={pick}
-      />
+          from doesn't count), as a share of all sent; folded away until asked for */}
+      <details>
+        <summary className="cursor-pointer text-[13px] text-muted-foreground">By stage</summary>
+        <div className="mt-1.5">
+          <Funnel
+            stages={counts.now.map((atStage) => ({ ...atStage, label: stageOf(atStage.stage).label }))}
+            sent={counts.sent}
+            isOn={(stage) => Boolean(on(stage))}
+            onPick={pick}
+          />
+        </div>
+      </details>
 
       <StageTable byStage={counts.byStage} isOn={on} onPick={pick} />
     </section>
