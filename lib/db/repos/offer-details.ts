@@ -1,5 +1,5 @@
 import 'server-only';
-import { not, sql } from 'drizzle-orm';
+import { and, isNotNull, not, sql } from 'drizzle-orm';
 import { db } from '../client';
 import { isOneOf } from '../rows';
 import { offerDetails, type OfferDetailsRow } from '../schema';
@@ -7,7 +7,8 @@ import { offerDetails, type OfferDetailsRow } from '../schema';
 // An offer's ad text, scraped once and reused: by every profile's AI run (cut to what the AI reads)
 // and by the offer's window (complete, with the board's details).
 
-export type Details = Pick<OfferDetailsRow, 'src' | 'id' | 'status' | 'description'>;
+export type Details = Pick<OfferDetailsRow, 'src' | 'id' | 'status' | 'description'> &
+  Partial<Pick<OfferDetailsRow, 'details'>>;
 export type CompleteDetails = Details & Pick<OfferDetailsRow, 'details' | 'complete' | 'fetchedAt'>;
 
 export async function forOffers(offers: { src: string; id: string }[]): Promise<CompleteDetails[]> {
@@ -26,9 +27,18 @@ export async function forOffers(offers: { src: string; id: string }[]): Promise<
     .where(isOneOf(offerDetails.src, offerDetails.id, offers));
 }
 
+/** What the boards say about these offers besides the text (salary, contract…), where it's known. */
+export async function detailsOf(offers: { src: string; id: string }[]) {
+  if (!offers.length) return [];
+  return db()
+    .select({ src: offerDetails.src, id: offerDetails.id, details: offerDetails.details })
+    .from(offerDetails)
+    .where(and(isOneOf(offerDetails.src, offerDetails.id, offers), isNotNull(offerDetails.details)));
+}
+
 /**
- * An AI run's: saves them; an offer scraped again gets the new text (fetched_at stays the first
- * time's), unless the window saved it complete meanwhile.
+ * An AI run's: saves them, with what the board says besides (the lists show it); an offer scraped again
+ * gets the new text (fetched_at stays the first time's), unless the window saved it complete meanwhile.
  */
 export async function save(rows: Details[]) {
   if (!rows.length) return;
@@ -37,7 +47,11 @@ export async function save(rows: Details[]) {
     .values(rows)
     .onConflictDoUpdate({
       target: [offerDetails.src, offerDetails.id],
-      set: { description: sql`excluded.description`, status: sql`excluded.status` },
+      set: {
+        description: sql`excluded.description`,
+        status: sql`excluded.status`,
+        details: sql`coalesce(excluded.details, ${offerDetails.details})`,
+      },
       setWhere: not(offerDetails.complete),
     });
 }

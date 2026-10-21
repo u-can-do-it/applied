@@ -1,6 +1,8 @@
 import 'server-only';
 import { checkingSince, isMatching } from './ai/matching';
 import type { DateFilter } from './dates';
+import type { JobDetails } from './ads/details';
+import * as detailsRepo from './db/repos/offer-details';
 import * as offersRepo from './db/repos/offers';
 import * as runsRepo from './db/repos/scrape-runs';
 import * as settingsRepo from './db/repos/scrape-settings';
@@ -17,7 +19,8 @@ import { appZone } from './time-zone';
  * (`seen`), whether you archived it (`archived`), how many the list has on its day, every page's
  * (`dayCount`, in the app's time zone); the active profile's verdict, if it judged it, or whether the AI
  * is matching it right now (`matching`, lib/ai/matching.ts); where the search matched its title and
- * company (`marks`), when there's a search.
+ * company (`marks`), when there's a search; what a board said about it besides (`details`: salary,
+ * contract, work mode, where), from the first of its offers whose ad was read.
  */
 export type ListedJob = offersRepo.Job & {
   isNew: boolean;
@@ -27,6 +30,7 @@ export type ListedJob = offersRepo.Job & {
   marks?: Marks;
   matching?: boolean;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription' | 'bodyLeasing'>;
+  details?: JobDetails;
 };
 
 export const PAGE_SIZE = 50;
@@ -82,7 +86,8 @@ export async function getJobs(opts: Query): Promise<JobPage> {
       opts.verdictsOf?.usable ? matchingSince() : null,
     ]);
     const matched = (job: ListedJob): ListedJob => (isMatching(job, since) ? { ...job, matching: true } : job);
-    return { byMatch, jobs: rows.map(withVerdict).map(matched).map(marked), ...numbers, latest };
+    const jobs = rows.map(withVerdict).map(matched).map(marked);
+    return { byMatch, jobs: await withDetails(jobs), ...numbers, latest };
   }
   const { profileId, version, rejected } = opts.ai;
   const verdicts = { profileId, version, match: !rejected };
@@ -94,7 +99,19 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     verdicts,
     latest,
   );
-  return { byMatch, jobs: rows.map(withVerdict).map(marked), ...numbers, latest };
+  return { byMatch, jobs: await withDetails(rows.map(withVerdict).map(marked)), ...numbers, latest };
+}
+
+/** Each job with what a board said about it besides the text: its first offer (as listed) with any. */
+async function withDetails(jobs: ListedJob[]): Promise<ListedJob[]> {
+  const rows = await detailsRepo.detailsOf(jobs.flatMap((job) => job.offers));
+  const known = new Map(rows.map((row) => [`${row.src}\u0001${row.id}`, row.details]));
+  return jobs.map((job) => {
+    const details = job.offers
+      .map((offer) => known.get(`${offer.src}\u0001${offer.id}`))
+      .find((found) => found && Object.keys(found).length > 0);
+    return details ? { ...job, details } : job;
+  });
 }
 
 /** Since when the jobs without a verdict are being matched (lib/ai/matching.ts); null: none are. */

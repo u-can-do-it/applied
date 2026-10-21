@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import { NotebookPenIcon, SparklesIcon } from 'lucide-react';
+import { workModeOf, workModeText, type JobDetails } from '@/lib/ads/details';
+import { cn } from '@/lib/shared/cn';
 import { marksWithin, type Marks } from '@/lib/shared/search';
 import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
@@ -7,18 +9,40 @@ import { FitScore } from './fit-score';
 import { MatchingBadge } from './matching-badge';
 import { NavLink } from './nav';
 import { RentADev } from './rent-a-dev';
+import { RowBox } from './row-box';
 
-// One job in a list, the offers' or the Applied tab's: the same title, facts, verdict, badges and search
-// marks in both. The caller's element is the row (JOB_ROW's grid): an offer's list item, whose title and
-// boards are links, or an application's button (`inButton`), where nothing inside is clickable on its own.
+// One job in a list, the offers' or the Applied tab's: the same row in both. Its title opens the ad (a new
+// tab), its company searches the list for it, its boards' badges their offers, the fit badge its checklist;
+// a click anywhere else opens the job's window (RowBox). The tabs differ only in what they add: the offers'
+// time, "new", seen mark, archive and Mark applied buttons; the application's status.
 
 export const JOB_ROW = 'grid grid-cols-[1fr_auto] items-start gap-3 px-3.5 py-3';
+
+const COMPANY_LINK = 'text-inherit no-underline hover:text-brand hover:underline hover:underline-offset-2';
 
 const META =
   "mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']";
 
-/** One of what's said after the company (seniority, salary, remote…). */
+/** One of what's said after the company (salary, contract, work mode, where). */
 export type Fact = { key: string; text: string; className?: string };
+
+/**
+ * "19 300–21 000 PLN / month · B2B · Remote · Warszawa": what the board said, as both tabs show it (the
+ * first salary only). `remote`: the listing's own word, for a job whose ad said nothing of where it's done.
+ */
+export const detailFacts = (details: JobDetails | null | undefined, remote?: boolean | null): Fact[] => {
+  const mode = workModeOf(details) ?? (remote == null ? undefined : remote ? 'remote' : null);
+  return [
+    { key: 'salary', text: details?.salary?.split('; ')[0] },
+    { key: 'contract', text: details?.contract },
+    {
+      key: 'mode',
+      text: mode === null ? 'Office / hybrid' : workModeText({ ...details, workMode: mode }),
+      className: mode === 'remote' ? 'text-success' : undefined,
+    },
+    { key: 'location', text: details?.location },
+  ].filter((fact): fact is Fact => Boolean(fact.text));
+};
 
 type Verdict = {
   match: boolean;
@@ -28,7 +52,7 @@ type Verdict = {
   hadDescription: boolean;
 };
 
-/** A board the job is on: a link to its offer when there's `url` (not in a button). */
+/** A board the job is on: a link to its offer when there's `url`. */
 export type Board = { src: string; url?: string };
 
 /** The note's first line, with the search's marks in it. */
@@ -43,17 +67,22 @@ function NoteLine({ note, marks }: { note: string; marks?: number[] }) {
 }
 
 /**
- * The row's columns: the title (`before` and `after` it, say a "new" badge, a seen mark, the window's
- * button), the company and `facts`, the verdict's line, the note's first line; then the badges: `top`, the
- * Rent-a-dev, fit (or, while the AI is `matching` the job, its "matching…") and board badges, `bottom`. A
- * search's words are marked in the title, the company and the note. With `companyHref`, the company is a
- * link (the list searching for it, say).
+ * The row: `leading` (the offers' time), then the title (`before` and `after` it: a "new" badge, a seen
+ * mark, the window's button, which a click on the row clicks), the company and `facts`, the verdict's line,
+ * the note's first line; then the badges: `top`, the Rent-a-dev, fit (or, while the AI is `matching` the
+ * job, its "matching…") and board badges, `bottom`. A search's words are marked in the title, the company
+ * and the note. The company is a link with `companyHref` (the list searching for it), or a button with
+ * `onCompany`. `className`: the row's grid (JOB_ROW, or a wider one with `leading`).
  */
 export function JobRow({
+  className = JOB_ROW,
+  active,
+  leading,
   title,
   href,
   company,
   companyHref,
+  onCompany,
   facts,
   verdict,
   matching = false,
@@ -62,18 +91,23 @@ export function JobRow({
   marks,
   boards,
   labels,
-  inButton = false,
   before,
   after,
   top,
   bottom,
 }: {
+  className?: string;
+  /** its window is open */
+  active?: boolean;
+  leading?: ReactNode;
   title: string;
-  /** the title links to the offer */
-  href?: string;
+  /** the title opens the offer (a new tab) */
+  href?: string | null;
   company: string | null;
-  /** the company links here (not in a button) */
+  /** the company links here */
   companyHref?: string;
+  /** …or a click on it does this */
+  onCompany?: () => void;
   facts: Fact[];
   verdict?: Verdict | null;
   /** no verdict yet, and the AI is judging it now */
@@ -83,20 +117,18 @@ export function JobRow({
   marks?: Marks;
   boards: Board[];
   labels: Record<string, string>;
-  /** the row is a button: no links or buttons in it */
-  inButton?: boolean;
   before?: ReactNode;
   after?: ReactNode;
   top?: ReactNode;
   bottom?: ReactNode;
 }) {
-  // a button may hold only phrasing content: spans then, styled as blocks
-  const Box = inButton ? 'span' : 'div';
   const titleText = <Marked text={title} marks={marks?.title} />;
+  const companyText = company && <Marked text={company} marks={marks?.company} />;
   return (
-    <>
-      <Box className="block min-w-0">
-        <Box className="block">
+    <RowBox className={className} active={active}>
+      {leading}
+      <div className="min-w-0">
+        <div>
           {before}
           {href ? (
             <a
@@ -108,26 +140,28 @@ export function JobRow({
               {titleText}
             </a>
           ) : (
-            <span className="font-semibold [overflow-wrap:anywhere] group-hover/row:text-brand group-hover/row:underline group-hover/row:underline-offset-2">
-              {titleText}
-            </span>
+            <span className="font-semibold [overflow-wrap:anywhere]">{titleText}</span>
           )}
           {after}
-        </Box>
-        <Box className={META}>
+        </div>
+        <div className={META}>
           {company && (
             <span>
-              {companyHref && !inButton ? (
-                <NavLink
-                  href={companyHref}
-                  scrollTop
-                  title={`Search for ${company}`}
-                  className="text-inherit no-underline hover:text-brand hover:underline hover:underline-offset-2"
-                >
-                  <Marked text={company} marks={marks?.company} />
+              {companyHref ? (
+                <NavLink href={companyHref} scrollTop title={`Search for ${company}`} className={COMPANY_LINK}>
+                  {companyText}
                 </NavLink>
+              ) : onCompany ? (
+                <button
+                  type="button"
+                  onClick={onCompany}
+                  title={`Search for ${company}`}
+                  className={cn(COMPANY_LINK, 'cursor-pointer')}
+                >
+                  {companyText}
+                </button>
               ) : (
-                <Marked text={company} marks={marks?.company} />
+                companyText
               )}
             </span>
           )}
@@ -136,17 +170,17 @@ export function JobRow({
               {fact.text}
             </span>
           ))}
-        </Box>
+        </div>
         {verdict?.summary && (
-          <Box className="mt-1 block text-xs text-brand">
+          <div className="mt-1 text-xs text-brand">
             <SparklesIcon /> {verdict.summary}
-          </Box>
+          </div>
         )}
         {note?.trim() && <NoteLine note={note} marks={marks?.note} />}
-      </Box>
-      <Box className="flex flex-col items-end gap-1.5 max-[560px]:max-w-[42vw]">
+      </div>
+      <div className="flex flex-col items-end gap-1.5 max-[560px]:max-w-[42vw]">
         {top}
-        <Box className="flex flex-wrap items-center justify-end gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-1">
           {rentADev && <RentADev />}
           {!verdict && matching && <MatchingBadge />}
           {verdict && (
@@ -156,21 +190,20 @@ export function JobRow({
               summary={verdict.summary}
               checks={verdict.checks}
               hadDescription={verdict.hadDescription}
-              inButton={inButton}
             />
           )}
           {boards.map((board) => (
-            <BoardBadge key={board.src} board={board} label={labels[board.src] ?? board.src} inButton={inButton} />
+            <BoardBadge key={board.src} board={board} label={labels[board.src] ?? board.src} />
           ))}
-        </Box>
+        </div>
         {bottom}
-      </Box>
-    </>
+      </div>
+    </RowBox>
   );
 }
 
-function BoardBadge({ board, label, inButton }: { board: Board; label: string; inButton: boolean }) {
-  if (inButton || !board.url) {
+function BoardBadge({ board, label }: { board: Board; label: string }) {
+  if (!board.url) {
     return (
       <Badge variant="quiet" className="rounded-md">
         {label}

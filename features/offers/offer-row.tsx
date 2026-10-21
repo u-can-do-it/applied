@@ -5,7 +5,7 @@ import { withParams } from '@/lib/shared/search-params';
 import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
 import { ArchiveButton, ArchiveRow } from './archive';
-import { JOB_ROW, JobRow } from './job-row';
+import { detailFacts, JOB_ROW, JobRow } from './job-row';
 import { OfferWindowButton } from './offer-window-button';
 import { SeenItem, SeenMark } from './seen';
 
@@ -24,14 +24,15 @@ const boardsOf = (job: ListedJob) => {
 };
 
 /**
- * One job in the offer list, as JobRow shows a job on either tab. A job the latest scrape run that brought
- * new jobs brought is marked "new", with a faint tint, so what came in last time stands out; one you opened
- * before has a check mark after its title, and then the button of its window (the ad, your note, the fit;
- * once applied to, the application's). The archive button takes it out of the list (or, in the archived
+ * One job in the offer list, as JobRow shows a job on either tab: its title opens the ad, its company
+ * searches the list (`query`, its other filters kept) for it, a click elsewhere opens its window. A job the
+ * latest scrape run that brought new jobs brought is marked "new", with a faint tint, so what came in last
+ * time stands out; one you opened before has a check mark after its title, and then the button of its window
+ * (the ad, your note, the fit; once applied to, the application's). The archive button takes it out of the list (or, in the archived
  * list, back into the others). With a mouse, the archive and "Mark applied" buttons show on the row's hover
  * (or keyboard focus) only. Under a day's heading the row shows the hour it came in; in a list not grouped
  * by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier this week, "02/10" before, in
- * a wider first column. The company links to the list (`query`, its other filters kept) searching for it.
+ * a wider first column. Its details line: what its ad said (salary, contract, work mode, where), once read.
  */
 export function OfferRow({
   job,
@@ -52,32 +53,25 @@ export function OfferRow({
       <SeenItem
         jobId={job.jobId}
         seen={job.seen}
-        className={cn(
-          OFFER,
-          dated && 'grid-cols-[68px_1fr_auto]',
-          'group/offer',
-          job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]',
-        )}
+        className={cn('group/offer', job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]')}
         data-new={job.isNew || undefined}
       >
-        <time
-          dateTime={job.firstSeen}
-          title={fullLabel(zone, job.firstSeen)}
-          className="pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full max-[560px]:p-0"
-        >
-          {dated ? zone.shortDay(job.firstSeen) : zone.formatTime(job.firstSeen)}
-        </time>
         <JobRow
+          className={cn(OFFER, dated && 'grid-cols-[68px_1fr_auto]')}
+          leading={
+            <time
+              dateTime={job.firstSeen}
+              title={fullLabel(zone, job.firstSeen)}
+              className="pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full max-[560px]:p-0"
+            >
+              {dated ? zone.shortDay(job.firstSeen) : zone.formatTime(job.firstSeen)}
+            </time>
+          }
           title={job.title}
           href={job.url}
           company={job.company}
           companyHref={job.company ? withParams(query, { q: job.company }) : undefined}
-          facts={[
-            ...(job.seniority && job.seniority !== 'unknown' ? [{ key: 'seniority', text: job.seniority }] : []),
-            job.remote
-              ? { key: 'mode', text: 'Remote', className: 'text-success' }
-              : { key: 'mode', text: 'Office / hybrid' },
-          ]}
+          facts={detailFacts(job.details, job.remote)}
           verdict={job.ai}
           matching={job.matching}
           rentADev={Boolean(job.ai?.bodyLeasing)}

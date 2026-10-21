@@ -18,6 +18,7 @@ import { mergeDuplicatesRound } from './merge-duplicates';
 import { assessOffers, type OfferForAi } from './openai';
 import { getProfile, type Profile, type ProfileWithFile } from './profiles';
 import { adForAi, scrapeOffer } from '../ads';
+import { hasAny } from '../application-details';
 import { log } from '../log';
 import { message } from '../shared/errors';
 
@@ -134,6 +135,7 @@ async function descriptions(jobs: Pending[]): Promise<Map<string, string | null>
           id: offer.id,
           description: scraped.status === 'ok' ? scraped.text : null,
           status: scraped.status,
+          details: hasAny(scraped.details) ? scraped.details : null,
         });
         if (scraped.status === 'ok') {
           text = scraped.text;
