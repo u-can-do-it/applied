@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { expect, it, vi } from 'vitest';
 import { countPending, latestRun, needsWorker, rangeStats, startRun } from '@/lib/ai/runs';
 import * as pairsRepo from '@/lib/db/repos/ai-dup-pairs';
+import { archive, restore } from '@/lib/db/repos/archived-jobs';
 import * as runsRepo from '@/lib/db/repos/ai-runs';
 import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as verdictsRepo from '@/lib/db/repos/ai-verdicts';
@@ -327,5 +328,17 @@ describeDb('AI verdicts and runs', () => {
     expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
     const [decided] = await exec(sql`select same, reason from public.ai_dup_pairs`);
     expect(decided).toEqual({ same: false, reason: 'changed' });
+  });
+
+  it('leaves an archived job out of the look-alike pairs, until it is restored', async () => {
+    const [archived] = await offersRepo.ingest([
+      job('justjoin', '1', 'Senior React Developer', 'EPAM'),
+      job('nofluff', '2', 'Senior React.js Developer!', 'EPAM Systems'),
+    ]);
+    await archive(archived.titleKey);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
+
+    await restore(archived.titleKey);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toHaveLength(1);
   });
 });

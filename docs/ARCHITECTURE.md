@@ -142,7 +142,7 @@ through their APIs (Himalayas' job pages turn servers away), Built In and Linked
 A run checks a date range against one profile version ([`lib/ai/runs.ts`](../lib/ai/runs.ts)):
 
 1. **Duplicates** (phase `dedup`): `ai_dup_candidates` proposes pairs of jobs the title key misses (same company
-   or one a prefix of the other, similar titles by `pg_trgm`, at most 45 days apart). The AI (low effort)
+   or one a prefix of the other, similar titles by `pg_trgm`, at most 45 days apart, neither archived). The AI (low effort)
    decides each pair once (`ai_dup_pairs`); same pairs are merged (`jw_merge_jobs`: `job_links`, and the
    verdicts, application, note, seen and archived marks move to the kept job, the earliest).
 2. **Assessment** (phase `assess`): each job this profile version hasn't judged, 4 per OpenAI call, 3 calls at
@@ -415,7 +415,8 @@ the entry says so (_stored as_): those names stay (production data and applied m
   on every device. An AI merge moves it to the kept job. _Stored as:_ `seen_jobs`.
 - **archived**: A job you took out of the lists with its archive button (a repost you already decided on, say):
   left out of the offers and their counts, listed by `?archived=1` (the count line's "3 archived"),
-  where the same button restores it. The job's later offers stay archived with it; an AI merge moves it to the kept job.
+  where the same button restores it. The job's later offers (same title key) stay archived with it; the AI doesn't pair
+  it with look-alikes, so a reworded repost is a job of its own. An AI merge moves it to the kept job.
   _Stored as:_ `archived_jobs`.
 - **channel**: Where new offers are sent: Telegram or push (`lib/channels/`, `Channel`). A **device** is one
   browser subscribed to push. _Stored as:_ `push_subscriptions`.

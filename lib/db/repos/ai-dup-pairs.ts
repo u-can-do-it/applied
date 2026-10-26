@@ -52,7 +52,8 @@ const side = (row: CandidateRow, prefix: 'a' | 'b'): CandidateJob => ({
 
 /**
  * Pairs worth asking about, most alike first: jobs in the range against any job up to 45 days
- * apart, same or prefix company, similar title, never decided (pg_trgm; see the function).
+ * apart, same or prefix company, similar title, never decided, neither archived (pg_trgm; see the
+ * function).
  */
 export async function candidates(
   range: { gte: string | null; lt: string | null },
