@@ -4,7 +4,7 @@ import { Check, FileTextIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
 import type { Marks } from '@/lib/shared/search';
-import { JobRow, detailFacts } from '@/features/offers/job-row';
+import { JobRow, detailFacts, type CompanyApplied } from '@/features/offers/job-row';
 import { isRentADev } from '@/features/offers/rent-a-dev';
 import { WindowButton } from '@/features/offers/row-box';
 import { StatusChip } from './status-chip';
@@ -29,6 +29,7 @@ export function ApplicationRow({
   active = false,
   onOpen,
   onCompany,
+  companyApplied,
 }: {
   app: ListedApplication;
   labels: Record<string, string>;
@@ -39,6 +40,8 @@ export function ApplicationRow({
   onOpen: () => void;
   /** a click on the company: the list searching for it */
   onCompany?: (company: string) => void;
+  /** your applications at its company, this one among them */
+  companyApplied?: CompanyApplied;
 }) {
   const company = app.company;
   return (
@@ -48,6 +51,7 @@ export function ApplicationRow({
       href={app.url || null}
       company={company}
       onCompany={company && onCompany ? () => onCompany(company) : undefined}
+      companyApplied={companyApplied}
       facts={detailFacts(app.details)}
       verdict={app.fit}
       rentADev={Boolean(isRentADev(app))}

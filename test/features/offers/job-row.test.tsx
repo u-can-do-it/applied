@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import type { ComponentProps } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { detailFacts, JobRow } from '@/features/offers/job-row';
+import { appliedHere, detailFacts, JobRow } from '@/features/offers/job-row';
 import { WindowButton } from '@/features/offers/row-box';
 import { NavProvider } from '@/features/offers/nav';
 
@@ -116,4 +116,17 @@ it('the details line: salary (the first), contract, work mode, where; else the l
   expect(texts(detailFacts(undefined, true))).toEqual(['Remote']);
   expect(texts(detailFacts(undefined, false))).toEqual(['Office / hybrid']);
   expect(texts(detailFacts(null))).toEqual([]);
+});
+
+describe('appliedHere', () => {
+  it('says how often you applied at the company, nothing when only to this job', () => {
+    expect(appliedHere({ count: 1, last: '12.10.2026', self: true })).toBeNull();
+    expect(appliedHere({ count: 1, last: '12.10.2026', self: false })).toBe('You applied here once, on 12.10.2026');
+    expect(appliedHere({ count: 3, last: '12.10.2026', self: true })).toBe(
+      'You applied here 3 times, this job too; the latest on 12.10.2026',
+    );
+    expect(appliedHere({ count: 2, last: '12.10.2026', self: false })).toBe(
+      'You applied here 2 times; the latest on 12.10.2026',
+    );
+  });
 });

@@ -95,6 +95,44 @@ describeDb('applications', () => {
     expect('content' in (await listApplications())[0]).toBe(false);
   });
 
+  it("counts your applications at each listed job's company, its legal form and case aside", async () => {
+    const jobId = await scrapedJob();
+    await offersRepo.ingest([
+      {
+        src: 'justjoin',
+        id: 'j2',
+        title: 'Vue Developer',
+        company: 'ACME Sp. z o.o.',
+        seniority: null,
+        remote: true,
+        url: 'https://justjoin.it/job-offer/j2',
+      },
+      {
+        src: 'justjoin',
+        id: 'j3',
+        title: 'Go Developer',
+        company: 'Beta',
+        seniority: null,
+        remote: true,
+        url: 'https://justjoin.it/job-offer/j3',
+      },
+    ]);
+    await markApplied(jobId, { src: 'justjoin', id: 'j1' });
+    await addApplication(typed('Angular Developer', { company: 'Acme' }), utc);
+    const atCompany = async () =>
+      Object.fromEntries(
+        (await getJobs({ q: '', src: '', page: 0 })).jobs.map((job) => [
+          job.title,
+          [job.companyApplied, job.companyLastApplied !== null],
+        ]),
+      );
+    expect(await atCompany()).toEqual({
+      'React Developer': [2, true],
+      'Vue Developer': [2, true],
+      'Go Developer': [0, false],
+    });
+  });
+
   it('adds one by hand, and refuses the same job twice', async () => {
     const added = await addApplication(typed('Designer', { note: 'met at a meetup' }), utc);
     expect(added.jobId).toBeTruthy();

@@ -109,6 +109,18 @@ const scoredIn = (tier: ScoredTier) =>
     ? gte(aiVerdicts.score, GOOD_FIT)
     : and(gte(aiVerdicts.score, FAIR_FIT), lt(aiVerdicts.score, GOOD_FIT));
 
+/**
+ * Per job: your applications at its company (an application's job id has the company's part before the
+ * "|", as the job's company_key), how many and the latest; none for a job without a company.
+ */
+const atCompany = (column: SQL) =>
+  sql`(select ${column} from public.applications a
+       where ${offersUnique.companyKey} <> '' and split_part(a.dup_key, '|', 1) = ${offersUnique.companyKey})`;
+const appliedAtCompany = {
+  companyApplied: sql<number>`${atCompany(sql`count(*)::int`)}`,
+  companyLastApplied: sql<string | null>`${atCompany(sql`max(a.applied_at)`)}`,
+};
+
 /** a search's jobs as {job id: its place}, one parameter however many there are */
 const placeIn = (ranked: string[]) =>
   sql`(${JSON.stringify(Object.fromEntries(ranked.map((jobId, place) => [jobId, place])))}::jsonb ->> ${offersUnique.jobId})::int`;
@@ -166,7 +178,8 @@ const verdictColumns = {
 /**
  * One page of jobs, and how many match in all (the pager needs the exact number), each marked new if
  * first seen in `latest`, the latest run that brought a new job, and with how many match on its day
- * in time zone `tz` (`dayCount`), and how many good and fair fits (`dayGood`, `dayFair`); `newCount`: how many of all were;
+ * in time zone `tz` (`dayCount`), and how many good and fair fits (`dayGood`, `dayFair`), and your applications at its
+ * company (`companyApplied`, the latest `companyLastApplied`); `newCount`: how many of all were;
  * `archivedCount`: how many jobs these filters find among the archived ones. With `verdictsOf`, each
  * with that profile version's verdict, when it has one (its fields null when not).
  */
@@ -186,6 +199,7 @@ export async function pageOfJobs(
     archived: isArchived(),
     dayCount: sameDay(tz),
     ...fitsOfDay(tz, Boolean(verdictsOf)),
+    ...appliedAtCompany,
   };
   const rows = verdictsOf
     ? db()
@@ -237,6 +251,7 @@ export async function pageOfJudgedJobs(
         archived: isArchived(),
         dayCount: sameDay(tz),
         ...fitsOfDay(tz, true),
+        ...appliedAtCompany,
         ...verdictColumns,
       })
       .from(offersUnique)

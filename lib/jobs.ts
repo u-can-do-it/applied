@@ -31,6 +31,9 @@ export type ListedJob = offersRepo.Job & {
   dayCount: number;
   dayGood: number;
   dayFair: number;
+  /** your applications at its company (this job's too), and when the latest was */
+  companyApplied: number;
+  companyLastApplied: string | null;
   marks?: Marks;
   matching?: boolean;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription' | 'bodyLeasing'>;

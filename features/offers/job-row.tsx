@@ -5,6 +5,7 @@ import { cn } from '@/lib/shared/cn';
 import { marksWithin, type Marks } from '@/lib/shared/search';
 import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CopyTitle } from './copy-title';
 import { FitScore } from './fit-score';
 import { MatchingBadge } from './matching-badge';
@@ -21,6 +22,33 @@ import { RowBox } from './row-box';
 export const JOB_ROW = 'grid grid-cols-[1fr_auto] items-start gap-3 px-3.5 py-3';
 
 const COMPANY_LINK = 'text-inherit no-underline hover:text-brand hover:underline hover:underline-offset-2';
+
+/** a company you've applied at: underlined with dots, its hover says how often */
+const APPLIED_HERE = 'underline decoration-dotted underline-offset-2';
+
+/** The company, with `applied` (your applications there) on its hover, and what a click does (`search`). */
+function CompanyHover({
+  applied,
+  search,
+  children,
+}: {
+  applied: string | null;
+  search: string | null;
+  children: ReactNode;
+}) {
+  if (!applied) return children;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>{children}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="flex-col items-start gap-0.5">
+        <span>{applied}</span>
+        {search && <span className="opacity-70">{search}</span>}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 const META =
   "mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']";
@@ -57,6 +85,16 @@ type Verdict = {
 /** A board the job is on: a link to its offer when there's `url`. */
 export type Board = { src: string; url?: string };
 
+/** Your applications at the job's company: how many (this job's own among them: `self`), and the latest's day. */
+export type CompanyApplied = { count: number; last: string; self: boolean };
+
+/** "You applied here 3 times, this job too; the latest on 12.10.2026"; nothing when it's only this job. */
+export function appliedHere({ count, last, self }: CompanyApplied): string | null {
+  if (count - (self ? 1 : 0) <= 0) return null;
+  if (count === 1) return `You applied here once, on ${last}`;
+  return `You applied here ${count} times${self ? ', this job too' : ''}; the latest on ${last}`;
+}
+
 /** The note's first line, with the search's marks in it. */
 function NoteLine({ note, marks }: { note: string; marks?: number[] }) {
   const from = note.length - note.trimStart().length;
@@ -85,6 +123,7 @@ export function JobRow({
   company,
   companyHref,
   onCompany,
+  companyApplied,
   facts,
   verdict,
   matching = false,
@@ -110,6 +149,8 @@ export function JobRow({
   companyHref?: string;
   /** …or a click on it does this */
   onCompany?: () => void;
+  /** your applications at its company: on the company's hover */
+  companyApplied?: CompanyApplied;
   facts: Fact[];
   verdict?: Verdict | null;
   /** no verdict yet, and the AI is judging it now */
@@ -126,6 +167,9 @@ export function JobRow({
 }) {
   const titleText = <Marked text={title} marks={marks?.title} />;
   const companyText = company && <Marked text={company} marks={marks?.company} />;
+  const applied = companyApplied ? appliedHere(companyApplied) : null;
+  // with applications there, the hover says so (and that a click searches) instead of the plain title
+  const searchTitle = applied ? undefined : `Search for ${company}`;
   return (
     <RowBox className={className} active={active}>
       {leading}
@@ -156,22 +200,32 @@ export function JobRow({
         <div className={META}>
           {company && (
             <span>
-              {companyHref ? (
-                <NavLink href={companyHref} scrollTop title={`Search for ${company}`} className={COMPANY_LINK}>
-                  {companyText}
-                </NavLink>
-              ) : onCompany ? (
-                <button
-                  type="button"
-                  onClick={onCompany}
-                  title={`Search for ${company}`}
-                  className={cn(COMPANY_LINK, 'cursor-pointer')}
-                >
-                  {companyText}
-                </button>
-              ) : (
-                companyText
-              )}
+              <CompanyHover
+                applied={applied}
+                search={companyHref || onCompany ? `A click searches for ${company}` : null}
+              >
+                {companyHref ? (
+                  <NavLink
+                    href={companyHref}
+                    scrollTop
+                    title={searchTitle}
+                    className={cn(COMPANY_LINK, applied && APPLIED_HERE)}
+                  >
+                    {companyText}
+                  </NavLink>
+                ) : onCompany ? (
+                  <button
+                    type="button"
+                    onClick={onCompany}
+                    title={searchTitle}
+                    className={cn(COMPANY_LINK, applied && APPLIED_HERE, 'cursor-pointer')}
+                  >
+                    {companyText}
+                  </button>
+                ) : (
+                  <span className={cn(applied && APPLIED_HERE)}>{companyText}</span>
+                )}
+              </CompanyHover>
             </span>
           )}
           {facts.map((fact) => (

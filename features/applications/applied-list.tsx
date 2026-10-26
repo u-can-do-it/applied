@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
+import { companyKeyOf } from '@/lib/shared/company-key';
 import { rank } from '@/lib/shared/search';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
@@ -113,6 +114,23 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
   // ad texts are scraped in the background right after marking: refresh until they're in
   useRefreshWhile(pending, 3000, fromServer);
 
+  // your applications per company, all of them whatever the filters: the company's hover says how many
+  const atCompany = useMemo(() => {
+    const counts = new Map<string, { count: number; last: string }>();
+    for (const app of apps) {
+      const key = companyKeyOf(app.jobId);
+      if (!key) continue;
+      const before = counts.get(key);
+      const last = before && before.last > app.appliedAt ? before.last : app.appliedAt;
+      counts.set(key, { count: (before?.count ?? 0) + 1, last });
+    }
+    return counts;
+  }, [apps]);
+  const appliedAtCompany = (app: Application) => {
+    const found = atCompany.get(companyKeyOf(app.jobId));
+    return found && { count: found.count, last: zone.formatDayOf(found.last), self: true };
+  };
+
   // the ones you applied for in the dates: the statistics count these, the list shows them
   const inRange = useMemo(() => (range ? apps.filter(range.test) : apps), [apps, range]);
 
@@ -217,6 +235,7 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
                     active={open?.jobId === app.jobId}
                     onOpen={() => void show(app)}
                     onCompany={searchAll}
+                    companyApplied={appliedAtCompany(app)}
                   />
                 </li>
               ))}
