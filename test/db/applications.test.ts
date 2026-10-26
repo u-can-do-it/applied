@@ -13,6 +13,7 @@ import {
   removeStatusStep,
   saveContent,
   setNote,
+  setRentADev,
   setStatus,
   unmarkApplied,
   updateApplication,
@@ -155,6 +156,8 @@ describeDb('applications', () => {
       bodyLeasing: true,
     });
     expect((await listApplications())[0].bodyLeasing).toBe(true); // the application's own call follows the check
+    await setRentADev(jobId, false); // yours, by hand: until the next check
+    expect((await listApplications())[0]).toMatchObject({ bodyLeasing: false, fit: { bodyLeasing: true } });
     expect(assess).toHaveBeenLastCalledWith('Design roles', null, [
       { n: 1, title: 'Designer', company: 'Hand Made', seniority: null, remote: true, description: ad.trim() },
     ]);

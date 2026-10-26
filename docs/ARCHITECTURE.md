@@ -167,7 +167,8 @@ the fit again" judges the job anew once it's saved (and its ad text is in), repl
 Every verdict also says whether the job is a software house's, an outsourcing / staffing firm's or an agency's
 that would hire you out to a client (`body_leasing`; null: judged before it was asked), shown as a "Rent-a-dev"
 badge by the fit badge. It doesn't change the match or the score. An application keeps its own call on it
-(`applications.body_leasing`: the latest fit check's, or one made by hand), which wins over the verdict's.
+(`applications.body_leasing`: the latest fit check's, or one made by hand with the Rent-a-dev chip after the
+outcomes in its window), which wins over the verdict's.
 
 ### Notification channels
 

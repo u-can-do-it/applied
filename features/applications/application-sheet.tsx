@@ -14,8 +14,10 @@ import {
   removeStatusStepAction,
   setApplicationNoteAction,
   setApplicationStatusAction,
+  setRentADevAction,
   unapplyAction,
 } from './actions';
+import { isRentADev } from '@/features/offers/rent-a-dev';
 import { AdDetails } from './ad-details';
 import { AdText } from './ad-text';
 import { useFitCheck } from './application-fit';
@@ -111,6 +113,15 @@ export function ApplicationSheet({
     });
     act(async () => {
       unwrap(await setApplicationStatusAction({ jobId, stage, outcome }));
+      await reload();
+    });
+  };
+
+  // your own call on it, shown at once; the next fit check makes its own
+  const setRentADev = (rentADev: boolean) => {
+    show({ ...app, bodyLeasing: rentADev });
+    act(async () => {
+      unwrap(await setRentADevAction({ jobId, rentADev }));
       await reload();
     });
   };
@@ -228,7 +239,14 @@ export function ApplicationSheet({
         />
 
         <JobSheetBody>
-          <StatusEditor app={app} busy={busy} onStatus={setStatus} onRemoveStep={(i) => void removeStep(i)} />
+          <StatusEditor
+            app={app}
+            busy={busy}
+            rentADev={isRentADev(app) === true}
+            onStatus={setStatus}
+            onRentADev={setRentADev}
+            onRemoveStep={(i) => void removeStep(i)}
+          />
           <NoteEditor
             ref={note}
             jobId={jobId}

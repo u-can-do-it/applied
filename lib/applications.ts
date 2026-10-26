@@ -85,6 +85,10 @@ export const ghostStale = (): Promise<number> => applicationsRepo.ghostStale(GHO
 export const setStatus = (jobId: string, stage: StageId, outcome: OutcomeId) =>
   applicationsRepo.setStatus(jobId, stage, outcome);
 
+/** Your own call on whether it's a Rent-a-dev job (body leasing), over the verdict's, until the next fit check. */
+export const setRentADev = (jobId: string, rentADev: boolean) =>
+  applicationsRepo.patch(jobId, { bodyLeasing: rentADev });
+
 /**
  * Takes a step out of the status history together with every step after it (a mistaken click
  * and what followed it); the status becomes the last step left. The first one, applying, stays.

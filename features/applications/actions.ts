@@ -13,6 +13,7 @@ import {
   removeStatusStep,
   saveContent,
   setNote,
+  setRentADev,
   setStatus,
   unmarkApplied,
   updateApplication,
@@ -33,6 +34,7 @@ import {
   jobIdSchema,
   removeStepSchema,
   setNoteSchema,
+  setRentADevSchema,
   setStatusSchema,
   updateApplicationSchema,
 } from '@/lib/shared/schemas/applications';
@@ -77,6 +79,12 @@ export const assessFitAction = action(jobIdSchema, async ({ jobId }) => {
 /** Sets where an application stands, e.g. technical interview / passed. */
 export const setApplicationStatusAction = action(setStatusSchema, async ({ jobId, stage, outcome }) => {
   await setStatus(jobId, stage, outcome);
+  refresh();
+});
+
+/** Marks an application a Rent-a-dev job, or not one, by hand (over the AI's call). */
+export const setRentADevAction = action(setRentADevSchema, async ({ jobId, rentADev }) => {
+  await setRentADev(jobId, rentADev);
   refresh();
 });
 

@@ -3,7 +3,9 @@
 import { CheckIcon } from 'lucide-react';
 import { reached, STAGES, outcomesFor, type StageId, type OutcomeId } from '@/lib/stages';
 import { cn } from '@/lib/shared/cn';
+import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { RENT_A_DEV } from '@/features/offers/rent-a-dev';
 import { StatusTimeline } from './status-timeline';
 import type { Shown } from './use-application';
 
@@ -21,16 +23,23 @@ const OUTCOME_ON: Record<OutcomeId, string> = {
   pool: 'data-[state=on]:border-pool data-[state=on]:bg-pool data-[state=on]:text-pool-foreground',
 };
 
-/** An application's status: its stage, that stage's outcome, and how it got there. */
+/**
+ * An application's status: its stage, that stage's outcome, and how it got there; after the outcomes,
+ * whether it's a Rent-a-dev job (`rentADev`, your call or else the AI's), which a click turns around.
+ */
 export function StatusEditor({
   app,
   busy,
+  rentADev,
   onStatus,
+  onRentADev,
   onRemoveStep,
 }: {
   app: Shown;
   busy: boolean;
+  rentADev: boolean;
   onStatus: (stage: StageId, outcome: OutcomeId) => void;
+  onRentADev: (rentADev: boolean) => void;
   onRemoveStep: (i: number) => void;
 }) {
   const been = reached(app);
@@ -71,25 +80,39 @@ export function StatusEditor({
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-      <ToggleGroup
-        type="single"
-        spacing={1.5}
-        className="flex-wrap"
-        aria-label="Outcome of this stage"
-        value={app.outcome}
-        onValueChange={(outcome) => outcome && onStatus(app.stage, outcome as OutcomeId)}
-      >
-        {outcomesFor(app.stage).map((outcome) => (
-          <ToggleGroupItem
-            key={outcome.id}
-            value={outcome.id}
-            title={outcome.hint}
-            className={cn(STEP, OUTCOME_ON[outcome.id])}
-          >
-            {outcome.label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ToggleGroup
+          type="single"
+          spacing={1.5}
+          className="flex-wrap"
+          aria-label="Outcome of this stage"
+          value={app.outcome}
+          onValueChange={(outcome) => outcome && onStatus(app.stage, outcome as OutcomeId)}
+        >
+          {outcomesFor(app.stage).map((outcome) => (
+            <ToggleGroupItem
+              key={outcome.id}
+              value={outcome.id}
+              title={outcome.hint}
+              className={cn(STEP, OUTCOME_ON[outcome.id])}
+            >
+              {outcome.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+        <Toggle
+          pressed={rentADev}
+          onPressedChange={onRentADev}
+          title={RENT_A_DEV.title}
+          className={cn(
+            STEP,
+            'data-[state=on]:border-warning data-[state=on]:bg-warning-soft data-[state=on]:text-warning-strong',
+          )}
+        >
+          {RENT_A_DEV.label}
+        </Toggle>
+      </div>
       {app.history.length > 0 && <StatusTimeline history={app.history} busy={busy} onRemove={onRemoveStep} />}
     </section>
   );

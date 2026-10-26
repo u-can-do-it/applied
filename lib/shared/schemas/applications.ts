@@ -23,6 +23,9 @@ export const setStatusSchema = z.object({
   outcome: outcome('Unknown status.'),
 });
 
+/** "Rent-a-dev" in an application's window, on or off. */
+export const setRentADevSchema = z.object({ jobId, rentADev: z.boolean() });
+
 /** One step of the history, as the window has it (as stored: the outcome is `state`). */
 export const removeStepSchema = z.object({
   jobId,
