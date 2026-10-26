@@ -25,7 +25,7 @@ const boardsOf = (job: ListedJob) => {
 
 /**
  * One job in the offer list, as JobRow shows a job on either tab: its title opens the ad, its company
- * searches the list (`query`, its other filters kept) for it, a click elsewhere opens its window. A job the
+ * searches every offer for it (the other filters dropped), newest first, a click elsewhere opens its window. A job the
  * latest scrape run that brought new jobs brought is marked "new", with a faint tint, so what came in last
  * time stands out; one you opened before has a check mark after its title, and then the button of its window
  * (the ad, your note, the fit; once applied to, the application's). The archive button takes it out of the list (or, in the archived
@@ -38,14 +38,11 @@ export function OfferRow({
   job,
   zone,
   labels,
-  query,
   dated = false,
 }: {
   job: ListedJob;
   zone: Zone;
   labels: Record<string, string>;
-  /** the list's URL query */
-  query: URLSearchParams;
   dated?: boolean;
 }) {
   return (
@@ -70,7 +67,7 @@ export function OfferRow({
           title={job.title}
           href={job.url}
           company={job.company}
-          companyHref={job.company ? withParams(query, { q: job.company }) : undefined}
+          companyHref={job.company ? withParams('', { q: job.company, order: 'new' }) : undefined}
           facts={detailFacts(job.details, job.remote)}
           verdict={job.ai}
           matching={job.matching}

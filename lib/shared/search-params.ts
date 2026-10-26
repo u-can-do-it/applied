@@ -27,7 +27,7 @@ export const FITS = [
 export type Fit = (typeof FITS)[number]['fit'];
 const isFit = (value: string): value is Fit => FITS.some((option) => option.fit === value);
 
-export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'fit' | 'new' | 'archived';
+export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'fit' | 'new' | 'archived' | 'order';
 type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
 
 // Builds a link from the current query, changing only the given keys
@@ -57,8 +57,9 @@ export function parseOfferQuery(params: Params) {
   const preset = DAY_PRESETS.some((option) => option.days && option.days === days) ? days : '';
   const src = one(params.src);
   const fit = one(params.fit);
+  const text = one(params.q).slice(0, 200);
   return {
-    q: one(params.q).slice(0, 200),
+    q: text,
     src: BOARD_RE.test(src) ? src : '', // an unknown board just finds nothing
     page: Math.max(0, Math.floor(Number(one(params.page)) || 0)),
     days: preset,
@@ -70,5 +71,7 @@ export function parseOfferQuery(params: Params) {
     latest: one(params.new) === '1',
     // the jobs you archived, instead of the others
     archived: one(params.archived) === '1',
+    // a search's jobs newest first, by day, instead of best match first (?order=new: a company's link)
+    byDate: Boolean(text) && one(params.order) === 'new',
   };
 }

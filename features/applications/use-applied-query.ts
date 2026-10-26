@@ -44,7 +44,13 @@ export function useAppliedQuery() {
       push: true,
     });
 
-  return { search, setSearch, filter, setFilter, range, setRange };
+  /** a company's name as the search, the status filter and the dates dropped (one step Back takes back) */
+  const searchAll = (text: string) => {
+    writeParams({ status: null, from: null, to: null }, { push: true });
+    setSearch(text);
+  };
+
+  return { search, setSearch, searchAll, filter, setFilter, range, setRange };
 }
 
 /**

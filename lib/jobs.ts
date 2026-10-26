@@ -44,6 +44,8 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
     latest?: boolean;
     /** the archived jobs instead of the others (?archived=1) */
     archived?: boolean;
+    /** a search's jobs newest first rather than best match first (?order=new) */
+    byDate?: boolean;
     /** ?fit=: the jobs this profile version judged, its matches (with `tier`, only its good or fair ones) or the rejected ones */
     ai?: { profileId: string; version: number; rejected: boolean; tier?: ScoredTier };
     /**
@@ -80,9 +82,9 @@ export async function getJobs(opts: Query): Promise<JobPage> {
   // a search: the jobs the rest of the filter leaves, ranked here (lib/shared/search.ts), the list
   // then only those, in that order
   const found = opts.q ? rank(await offersRepo.searchable(narrowed), opts.q) : null;
-  const filter = { ...narrowed, archived: opts.archived, ...(found && { ranked: found.ids }) };
+  const filter = { ...narrowed, archived: opts.archived, ...(found && { ranked: found.ids, byDate: opts.byDate }) };
   const marked = (job: ListedJob): ListedJob => (found ? { ...job, marks: found.marks.get(job.jobId) } : job);
-  const byMatch = Boolean(found);
+  const byMatch = Boolean(found) && !opts.byDate;
   if (!opts.ai) {
     const verdictsOf = opts.verdictsOf && { profileId: opts.verdictsOf.profileId, version: opts.verdictsOf.version };
     const [{ rows, ...numbers }, since] = await Promise.all([

@@ -25,7 +25,7 @@ const seenAt = (src: string, id: string, at: string) =>
 const page = (
   query = '',
   src = '',
-  extra: { days?: string; from?: string; to?: string; page?: number; archived?: boolean } = {},
+  extra: { days?: string; from?: string; to?: string; page?: number; archived?: boolean; byDate?: boolean } = {},
 ) =>
   getJobs({
     q: query,
@@ -35,6 +35,7 @@ const page = (
     from: extra.from,
     to: extra.to,
     archived: extra.archived,
+    byDate: extra.byDate,
   });
 
 describeDb('offers', () => {
@@ -148,6 +149,20 @@ describeDb('offers', () => {
     expect((await page('')).byMatch).toBe(false);
     // nothing to look for: not filtered
     expect((await page('%%')).jobs).toHaveLength(4);
+  });
+
+  it("lists a search's jobs newest first when asked (a company's link), the same ones", async () => {
+    await offersRepo.ingest([
+      offer('justjoin', '1', 'Java Developer', 'Acme'),
+      offer('justjoin', '2', 'Developer Advocate', 'Devtools'),
+      offer('justjoin', '3', 'Python Engineer', 'Soft'),
+    ]);
+    await seenAt('justjoin', '1', '2026-09-28T10:00:00Z');
+    await seenAt('justjoin', '2', '2026-09-20T10:00:00Z');
+
+    expect((await page('dev')).jobs.map((job) => job.id)).toEqual(['2', '1']);
+    const newest = await page('dev', '', { byDate: true });
+    expect([newest.byMatch, newest.total, newest.jobs.map((job) => job.id)]).toEqual([false, 2, ['1', '2']]);
   });
 
   it('pages through in a stable order, with the total of all pages', async () => {

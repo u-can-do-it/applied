@@ -24,7 +24,13 @@ describe('parseOfferQuery', () => {
       fit: 'rejected',
       latest: true,
       archived: true,
+      byDate: false,
     });
+  });
+
+  it("orders a search's jobs newest first with ?order=new, and only a search's", () => {
+    expect(parseOfferQuery({ q: 'Acme', order: 'new' }).byDate).toBe(true);
+    expect(parseOfferQuery({ order: 'new' }).byDate).toBe(false);
   });
 
   it('keeps a fit tier', () => {
@@ -53,6 +59,7 @@ describe('parseOfferQuery', () => {
       fit: '',
       latest: false,
       archived: false,
+      byDate: false,
     });
   });
 

@@ -41,10 +41,11 @@ export type RunWindow = { startedAt: string; finishedAt: string };
 /**
  * What narrows a list of jobs: a board, first_seen in [gte, lt), only the jobs first seen in a run
  * (`newIn`), the archived jobs instead of the others (`archived`), and only the jobs a search found
- * (`ranked`: their ids, best match first, the order the list then has).
+ * (`ranked`: their ids, best match first, the order the list then has, unless `byDate`: newest first).
  */
 export type JobFilter = {
   ranked?: string[];
+  byDate?: boolean;
   src: string;
   gte?: string;
   lt?: string;
@@ -142,7 +143,8 @@ const counts = (filter: JobFilter, latest: RunWindow | null) => ({
 // newest first; the board and id make the order total, so pages don't overlap
 const newestFirst = [desc(offersUnique.firstSeen), asc(offersUnique.src), asc(offersUnique.id)];
 /** a search's best match first, the others newest first */
-const order = (filter: JobFilter) => (filter.ranked ? [asc(placeIn(filter.ranked)), ...newestFirst] : newestFirst);
+const order = (filter: JobFilter) =>
+  filter.ranked && !filter.byDate ? [asc(placeIn(filter.ranked)), ...newestFirst] : newestFirst;
 
 /** A profile version: whose verdicts the list shows. */
 type JudgedBy = { profileId: string; version: number };
@@ -252,7 +254,7 @@ export async function pageOfJudgedJobs(
  * What a search looks through: every job the rest of the filter leaves (archived or not: the list
  * counts the archived ones it finds too), its title and company, newest first.
  */
-export function searchable(filter: Omit<JobFilter, 'ranked' | 'archived'>) {
+export function searchable(filter: Omit<JobFilter, 'ranked' | 'byDate' | 'archived'>) {
   return db()
     .select({ jobId: offersUnique.jobId, title: offersUnique.title, company: offersUnique.company })
     .from(offersUnique)

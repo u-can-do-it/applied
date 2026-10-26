@@ -6,15 +6,15 @@ import { getJobs, getTotalCount, PAGE_SIZE } from '@/lib/jobs';
 import { isUsable, listProfiles } from '@/lib/ai/profiles';
 import { labelsOf, type BoardOption } from '@/lib/listings/board-filter';
 import { message } from '@/lib/shared/errors';
-import { FIT_BADGE, FIT_RANGE } from '@/lib/shared/fit';
-import { DAY_PRESETS, parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
+import { FIT_RANGE } from '@/lib/shared/fit';
+import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { withParams } from '@/lib/shared/search-params';
 import { cn } from '@/lib/shared/cn';
 import { appZone } from '@/lib/time-zone';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { LoadError } from '@/components/load-error';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DayFits } from './day-fits';
 import { NavLink } from './nav';
 import { OFFER, OfferRow } from './offer-row';
 import { ArchivedCount, NewCount } from './new-count';
@@ -35,7 +35,7 @@ export async function Results({
   boards: Promise<BoardOption[]>;
 }) {
   const path = '/';
-  const { q, src, page, days, from, to, latest, archived, fit } = parseOfferQuery(await searchParams);
+  const { q, src, page, days, from, to, latest, archived, fit, byDate } = parseOfferQuery(await searchParams);
   const tier = fit === 'good' || fit === 'fair' ? fit : undefined; // ?fit= narrowed to a fit tier
   const filtered = Boolean(q || src || days || from || to || latest);
   const range = describeRange({ days, from, to });
@@ -44,7 +44,17 @@ export async function Results({
 
   // the URL as the list understands it, for the pager links
   const current = new URLSearchParams();
-  const params = { q, src, days, from, to, fit, new: latest ? '1' : '', archived: archived ? '1' : '' };
+  const params = {
+    q,
+    src,
+    days,
+    from,
+    to,
+    fit,
+    new: latest ? '1' : '',
+    archived: archived ? '1' : '',
+    order: byDate ? 'new' : '',
+  };
   for (const [param, value] of Object.entries(params)) if (value) current.set(param, value);
 
   let data: Awaited<ReturnType<typeof getJobs>> | null = null; // stays null only with ?fit= and no profile
@@ -54,7 +64,7 @@ export async function Results({
     let profiles: Awaited<ReturnType<typeof listProfiles>>;
     [zone, profiles] = await Promise.all([appZone(), listProfiles()]); // the fit badges are the active profile's
     const profile = profiles.at(0);
-    const query = { q, src, page, days, from, to, latest, archived };
+    const query = { q, src, page, days, from, to, latest, archived, byDate };
     if (fit) {
       // only the jobs the active profile judged, matches (or its good or fair ones) or rejected
       if (isUsable(profile)) {
@@ -165,7 +175,7 @@ export async function Results({
         ? data.jobs.length > 0 && (
             <ol className={cn(DAY_LIST, 'mt-6')}>
               {data.jobs.map((job) => (
-                <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} query={current} dated />
+                <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} dated />
               ))}
             </ol>
           )
@@ -188,7 +198,7 @@ export async function Results({
               </h2>
               <ol className={DAY_LIST}>
                 {group.items.map((job) => (
-                  <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} query={current} />
+                  <OfferRow key={job.src + ':' + job.id} job={job} zone={zone} labels={labels} />
                 ))}
               </ol>
             </section>
@@ -218,66 +228,6 @@ export async function Results({
           )}
         </nav>
       )}
-    </>
-  );
-}
-
-/**
- * After a day's count, "| 4 7": how many of its offers are good and fair fits, in the fit badges'
- * colours (lib/shared/fit.ts), each a link to them (that day, that tier); a tier with none left out,
- * and the bar with both.
- */
-function DayFits({
-  good,
-  fair,
-  day,
-  current,
-  path,
-}: {
-  good: number;
-  fair: number;
-  day: { day: string; label: string };
-  current: URLSearchParams;
-  path: string;
-}) {
-  if (!good && !fair) return null;
-  // today and yesterday as their presets, so their chips light up; another day as a range of one
-  const preset = DAY_PRESETS.find((option) => option.days && option.label === day.label);
-  const when = preset ? { days: preset.days, from: null, to: null } : { days: null, from: day.day, to: day.day };
-  const tiers = [
-    { tier: 'good', count: good },
-    { tier: 'fair', count: fair },
-  ] as const;
-  return (
-    <>
-      <span className="mx-2.5 font-normal text-border" aria-hidden>
-        |
-      </span>
-      <span className="inline-flex gap-1.5 align-top">
-        {tiers.map(
-          ({ tier, count }) =>
-            count > 0 && (
-              <Badge
-                key={tier}
-                variant={FIT_BADGE[tier]}
-                asChild
-                // no taller than the heading's text, so it doesn't grow (the skeleton's is as tall)
-                className="h-4 py-0 tracking-normal tabular-nums no-underline normal-case hover:brightness-125"
-              >
-                <NavLink
-                  href={withParams(current, { fit: tier, ...when }, path)}
-                  title={`${day.label}: show the matches at ${FIT_RANGE[tier]}`}
-                >
-                  {fmt(count)}
-                  <span className="sr-only">
-                    {' '}
-                    {tier} {count === 1 ? 'fit' : 'fits'}
-                  </span>
-                </NavLink>
-              </Badge>
-            ),
-        )}
-      </span>
     </>
   );
 }

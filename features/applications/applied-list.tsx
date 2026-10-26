@@ -45,7 +45,7 @@ export function AppliedList({
 
 function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels: Record<string, string> }) {
   const zone = useZone();
-  const { search, setSearch, filter, setFilter, range, setRange } = useAppliedQuery(); // in the URL
+  const { search, setSearch, searchAll, filter, setFilter, range, setRange } = useAppliedQuery(); // in the URL
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
   const [switched, setSwitched] = useState(false); // …in place of another one
   const sheet = useRef<SheetHandle>(null);
@@ -216,7 +216,7 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
                     marks={marks?.get(app.jobId)}
                     active={open?.jobId === app.jobId}
                     onOpen={() => void show(app)}
-                    onCompany={setSearch}
+                    onCompany={searchAll}
                   />
                 </li>
               ))}

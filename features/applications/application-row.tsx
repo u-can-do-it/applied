@@ -18,7 +18,7 @@ const CONTENT_COLOUR: Record<Application['contentStatus'], string> = {
 
 /**
  * One application in the list (under the day you applied: no date of its own), as JobRow shows a job on
- * either tab: its title opens the ad, its company searches the list for it (`onCompany`), a click elsewhere
+ * either tab: its title opens the ad, its company searches every application for it (`onCompany`), a click elsewhere
  * opens its window. Its status above the badges, its note's first line under the verdict's. "Rent-a-dev": a
  * software house's / body leasing firm's job, by the application's own call, or else the verdict's.
  */
