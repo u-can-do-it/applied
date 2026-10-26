@@ -156,7 +156,9 @@ render, every 4 s while a run is open, and right after "Check") or by Supabase C
 scrape). The scrape's own AI filter (pipeline step 6) uses the same `assessJobs` without a run.
 
 The offers list shows the active profile version's verdict on every job it judged (the fit badge), and
-`?fit=match` / `?fit=rejected` narrows it to those (with the count of what's checked in the date range). `/ai`,
+`?fit=match` / `?fit=rejected` narrows it to those (with the count of what's checked in the date range). Each
+day's heading counts its good and fair fits (green from 70%, yellow from 40%, the badge's tiers in
+`lib/shared/fit.ts`) beside its offers, on every page, as it counts those. `/ai`,
 the AI filter tab that was, redirects there. The Applied list has it too (`listApplications` joins it), with the
 verdict's line under the title; "Check fit" in an application's window refreshes the list. Its Edit form's "Check
 the fit again" judges the job anew once it's saved (and its ad text is in), replacing the verdict.

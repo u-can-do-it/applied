@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { CheckIcon, InfoIcon, XIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { FIT_BADGE, fitTier } from '@/lib/shared/fit';
 
 type Check = { item: string; met: boolean };
 
@@ -27,7 +28,7 @@ export function FitScore({
 }) {
   // controlled only so a tap opens it: Radix's tooltip opens on hover and keyboard focus, not on a touch
   const [open, setOpen] = useState(false);
-  const tier = !match ? 'muted' : score >= 70 ? 'success-soft' : score >= 40 ? 'warning-soft' : 'muted';
+  const tier = FIT_BADGE[fitTier(match, score)];
   const met = checks.filter((check) => check.met).length;
   const label = (
     <>

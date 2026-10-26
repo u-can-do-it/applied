@@ -17,7 +17,8 @@ import { appZone } from './time-zone';
  * A job as the lists show it: its earliest offer (a board's own over an aggregator's), every board's offer, when you applied, whether it
  * came in with the latest scrape run that brought new jobs (`isNew`), whether you opened it before
  * (`seen`), whether you archived it (`archived`), how many the list has on its day, every page's
- * (`dayCount`, in the app's time zone); the active profile's verdict, if it judged it, or whether the AI
+ * (`dayCount`, in the app's time zone) and how many of those are good and fair fits (`dayGood`,
+ * `dayFair`, lib/shared/fit.ts; none without verdicts); the active profile's verdict, if it judged it, or whether the AI
  * is matching it right now (`matching`, lib/ai/matching.ts); where the search matched its title and
  * company (`marks`), when there's a search; what a board said about it besides (`details`: salary,
  * contract, work mode, where), from the first of its offers whose ad was read.
@@ -27,6 +28,8 @@ export type ListedJob = offersRepo.Job & {
   seen: boolean;
   archived: boolean;
   dayCount: number;
+  dayGood: number;
+  dayFair: number;
   marks?: Marks;
   matching?: boolean;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription' | 'bodyLeasing'>;

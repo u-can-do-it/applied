@@ -20,6 +20,7 @@ import { db } from '../client';
 import { first } from '../rows';
 import { isArchived } from './archived-jobs';
 import { isSeen } from './seen-jobs';
+import { FAIR_FIT, GOOD_FIT } from '../../shared/fit';
 import {
   aiVerdicts,
   archivedJobs,
@@ -88,8 +89,21 @@ const newness = (latest: RunWindow | null) => (latest ? sql<boolean>`(${firstSee
  * Per job: how many of the jobs the list shows were first seen on its day, in time zone `tz`, on
  * every page (a window counts before the limit), for the list's day headings.
  */
-const sameDay = (tz: string) =>
-  sql<number>`(count(*) over (partition by (${offersUnique.firstSeen} at time zone ${tz})::date))::int`;
+const sameDay = (tz: string, where?: SQL) =>
+  sql<number>`(count(*) ${where ? sql`filter (where ${where}) ` : sql``}over (partition by (${offersUnique.firstSeen} at time zone ${tz})::date))::int`;
+
+/**
+ * Per job: how many good and fair fits (lib/shared/fit.ts) the list has on its day, the same way, for
+ * the day headings; none when it shows no verdicts (`judged` false).
+ */
+const fitsOfDay = (tz: string, judged: boolean) => {
+  if (!judged) return { dayGood: sql<number>`0`, dayFair: sql<number>`0` };
+  const allowed = eq(aiVerdicts.match, true);
+  return {
+    dayGood: sameDay(tz, and(allowed, gte(aiVerdicts.score, GOOD_FIT))),
+    dayFair: sameDay(tz, and(allowed, gte(aiVerdicts.score, FAIR_FIT), lt(aiVerdicts.score, GOOD_FIT))),
+  };
+};
 
 /** a search's jobs as {job id: its place}, one parameter however many there are */
 const placeIn = (ranked: string[]) =>
@@ -147,7 +161,7 @@ const verdictColumns = {
 /**
  * One page of jobs, and how many match in all (the pager needs the exact number), each marked new if
  * first seen in `latest`, the latest run that brought a new job, and with how many match on its day
- * in time zone `tz` (`dayCount`); `newCount`: how many of all were;
+ * in time zone `tz` (`dayCount`), and how many good and fair fits (`dayGood`, `dayFair`); `newCount`: how many of all were;
  * `archivedCount`: how many jobs these filters find among the archived ones. With `verdictsOf`, each
  * with that profile version's verdict, when it has one (its fields null when not).
  */
@@ -166,6 +180,7 @@ export async function pageOfJobs(
     seen: isSeen(),
     archived: isArchived(),
     dayCount: sameDay(tz),
+    ...fitsOfDay(tz, Boolean(verdictsOf)),
   };
   const rows = verdictsOf
     ? db()
@@ -209,6 +224,7 @@ export async function pageOfJudgedJobs(
         seen: isSeen(),
         archived: isArchived(),
         dayCount: sameDay(tz),
+        ...fitsOfDay(tz, true),
         ...verdictColumns,
       })
       .from(offersUnique)

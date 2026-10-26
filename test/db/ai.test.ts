@@ -13,6 +13,7 @@ import { getJobs } from '@/lib/jobs';
 import { activateProfile, fitOf, getProfile, listProfiles, saveProfile } from '@/lib/ai/profiles';
 import { SCRAPE_LOCK_SECONDS } from '@/lib/budgets';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
+import { GOOD_FIT } from '@/lib/shared/fit';
 import { describeDb, exec, ISO } from './database';
 
 const job = (src: string, id: string, title: string, company: string) => ({
@@ -145,6 +146,40 @@ describeDb('AI verdicts and runs', () => {
     expect(verdicts).toEqual({ [first]: [true, 90], [second]: [false, 20], [third]: undefined });
     expect(all.jobs.find((job) => job.jobId === third)).not.toHaveProperty('ai');
     expect((await getJobs({ q: '', src: '', page: 0 })).jobs.every((job) => !job.ai)).toBe(true);
+  });
+
+  it("counts each day's good and fair fits, the ones your criteria allow, as the list shows them", async () => {
+    const id = await saveProfile({ name: 'P', prompt: 'React', file: 'keep' });
+    const profile = { id, version: 1 };
+    const [first, second, third] = await threeJobs();
+    await verdictsRepo.save([
+      { ...verdict(profile, first, true), score: GOOD_FIT },
+      { ...verdict(profile, second, true), score: GOOD_FIT - 1 },
+      { ...verdict(profile, third, false), score: 95 }, // ruled out: neither, whatever its score
+    ]);
+    const fits = (jobs: { dayGood: number; dayFair: number }[]) => jobs.map((job) => [job.dayGood, job.dayFair]);
+
+    const ai = { profileId: id, version: 1 };
+    const all = await getJobs({ q: '', src: '', page: 0, verdictsOf: { ...ai, usable: true } });
+    expect(fits(all.jobs)).toEqual([
+      [1, 1],
+      [1, 1],
+      [1, 1],
+    ]);
+    const matches = await getJobs({ q: '', src: '', page: 0, ai: { ...ai, rejected: false } });
+    expect(fits(matches.jobs)).toEqual([
+      [1, 1],
+      [1, 1],
+    ]);
+    // the filters count too
+    const found = await getJobs({ q: 'Vue', src: '', page: 0, verdictsOf: { ...ai, usable: true } });
+    expect(fits(found.jobs)).toEqual([[0, 1]]);
+    // no verdicts asked for: none
+    expect(fits((await getJobs({ q: '', src: '', page: 0 })).jobs)).toEqual([
+      [0, 0],
+      [0, 0],
+      [0, 0],
+    ]);
   });
 
   it('marks the jobs a scrape run is still checking as matching, until judged or the run lets go', async () => {

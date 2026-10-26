@@ -6,12 +6,14 @@ import { getJobs, getTotalCount, PAGE_SIZE } from '@/lib/jobs';
 import { isUsable, listProfiles } from '@/lib/ai/profiles';
 import { labelsOf, type BoardOption } from '@/lib/listings/board-filter';
 import { message } from '@/lib/shared/errors';
+import { FAIR_FIT, FIT_BADGE, GOOD_FIT } from '@/lib/shared/fit';
 import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { withParams } from '@/lib/shared/search-params';
 import { cn } from '@/lib/shared/cn';
 import { appZone } from '@/lib/time-zone';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { LoadError } from '@/components/load-error';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavLink } from './nav';
 import { OFFER, OfferRow } from './offer-row';
@@ -171,6 +173,7 @@ export async function Results({
                   {fmt(group.items[0].dayCount)}
                   <span className="sr-only"> {group.items[0].dayCount === 1 ? 'offer' : 'offers'}</span>
                 </span>
+                <DayFits good={group.items[0].dayGood} fair={group.items[0].dayFair} />
               </h2>
               <ol className={DAY_LIST}>
                 {group.items.map((job) => (
@@ -204,6 +207,45 @@ export async function Results({
           )}
         </nav>
       )}
+    </>
+  );
+}
+
+/**
+ * After a day's count, "| 4 7": how many of its offers are good and fair fits, in the fit badges'
+ * colours (lib/shared/fit.ts); a tier with none left out, and the bar with both.
+ */
+function DayFits({ good, fair }: { good: number; fair: number }) {
+  if (!good && !fair) return null;
+  const tiers = [
+    { tier: 'good', count: good, label: `${GOOD_FIT}% and up` },
+    { tier: 'fair', count: fair, label: `${FAIR_FIT}–${GOOD_FIT - 1}%` },
+  ] as const;
+  return (
+    <>
+      <span className="mx-2.5 font-normal text-border" aria-hidden>
+        |
+      </span>
+      <span className="inline-flex gap-1.5 align-top">
+        {tiers.map(
+          ({ tier, count, label }) =>
+            count > 0 && (
+              <Badge
+                key={tier}
+                variant={FIT_BADGE[tier]}
+                // no taller than the heading's text, so it doesn't grow (the skeleton's is as tall)
+                className="h-4 py-0 tracking-normal tabular-nums normal-case"
+                title={`${tier === 'good' ? 'Good' : 'Fair'} fits: ${label}`}
+              >
+                {fmt(count)}
+                <span className="sr-only">
+                  {' '}
+                  {tier} {count === 1 ? 'fit' : 'fits'}
+                </span>
+              </Badge>
+            ),
+        )}
+      </span>
     </>
   );
 }
