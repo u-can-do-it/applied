@@ -83,21 +83,23 @@ export async function addedPerBoard(
   runIds: number[],
 ): Promise<{ runId: number; board: string; added: number; known: number }[]> {
   if (!runIds.length) return [];
-  return db()
-    .select({
-      runId: scrapeRuns.id,
-      board: offers.src,
-      added: count(),
-      known: sql<number>`(count(*) filter (where ${offersUnique.firstSeen} < ${scrapeRuns.startedAt}))::int`,
-    })
-    .from(scrapeRuns)
-    .innerJoin(offers, and(gte(offers.firstSeen, scrapeRuns.startedAt), lte(offers.firstSeen, scrapeRuns.finishedAt)))
-    // the offer's job, its earliest offer: first seen before the run, the job was known
-    .leftJoin(jobLinks, eq(jobLinks.titleKey, offers.titleKey))
-    .innerJoin(offersUnique, eq(offersUnique.jobId, sql`coalesce(${jobLinks.jobId}, ${offers.titleKey})`))
-    .where(inArray(scrapeRuns.id, runIds))
-    .groupBy(scrapeRuns.id, offers.src)
-    .orderBy(desc(count()));
+  return (
+    db()
+      .select({
+        runId: scrapeRuns.id,
+        board: offers.src,
+        added: count(),
+        known: sql<number>`(count(*) filter (where ${offersUnique.firstSeen} < ${scrapeRuns.startedAt}))::int`,
+      })
+      .from(scrapeRuns)
+      .innerJoin(offers, and(gte(offers.firstSeen, scrapeRuns.startedAt), lte(offers.firstSeen, scrapeRuns.finishedAt)))
+      // the offer's job, its earliest offer: first seen before the run, the job was known
+      .leftJoin(jobLinks, eq(jobLinks.titleKey, offers.titleKey))
+      .innerJoin(offersUnique, eq(offersUnique.jobId, sql`coalesce(${jobLinks.jobId}, ${offers.titleKey})`))
+      .where(inArray(scrapeRuns.id, runIds))
+      .groupBy(scrapeRuns.id, offers.src)
+      .orderBy(desc(count()))
+  );
 }
 
 /**
