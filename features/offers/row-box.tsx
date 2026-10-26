@@ -35,7 +35,7 @@ export function RowBox({
     <div
       className={cn(
         // the list's first and last rows keep its rounded corners
-        'cursor-pointer transition-colors hover:bg-accent/50 in-[li:first-child]:rounded-t-[10px] in-[li:last-child]:rounded-b-[10px]',
+        'group/row cursor-pointer transition-colors hover:bg-accent/50 in-[li:first-child]:rounded-t-[10px] in-[li:last-child]:rounded-b-[10px]',
         active && 'bg-accent hover:bg-accent',
         className,
       )}

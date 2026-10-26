@@ -5,6 +5,7 @@ import { cn } from '@/lib/shared/cn';
 import { marksWithin, type Marks } from '@/lib/shared/search';
 import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
+import { CopyTitle } from './copy-title';
 import { FitScore } from './fit-score';
 import { MatchingBadge } from './matching-badge';
 import { NavLink } from './nav';
@@ -12,7 +13,7 @@ import { RentADev } from './rent-a-dev';
 import { RowBox } from './row-box';
 
 // One job in a list, the offers' or the Applied tab's: the same row in both. Its title opens the ad (a new
-// tab, an icon after it on hover says so), its company searches the list for it, its boards' badges their
+// tab, an icon after it on hover says so; a button after that copies the title), its company searches the list for it, its boards' badges their
 // offers, the fit badge its checklist; a click anywhere else opens the job's window (RowBox). The tabs
 // differ only in what they add: the offers' time, "new", seen mark, archive and Mark applied buttons; the
 // application's status.
@@ -149,6 +150,7 @@ export function JobRow({
           ) : (
             <span className="font-semibold [overflow-wrap:anywhere]">{titleText}</span>
           )}
+          <CopyTitle title={title} />
           {after}
         </div>
         <div className={META}>

@@ -46,13 +46,14 @@ it('a job the AI is matching: "matching…" where the fit badge goes', () => {
 it('once judged: its score, no longer "matching…"', () => {
   row({ verdict, matching: true });
   expect(screen.queryByText('matching…')).toBeNull();
-  expect(screen.getByRole('button').textContent).toBe('72%');
+  expect(screen.getByRole('button', { name: /%/ }).textContent).toBe('72%');
 });
 
 it('one the AI isn’t checking (it can’t, or it failed): neither', () => {
   row({});
   expect(screen.queryByText('matching…')).toBeNull();
-  expect(screen.queryByRole('button')).toBeNull();
+  // only the title's copy button
+  expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Copy the title']);
 });
 
 it('with companyHref, the company links there', () => {
