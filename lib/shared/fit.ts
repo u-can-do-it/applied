@@ -9,9 +9,14 @@ export const GOOD_FIT = 70;
 export const FAIR_FIT = 40;
 
 export type FitTier = 'good' | 'fair' | 'poor';
+/** the tiers the day headings count, and the fit filter narrows to */
+export type ScoredTier = Exclude<FitTier, 'poor'>;
 
 export const fitTier = (match: boolean, score: number): FitTier =>
   !match ? 'poor' : score >= GOOD_FIT ? 'good' : score >= FAIR_FIT ? 'fair' : 'poor';
+
+/** a tier's scores, as the fit filter's chips (lib/shared/search-params.ts) and the day headings say them */
+export const FIT_RANGE = { good: `${GOOD_FIT}%+`, fair: `${FAIR_FIT}–${GOOD_FIT - 1}%` } as const;
 
 /** a tier's Badge variant (components/ui/badge.tsx) */
 export const FIT_BADGE = { good: 'success-soft', fair: 'warning-soft', poor: 'muted' } as const satisfies Record<

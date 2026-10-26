@@ -20,7 +20,7 @@ import { db } from '../client';
 import { first } from '../rows';
 import { isArchived } from './archived-jobs';
 import { isSeen } from './seen-jobs';
-import { FAIR_FIT, GOOD_FIT } from '../../shared/fit';
+import { FAIR_FIT, GOOD_FIT, type ScoredTier } from '../../shared/fit';
 import {
   aiVerdicts,
   archivedJobs,
@@ -99,11 +99,14 @@ const sameDay = (tz: string, where?: SQL) =>
 const fitsOfDay = (tz: string, judged: boolean) => {
   if (!judged) return { dayGood: sql<number>`0`, dayFair: sql<number>`0` };
   const allowed = eq(aiVerdicts.match, true);
-  return {
-    dayGood: sameDay(tz, and(allowed, gte(aiVerdicts.score, GOOD_FIT))),
-    dayFair: sameDay(tz, and(allowed, gte(aiVerdicts.score, FAIR_FIT), lt(aiVerdicts.score, GOOD_FIT))),
-  };
+  return { dayGood: sameDay(tz, and(allowed, scoredIn('good'))), dayFair: sameDay(tz, and(allowed, scoredIn('fair'))) };
 };
+
+/** a verdict's score in that tier's range (the match aside) */
+const scoredIn = (tier: ScoredTier) =>
+  tier === 'good'
+    ? gte(aiVerdicts.score, GOOD_FIT)
+    : and(gte(aiVerdicts.score, FAIR_FIT), lt(aiVerdicts.score, GOOD_FIT));
 
 /** a search's jobs as {job id: its place}, one parameter however many there are */
 const placeIn = (ranked: string[]) =>
@@ -205,17 +208,24 @@ export async function pageOfJobs(
   return { rows: found, ...numbers };
 }
 
-/** The same, for the jobs a profile version judged (matches, or the rejected ones), with the verdict. */
+/**
+ * The same, for the jobs a profile version judged (matches, with `tier` only its good or fair ones, or the
+ * rejected ones), with the verdict.
+ */
 export async function pageOfJudgedJobs(
   filter: JobFilter,
   page: number,
   size: number,
   tz: string,
-  verdicts: JudgedBy & { match: boolean },
+  verdicts: JudgedBy & { match: boolean; tier?: ScoredTier },
   latest: RunWindow | null = null,
 ) {
   const judged = judgedBy(verdicts);
-  const where = and(matching(filter), eq(aiVerdicts.match, verdicts.match));
+  const where = and(
+    matching(filter),
+    eq(aiVerdicts.match, verdicts.match),
+    verdicts.tier ? scoredIn(verdicts.tier) : undefined,
+  );
   const [rows, [numbers]] = await Promise.all([
     db()
       .select({

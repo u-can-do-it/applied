@@ -6,8 +6,8 @@ import { getJobs, getTotalCount, PAGE_SIZE } from '@/lib/jobs';
 import { isUsable, listProfiles } from '@/lib/ai/profiles';
 import { labelsOf, type BoardOption } from '@/lib/listings/board-filter';
 import { message } from '@/lib/shared/errors';
-import { FAIR_FIT, FIT_BADGE, GOOD_FIT } from '@/lib/shared/fit';
-import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
+import { FIT_BADGE, FIT_RANGE } from '@/lib/shared/fit';
+import { DAY_PRESETS, parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { withParams } from '@/lib/shared/search-params';
 import { cn } from '@/lib/shared/cn';
 import { appZone } from '@/lib/time-zone';
@@ -36,6 +36,7 @@ export async function Results({
 }) {
   const path = '/';
   const { q, src, page, days, from, to, latest, archived, fit } = parseOfferQuery(await searchParams);
+  const tier = fit === 'good' || fit === 'fair' ? fit : undefined; // ?fit= narrowed to a fit tier
   const filtered = Boolean(q || src || days || from || to || latest);
   const range = describeRange({ days, from, to });
   // the app's time zone is a setting, so it's read with the rest: a database that's down shows the notice below
@@ -55,9 +56,9 @@ export async function Results({
     const profile = profiles.at(0);
     const query = { q, src, page, days, from, to, latest, archived };
     if (fit) {
-      // only the jobs the active profile judged, matches or rejected
+      // only the jobs the active profile judged, matches (or its good or fair ones) or rejected
       if (isUsable(profile)) {
-        const ai = { profileId: profile.id, version: profile.version, rejected: fit === 'rejected' };
+        const ai = { profileId: profile.id, version: profile.version, rejected: fit === 'rejected', tier };
         [data, stats] = await Promise.all([
           getJobs({ ...query, ai }),
           rangeStats(profile, zone.resolveRange({ days, from, to })),
@@ -106,12 +107,14 @@ export async function Results({
         </p>
       ) : stats ? (
         <p className={COUNT}>
-          {/* "9 match of 14 checked · 6 not checked yet · today" */}
-          <strong>{fmt(fit === 'rejected' ? stats.checked - stats.matched : stats.matched)}</strong>{' '}
-          {fit === 'rejected' ? 'rejected' : 'match'} of {fmt(stats.checked)} checked
+          {/* "9 match of 14 checked · 6 not checked yet · today"; "3 at 70%+ of 14 checked" (what the list shows) */}
+          <strong>
+            {fmt(tier ? data.total : fit === 'rejected' ? stats.checked - stats.matched : stats.matched)}
+          </strong>{' '}
+          {tier ? `at ${FIT_RANGE[tier]}` : fit === 'rejected' ? 'rejected' : 'match'} of {fmt(stats.checked)} checked
           {unchecked > 0 && <span className="text-warning"> · {fmt(unchecked)} not checked yet</span>}
           {range && ` · ${range}`}
-          {(q || src || latest) && <> · {fmt(data.total)} shown</>}
+          {!tier && (q || src || latest) && <> · {fmt(data.total)} shown</>}
           {newLine}
           {archivedLine}
         </p>
@@ -142,6 +145,8 @@ export async function Results({
               </>
             ) : fit === 'rejected' ? (
               'Nothing was rejected here.'
+            ) : tier ? (
+              `No matches at ${FIT_RANGE[tier]} here.`
             ) : (
               'No matches here. See the rejected ones, or loosen the profile in Settings.'
             )
@@ -173,7 +178,13 @@ export async function Results({
                   {fmt(group.items[0].dayCount)}
                   <span className="sr-only"> {group.items[0].dayCount === 1 ? 'offer' : 'offers'}</span>
                 </span>
-                <DayFits good={group.items[0].dayGood} fair={group.items[0].dayFair} />
+                <DayFits
+                  good={group.items[0].dayGood}
+                  fair={group.items[0].dayFair}
+                  day={group}
+                  current={current}
+                  path={path}
+                />
               </h2>
               <ol className={DAY_LIST}>
                 {group.items.map((job) => (
@@ -213,13 +224,29 @@ export async function Results({
 
 /**
  * After a day's count, "| 4 7": how many of its offers are good and fair fits, in the fit badges'
- * colours (lib/shared/fit.ts); a tier with none left out, and the bar with both.
+ * colours (lib/shared/fit.ts), each a link to them (that day, that tier); a tier with none left out,
+ * and the bar with both.
  */
-function DayFits({ good, fair }: { good: number; fair: number }) {
+function DayFits({
+  good,
+  fair,
+  day,
+  current,
+  path,
+}: {
+  good: number;
+  fair: number;
+  day: { day: string; label: string };
+  current: URLSearchParams;
+  path: string;
+}) {
   if (!good && !fair) return null;
+  // today and yesterday as their presets, so their chips light up; another day as a range of one
+  const preset = DAY_PRESETS.find((option) => option.days && option.label === day.label);
+  const when = preset ? { days: preset.days, from: null, to: null } : { days: null, from: day.day, to: day.day };
   const tiers = [
-    { tier: 'good', count: good, label: `${GOOD_FIT}% and up` },
-    { tier: 'fair', count: fair, label: `${FAIR_FIT}–${GOOD_FIT - 1}%` },
+    { tier: 'good', count: good },
+    { tier: 'fair', count: fair },
   ] as const;
   return (
     <>
@@ -228,20 +255,25 @@ function DayFits({ good, fair }: { good: number; fair: number }) {
       </span>
       <span className="inline-flex gap-1.5 align-top">
         {tiers.map(
-          ({ tier, count, label }) =>
+          ({ tier, count }) =>
             count > 0 && (
               <Badge
                 key={tier}
                 variant={FIT_BADGE[tier]}
+                asChild
                 // no taller than the heading's text, so it doesn't grow (the skeleton's is as tall)
-                className="h-4 py-0 tracking-normal tabular-nums normal-case"
-                title={`${tier === 'good' ? 'Good' : 'Fair'} fits: ${label}`}
+                className="h-4 py-0 tracking-normal tabular-nums no-underline normal-case hover:brightness-125"
               >
-                {fmt(count)}
-                <span className="sr-only">
-                  {' '}
-                  {tier} {count === 1 ? 'fit' : 'fits'}
-                </span>
+                <NavLink
+                  href={withParams(current, { fit: tier, ...when }, path)}
+                  title={`${day.label}: show the matches at ${FIT_RANGE[tier]}`}
+                >
+                  {fmt(count)}
+                  <span className="sr-only">
+                    {' '}
+                    {tier} {count === 1 ? 'fit' : 'fits'}
+                  </span>
+                </NavLink>
               </Badge>
             ),
         )}

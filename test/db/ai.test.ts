@@ -171,6 +171,11 @@ describeDb('AI verdicts and runs', () => {
       [1, 1],
       [1, 1],
     ]);
+    // a tier's own list, as a count's link opens it
+    const good = await getJobs({ q: '', src: '', page: 0, ai: { ...ai, rejected: false, tier: 'good' } });
+    expect([good.total, good.jobs.map((row) => row.jobId), fits(good.jobs)]).toEqual([1, [first], [[1, 0]]]);
+    const fair = await getJobs({ q: '', src: '', page: 0, ai: { ...ai, rejected: false, tier: 'fair' } });
+    expect([fair.total, fair.jobs.map((row) => row.jobId), fits(fair.jobs)]).toEqual([1, [second], [[0, 1]]]);
     // the filters count too
     const found = await getJobs({ q: 'Vue', src: '', page: 0, verdictsOf: { ...ai, usable: true } });
     expect(fits(found.jobs)).toEqual([[0, 1]]);

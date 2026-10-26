@@ -1,6 +1,7 @@
 // Shared by the server and client components.
 import { BOARD_RE } from '../boards/links';
 import { validDay } from '../dates';
+import { FIT_RANGE } from './fit';
 
 // relative presets live in the URL as ?days=N, so a bookmarked "7 days" stays relative
 export const DAY_PRESETS = [
@@ -12,10 +13,15 @@ export const DAY_PRESETS = [
   { days: '30', label: '30 days' },
 ] as const;
 
-/** The AI fit filter, as ?fit=: every offer (''), the active profile's matches, or the ones it rejected. */
+/**
+ * The AI fit filter, as ?fit=: every offer (''), the active profile's matches, its good or fair ones
+ * (lib/shared/fit.ts), or the ones it rejected.
+ */
 export const FITS = [
   { fit: '', label: 'Any' },
   { fit: 'match', label: 'Matches' },
+  { fit: 'good', label: FIT_RANGE.good },
+  { fit: 'fair', label: FIT_RANGE.fair },
   { fit: 'rejected', label: 'Rejected' },
 ] as const;
 export type Fit = (typeof FITS)[number]['fit'];
@@ -59,7 +65,7 @@ export function parseOfferQuery(params: Params) {
     // a preset wins over a date range
     from: preset ? '' : validDay(one(params.from)),
     to: preset ? '' : validDay(one(params.to)),
-    fit: isFit(fit) ? fit : '', // the AI's verdict: matches, or the rejected ones
+    fit: isFit(fit) ? fit : '', // the AI's verdict: matches (good or fair ones only), or the rejected ones
     // only what the latest scrape run that brought new jobs brought (a push notification links here)
     latest: one(params.new) === '1',
     // the jobs you archived, instead of the others

@@ -10,6 +10,7 @@ import * as stateRepo from './db/repos/scrape-state';
 import { first } from './db/rows';
 import { env } from './env';
 import type { AiVerdictRow } from './db/schema';
+import type { ScoredTier } from './shared/fit';
 import { rank, type Marks } from './shared/search';
 import { appZone } from './time-zone';
 
@@ -43,8 +44,8 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
     latest?: boolean;
     /** the archived jobs instead of the others (?archived=1) */
     archived?: boolean;
-    /** ?fit=: the jobs this profile version judged, its matches or the rejected ones */
-    ai?: { profileId: string; version: number; rejected: boolean };
+    /** ?fit=: the jobs this profile version judged, its matches (with `tier`, only its good or fair ones) or the rejected ones */
+    ai?: { profileId: string; version: number; rejected: boolean; tier?: ScoredTier };
     /**
      * every job, each with this profile version's verdict when it has one; `usable`: the profile can judge
      * (lib/ai/profiles.ts isUsable), so a job the scrape is checking with it is `matching`
@@ -92,8 +93,8 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     const jobs = rows.map(withVerdict).map(matched).map(marked);
     return { byMatch, jobs: await withDetails(jobs), ...numbers, latest };
   }
-  const { profileId, version, rejected } = opts.ai;
-  const verdicts = { profileId, version, match: !rejected };
+  const { profileId, version, rejected, tier } = opts.ai;
+  const verdicts = { profileId, version, match: !rejected, tier };
   const { rows, ...numbers } = await offersRepo.pageOfJudgedJobs(
     filter,
     opts.page,

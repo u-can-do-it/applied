@@ -27,6 +27,11 @@ describe('parseOfferQuery', () => {
     });
   });
 
+  it('keeps a fit tier', () => {
+    expect(parseOfferQuery({ fit: 'good' }).fit).toBe('good');
+    expect(parseOfferQuery({ fit: 'fair' }).fit).toBe('fair');
+  });
+
   it('drops what does not', () => {
     expect(
       parseOfferQuery({
