@@ -23,16 +23,16 @@ export const JOB_ROW = 'grid grid-cols-[1fr_auto] items-start gap-3 px-3.5 py-3'
 
 const COMPANY_LINK = 'text-inherit no-underline hover:text-brand hover:underline hover:underline-offset-2';
 
-/** a company you've applied at: underlined with dots, its hover says how often */
+/** a company you've applied at (another job than this one): underlined with dots */
 const APPLIED_HERE = 'underline decoration-dotted underline-offset-2';
 
-/** The company, with `applied` (your applications there) on its hover, and what a click does (`search`). */
+/** The company, with `applied` (your applications there, or none) on its hover, and what a click does (`search`). */
 function CompanyHover({
   applied,
   search,
   children,
 }: {
-  applied: string | null;
+  applied: string | undefined;
   search: string | null;
   children: ReactNode;
 }) {
@@ -86,14 +86,17 @@ type Verdict = {
 export type Board = { src: string; url?: string };
 
 /** Your applications at the job's company: how many (this job's own among them: `self`), and the latest's day. */
-export type CompanyApplied = { count: number; last: string; self: boolean };
+export type CompanyApplied = { count: number; last: string | null; self: boolean };
 
-/** "You applied here 3 times, this job too; the latest on 12.10.2026"; nothing when it's only this job. */
-export function appliedHere({ count, last, self }: CompanyApplied): string | null {
-  if (count - (self ? 1 : 0) <= 0) return null;
-  if (count === 1) return `You applied here once, on ${last}`;
-  return `You applied here ${count} times${self ? ', this job too' : ''}; the latest on ${last}`;
+/** "No applications here"; "1 application here (this job), on 26.10.2026"; "3 applications here, the latest on …". */
+export function appliedHere({ count, last, self }: CompanyApplied): string {
+  if (count <= 0) return 'No applications here';
+  if (count === 1) return `1 application here${self ? ' (this job)' : ''}, on ${last}`;
+  return `${count} applications here${self ? ' (this job among them)' : ''}, the latest on ${last}`;
 }
+
+/** applications there besides this job's own: the company is underlined with dots */
+const appliedElsewhere = ({ count, self }: CompanyApplied) => count - (self ? 1 : 0) > 0;
 
 /** The note's first line, with the search's marks in it. */
 function NoteLine({ note, marks }: { note: string; marks?: number[] }) {
@@ -167,7 +170,8 @@ export function JobRow({
 }) {
   const titleText = <Marked text={title} marks={marks?.title} />;
   const companyText = company && <Marked text={company} marks={marks?.company} />;
-  const applied = companyApplied ? appliedHere(companyApplied) : null;
+  const applied = companyApplied && appliedHere(companyApplied);
+  const dotted = companyApplied && appliedElsewhere(companyApplied) && APPLIED_HERE;
   // with applications there, the hover says so (and that a click searches) instead of the plain title
   const searchTitle = applied ? undefined : `Search for ${company}`;
   return (
@@ -205,12 +209,7 @@ export function JobRow({
                 search={companyHref || onCompany ? `A click searches for ${company}` : null}
               >
                 {companyHref ? (
-                  <NavLink
-                    href={companyHref}
-                    scrollTop
-                    title={searchTitle}
-                    className={cn(COMPANY_LINK, applied && APPLIED_HERE)}
-                  >
+                  <NavLink href={companyHref} scrollTop title={searchTitle} className={cn(COMPANY_LINK, dotted)}>
                     {companyText}
                   </NavLink>
                 ) : onCompany ? (
@@ -218,12 +217,12 @@ export function JobRow({
                     type="button"
                     onClick={onCompany}
                     title={searchTitle}
-                    className={cn(COMPANY_LINK, applied && APPLIED_HERE, 'cursor-pointer')}
+                    className={cn(COMPANY_LINK, dotted, 'cursor-pointer')}
                   >
                     {companyText}
                   </button>
                 ) : (
-                  <span className={cn(applied && APPLIED_HERE)}>{companyText}</span>
+                  <span className={cn(dotted)}>{companyText}</span>
                 )}
               </CompanyHover>
             </span>

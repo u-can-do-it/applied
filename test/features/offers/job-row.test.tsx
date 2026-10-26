@@ -119,14 +119,17 @@ it('the details line: salary (the first), contract, work mode, where; else the l
 });
 
 describe('appliedHere', () => {
-  it('says how often you applied at the company, nothing when only to this job', () => {
-    expect(appliedHere({ count: 1, last: '12.10.2026', self: true })).toBeNull();
-    expect(appliedHere({ count: 1, last: '12.10.2026', self: false })).toBe('You applied here once, on 12.10.2026');
+  it('says how many applications you have at the company, none too', () => {
+    expect(appliedHere({ count: 0, last: null, self: false })).toBe('No applications here');
+    expect(appliedHere({ count: 1, last: '12.10.2026', self: true })).toBe(
+      '1 application here (this job), on 12.10.2026',
+    );
+    expect(appliedHere({ count: 1, last: '12.10.2026', self: false })).toBe('1 application here, on 12.10.2026');
     expect(appliedHere({ count: 3, last: '12.10.2026', self: true })).toBe(
-      'You applied here 3 times, this job too; the latest on 12.10.2026',
+      '3 applications here (this job among them), the latest on 12.10.2026',
     );
     expect(appliedHere({ count: 2, last: '12.10.2026', self: false })).toBe(
-      'You applied here 2 times; the latest on 12.10.2026',
+      '2 applications here, the latest on 12.10.2026',
     );
   });
 });
