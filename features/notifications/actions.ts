@@ -11,7 +11,7 @@ import { pushConfigured, sendPush } from '@/lib/push';
 import { message } from '@/lib/shared/errors';
 import { noInput } from '@/lib/shared/schemas/common';
 import { endpointSchema, pushSubscriptionSchema } from '@/lib/shared/schemas/push';
-import { mutedSchema, switchSchema } from '@/lib/shared/schemas/settings';
+import { minFitSchema, mutedSchema, switchSchema } from '@/lib/shared/schemas/settings';
 
 // Settings → Notifications: what goes to every channel (Telegram, push), and this device's push
 // subscription. The answers that say something ("Sent.") are their data; the rest answer with nothing.
@@ -25,6 +25,12 @@ export const setNotifyAction = action(switchSchema, async ({ on }) => {
 
 export const setAiFilterAction = action(switchSchema, async ({ on }) => {
   await settingsRepo.save({ ...(await settingsRepo.get()), aiFilter: on });
+  refresh();
+});
+
+/** With the AI filter: the matches under this fit aren't sent (0: all of them are). */
+export const setNotifyMinFitAction = action(minFitSchema, async ({ minFit }) => {
+  await settingsRepo.save({ ...(await settingsRepo.get()), notifyMinFit: minFit });
   refresh();
 });
 

@@ -50,6 +50,7 @@ export const storedSettingsSchema: z.ZodMiniType<ScrapeSettings> = z.catch(
     minFit: z.catch(z.int().check(z.minimum(0), z.maximum(100)), defaults.minFit),
     notify: flag(defaults.notify),
     aiFilter: flag(defaults.aiFilter),
+    notifyMinFit: z.catch(z.int().check(z.minimum(0), z.maximum(100)), defaults.notifyMinFit),
     telegramEnabled: flag(defaults.telegramEnabled),
     timeZone: zoneOrNone,
     browserTimeZone: zoneOrNone,
@@ -86,7 +87,7 @@ export const filtersSchema = z.object({
   mute: list,
 });
 
-/** The offers list's minimum AI fit, set on Offers; 0 clears it. */
+/** A minimum AI fit: the offers list's (set on Offers) or the notifications'; 0 clears it. */
 const FIT = 'A fit is 0–100%.';
 export const minFitSchema = z.object({ minFit: z.int({ error: FIT }).check(z.minimum(0, FIT), z.maximum(100, FIT)) });
 

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { assessJobs } from '@/lib/ai/runs';
 import { activeChannels, deliver } from '@/lib/channels';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
+import * as settingsRepo from '@/lib/db/repos/scrape-settings';
+import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { notify } from '@/lib/listings/pipeline/notify';
 import { aiProfile } from '@/lib/listings/pipeline/ai-filter';
 
@@ -59,6 +61,21 @@ describe('notify', () => {
     vi.mocked(deliver).mockResolvedValue({ unsent: [], errors: ['Telegram sendMessage: HTTP 500'] });
     expect(await notify()).toEqual({ sent: 2, matched: null, warning: 'Telegram sendMessage: HTTP 500' });
     expect(queueRepo.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('sends the matches at the minimum fit or more, and counts the ones under it with the rest', async () => {
+    vi.mocked(settingsRepo.get).mockResolvedValueOnce({ ...DEFAULT_SETTINGS, notifyMinFit: 50 });
+    vi.mocked(activeChannels).mockResolvedValue([channel]);
+    vi.mocked(deliver).mockResolvedValue({ unsent: [], errors: [] });
+    const verdicts = new Map([
+      ['job-1', { match: true, score: 50, summary: 'fits' }],
+      ['job-2', { match: true, score: 49, summary: 'barely' }],
+    ]);
+    vi.mocked(assessJobs).mockResolvedValue({ verdicts } as unknown as Awaited<ReturnType<typeof assessJobs>>);
+    expect(await notify()).toEqual({ sent: 1, matched: 1 });
+    const batch = vi.mocked(deliver).mock.calls[0][1];
+    expect(batch.matched.map((offer) => offer.id)).toEqual(['1']);
+    expect(batch.unmatched.map((offer) => offer.id)).toEqual(['2']);
   });
 
   it('no channel delivered: an error, and the offers go back into the queue', async () => {

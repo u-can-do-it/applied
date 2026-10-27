@@ -1,6 +1,6 @@
 'use client';
 
-import { useOptimistic } from 'react';
+import { useId, useOptimistic, useState } from 'react';
 import { BellIcon, BellOffIcon, SparklesIcon } from 'lucide-react';
 import { CheckField } from '@/components/field';
 import { PanelHeading } from '@/components/help';
@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { BUTTONS, PANEL, SMALL, SUBHEAD } from '@/features/scraping/panel-styles';
 import { ScrapeButton } from '@/features/scraping/scrape-button';
-import { sendQueueAction, setAiFilterAction, setMutedAction, setNotifyAction } from './actions';
+import { Input } from '@/components/ui/input';
+import { sendQueueAction, setAiFilterAction, setMutedAction, setNotifyAction, setNotifyMinFitAction } from './actions';
 import { NotificationsHelp } from './notifications-help';
 import { PushDevice } from './push-device';
 
@@ -36,8 +37,11 @@ export function NotificationsPanel({
   notify: boolean;
   muted: boolean;
   queued: number;
-  /** the AI filter: on in settings, the active profile (if usable), whether OPENAI_API_KEY is set */
-  ai: { on: boolean; profile: string | null; keySet: boolean };
+  /**
+   * the AI filter: on in settings, the matches' minimum fit to be sent, the active profile (if usable),
+   * whether OPENAI_API_KEY is set
+   */
+  ai: { on: boolean; minFit: number; profile: string | null; keySet: boolean };
   /** TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set, and "Send to Telegram" is on */
   telegram: boolean;
   /** the VAPID public key (null: push isn't set up), and the subscribed devices' endpoints */
@@ -150,8 +154,52 @@ export function NotificationsPanel({
                 ? 'No AI profile yet (AI filter → Profile): until then, every new offer is sent.'
                 : 'On: only the matches are sent, with their fit.'}
         </p>
+        {view.aiOn && <NotifyMinFit key={ai.minFit} minFit={ai.minFit} run={act.run} />}
         <ActionError error={act.error} />
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The matches' minimum fit to be sent: the ones under it are only counted. Saved with its button (or
+ * Enter); empty or 0 sends every match. The panel gives it a new key when the saved value changes.
+ */
+function NotifyMinFit({ minFit, run }: { minFit: number; run: ReturnType<typeof useAction>['run'] }) {
+  const id = useId();
+  const [text, setText] = useState(minFit ? String(minFit) : '');
+  const changed = Number(text || 0) !== minFit;
+  return (
+    <form
+      className="mt-2 ml-10 flex flex-wrap items-center gap-2 text-sm"
+      noValidate // the action's schema says what's wrong ("A fit is 0–100%.")
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (changed) run(() => setNotifyMinFitAction({ minFit: Number(text || 0) }));
+      }}
+    >
+      <label htmlFor={id}>Send only matches at</label>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={100}
+        step={5}
+        placeholder="0"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        className="h-8 w-20"
+      />
+      <span>% fit or more</span>
+      {changed && (
+        <Button type="submit" variant="outline" size="sm">
+          Save
+        </Button>
+      )}
+      <span className="basis-full text-xs text-muted-foreground">
+        The ones under it are only counted in the message. Empty or 0: every match is sent.
+      </span>
+    </form>
   );
 }

@@ -70,7 +70,9 @@ export async function notify(opts: { manual?: boolean; deadline?: number } = {})
     const verdict = profile && row.jobId ? verdicts.get(row.jobId) : undefined;
     if (!profile) matched.push(row);
     else if (!verdict) unchecked.push(row);
-    else if (verdict.match) matched.push({ ...row, verdict: { score: verdict.score, summary: verdict.summary } });
+    // a match under the notifications' minimum fit is counted with the others, not listed
+    else if (verdict.match && verdict.score >= settings.notifyMinFit)
+      matched.push({ ...row, verdict: { score: verdict.score, summary: verdict.summary } });
     else unmatched.push(row);
   }
   const delivery = await deliver(channels, {

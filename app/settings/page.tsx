@@ -93,6 +93,7 @@ async function Settings() {
   const active = profiles[0];
   const ai = {
     on: data.settings.aiFilter,
+    minFit: data.settings.notifyMinFit,
     profile: isUsable(active) ? active.name : null,
     keySet: Boolean(env.OPENAI_API_KEY),
   };
