@@ -2,9 +2,12 @@ import { STAGES, OUTCOMES, outcomeHeading, outcomeLabel, outcomesFor, type Stats
 import { cn } from '@/lib/shared/cn';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cellId } from './status-filter';
+import { cellId, TOTAL, TOTAL_HEADING } from './status-filter';
 
-/** Where they are now: stage × outcome, each count a filter (its id: cellId). */
+/**
+ * How far they got: each application in every stage it got to, by how it went there (Total: all of
+ * them), so Passed at a stage is the ones that went on. Each count a filter (its id: cellId).
+ */
 export function StageTable({
   byStage,
   isOn,
@@ -16,7 +19,7 @@ export function StageTable({
 }) {
   return (
     <details className="overflow-x-auto">
-      <summary className="cursor-pointer text-[13px] text-muted-foreground">Where they are now</summary>
+      <summary className="cursor-pointer text-[13px] text-muted-foreground">How far they got</summary>
       <Table className="mt-1.5 text-[13px] tabular-nums">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -26,13 +29,13 @@ export function StageTable({
             >
               Stage
             </TableHead>
-            {OUTCOMES.map((outcome) => (
+            {[TOTAL_HEADING, ...OUTCOMES.map((outcome) => outcomeHeading(outcome.id))].map((heading) => (
               <TableHead
-                key={outcome.id}
+                key={heading}
                 scope="col"
                 className="h-auto px-2 py-1.5 text-right text-xs font-medium text-muted-foreground max-[480px]:px-1"
               >
-                {outcomeHeading(outcome.id)}
+                {heading}
               </TableHead>
             ))}
           </TableRow>
@@ -43,33 +46,30 @@ export function StageTable({
               <TableHead scope="row" className="h-auto px-2 py-1.5 font-medium max-[480px]:px-1">
                 {stage.label}
               </TableHead>
+              <TableCell className={cn(CELL, 'font-medium')}>
+                <Count
+                  count={OUTCOMES.reduce((sum, outcome) => sum + byStage[stage.id][outcome.id], 0)}
+                  id={cellId(stage.id, TOTAL)}
+                  isOn={isOn}
+                  onPick={onPick}
+                />
+              </TableCell>
               {OUTCOMES.map((outcome) => {
-                const count = byStage[stage.id][outcome.id];
-                const id = cellId(stage.id, outcome.id);
-                const cell = 'px-2 py-1.5 text-right max-[480px]:px-1';
                 // an offer has its own outcomes (Received / Accepted / Rejected) and is never ghosted
                 if (!outcomesFor(stage.id).some((possible) => possible.id === outcome.id))
                   return (
-                    <TableCell key={outcome.id} className={cn(cell, 'text-muted-foreground')}>
+                    <TableCell key={outcome.id} className={cn(CELL, 'text-muted-foreground')}>
                       –
                     </TableCell>
                   );
                 return (
-                  <TableCell key={outcome.id} className={cell}>
-                    {count ? (
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="xs"
-                        className="h-auto p-0 text-[13px] aria-pressed:underline"
-                        aria-pressed={isOn(id)}
-                        onClick={() => onPick(id)}
-                      >
-                        {count}
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground">0</span>
-                    )}
+                  <TableCell key={outcome.id} className={CELL}>
+                    <Count
+                      count={byStage[stage.id][outcome.id]}
+                      id={cellId(stage.id, outcome.id)}
+                      isOn={isOn}
+                      onPick={onPick}
+                    />
                     {stage.id === 'offer' && (
                       <small className="text-muted-foreground">
                         {' '}
@@ -84,5 +84,33 @@ export function StageTable({
         </TableBody>
       </Table>
     </details>
+  );
+}
+
+const CELL = 'px-2 py-1.5 text-right max-[480px]:px-1';
+
+function Count({
+  count,
+  id,
+  isOn,
+  onPick,
+}: {
+  count: number;
+  id: string;
+  isOn: (id: string) => 'true' | undefined;
+  onPick: (id: string) => void;
+}) {
+  if (!count) return <span className="text-muted-foreground">0</span>;
+  return (
+    <Button
+      type="button"
+      variant="link"
+      size="xs"
+      className="h-auto p-0 text-[13px] aria-pressed:underline"
+      aria-pressed={isOn(id)}
+      onClick={() => onPick(id)}
+    >
+      {count}
+    </Button>
   );
 }

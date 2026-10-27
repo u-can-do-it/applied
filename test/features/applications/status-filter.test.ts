@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import type { Application } from '@/lib/applications';
 import { outcomeLabel, stageOf, type HistoryEntry, type OutcomeId, type StageId } from '@/lib/stages';
-import { cellId, filterOf, TILES } from '@/features/applications/status-filter';
+import { cellId, filterOf, TILES, TOTAL, TOTAL_HEADING } from '@/features/applications/status-filter';
 
 const app = (stage: StageId, outcome: OutcomeId, history: HistoryEntry[] = []) =>
   ({ stage, outcome, history }) as unknown as Application;
@@ -32,11 +32,21 @@ it('a funnel bar: the stage the last status is at', () => {
   expect(filter?.test(app('technical', 'failed', [step('hr', 'passed')]))).toBe(false);
 });
 
-it('a cell of the table: that stage and outcome, now', () => {
+it('a cell of the table: the ones that got to that stage and how it went there', () => {
   const filter = filterOf(cellId('hr', 'passed'));
   expect(filter).toMatchObject({ id: 'hr-passed', label: `${stageOf('hr').short} · ${outcomeLabel('hr', 'passed')}` });
   expect(filter?.test(app('hr', 'passed'))).toBe(true);
-  expect(filter?.test(app('technical', 'failed', [step('hr', 'passed')]))).toBe(false);
+  // HR passed, then rejected at the technical interview: still passed at HR
+  expect(filter?.test(app('technical', 'failed', [step('hr', 'passed')]))).toBe(true);
+  expect(filter?.test(app('hr', 'failed'))).toBe(false);
+  expect(filter?.test(app('technical', 'pending'))).toBe(false);
+  // Total: all that got there, whatever came of it
+  const total = filterOf(cellId('invited', TOTAL));
+  expect(total?.label).toBe(`${stageOf('invited').short} · ${TOTAL_HEADING}`);
+  expect(total?.test(app('invited', 'failed'))).toBe(true);
+  expect(total?.test(app('hr', 'pending'))).toBe(true);
+  expect(total?.test(app('submitted', 'ghosted'))).toBe(false);
+  expect(filterOf(cellId('offer', TOTAL))).not.toBeNull();
   expect(filterOf(cellId('offer', 'passed'))?.label).toBe(
     `${stageOf('offer').short} · ${outcomeLabel('offer', 'passed')}`,
   );

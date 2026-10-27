@@ -106,6 +106,18 @@ export function reached(app: WithStatus): Set<StageId> {
   return stages;
 }
 
+/**
+ * How the application went at a stage, null if it never got there (reached): the stage it's at now by
+ * its outcome; one it moved on from by its last step there, Passed if that was still in progress (it
+ * went further) or there's none (skipped, or Submitted before any step).
+ */
+export function outcomeAt(app: WithStatus, stage: StageId): OutcomeId | null {
+  if (stage === app.stage) return app.outcome;
+  if (!reached(app).has(stage)) return null;
+  const last = app.history.findLast((step) => step.stage === stage)?.state;
+  return !last || last === 'pending' ? 'passed' : last;
+}
+
 // an interview after which another may come or have come: technical and HR come in either order
 const INTERVIEWS: StageId[] = ['technical', 'hr'];
 
@@ -153,6 +165,7 @@ export type Stats = {
   pool: number; // kept "in the talent pool"
   /** how many are at each stage now (their last status) */
   now: { stage: StageId; count: number }[];
+  /** how many got to each stage (reached), by how it went there (outcomeAt) */
   byStage: Record<StageId, Record<OutcomeId, number>>;
 };
 
@@ -168,7 +181,10 @@ export function stats(apps: WithStatus[]): Stats {
     ghosted = 0,
     pool = 0;
   for (const app of apps) {
-    byStage[app.stage][app.outcome]++;
+    for (const stage of reached(app)) {
+      const outcome = outcomeAt(app, stage);
+      if (outcome) byStage[stage][outcome]++;
+    }
     now[app.stage]++;
     if (isPositive(app)) positive++;
     if (isInProcess(app)) inProcess++;

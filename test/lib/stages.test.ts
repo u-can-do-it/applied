@@ -7,6 +7,7 @@ import {
   isStage,
   isUnanswered,
   isOutcome,
+  outcomeAt,
   reached,
   STAGES,
   OUTCOMES,
@@ -134,6 +135,26 @@ describe('reached', () => {
   });
 });
 
+describe('outcomeAt', () => {
+  it('the stage it is at now: its outcome; one it never got to: null', () => {
+    expect(outcomeAt(app('hr', 'ghosted'), 'hr')).toBe('ghosted');
+    expect(outcomeAt(app('screening', 'pending'), 'technical')).toBeNull();
+  });
+
+  it('one it moved on from: its last step there, Passed if still in progress or skipped', () => {
+    const application = app('hr', 'pending', [
+      step('submitted', 'pending'),
+      step('screening', 'pending'),
+      step('technical', 'pending'),
+      step('technical', 'failed'),
+    ]);
+    expect(outcomeAt(application, 'technical')).toBe('failed');
+    expect(outcomeAt(application, 'screening')).toBe('passed');
+    expect(outcomeAt(application, 'submitted')).toBe('passed');
+    expect(outcomeAt(application, 'invited')).toBe('passed'); // skipped
+  });
+});
+
 describe('stats', () => {
   it('nothing yet: all zeros', () => {
     const totals = stats([]);
@@ -184,14 +205,19 @@ describe('stats', () => {
       { stage: 'hr', count: 1 },
       { stage: 'offer', count: 3 },
     ]);
+    // the table: every stage each one got to; the ones past Submitted passed it, and Initial contact
+    expect(totals.byStage.submitted).toEqual({ pending: 1, passed: 8, failed: 1, ghosted: 1, pool: 0 });
+    expect(totals.byStage.invited).toEqual({ pending: 1, passed: 7, failed: 0, ghosted: 0, pool: 0 });
     expect(totals.byStage.technical).toEqual({ pending: 0, passed: 1, failed: 1, ghosted: 0, pool: 0 });
     expect(totals.byStage.offer).toEqual({ pending: 1, passed: 1, failed: 1, ghosted: 0, pool: 0 });
   });
 
-  it('the history does not count, only where it is now', () => {
+  it('the tiles and the funnel go by where it is now; the table by the stages it got to', () => {
     const totals = stats([app('submitted', 'pending', [step('submitted'), step('technical', 'failed')])]);
     expect(totals.positive).toBe(0);
-    expect(totals.byStage.technical.failed).toBe(0);
+    expect(totals.now.find((atStage) => atStage.stage === 'technical')?.count).toBe(0);
+    expect(totals.byStage.technical.failed).toBe(1);
+    expect(totals.byStage.submitted.pending).toBe(1);
   });
 });
 
