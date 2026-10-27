@@ -78,15 +78,17 @@ export const timeZoneSchema = z.object({
 
 /** The lists come as typed ("React, Vue"); normalizeList is what's kept, on both sides. */
 const list = z.pipe(string(), z.transform(normalizeList));
-const FIT = 'A fit is 0–100%.';
 export const filtersSchema = z.object({
   keywords: list,
   cities: list,
   remoteOk: z.boolean(),
   ignore: list,
   mute: list,
-  minFit: z.int({ error: FIT }).check(z.minimum(0, FIT), z.maximum(100, FIT)),
 });
+
+/** The offers list's minimum AI fit, set on Offers; 0 clears it. */
+const FIT = 'A fit is 0–100%.';
+export const minFitSchema = z.object({ minFit: z.int({ error: FIT }).check(z.minimum(0, FIT), z.maximum(100, FIT)) });
 
 export const pausedSchema = z.object({ paused: z.boolean() });
 export const switchSchema = z.object({ on: z.boolean() });

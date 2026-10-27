@@ -26,7 +26,6 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
     remoteOk: settings.remoteOk,
     ignore: join(settings.ignore),
     mute: join(settings.mute),
-    minFit: settings.minFit,
   };
   const form = useAppForm({
     defaultValues: server,
@@ -76,12 +75,13 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
                 label="Keywords"
                 hint={
                   <>
-                    Searched on every board (<Code>{'{keyword}'}</Code> in a scraper’s link) and, where a scraper checks
-                    it, required in the offer’s title or skills. A keyword starts a word: “react” matches ReactJS, not
-                    Preact.
+                    Any of them, separated by commas (“React, Node”): every board is searched once for each (
+                    <Code>{'{keyword}'}</Code> in a scraper’s link), an offer both find saved once, and where a scraper
+                    checks it, the offer’s title or skills must name one. A keyword starts a word: “react” matches
+                    ReactJS, not Preact.
                   </>
                 }
-                placeholder="React, Next.js"
+                placeholder="React, Node"
               />
             )}
           </form.AppField>
@@ -107,18 +107,6 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
               <field.TextField
                 label="Save, but don’t notify"
                 hint="Whole words: “java” doesn’t hit JavaScript, “.net” also hits ASP.NET."
-              />
-            )}
-          </form.AppField>
-          <form.AppField name="minFit">
-            {(field) => (
-              <field.NumberField
-                label="Hide offers under this AI fit, %"
-                hint="Offers the AI profile rejected or scored lower stay out of Offers (Matches and Rejected still list them). The ones it hasn’t checked always show. 0 = show all."
-                min={0}
-                max={100}
-                step={5}
-                controlClassName="w-24"
               />
             )}
           </form.AppField>

@@ -11,6 +11,7 @@ import { cn } from '@/lib/shared/cn';
 import type { BoardOption } from '@/lib/listings/board-filter';
 import { DAY_PRESETS, FITS, withParams } from '@/lib/shared/search-params';
 import { NavLink, useNav } from './nav';
+import { MinFit } from './min-fit';
 import { SearchBox } from './search-box';
 
 // The board and date chips: links that change the list's filter in the URL (NavLink: prefetched, middle-click
@@ -51,24 +52,30 @@ const FIT_LABEL = (
   </span>
 );
 
-/** The AI's verdict (the active profile's): every offer, its matches or the ones it rejected. */
-function FitChips({ query, path }: { query: URLSearchParams; path: string }) {
+/**
+ * The AI's verdict (the active profile's): every offer, its matches or the ones it rejected; then the
+ * minimum fit, which leaves the low ones out of every offer (a setting, not the URL's).
+ */
+function FitChips({ query, path, minFit }: { query: URLSearchParams; path: string; minFit: number }) {
   const raw = query.get('fit') ?? '';
   const fit = FITS.some((option) => option.fit === raw) ? raw : '';
   return (
-    <nav className={cn(CHIPS, 'mb-2 items-center')} aria-label="Filter by AI fit">
-      {FIT_LABEL}
-      {FITS.map((option) => (
-        <NavLink
-          key={option.fit}
-          className={CHIP}
-          aria-current={fit === option.fit ? 'true' : undefined}
-          href={withParams(query, { fit: option.fit }, path)}
-        >
-          {option.label}
-        </NavLink>
-      ))}
-    </nav>
+    <div className={cn(CHIPS, 'mb-2 items-center gap-x-4')}>
+      <nav className={cn(CHIPS, 'items-center')} aria-label="Filter by AI fit">
+        {FIT_LABEL}
+        {FITS.map((option) => (
+          <NavLink
+            key={option.fit}
+            className={CHIP}
+            aria-current={fit === option.fit ? 'true' : undefined}
+            href={withParams(query, { fit: option.fit }, path)}
+          >
+            {option.label}
+          </NavLink>
+        ))}
+      </nav>
+      <MinFit minFit={minFit} />
+    </div>
   );
 }
 
@@ -117,7 +124,15 @@ function DateFilter({ query, path }: { query: URLSearchParams; path: string }) {
   );
 }
 
-export function Controls({ boards, tz }: { boards: Promise<BoardOption[]>; tz: Promise<string> }) {
+export function Controls({
+  boards,
+  tz,
+  minFit,
+}: {
+  boards: Promise<BoardOption[]>;
+  tz: Promise<string>;
+  minFit: Promise<number>;
+}) {
   const { query, path } = useNav(); // optimistic: chips light up on the click frame
   return (
     <>
@@ -126,7 +141,7 @@ export function Controls({ boards, tz }: { boards: Promise<BoardOption[]>; tz: P
       <TimeZone tz={use(tz)}>
         <DateFilter query={query} path={path} />
       </TimeZone>
-      <FitChips query={query} path={path} />
+      <FitChips query={query} path={path} minFit={use(minFit)} />
     </>
   );
 }
@@ -162,13 +177,16 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
           </span>
         </div>
       </div>
-      <div className={cn(CHIPS, 'mb-2 items-center')} aria-hidden="true">
-        {FIT_LABEL}
-        {FITS.map((option) => (
-          <span key={option.fit} className={CHIP}>
-            {option.label}
-          </span>
-        ))}
+      <div className={cn(CHIPS, 'mb-2 items-center gap-x-4')} aria-hidden="true">
+        <div className={cn(CHIPS, 'items-center')}>
+          {FIT_LABEL}
+          {FITS.map((option) => (
+            <span key={option.fit} className={CHIP}>
+              {option.label}
+            </span>
+          ))}
+        </div>
+        <span className="h-7" />
       </div>
     </>
   );

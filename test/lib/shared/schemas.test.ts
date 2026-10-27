@@ -12,7 +12,13 @@ import {
 } from '@/lib/shared/schemas/applications';
 import { loginSchema } from '@/lib/shared/schemas/auth';
 import { scraperSchema, type ScraperForm } from '@/lib/shared/schemas/scrapers';
-import { filtersSchema, scheduleSchema, storedSettingsSchema, timeZoneSchema } from '@/lib/shared/schemas/settings';
+import {
+  filtersSchema,
+  minFitSchema,
+  scheduleSchema,
+  storedSettingsSchema,
+  timeZoneSchema,
+} from '@/lib/shared/schemas/settings';
 
 /** the message the user would see (the action wrapper shows the first issue) */
 const problem = (schema: z.core.$ZodType, input: unknown) => {
@@ -186,21 +192,19 @@ describe('timeZoneSchema', () => {
 });
 
 describe('filtersSchema', () => {
-  const filters = { keywords: 'React, Vue ;Next.js', cities: '', remoteOk: true, ignore: 'PHP', mute: '', minFit: 50 };
   it('keeps the lists the way they are saved', () => {
-    expect(filtersSchema.parse(filters)).toEqual({
-      keywords: ['React', 'Vue', 'Next.js'],
-      cities: [],
-      remoteOk: true,
-      ignore: ['PHP'],
-      mute: [],
-      minFit: 50,
-    });
+    expect(
+      filtersSchema.parse({ keywords: 'React, Vue ;Next.js', cities: '', remoteOk: true, ignore: 'PHP', mute: '' }),
+    ).toEqual({ keywords: ['React', 'Vue', 'Next.js'], cities: [], remoteOk: true, ignore: ['PHP'], mute: [] });
   });
+});
 
+describe('minFitSchema', () => {
   it('takes a minimum fit of 0–100%, whole', () => {
+    expect(minFitSchema.parse({ minFit: 50 })).toEqual({ minFit: 50 });
+    expect(minFitSchema.parse({ minFit: 0 })).toEqual({ minFit: 0 }); // cleared
     for (const minFit of [-1, 101, 50.5, Number.NaN])
-      expect(problem(filtersSchema, { ...filters, minFit })).toBe('A fit is 0–100%.');
+      expect(problem(minFitSchema, { minFit })).toBe('A fit is 0–100%.');
   });
 });
 

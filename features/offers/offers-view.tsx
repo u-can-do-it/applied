@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import type { SearchParams } from '@/lib/shared/search-params';
 import { DEFAULT_TZ } from '@/lib/dates';
 import { filterBoards, boardOptions } from '@/lib/listings/board-filter';
-import { appTimeZone } from '@/lib/time-zone';
+import { appSettings, appTimeZone } from '@/lib/time-zone';
 import { Controls, ControlsFallback } from './controls';
 import { Header } from '@/features/shell/header';
 import { MergeProvider } from './merge';
@@ -54,11 +54,15 @@ async function OffersBody({ searchParams }: { searchParams: SearchParams }) {
   const boards = boardOptions().catch(() => filterBoards());
   // the date picker's "today" is the app's (the list's days are)
   const tz = appTimeZone().catch(() => DEFAULT_TZ);
+  // the minimum AI fit next to the fit chips (the list leaves out what's under it)
+  const minFit = appSettings()
+    .then((settings) => settings.minFit)
+    .catch(() => 0);
   return (
     <NavProvider>
       {/* a job picked by "Same job as…" stays picked while you search and page for the other one */}
       <MergeProvider>
-        <Controls boards={boards} tz={tz} />
+        <Controls boards={boards} tz={tz} minFit={minFit} />
         <div className={RESULTS}>
           {/* the only part that waits for Supabase */}
           <ResultsBoundary fallback={<ResultsSkeleton />}>

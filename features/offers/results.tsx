@@ -112,7 +112,7 @@ export async function Results({
   const archivedLine = (
     <ArchivedCount archivedCount={data.archivedCount} active={archived} current={current} path={path} />
   );
-  // " · 13 under 50% fit hidden" (Settings → Filters)
+  // " · 13 under 50% fit hidden" (the minimum fit by the AI fit chips)
   const hiddenLine = data.hiddenCount > 0 && (
     <>
       {' · '}
