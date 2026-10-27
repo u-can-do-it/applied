@@ -40,7 +40,7 @@ export const OUTCOMES = [
 export type StageId = (typeof STAGES)[number]['id'];
 export type OutcomeId = (typeof OUTCOMES)[number]['id'];
 // `state` is the outcome; the name is the one stored in the database's history (jsonb), so it stays.
-// auto: set by the app (ghosted after a month)
+// auto: set by the app (ghosted after a month, or passed as you got to a later stage: passedBefore)
 export type HistoryEntry = { stage: StageId; state: OutcomeId; at: string; auto?: boolean };
 
 /** No news this long since the last status change: ghosted (lib/db/repos/applications.ts, ghostStale). */
@@ -104,6 +104,42 @@ export function reached(app: WithStatus): Set<StageId> {
   if (stages.has('screening') || stages.has('technical') || stages.has('hr') || stages.has('offer'))
     stages.add('invited');
   return stages;
+}
+
+// an interview after which another may come or have come: technical and HR come in either order
+const INTERVIEWS: StageId[] = ['technical', 'hr'];
+
+/**
+ * The stages a status change marks passed: getting to a stage past Submitted (in progress, passed,
+ * rejected or ghosted there; not the talent pool) means the ones before it went well. Those are
+ * the stages before it in STAGES, even skipped ones, except an interview, which is passed only if
+ * the history has it (technical / HR come in either order); a stage whose last step was already
+ * Passed isn't marked again. In STAGES order. drizzle/0028_passed_before.sql did this to the
+ * applications saved before.
+ */
+export function passedBefore(history: HistoryEntry[], stage: StageId, outcome: OutcomeId): StageId[] {
+  if (stage === 'submitted' || outcome === 'pool') return [];
+  const last = new Map(history.map((step) => [step.stage, step.state]));
+  const at = STAGES.findIndex((each) => each.id === stage);
+  const pastInterviews = INTERVIEWS.includes(stage) || stage === 'offer';
+  return STAGES.filter(({ id }, i) => {
+    if (id === stage || last.get(id) === 'passed') return false;
+    return INTERVIEWS.includes(id) ? pastInterviews && last.has(id) : i < at;
+  }).map(({ id }) => id);
+}
+
+/** The history after a status change: the stages it marks passed (passedBefore, automatic), then the change. */
+export function withStatus(history: HistoryEntry[], stage: StageId, outcome: OutcomeId, at: string): HistoryEntry[] {
+  return [
+    ...history,
+    ...passedBefore(history, stage, outcome).map((id): HistoryEntry => ({
+      stage: id,
+      state: 'passed',
+      at,
+      auto: true,
+    })),
+    { stage, state: outcome, at },
+  ];
 }
 
 export type Stats = {

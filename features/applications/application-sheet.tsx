@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useImperativeHandle, useRef, useState, useTransition, type Ref } from 'react';
 import type { Application, ApplicationWithContent } from '@/lib/applications';
-import { stageOf, outcomeLabel, type StageId, type OutcomeId } from '@/lib/stages';
+import { stageOf, outcomeLabel, withStatus, type StageId, type OutcomeId } from '@/lib/stages';
 import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { cn } from '@/lib/shared/cn';
@@ -109,7 +109,7 @@ export function ApplicationSheet({
       ...app,
       stage,
       outcome,
-      history: [...app.history, { stage, state: outcome, at: new Date().toISOString() }],
+      history: withStatus(app.history, stage, outcome, new Date().toISOString()),
     });
     act(async () => {
       unwrap(await setApplicationStatusAction({ jobId, stage, outcome }));

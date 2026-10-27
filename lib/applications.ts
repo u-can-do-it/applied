@@ -23,7 +23,7 @@ import {
 } from './application-details';
 import { message } from './shared/errors';
 import { NOTE_CONFLICT, NOTE_MAX } from './shared/schemas/applications';
-import { GHOST_AFTER_DAYS, type HistoryEntry, type OutcomeId, type StageId } from './stages';
+import { GHOST_AFTER_DAYS, passedBefore, withStatus, type HistoryEntry, type OutcomeId, type StageId } from './stages';
 
 // Jobs you applied to: the rules (which offer is kept, when the applied date may move, how the job
 // changes on an edit, what a scrape may overwrite). The queries are in lib/db/repos/applications.ts.
@@ -81,9 +81,15 @@ export async function markApplied(jobId: string, clicked: { src: string; id: str
 /** Open applications without news for a month become ghosted. Returns how many just did. */
 export const ghostStale = (): Promise<number> => applicationsRepo.ghostStale(GHOST_AFTER_DAYS);
 
-/** Moves the application to a stage / outcome; the change is added to its history. */
-export const setStatus = (jobId: string, stage: StageId, outcome: OutcomeId) =>
-  applicationsRepo.setStatus(jobId, stage, outcome);
+/**
+ * Moves the application to a stage / outcome; the change is added to its history, after the
+ * earlier stages it marks passed (passedBefore).
+ */
+export async function setStatus(jobId: string, stage: StageId, outcome: OutcomeId) {
+  const app = await getApplication(jobId);
+  if (!app) return;
+  await applicationsRepo.setStatus(jobId, stage, outcome, passedBefore(app.history, stage, outcome));
+}
 
 /** Your own call on whether it's a Rent-a-dev job (body leasing), over the verdict's, until the next fit check. */
 export const setRentADev = (jobId: string, rentADev: boolean) =>
@@ -266,9 +272,11 @@ export async function addApplication(
   const existing = await getApplication(jobId);
   if (existing) return { error: alreadyThere(existing, zone) };
   const id = offer?.id ?? (boardIdOf(input.src, input.url) || newId());
-  const history: HistoryEntry[] = [{ stage: 'submitted', state: 'pending', at: input.appliedAt }];
-  if (input.stage !== 'submitted' || input.outcome !== 'pending')
-    history.push({ stage: input.stage, state: input.outcome, at: new Date().toISOString() });
+  const applied: HistoryEntry[] = [{ stage: 'submitted', state: 'pending', at: input.appliedAt }];
+  const history =
+    input.stage === 'submitted' && input.outcome === 'pending'
+      ? applied
+      : withStatus(applied, input.stage, input.outcome, new Date().toISOString());
   // with a link but no text, the ad is fetched right after saving (like "Mark applied")
   const content = transition(NONE, {
     type: 'added',

@@ -82,18 +82,26 @@ export async function remove(jobId: string) {
 }
 
 // a status change as a history entry, built from the same statement's now() (the outcome is stored as `state`)
-const entry = (stage: SQL, outcome: SQL, auto = false) =>
-  sql`jsonb_build_array(jsonb_build_object('stage', ${stage}, 'state', ${outcome}, 'at', now()${auto ? sql`, 'auto', true` : sql``}))`;
+const step = (stage: SQL, outcome: SQL, auto = false) =>
+  sql`jsonb_build_object('stage', ${stage}, 'state', ${outcome}, 'at', now()${auto ? sql`, 'auto', true` : sql``})`;
+const entry = (stage: SQL, outcome: SQL, auto = false) => sql`jsonb_build_array(${step(stage, outcome, auto)})`;
 
-/** One status change, appended to the history in the same statement. */
-export async function setStatus(jobId: string, stage: StageId, outcome: OutcomeId) {
+/**
+ * One status change, appended to the history in the same statement, after the stages it marks
+ * passed (`passed`: lib/stages.ts, passedBefore), which are automatic.
+ */
+export async function setStatus(jobId: string, stage: StageId, outcome: OutcomeId, passed: StageId[] = []) {
+  const steps = [
+    ...passed.map((id) => step(sql`${id}::text`, sql`'passed'::text`, true)),
+    step(sql`${stage}::text`, sql`${outcome}::text`),
+  ];
   await db()
     .update(applications)
     .set({
       stage,
       outcome,
       stageUpdatedAt: sql`now()`,
-      history: sql`${applications.history} || ${entry(sql`${stage}::text`, sql`${outcome}::text`)}`,
+      history: sql`${applications.history} || jsonb_build_array(${sql.join(steps, sql`, `)})`,
     })
     .where(eq(applications.jobId, jobId));
 }

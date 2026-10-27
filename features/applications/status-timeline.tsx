@@ -47,7 +47,13 @@ export function StatusTimeline({
               </time>
               <span>{stageOf(step.stage).label} ·</span>
               <span className={OUTCOME_TEXT[step.state]}>{outcomeLabel(step.stage, step.state)}</span>
-              {step.auto && <span title={`No news for ${GHOST_AFTER_DAYS} days`}>(auto)</span>}
+              {step.auto && (
+                <span
+                  title={step.state === 'passed' ? 'You got to a later stage' : `No news for ${GHOST_AFTER_DAYS} days`}
+                >
+                  (auto)
+                </span>
+              )}
               {i > 0 && (
                 <Button
                   type="button"

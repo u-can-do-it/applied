@@ -199,9 +199,14 @@ seed_rows() {
 # 0004_board_seeds marks the boards seeded so far (lib/db/seed.ts seeds any other one after the
 # migrations): the one change db:migrate makes to an existing database's rows
 # 0019_linkedin_since: the seeded LinkedIn searches' old link (the last hour) becomes the one looking back to the
-# last complete run, over 5 pages; the rows are compared with that done, and sorted (an updated row moves)
-as_after_0019() {
-  sed -E 's/(f_TPR=)r3600(&start=\{start\}", "pages": )[0-9]+/\1r{since}\25/' "$1" | LC_ALL=C sort >"$2"
+# last complete run, over 5 pages
+# 0028_passed_before: the application at Initial contact gets an automatic Submitted · Passed right
+# before that status, with its time
+# the rows are compared with those done, and sorted (an updated row moves)
+as_migrated() {
+  sed -E -e 's/(f_TPR=)r3600(&start=\{start\}", "pages": )[0-9]+/\1r{since}\25/' \
+    -e 's/, (\{"at": ("[^"]+"), "stage": "invited", "state": "passed"\}\])/, {"at": \2, "auto": true, "stage": "submitted", "state": "passed"}, \1/' \
+    "$1" | LC_ALL=C sort >"$2"
 }
 board_markers() { pg_tool psql "$1" -X -qtA -c "select name from public.scrape_seeds where name like 'board:%' order by name" >"$2"; }
 same() {
@@ -316,9 +321,9 @@ for kind in ${ADDED_KINDS//|/ }; do
 done
 echo "   ok: the new kinds are allowed (${ADDED_KINDS//|/, })"
 grep -v '^board:' "$work/a-after-data.sql" | without_added_boards /dev/stdin "$work/a-after-unsorted.sql"
-as_after_0019 "$work/a-before-data.sql" "$work/a-before-rows.sql"
+as_migrated "$work/a-before-data.sql" "$work/a-before-rows.sql"
 LC_ALL=C sort "$work/a-after-unsorted.sql" >"$work/a-after-rows.sql"
-same "rows unchanged but for the board seed markers and the new boards' scrapers, without the new columns ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
+same "rows unchanged but for the board seed markers, the new boards' scrapers and the data migrations, without the new columns ($(grep -c . "$work/a-before-data.sql") lines of public data + $(grep -c '^[0-9]*|' "$work/a-before-data.sql") cron jobs)" \
   "$work/a-before-rows.sql" "$work/a-after-rows.sql"
 applied=$(pg_tool psql "$url_a" -X -qtAc 'select count(*) from drizzle.__drizzle_migrations')
 echo "   ok: $applied migrations recorded in drizzle.__drizzle_migrations"

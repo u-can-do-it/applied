@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
 import { afterEach, expect, it, vi } from 'vitest';
 import { assessOffers, extractJob } from '@/lib/ai/openai';
@@ -205,28 +206,86 @@ describeDb('applications', () => {
     await expect(assessFit(jobId)).rejects.toThrow('The AI gave no answer: try again.');
   });
 
-  it('appends status changes to the history and takes them back', async () => {
+  it('appends status changes to the history, after the stages they pass, and takes them back', async () => {
     const { jobId = '' } = await addApplication(typed('Tester'), utc);
     await setStatus(jobId, 'technical', 'pending');
     await setStatus(jobId, 'technical', 'passed');
     let app = await getApplication(jobId);
     expect(app).toMatchObject({ stage: 'technical', outcome: 'passed' });
-    expect(app?.history.map((step) => `${step.stage}/${step.state}`)).toEqual([
+    expect(app?.history.map((step) => `${step.stage}/${step.state}${step.auto ? ' (auto)' : ''}`)).toEqual([
       'submitted/pending',
+      'submitted/passed (auto)',
+      'invited/passed (auto)',
+      'screening/passed (auto)',
       'technical/pending',
       'technical/passed',
     ]);
-    expect(app?.history[2].at).toMatch(ISO);
+    expect(app?.history[1].at).toBe(app?.history[4].at); // the same statement
+    expect(app?.history[5].at).toMatch(ISO);
     expect(app?.stageUpdatedAt).toMatch(ISO);
 
-    // the step clicked a moment ago carries the browser's time: found by stage and state
+    // the step clicked a moment ago carries the browser's time: found by stage and state; the passed ones stay
     expect(await removeStatusStep(jobId, { stage: 'technical', state: 'pending', at: 'not the same' })).toEqual({});
     app = await getApplication(jobId);
-    expect(app).toMatchObject({ stage: 'submitted', outcome: 'pending' });
-    expect(app?.history).toHaveLength(1);
+    expect(app).toMatchObject({ stage: 'screening', outcome: 'passed' });
+    expect(app?.history).toHaveLength(4);
     expect(
       (await removeStatusStep(jobId, app?.history[0] ?? { stage: 'submitted', state: 'pending', at: '' })).error,
     ).toMatch(/first step/);
+  });
+
+  it('passes the stages before one set by hand when adding it', async () => {
+    const { jobId = '' } = await addApplication(typed('Late', { stage: 'invited', outcome: 'failed' }), utc);
+    const app = await getApplication(jobId);
+    expect(app?.history.map((step) => `${step.stage}/${step.state}`)).toEqual([
+      'submitted/pending',
+      'submitted/passed',
+      'invited/failed',
+    ]);
+    expect(Date.parse(app?.stageUpdatedAt ?? '')).toBe(Date.parse(app?.history[2].at ?? ''));
+  });
+
+  it('0028_passed_before gives the applications saved before the passed stages, once', async () => {
+    const old = async (title: string, history: object[]) => {
+      const { jobId = '' } = await addApplication(typed(title), utc);
+      const last = history.at(-1) as { stage: string; state: string };
+      await exec(
+        sql`update public.applications set history = ${JSON.stringify(history)}::jsonb, stage = ${last.stage},
+              stage_state = ${last.state} where dup_key = ${jobId}`,
+      );
+      return jobId;
+    };
+    const at = (day: number) => `2026-10-${day}T10:00:00.000Z`;
+    const rejected = await old('Rejected', [
+      { stage: 'submitted', state: 'pending', at: at(1) },
+      { stage: 'screening', state: 'pending', at: at(5) },
+      { stage: 'hr', state: 'ghosted', at: at(8), auto: true },
+      { stage: 'technical', state: 'failed', at: at(9) },
+    ]);
+    const waiting = await old('Waiting', [{ stage: 'submitted', state: 'ghosted', at: at(1) }]);
+    const pool = await old('Pool', [
+      { stage: 'submitted', state: 'pending', at: at(1) },
+      { stage: 'screening', state: 'pool', at: at(2) },
+    ]);
+    const migrate = sql.raw(readFileSync('drizzle/0028_passed_before.sql', 'utf8'));
+    await exec(migrate);
+    await exec(migrate);
+
+    const app = await getApplication(rejected);
+    expect(app).toMatchObject({ stage: 'technical', outcome: 'failed' });
+    expect(app?.history.map((step) => `${step.stage}/${step.state}`)).toEqual([
+      'submitted/pending',
+      'screening/pending',
+      'hr/ghosted',
+      'submitted/passed',
+      'invited/passed',
+      'screening/passed',
+      'hr/passed',
+      'technical/failed',
+    ]);
+    expect(app?.history.slice(3, 7).every((step) => step.auto && step.at === at(9))).toBe(true);
+    expect((await getApplication(waiting))?.history).toHaveLength(1);
+    expect((await getApplication(pool))?.history).toHaveLength(2);
   });
 
   it('ghosts what waited a month for an answer, and nothing else', async () => {
