@@ -5,7 +5,7 @@ import { cn } from '@/lib/shared/cn';
 import { marksWithin, type Marks } from '@/lib/shared/search';
 import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { CompanyHover } from './company-hover';
 import { CopyTitle } from './copy-title';
 import { FitScore } from './fit-score';
 import { MatchingBadge } from './matching-badge';
@@ -25,30 +25,6 @@ const COMPANY_LINK = 'text-inherit no-underline hover:text-brand hover:underline
 
 /** a company you've applied at (another job than this one): underlined with dots */
 const APPLIED_HERE = 'underline decoration-dotted underline-offset-2';
-
-/** The company, with `applied` (your applications there, or none) on its hover, and what a click does (`search`). */
-function CompanyHover({
-  applied,
-  search,
-  children,
-}: {
-  applied: string | undefined;
-  search: string | null;
-  children: ReactNode;
-}) {
-  if (!applied) return children;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span>{children}</span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="flex-col items-start gap-0.5">
-        <span>{applied}</span>
-        {search && <span className="opacity-70">{search}</span>}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 const META =
   "mt-0.5 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground [&>span+span]:before:mr-1.5 [&>span+span]:before:content-['·']";
