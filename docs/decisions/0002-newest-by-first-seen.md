@@ -31,5 +31,5 @@ successful run, and a scraper's first run (no mark yet) only saves.
   run of a new scraper saves without sending, so it doesn't flood Telegram.
 - Dates are the app's time zone's days turned into a half-open UTC range on `first_seen`
   (`lib/dates.ts`); the index `offers_first_seen_idx` serves them.
-- The duplicate check compares jobs up to 45 days apart by `first_seen`, and the AI prompt sends it as the
+- The duplicate check compares jobs under 30 days apart by `first_seen`, and the AI prompt sends it as the
   job's date.

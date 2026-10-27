@@ -78,7 +78,8 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
    ([`lib/listings/eldorado-mcp.ts`](../lib/listings/eldorado-mcp.ts), [ADR 0010](decisions/0010-eldorado-through-its-mcp-server.md)).
 2. **`pickOwners`** (`owners.ts`, pure): the first scraper that found an offer owns it.
 3. **`ingest`** (`persist.ts`): `jw_ingest_offers` inserts the offers the database doesn't have and answers with
-   them, each with its title key and whether that job was seen before.
+   them, each with its job key and whether that job was seen before. An offer whose title key's job was first seen
+   30+ days before is a **repost**, a job of its own.
 4. **`selectAnnouncable`** (`announce.ts`, pure): which new offers are worth a message. Not on a scraper's first
    run (its `mark` is null), not an old offer bumped up (its sort value is at or below the scraper's mark), not
    another board's offer of a known job, not a muted title. One per job.
@@ -146,7 +147,7 @@ through their APIs (Himalayas' job pages turn servers away), Built In and Linked
 A run checks a date range against one profile version ([`lib/ai/runs.ts`](../lib/ai/runs.ts)):
 
 1. **Duplicates** (phase `dedup`; every scrape run does it too, on the last 3 days, [step 6](#the-scrape-pipeline)): `ai_dup_candidates` proposes pairs of jobs the title key misses (same company
-   or one a prefix of the other, similar titles by `pg_trgm`, at most 45 days apart, neither archived). The AI (low effort)
+   or one a prefix of the other, similar titles by `pg_trgm`, under 30 days apart, neither archived). The AI (low effort)
    decides each pair once (`ai_dup_pairs`); same pairs are merged (`jw_merge_jobs`: `job_links`, and the
    verdicts, application, note, seen and archived marks move to the kept job, the earliest).
 2. **Assessment** (phase `assess`): each job this profile version hasn't judged, 4 per OpenAI call, 3 calls at
@@ -238,29 +239,29 @@ Declared in [`lib/db/schema.ts`](../lib/db/schema.ts); what Drizzle can't declar
 functions, grants, `pg_cron`, seed rows) is in the custom migrations in [`drizzle/`](../drizzle). Queries
 live in [`lib/db/repos/`](../lib/db/repos), one file per table; the rules on top of them stay in `lib/`.
 
-| Table                | Holds                                                                         | Written by                                                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `offers`             | every board's posting, keyed by `src` + `id`; `dup_key` (title key) generated | `lib/listings/pipeline/persist.ts` (`ingest` → `jw_ingest_offers`)                                                                                           |
-| `job_links`          | title keys merged into another job                                            | `lib/ai/merge-duplicates.ts` (`jw_merge_jobs`)                                                                                                               |
-| `ai_dup_pairs`       | every pair the AI was asked about, and its answer; the ones you merged        | `lib/ai/merge-duplicates.ts` (`mergeByHand` too)                                                                                                             |
-| `applications`       | yours, per job: snapshot, ad text, status, history, note                      | `lib/applications.ts` (mark, add, edit, status, note, ghosting, ad text); `jw_merge_jobs` moves them                                                         |
-| `ai_profiles`        | criteria, CV text, version                                                    | `lib/ai/profiles.ts`                                                                                                                                         |
-| `ai_verdicts`        | one per profile version and job                                               | `lib/ai/runs.ts` (`assessBatch`); `lib/ai/profiles.ts` drops older versions' on edit (unless kept); `jw_merge_jobs` moves them                               |
-| `ai_runs`            | manual AI runs: range, phase, progress, lock                                  | `lib/ai/runs.ts` (`startRun`, and each slice writes its state's `save`, `lib/ai/run-state.ts`)                                                               |
-| `offer_details`      | an offer's ad text for the AI (`ok` / `empty`)                                | `lib/ai/runs.ts` (`descriptions`)                                                                                                                            |
-| `scrapers`           | saved searches, their config, mark, last result and last complete run         | `features/scraping/actions.ts` (Settings), `lib/listings/pipeline/persist.ts` (`recordOutcomes`), `lib/db/seed.ts`                                           |
-| `scrape_settings`    | one row: schedule, filters, switches, time zone (jsonb)                       | `features/scraping/actions.ts`, `features/notifications/actions.ts`; created by `0003_seed`                                                                  |
-| `scrape_state`       | one row: run lock, last call, last run, muted, last alert email               | `lib/listings/run.ts` and `/api/cron/scrape` (lock), `lib/listings/schedule.ts` (last call), `/api/telegram` and `features/notifications/actions.ts` (muted) |
-| `alert_jobs`         | jobs LinkedIn's alert emails named, waiting or what became of them (a month)  | `app/api/alerts/linkedin/route.ts` (add), `lib/listings/pipeline/alerts.ts` (settle)                                                                         |
-| `keyword_misses`     | offers whose ad named none of the keywords, per keyword set (two weeks)       | `lib/listings/pipeline/ad-check.ts` (`checkAds`)                                                                                                             |
-| `scrape_seeds`       | which seeds were added (`board:<id>` markers), so deleted ones stay deleted   | `lib/db/seed.ts`, `0003_seed`, `0004_board_seeds`                                                                                                            |
-| `scrape_runs`        | the run log (two weeks)                                                       | `lib/listings/run.ts`                                                                                                                                        |
-| `notify_queue`       | new jobs waiting to be sent (every channel)                                   | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what no channel sent), `dropMerged` after a merge            |
-| `push_subscriptions` | the browsers that get push notifications: endpoint, keys, device              | `features/notifications/actions.ts` (enable, disable), `lib/push.ts` (removes one the push service says is gone)                                             |
-| `seen_jobs`          | the jobs you opened from a list (title or board link), per job id             | `features/offers/actions.ts` (`markSeenAction`, on a click in the row, `features/offers/seen.tsx`); `jw_merge_jobs` moves them                               |
-| `archived_jobs`      | the jobs you archived from a list, per job id                                 | `features/offers/actions.ts` (`archiveAction`, `restoreAction`, from the row's button, `features/offers/archive.tsx`); `jw_merge_jobs` moves them            |
-| `offers_unique`      | view: each job once, its earliest offer, every board's link                   | read-only; defined in `0014_offers_unique_own_board_first` (a board's own offer over an aggregator's)                                                        |
-| `cron.job`           | Supabase Cron's job                                                           | `jw_cron_*` through `lib/db/repos/cron.ts`, from `features/scraping/actions.ts` and `syncCron` (`lib/listings/schedule.ts`)                                  |
+| Table                | Holds                                                                        | Written by                                                                                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `offers`             | every board's posting, keyed by `src` + `id`; title and job keys generated   | `lib/listings/pipeline/persist.ts` (`ingest` → `jw_ingest_offers`)                                                                                           |
+| `job_links`          | job keys merged into another job                                             | `lib/ai/merge-duplicates.ts` (`jw_merge_jobs`)                                                                                                               |
+| `ai_dup_pairs`       | every pair the AI was asked about, and its answer; the ones you merged       | `lib/ai/merge-duplicates.ts` (`mergeByHand` too)                                                                                                             |
+| `applications`       | yours, per job: snapshot, ad text, status, history, note                     | `lib/applications.ts` (mark, add, edit, status, note, ghosting, ad text); `jw_merge_jobs` moves them                                                         |
+| `ai_profiles`        | criteria, CV text, version                                                   | `lib/ai/profiles.ts`                                                                                                                                         |
+| `ai_verdicts`        | one per profile version and job                                              | `lib/ai/runs.ts` (`assessBatch`); `lib/ai/profiles.ts` drops older versions' on edit (unless kept); `jw_merge_jobs` moves them                               |
+| `ai_runs`            | manual AI runs: range, phase, progress, lock                                 | `lib/ai/runs.ts` (`startRun`, and each slice writes its state's `save`, `lib/ai/run-state.ts`)                                                               |
+| `offer_details`      | an offer's ad text for the AI (`ok` / `empty`)                               | `lib/ai/runs.ts` (`descriptions`)                                                                                                                            |
+| `scrapers`           | saved searches, their config, mark, last result and last complete run        | `features/scraping/actions.ts` (Settings), `lib/listings/pipeline/persist.ts` (`recordOutcomes`), `lib/db/seed.ts`                                           |
+| `scrape_settings`    | one row: schedule, filters, switches, time zone (jsonb)                      | `features/scraping/actions.ts`, `features/notifications/actions.ts`; created by `0003_seed`                                                                  |
+| `scrape_state`       | one row: run lock, last call, last run, muted, last alert email              | `lib/listings/run.ts` and `/api/cron/scrape` (lock), `lib/listings/schedule.ts` (last call), `/api/telegram` and `features/notifications/actions.ts` (muted) |
+| `alert_jobs`         | jobs LinkedIn's alert emails named, waiting or what became of them (a month) | `app/api/alerts/linkedin/route.ts` (add), `lib/listings/pipeline/alerts.ts` (settle)                                                                         |
+| `keyword_misses`     | offers whose ad named none of the keywords, per keyword set (two weeks)      | `lib/listings/pipeline/ad-check.ts` (`checkAds`)                                                                                                             |
+| `scrape_seeds`       | which seeds were added (`board:<id>` markers), so deleted ones stay deleted  | `lib/db/seed.ts`, `0003_seed`, `0004_board_seeds`                                                                                                            |
+| `scrape_runs`        | the run log (two weeks)                                                      | `lib/listings/run.ts`                                                                                                                                        |
+| `notify_queue`       | new jobs waiting to be sent (every channel)                                  | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what no channel sent), `dropMerged` after a merge            |
+| `push_subscriptions` | the browsers that get push notifications: endpoint, keys, device             | `features/notifications/actions.ts` (enable, disable), `lib/push.ts` (removes one the push service says is gone)                                             |
+| `seen_jobs`          | the jobs you opened from a list (title or board link), per job id            | `features/offers/actions.ts` (`markSeenAction`, on a click in the row, `features/offers/seen.tsx`); `jw_merge_jobs` moves them                               |
+| `archived_jobs`      | the jobs you archived from a list, per job id                                | `features/offers/actions.ts` (`archiveAction`, `restoreAction`, from the row's button, `features/offers/archive.tsx`); `jw_merge_jobs` moves them            |
+| `offers_unique`      | view: each job once, its earliest offer, every board's link                  | read-only; defined in `0014_offers_unique_own_board_first` (a board's own offer over an aggregator's)                                                        |
+| `cron.job`           | Supabase Cron's job                                                          | `jw_cron_*` through `lib/db/repos/cron.ts`, from `features/scraping/actions.ts` and `syncCron` (`lib/listings/schedule.ts`)                                  |
 
 RLS is on for every table, with no policies: Supabase's public API can't read anything.
 
@@ -401,14 +402,19 @@ the entry says so (_stored as_): those names stay (production data and applied m
   the scraper's first run, which only saves. _Stored as:_ `scrapers.mark`.
 - **offer**: One posting on one board: a row in `offers`, identified by `src` + `id`. `OfferLink` is an
   offer's board, id and link. _Stored as:_ `offers`; a job's offers are `offers_unique.copies`.
-- **job**: The same position across boards: every offer with the same title key, plus the ones the AI merged
+- **job**: The same position across boards: every offer with the same job key, plus the ones the AI merged
   into it. The offer lists show jobs (`ListedJob`), each once, with its earliest offer and every board's link.
   Since 08.10.2026 a board's own offer stands for it over an aggregator's (`aggregator` in `lib/boards/`: Eldorado,
   Adzuna), and comes first among its offers; it is still dated by its earliest. _Stored as:_ `offers_unique` (one row per job).
 - **title key** (`titleKey`): An offer's company (without legal suffix) + title (without gender tags, nor a
-  work mode at its end: "(Remote)", "- 100% zdalnie"), normalised: the database computes it. Offers with the same title key are one job.
-  _Stored as:_ `offers.dup_key` (generated by `jw_dup_key`), `job_links.dup_key`.
-- **job id** (`jobId`): Which job something belongs to. A job's id is one of its title keys: its own, or, after
+  work mode at its end: "(Remote)", "- 100% zdalnie"), normalised: the database computes it. Offers with the same title key are one job,
+  until a repost. _Stored as:_ `offers.dup_key` (generated by `jw_dup_key`).
+- **repost**: An offer whose title key's latest job was first seen 30+ days before (counting the offers the AI merged
+  into it): a job of its own, announced and judged like any new one, with none of the old job's marks. Since 27.10.2026.
+  _Stored as:_ `offers.repost` (the day it began; null for the title key's first job).
+- **job key** (`jobKey`): An offer's job before AI merges: its title key, plus `~` and the day for a repost.
+  _Stored as:_ `offers.job_key` (generated), `job_links.dup_key`.
+- **job id** (`jobId`): Which job something belongs to. A job's id is one of its job keys: its own, or, after
   an AI merge, the kept job's. An application, a verdict and a queued notification point at a job by its id.
   _Stored as:_ `offers_unique.dup_key`, `job_links.job_key`, `applications.dup_key`, `ai_verdicts.dup_key`,
   `notify_queue.dup_key`, `seen_jobs.dup_key`, `archived_jobs.dup_key`, `ai_dup_pairs.key_a`/`key_b`.
@@ -420,7 +426,7 @@ the entry says so (_stored as_): those names stay (production data and applied m
   on every device. An AI merge moves it to the kept job. _Stored as:_ `seen_jobs`.
 - **archived**: A job you took out of the lists with its archive button (a repost you already decided on, say):
   left out of the offers and their counts, listed by `?archived=1` (the count line's "3 archived"),
-  where the same button restores it. The job's later offers (same title key) stay archived with it; the AI doesn't pair
+  where the same button restores it. The job's later offers (same job key: under 30 days on) stay archived with it; the AI doesn't pair
   it with look-alikes, so a reworded repost is a job of its own. An AI merge moves it to the kept job.
   _Stored as:_ `archived_jobs`.
 - **channel**: Where new offers are sent: Telegram or push (`lib/channels/`, `Channel`). A **device** is one

@@ -229,11 +229,11 @@ export async function findOfferByLink(link: string) {
 }
 
 /**
- * The job of this company + title: the one its title key (as the scrapers make it, or
- * `knownTitleKey`) was merged into, or its own.
+ * The job of this company + title: the one its job key (`knownJobKey`, a scraped offer's, or the latest
+ * job of its title key) was merged into, or its own.
  */
-export async function jobIdFor(company: string | null, title: string, knownTitleKey?: string | null): Promise<string> {
-  return linksRepo.jobIdOf(knownTitleKey ?? (await offersRepo.titleKeyOf(company, title)));
+export async function jobIdFor(company: string | null, title: string, knownJobKey?: string | null): Promise<string> {
+  return linksRepo.jobIdOf(knownJobKey ?? (await offersRepo.jobKeyOf(company, title)));
 }
 
 export type NewApplication = {
@@ -268,7 +268,7 @@ export async function addApplication(
   zone: Zone,
 ): Promise<{ jobId?: string; fetch?: boolean; error?: string }> {
   const offer = input.url ? await findOfferByLink(input.url).catch(() => null) : null;
-  const jobId = await jobIdFor(offer?.company ?? input.company, offer?.title ?? input.title, offer?.titleKey);
+  const jobId = await jobIdFor(offer?.company ?? input.company, offer?.title ?? input.title, offer?.jobKey);
   const existing = await getApplication(jobId);
   if (existing) return { error: alreadyThere(existing, zone) };
   const id = offer?.id ?? (boardIdOf(input.src, input.url) || newId());
@@ -332,7 +332,7 @@ export async function updateApplication(
   const typedUrl = edit.url === app.url ? app.url : edit.url ? cleanLink(edit.url) : '';
   const offer = typedUrl ? await findOfferByLink(typedUrl).catch(() => null) : null;
   let target = jobId;
-  if (offer) target = await jobIdFor(offer.company, offer.title, offer.titleKey);
+  if (offer) target = await jobIdFor(offer.company, offer.title, offer.jobKey);
   else if ((edit.title !== app.title || edit.company !== app.company) && !(await findJob(jobId).catch(() => null)))
     target = await jobIdFor(edit.company, edit.title);
   if (target !== jobId) {

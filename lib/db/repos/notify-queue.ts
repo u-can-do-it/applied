@@ -42,7 +42,7 @@ export async function claim(rows: { src: string; id: string }[]): Promise<Queued
 export async function dropMerged() {
   await db()
     .delete(notifyQueue)
-    .where(inArray(notifyQueue.jobId, db().select({ titleKey: jobLinks.titleKey }).from(jobLinks)));
+    .where(inArray(notifyQueue.jobId, db().select({ jobKey: jobLinks.jobKey }).from(jobLinks)));
 }
 
 export async function size(): Promise<number> {

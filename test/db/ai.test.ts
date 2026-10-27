@@ -36,7 +36,7 @@ async function threeJobs() {
     job('justjoin', '2', 'Vue Developer', 'Beta'),
     job('justjoin', '3', 'Angular Developer', 'Gamma'),
   ]);
-  return added.map((row) => row.titleKey).sort();
+  return added.map((row) => row.jobKey).sort();
 }
 
 const verdict = (profile: { id: string; version: number }, jobId: string, match: boolean) => ({
@@ -90,7 +90,7 @@ describeDb('AI profiles', () => {
     await saveProfile({ id, name: 'P', prompt: 'React, junior Node', file: 'keep', recheck: today });
     expect(await getProfile(id)).toMatchObject({ prompt: 'React, junior Node', version: 1 });
     const kept = await verdictsRepo.forJobs({ id, version: 1 }, [first, second, third]);
-    const older = (await offersRepo.findOffer({ src: 'justjoin', id: '1', urls: [] }))?.titleKey;
+    const older = (await offersRepo.findOffer({ src: 'justjoin', id: '1', urls: [] }))?.jobKey;
     expect([...kept.keys()]).toEqual([older]);
     expect(await countPending({ id, version: 1 }, today)).toBe(2);
 
@@ -245,7 +245,7 @@ describeDb('AI verdicts and runs', () => {
         .sort();
     // the run's new jobs without a verdict; not the judged one, nor one from before the run (its check is over)
     expect(await matching()).toEqual([second, third]);
-    expect(await matching()).not.toContain(before.titleKey);
+    expect(await matching()).not.toContain(before.jobKey);
     // a profile that can't judge, or the AI filter off: nothing is being checked
     expect(await matching(false)).toEqual([]);
     await settingsRepo.save({ ...DEFAULT_SETTINGS, aiFilter: false });
@@ -264,7 +264,7 @@ describeDb('AI verdicts and runs', () => {
     const [noAd] = await offersRepo.ingest([job('nofluff', '9', 'Go Developer', 'Delta')]);
     await detailsRepo.save([{ src: 'nofluff', id: '9', status: 'empty', description: null }]);
     expect(await countPending(profile, {})).toBe(3);
-    expect((await verdictsRepo.unjudgedJobs(profile, {}, 10)).map((row) => row.jobId)).not.toContain(noAd.titleKey);
+    expect((await verdictsRepo.unjudgedJobs(profile, {}, 10)).map((row) => row.jobId)).not.toContain(noAd.jobKey);
 
     // first: judged from its ad; second: on its title alone (before every judgment needed the ad); third: not yet
     await verdictsRepo.save([
@@ -341,6 +341,17 @@ describeDb('AI verdicts and runs', () => {
     expect(await detailsRepo.forOffers([])).toEqual([]);
   });
 
+  it('pairs look-alike jobs first seen under 30 days apart only: a reworded repost after that is a job of its own', async () => {
+    await offersRepo.ingest([
+      job('justjoin', '1', 'Senior React Developer', 'EPAM'),
+      job('nofluff', '2', 'Senior React.js Developer!', 'EPAM Systems'),
+    ]);
+    await exec(sql`update public.offers set first_seen = now() - interval '31 days' where src = 'nofluff'`);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
+    await exec(sql`update public.offers set first_seen = now() - interval '29 days' where src = 'nofluff'`);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toHaveLength(1);
+  });
+
   it('proposes look-alike jobs once, until the pair is decided', async () => {
     const added = await offersRepo.ingest([
       job('justjoin', '1', 'Senior React Developer', 'EPAM'),
@@ -353,7 +364,7 @@ describeDb('AI verdicts and runs', () => {
     const [pair] = pairs;
     const keys = added
       .filter((row) => row.src !== 'bulldog')
-      .map((row) => row.titleKey)
+      .map((row) => row.jobKey)
       .sort();
     expect([pair.jobIdA, pair.jobIdB].sort()).toEqual(keys); // jobIdA < jobIdB in the database's collation, not JS's
     expect(pair.similarity).toBeGreaterThan(0.45);
@@ -378,27 +389,27 @@ describeDb('AI verdicts and runs', () => {
     ];
     const added = await offersRepo.ingest(offers); // not in this order
     const [older, newer, other] = offers.map((offer) => ({
-      titleKey: added.find((row) => row.src === offer.src)?.titleKey ?? '',
+      jobKey: added.find((row) => row.src === offer.src)?.jobKey ?? '',
     }));
     await exec(sql`update public.offers set first_seen = now() - interval '1 day' where src = 'nofluff'`);
     await queueRepo.enqueue(
-      offers.slice(1).map((offer, i) => ({ ...offer, location: null, jobId: [newer, other][i].titleKey })),
+      offers.slice(1).map((offer, i) => ({ ...offer, location: null, jobId: [newer, other][i].jobKey })),
     );
 
     // picked in either order, the earlier one stays
-    expect(await mergeByHand(newer.titleKey, older.titleKey)).toEqual({
+    expect(await mergeByHand(newer.jobKey, older.jobKey)).toEqual({
       kept: offers[0].title,
       merged: offers[1].title,
     });
-    expect(await linksRepo.jobIdOf(newer.titleKey)).toBe(older.titleKey);
+    expect(await linksRepo.jobIdOf(newer.jobKey)).toBe(older.jobKey);
     const [pair] = await exec(sql`select key_a, key_b, same, model from public.ai_dup_pairs`);
     expect(pair).toMatchObject({ same: true, model: BY_HAND });
-    expect([pair.key_a, pair.key_b].sort()).toEqual([older.titleKey, newer.titleKey].sort());
+    expect([pair.key_a, pair.key_b].sort()).toEqual([older.jobKey, newer.jobKey].sort());
     expect((await queueRepo.list()).map((row) => row.id)).toEqual(['3']);
 
     // the list's ids, after the merge: one job already; a job that's gone
-    await expect(mergeByHand(older.titleKey, newer.titleKey)).rejects.toThrow('one job already');
-    await expect(mergeByHand(other.titleKey, '1dea|nosuchjob')).rejects.toThrow('gone');
+    await expect(mergeByHand(older.jobKey, newer.jobKey)).rejects.toThrow('one job already');
+    await expect(mergeByHand(other.jobKey, '1dea|nosuchjob')).rejects.toThrow('gone');
   });
 
   it('leaves an archived job out of the look-alike pairs, until it is restored', async () => {
@@ -406,10 +417,10 @@ describeDb('AI verdicts and runs', () => {
       job('justjoin', '1', 'Senior React Developer', 'EPAM'),
       job('nofluff', '2', 'Senior React.js Developer!', 'EPAM Systems'),
     ]);
-    await archive(archived.titleKey);
+    await archive(archived.jobKey);
     expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
 
-    await restore(archived.titleKey);
+    await restore(archived.jobKey);
     expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toHaveLength(1);
   });
 });

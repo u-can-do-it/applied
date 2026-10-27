@@ -150,9 +150,7 @@ export const fillFromLinkAction = action(fillFromLinkSchema, async ({ link }): P
     }
   }
   const details = read?.details ?? {};
-  const knownJobId = offer
-    ? await jobIdFor(offer.company, offer.title, offer.titleKey).catch(() => offer.titleKey)
-    : null;
+  const knownJobId = offer ? await jobIdFor(offer.company, offer.title, offer.jobKey).catch(() => offer.jobKey) : null;
   return {
     url: offer?.url ?? cleanLink(link),
     board: offer?.src ?? board,

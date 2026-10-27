@@ -61,21 +61,27 @@ export const offers = pgTable(
     url: text('url').notNull(),
     firstSeen: timestamptz('first_seen').notNull().defaultNow(), // when a scraper first saw it
     // the title key: company without legal suffix + title without gender tags (jw_dup_key); offers
-    // with the same title key are one job
+    // with the same title key are one job, until a repost (below)
     titleKey: text('dup_key').generatedAlwaysAs(sql`public.jw_dup_key(company, title)`),
+    // a repost: an offer whose title key's job was first seen 30+ days before is a job of its own, this
+    // the day (YYYY-MM-DD, UTC) it began; null: the title key's first job (public.jw_ingest_offers)
+    repost: text('repost'),
+    // the offer's job before AI merges: the title key, "~" + repost for a repost
+    jobKey: text('job_key').generatedAlwaysAs(sql`public.jw_dup_key(company, title) || coalesce('~' || repost, '')`),
   },
   (table) => [
     primaryKey({ name: 'offers_pkey', columns: [table.src, table.id] }),
     index('offers_first_seen_idx').on(table.firstSeen.desc().nullsFirst()),
     index('offers_dup_key_idx').on(table.titleKey, table.firstSeen),
+    index('offers_job_key_idx').on(table.jobKey),
   ],
 ).enableRLS();
 
-// AI-confirmed duplicates whose title keys differ: every title key of a merged job points at the job's id
+// AI-confirmed duplicates whose job keys differ: every job key (offers.job_key) of a merged job points at the job's id
 export const jobLinks = pgTable(
   'job_links',
   {
-    titleKey: text('dup_key').primaryKey(),
+    jobKey: text('dup_key').primaryKey(),
     jobId: text('job_key').notNull(),
     createdAt: createdAt(),
   },

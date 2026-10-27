@@ -304,11 +304,11 @@ export function searchable(filter: Omit<JobFilter, 'ranked' | 'byDate' | 'archiv
  * window function and its per-job lists.
  */
 export async function countJobs(): Promise<number> {
-  const jobId = sql`coalesce(${jobLinks.jobId}, ${offers.titleKey})`;
+  const jobId = sql`coalesce(${jobLinks.jobId}, ${offers.jobKey})`;
   const [{ jobs }] = await db()
     .select({ jobs: sql<number>`count(distinct ${jobId})::int` })
     .from(offers)
-    .leftJoin(jobLinks, eq(jobLinks.titleKey, offers.titleKey))
+    .leftJoin(jobLinks, eq(jobLinks.jobKey, offers.jobKey))
     .leftJoin(archivedJobs, eq(archivedJobs.jobId, jobId))
     .where(sql`${archivedJobs.jobId} is null`);
   return jobs;
@@ -335,7 +335,7 @@ export async function findOffer(by: { src?: string; id?: string; urls: string[] 
       title: offers.title,
       company: offers.company,
       url: offers.url,
-      titleKey: offers.titleKey,
+      jobKey: offers.jobKey,
     })
     .from(offers)
     .where(
@@ -360,8 +360,8 @@ export async function knownIds(src: string, ids: string[]): Promise<Set<string>>
 
 export type NewOffer = Pick<OfferRow, 'src' | 'id' | 'title' | 'company' | 'seniority' | 'url'> & { remote: boolean };
 
-/** An offer that was new to the database, with its title key and whether that title key was known already. */
-export type AddedOffer = { src: string; id: string; titleKey: string; seenBefore: boolean };
+/** An offer that was new to the database, with its job key (offers.job_key) and whether that job was known already. */
+export type AddedOffer = { src: string; id: string; jobKey: string; seenBefore: boolean };
 
 /**
  * Saves offers (public.jw_ingest_offers: one statement, so "seen before" means before this run).
@@ -372,7 +372,8 @@ export async function ingest(rows: NewOffer[]): Promise<AddedOffer[]> {
   const added = await db().execute<{ src: string; id: string; dup_key: string; seen_before: boolean }>(
     sql`select src, id, dup_key, seen_before from public.jw_ingest_offers(${JSON.stringify(rows)}::jsonb)`,
   );
-  return added.map((row) => ({ src: row.src, id: row.id, titleKey: row.dup_key, seenBefore: row.seen_before }));
+  // dup_key: the job key (the function's column kept its name)
+  return added.map((row) => ({ src: row.src, id: row.id, jobKey: row.dup_key, seenBefore: row.seen_before }));
 }
 
 /** Offers per board and the newest one's first_seen, by board. */
@@ -392,10 +393,17 @@ export async function newestFirstSeen(): Promise<string | null> {
   return newest?.firstSeen ?? null;
 }
 
-/** The title key the database gives this company and title (offers.dup_key is made the same way). */
-export async function titleKeyOf(company: string | null, title: string): Promise<string> {
-  const [{ titleKey }] = await db().execute<{ titleKey: string }>(
-    sql`select public.jw_dup_key(${company}::text, ${title}::text) as "titleKey"`,
+/**
+ * The job key of this company and title: the latest job of the title key the database gives them
+ * (offers.dup_key is made the same way), the one begun last; the title key itself if no offer has it.
+ */
+export async function jobKeyOf(company: string | null, title: string): Promise<string> {
+  const [{ jobKey }] = await db().execute<{ jobKey: string }>(
+    sql`select coalesce(
+          (select o.job_key from public.offers o where o.dup_key = k.title_key
+            group by o.job_key order by min(o.first_seen) desc limit 1),
+          k.title_key) as "jobKey"
+        from (select public.jw_dup_key(${company}::text, ${title}::text) as title_key) k`,
   );
-  return titleKey;
+  return jobKey;
 }

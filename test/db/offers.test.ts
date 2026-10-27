@@ -54,9 +54,60 @@ describeDb('offers', () => {
       offer('nofluff', 'b', 'React Developer', 'ACME'),
       offer('justjoin', '1', 'React Developer (k/m)', 'Acme Sp. z o.o.'),
     ]);
-    const acme = first.find((row) => row.src === 'justjoin')?.titleKey;
-    expect(second).toEqual([{ src: 'nofluff', id: 'b', titleKey: acme, seenBefore: true }]);
+    const acme = first.find((row) => row.src === 'justjoin')?.jobKey;
+    expect(second).toEqual([{ src: 'nofluff', id: 'b', jobKey: acme, seenBefore: true }]);
     expect(await offersRepo.knownIds('justjoin', ['1', '2'])).toEqual(new Set(['1']));
+  });
+
+  it('makes a repost a job of its own when its job was first seen 30+ days before', async () => {
+    const daysAgo = (days: number, id: string) =>
+      exec(sql`update public.offers set first_seen = now() - make_interval(days => ${days}) where id = ${id}`);
+    const [original] = await offersRepo.ingest([offer('justjoin', '1', 'React Developer', 'Acme')]);
+    expect(original.jobKey).toBe('acme|reactdeveloper');
+    await daysAgo(29, '1');
+    // under 30 days: the same job
+    expect(await offersRepo.ingest([offer('nofluff', '2', 'React Developer', 'Acme')])).toEqual([
+      { src: 'nofluff', id: '2', jobKey: original.jobKey, seenBefore: true },
+    ]);
+    await daysAgo(31, '1');
+    await archive(original.jobKey);
+    await markSeen(original.jobKey);
+
+    // 30+ days since the job began, though its latest offer is younger: a new job, both boards' offers in it
+    const repost = `${original.jobKey}~${new Date().toISOString().slice(0, 10)}`;
+    const reposted = await offersRepo.ingest([
+      offer('bulldog', '3', 'React Developer (k/m)', 'Acme Sp. z o.o.'),
+      offer('theprotocol', '4', 'React Developer', 'Acme'),
+    ]);
+    expect(reposted.sort((a, b) => a.src.localeCompare(b.src))).toEqual([
+      { src: 'bulldog', id: '3', jobKey: repost, seenBefore: false },
+      { src: 'theprotocol', id: '4', jobKey: repost, seenBefore: false },
+    ]);
+    // none of the old job's marks; the old one stays archived
+    const { jobs } = await page();
+    expect(jobs.map((job) => [job.jobId, job.archived, job.seen, job.offers.length])).toEqual([
+      [repost, false, false, 2],
+    ]);
+    expect((await page('', '', { archived: true })).jobs.map((job) => job.jobId)).toEqual([original.jobKey]);
+    // the next offer joins the repost, the title key's latest job
+    expect(await offersRepo.ingest([offer('pracuj', '5', 'React Developer', 'Acme')])).toEqual([
+      { src: 'pracuj', id: '5', jobKey: repost, seenBefore: true },
+    ]);
+    expect(await offersRepo.jobKeyOf('ACME', 'React Developer')).toBe(repost);
+    expect(await offersRepo.jobKeyOf('Acme', 'Vue Developer')).toBe('acme|vuedeveloper');
+  });
+
+  it("counts a merged job's earliest offer: a repost of a younger title key merged into an old job", async () => {
+    const [old, merged] = await offersRepo.ingest([
+      offer('justjoin', '1', 'Frontend Engineer', 'Acme'),
+      offer('nofluff', '2', 'Front-end Engineer (React)', 'Acme'),
+    ]);
+    await exec(sql`update public.offers set first_seen = now() - interval '40 days' where id = '1'`);
+    await exec(sql`update public.offers set first_seen = now() - interval '10 days' where id = '2'`);
+    await linksRepo.mergeJobs(old.jobKey, merged.jobKey);
+    const [again] = await offersRepo.ingest([offer('bulldog', '3', 'Front-end Engineer (React)', 'Acme')]);
+    expect(again.jobKey).toBe(`${merged.jobKey}~${new Date().toISOString().slice(0, 10)}`);
+    expect(again.seenBefore).toBe(false);
   });
 
   it('lists each job once, newest first, with every board it is on', async () => {
@@ -214,12 +265,12 @@ describeDb('offers', () => {
       offer('nofluff', '2', 'Front-end Engineer (React)', 'Acme'),
     ]);
     expect(await getTotalCount()).toBe(2);
-    await linksRepo.mergeJobs(added[0].titleKey, added[1].titleKey);
-    expect(await linksRepo.jobIdOf(added[1].titleKey)).toBe(added[0].titleKey);
+    await linksRepo.mergeJobs(added[0].jobKey, added[1].jobKey);
+    expect(await linksRepo.jobIdOf(added[1].jobKey)).toBe(added[0].jobKey);
     const { jobs, total } = await page();
     expect(total).toBe(1);
     expect(await getTotalCount()).toBe(1);
-    expect(jobs[0].jobId).toBe(added[0].titleKey);
+    expect(jobs[0].jobId).toBe(added[0].jobKey);
     expect(jobs[0].offers).toHaveLength(2);
   });
 
@@ -228,17 +279,17 @@ describeDb('offers', () => {
       offer('justjoin', '1', 'Frontend Engineer', 'Acme'),
       offer('nofluff', '2', 'Front-end Engineer (React)', 'Acme'),
     ]);
-    await archive(alias.titleKey);
-    await markSeen(alias.titleKey);
-    await linksRepo.mergeJobs(kept.titleKey, alias.titleKey);
+    await archive(alias.jobKey);
+    await markSeen(alias.jobKey);
+    await linksRepo.mergeJobs(kept.jobKey, alias.jobKey);
 
     expect((await page()).total).toBe(0);
     const { jobs } = await page('', '', { archived: true });
-    expect(jobs.map((job) => [job.jobId, job.archived, job.seen])).toEqual([[kept.titleKey, true, true]]);
+    expect(jobs.map((job) => [job.jobId, job.archived, job.seen])).toEqual([[kept.jobKey, true, true]]);
     // nothing left under the merged-away id
     expect(
       await exec(sql`select dup_key from public.seen_jobs union all select dup_key from public.archived_jobs`),
-    ).toEqual([{ dup_key: kept.titleKey }, { dup_key: kept.titleKey }]);
+    ).toEqual([{ dup_key: kept.jobKey }, { dup_key: kept.jobKey }]);
   });
 
   it("moves the merged-away job's note to the kept one: added to its own, or alone", async () => {
@@ -247,17 +298,17 @@ describeDb('offers', () => {
       offer('nofluff', '2', 'Front-end Engineer (React)', 'Acme'),
       offer('bulldog', '3', 'Frontend Developer', 'Acme'),
     ]);
-    await jobNotesRepo.setIfUnchanged(kept.titleKey, 'Recruiter: Ola', null);
-    await jobNotesRepo.setIfUnchanged(alias.titleKey, 'Asked 20k', null);
-    await linksRepo.mergeJobs(kept.titleKey, alias.titleKey);
-    expect((await jobNotesRepo.get(kept.titleKey))?.note).toBe('Recruiter: Ola\n\nAsked 20k');
-    expect(await jobNotesRepo.get(alias.titleKey)).toBeNull();
+    await jobNotesRepo.setIfUnchanged(kept.jobKey, 'Recruiter: Ola', null);
+    await jobNotesRepo.setIfUnchanged(alias.jobKey, 'Asked 20k', null);
+    await linksRepo.mergeJobs(kept.jobKey, alias.jobKey);
+    expect((await jobNotesRepo.get(kept.jobKey))?.note).toBe('Recruiter: Ola\n\nAsked 20k');
+    expect(await jobNotesRepo.get(alias.jobKey)).toBeNull();
 
     // the kept job had none
-    await jobNotesRepo.setIfUnchanged(other.titleKey, 'Remote only', null);
-    await jobNotesRepo.take(kept.titleKey);
-    await linksRepo.mergeJobs(kept.titleKey, other.titleKey);
-    expect((await jobNotesRepo.get(kept.titleKey))?.note).toBe('Remote only');
+    await jobNotesRepo.setIfUnchanged(other.jobKey, 'Remote only', null);
+    await jobNotesRepo.take(kept.jobKey);
+    await linksRepo.mergeJobs(kept.jobKey, other.jobKey);
+    expect((await jobNotesRepo.get(kept.jobKey))?.note).toBe('Remote only');
   });
 
   it('finds an offer by the board id or by its link, and gives the title key the scrapers would', async () => {
@@ -270,11 +321,11 @@ describeDb('offers', () => {
     expect(byLink?.id).toBe('acme-react');
     expect(await offersRepo.findOffer({ urls: ['https://nowhere.example'] })).toBeNull();
     expect(await offersRepo.findOffer({ urls: [] })).toBeNull(); // nothing asked for: not just any offer
-    expect(await offersRepo.titleKeyOf('ACME', 'React Developer')).toBe(byId?.titleKey);
+    expect(await offersRepo.jobKeyOf('ACME', 'React Developer')).toBe(byId?.jobKey);
   });
 
   it("leaves every board's gender tags out of the title key", async () => {
-    const plain = await offersRepo.titleKeyOf('Shimi Sp. z o.o.', 'Software Developer');
+    const plain = await offersRepo.jobKeyOf('Shimi Sp. z o.o.', 'Software Developer');
     for (const title of [
       'Software Developer (m/f/n)',
       'Software Developer (K/M/N)',
@@ -284,13 +335,13 @@ describeDb('offers', () => {
       'Software Developer (k /m)',
       'Software Developer m/f/d',
     ])
-      expect(await offersRepo.titleKeyOf('SHIMI sp. z o.o.', title), title).toBe(plain);
+      expect(await offersRepo.jobKeyOf('SHIMI sp. z o.o.', title), title).toBe(plain);
     // single letters inside a title stay
-    expect(await offersRepo.titleKeyOf('Shimi', 'Software Developer n')).not.toBe(plain);
+    expect(await offersRepo.jobKeyOf('Shimi', 'Software Developer n')).not.toBe(plain);
   });
 
   it('leaves a work mode at the end of the title out of the title key', async () => {
-    const plain = await offersRepo.titleKeyOf('1dea', 'Frontend Developer (React / TypeScript / AWS)');
+    const plain = await offersRepo.jobKeyOf('1dea', 'Frontend Developer (React / TypeScript / AWS)');
     for (const title of [
       'Frontend Developer (React / TypeScript / AWS) (Remote)',
       'Frontend Developer (React / TypeScript / AWS) - 100% zdalnie',
@@ -301,11 +352,11 @@ describeDb('offers', () => {
       'Frontend Developer (React / TypeScript / AWS) - Praca zdalna K/M',
       'Frontend Developer (React / TypeScript / AWS) - On-site',
     ])
-      expect(await offersRepo.titleKeyOf('1dea', title), title).toBe(plain);
+      expect(await offersRepo.jobKeyOf('1dea', title), title).toBe(plain);
     // a work mode that is part of the title, or all of it, stays
-    expect(await offersRepo.titleKeyOf('1dea', 'Remote Sensing Engineer')).toBe('1dea|remotesensingengineer');
-    expect(await offersRepo.titleKeyOf('1dea', 'Head of Remote Work')).toBe('1dea|headofremotework');
-    expect(await offersRepo.titleKeyOf('1dea', '(Remote)')).toBe('1dea|remote');
+    expect(await offersRepo.jobKeyOf('1dea', 'Remote Sensing Engineer')).toBe('1dea|remotesensingengineer');
+    expect(await offersRepo.jobKeyOf('1dea', 'Head of Remote Work')).toBe('1dea|headofremotework');
+    expect(await offersRepo.jobKeyOf('1dea', '(Remote)')).toBe('1dea|remote');
   });
 
   it('counts offers per board, and gives timestamps as ISO 8601', async () => {
@@ -327,12 +378,12 @@ describeDb('offers', () => {
       offer('nofluff', 'a', 'Java Developer', 'Other'),
     ]);
     expect((await page()).jobs.map((job) => job.seen)).toEqual([false, false]);
-    await markSeen(react.titleKey);
+    await markSeen(react.jobKey);
     const [first] = await exec(sql`select seen_at from public.seen_jobs`);
-    await markSeen(react.titleKey); // opened again
+    await markSeen(react.jobKey); // opened again
     expect(await exec(sql`select seen_at from public.seen_jobs`)).toEqual([first]);
     const seen = Object.fromEntries((await page()).jobs.map((job) => [job.jobId, job.seen]));
-    expect(seen).toEqual({ [react.titleKey]: true, [java.titleKey]: false });
+    expect(seen).toEqual({ [react.jobKey]: true, [java.jobKey]: false });
   });
 
   it('leaves archived jobs out of the lists and the counts, and lists them on their own', async () => {
@@ -341,7 +392,7 @@ describeDb('offers', () => {
       offer('nofluff', 'a', 'Java Developer', 'Other'),
       offer('bulldog', 'x', 'Go Developer', 'Gopher'),
     ]);
-    const jobOf = (src: string) => added.find((row) => row.src === src)?.titleKey ?? '';
+    const jobOf = (src: string) => added.find((row) => row.src === src)?.jobKey ?? '';
     const [react, java, go] = [jobOf('justjoin'), jobOf('nofluff'), jobOf('bulldog')];
     await archive(react);
     await archive(react); // twice: still one

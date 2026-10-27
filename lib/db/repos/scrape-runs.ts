@@ -94,8 +94,8 @@ export async function addedPerBoard(
       .from(scrapeRuns)
       .innerJoin(offers, and(gte(offers.firstSeen, scrapeRuns.startedAt), lte(offers.firstSeen, scrapeRuns.finishedAt)))
       // the offer's job, its earliest offer: first seen before the run, the job was known
-      .leftJoin(jobLinks, eq(jobLinks.titleKey, offers.titleKey))
-      .innerJoin(offersUnique, eq(offersUnique.jobId, sql`coalesce(${jobLinks.jobId}, ${offers.titleKey})`))
+      .leftJoin(jobLinks, eq(jobLinks.jobKey, offers.jobKey))
+      .innerJoin(offersUnique, eq(offersUnique.jobId, sql`coalesce(${jobLinks.jobId}, ${offers.jobKey})`))
       .where(inArray(scrapeRuns.id, runIds))
       .groupBy(scrapeRuns.id, offers.src)
       .orderBy(desc(count()))

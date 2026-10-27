@@ -9,7 +9,7 @@ import { message } from '../shared/errors';
 type Candidate = pairsRepo.Candidate;
 
 // AI duplicate check for one run's date range. The database proposes pairs of jobs whose ids
-// differ but look alike (same / prefix company, similar title, <= 45 days apart, never asked
+// differ but look alike (same / prefix company, similar title, < 30 days apart, never asked
 // before); the model says same or not; same pairs are merged into one job (job_links), verdicts follow.
 
 const PAIRS_PER_CALL = 15;

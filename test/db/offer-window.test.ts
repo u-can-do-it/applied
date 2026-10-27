@@ -64,7 +64,7 @@ describeDb('the complete ad', () => {
         url: 'https://x.example/1',
       },
     ]);
-    return added.titleKey;
+    return added.jobKey;
   }
 
   it("the window's complete ad, with the board's details, over an AI run's shorter copy", async () => {

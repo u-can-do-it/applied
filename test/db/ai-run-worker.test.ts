@@ -99,7 +99,7 @@ async function profileAndRun(jobs: ReturnType<typeof job>[], { withAds = true } 
   const profile = await getProfile(id);
   if (!profile) throw new Error('no profile');
   const run = await startRun(profile, { label: 'all offers' });
-  return { profile, run, jobIds: added.map((row) => row.titleKey) };
+  return { profile, run, jobIds: added.map((row) => row.jobKey) };
 }
 
 describeDb('an AI run slice (continueRun)', () => {
@@ -358,10 +358,10 @@ describeDb('jobs waiting for their ad (a scrape run, before Telegram and after)'
     ];
     const added = await offersRepo.ingest(offers); // not in this order
     const [known, lookAlike] = offers.map((offer) => ({
-      titleKey: added.find((row) => row.src === offer.src)?.titleKey ?? '',
+      jobKey: added.find((row) => row.src === offer.src)?.jobKey ?? '',
     }));
     await exec(sql`update public.offers set first_seen = now() - interval '1 day' where src = 'justjoin'`);
-    await queueRepo.enqueue([{ ...offers[1], location: null, jobId: lookAlike.titleKey }]);
+    await queueRepo.enqueue([{ ...offers[1], location: null, jobId: lookAlike.jobKey }]);
     pairsAreSame = true;
 
     // the AI filter off: no OpenAI
@@ -370,7 +370,7 @@ describeDb('jobs waiting for their ad (a scrape run, before Telegram and after)'
 
     expect(await mergeNew({ aiFilter: true }, Date.now() + 60_000)).toEqual({ merged: 1, error: null });
     expect(asked).toHaveLength(1);
-    expect(await linksRepo.jobIdOf(lookAlike.titleKey)).toBe(known.titleKey);
+    expect(await linksRepo.jobIdOf(lookAlike.jobKey)).toBe(known.jobKey);
     expect(await queueRepo.size()).toBe(0);
 
     // decided: not asked again

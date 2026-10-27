@@ -57,7 +57,7 @@ async function scrapedJob() {
       url: 'https://nofluffjobs.com/pl/job/n1',
     },
   ]);
-  return added.titleKey;
+  return added.jobKey;
 }
 
 const typed = (title: string, extra: Partial<Parameters<typeof addApplication>[0]> = {}) => ({

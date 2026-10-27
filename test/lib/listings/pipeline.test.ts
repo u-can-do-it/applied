@@ -49,10 +49,10 @@ const result = (kept: Found[], extra: Partial<ScrapeResult> = {}): ScrapeResult 
   ...extra,
 });
 
-const added = (id: string, titleKey: string, seenBefore = false, src = 'justjoin'): AddedOffer => ({
+const added = (id: string, jobKey: string, seenBefore = false, src = 'justjoin'): AddedOffer => ({
   src,
   id,
-  titleKey,
+  jobKey,
   seenBefore,
 });
 
