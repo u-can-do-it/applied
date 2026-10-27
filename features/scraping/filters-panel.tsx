@@ -26,6 +26,7 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
     remoteOk: settings.remoteOk,
     ignore: join(settings.ignore),
     mute: join(settings.mute),
+    minFit: settings.minFit,
   };
   const form = useAppForm({
     defaultValues: server,
@@ -106,6 +107,18 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
               <field.TextField
                 label="Save, but don’t notify"
                 hint="Whole words: “java” doesn’t hit JavaScript, “.net” also hits ASP.NET."
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="minFit">
+            {(field) => (
+              <field.NumberField
+                label="Hide offers under this AI fit, %"
+                hint="Offers the AI profile rejected or scored lower stay out of Offers (Matches and Rejected still list them). The ones it hasn’t checked always show. 0 = show all."
+                min={0}
+                max={100}
+                step={5}
+                controlClassName="w-24"
               />
             )}
           </form.AppField>

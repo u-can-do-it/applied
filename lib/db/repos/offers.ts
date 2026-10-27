@@ -144,13 +144,18 @@ const countWhere = (condition: SQL | undefined) =>
 
 /**
  * The numbers under a list's filters (`matching`): how many it shows (`total`), how many of those the
- * latest run that brought new jobs (`latest`) brought, and how many jobs are archived.
+ * latest run that brought new jobs (`latest`) brought, how many jobs are archived, and how many it
+ * leaves out for their fit (`hidden`: underFit).
  */
-const counts = (filter: JobFilter, latest: RunWindow | null) => ({
-  total: countWhere(shown(filter)),
-  newCount: latest ? countWhere(and(shown(filter), firstSeenIn(latest))) : sql<number>`0`,
-  archivedCount: countWhere(isArchived()),
-});
+const counts = (filter: JobFilter, latest: RunWindow | null, hidden?: SQL) => {
+  const kept = hidden && not(hidden);
+  return {
+    total: countWhere(and(shown(filter), kept)),
+    newCount: latest ? countWhere(and(shown(filter), kept, firstSeenIn(latest))) : sql<number>`0`,
+    archivedCount: countWhere(and(isArchived(), kept)),
+    hiddenCount: hidden ? countWhere(and(shown(filter), hidden)) : sql<number>`0`,
+  };
+};
 
 // newest first; the board and id make the order total, so pages don't overlap
 const newestFirst = [desc(offersUnique.firstSeen), asc(offersUnique.src), asc(offersUnique.id)];
@@ -166,6 +171,14 @@ const judgedBy = (by: JudgedBy) =>
     eq(aiVerdicts.profileId, by.profileId),
     eq(aiVerdicts.version, by.version),
   );
+/**
+ * A job the list leaves out for its verdict: rejected, or scored under `minFit` (lib/listings/settings.ts);
+ * one not judged stays. None at 0.
+ */
+const underFit = (minFit = 0) =>
+  minFit > 0
+    ? sql`(${aiVerdicts.jobId} is not null and (not ${aiVerdicts.match} or ${aiVerdicts.score} < ${minFit}))`
+    : undefined;
 const verdictColumns = {
   match: aiVerdicts.match,
   score: aiVerdicts.score,
@@ -181,7 +194,8 @@ const verdictColumns = {
  * in time zone `tz` (`dayCount`), and how many good and fair fits (`dayGood`, `dayFair`), and your applications at its
  * company (`companyApplied`, the latest `companyLastApplied`); `newCount`: how many of all were;
  * `archivedCount`: how many jobs these filters find among the archived ones. With `verdictsOf`, each
- * with that profile version's verdict, when it has one (its fields null when not).
+ * with that profile version's verdict, when it has one (its fields null when not), and with its `minFit`
+ * the ones it rejected or scored lower left out, counted in `hiddenCount`.
  */
 export async function pageOfJobs(
   filter: JobFilter,
@@ -189,9 +203,10 @@ export async function pageOfJobs(
   size: number,
   tz: string,
   latest: RunWindow | null = null,
-  verdictsOf?: JudgedBy,
+  verdictsOf?: JudgedBy & { minFit?: number },
 ) {
   const where = matching(filter);
+  const hidden = verdictsOf && underFit(verdictsOf.minFit);
   const columns = {
     ...jobColumns,
     isNew: newness(latest),
@@ -206,7 +221,7 @@ export async function pageOfJobs(
         .select({ ...columns, ...verdictColumns })
         .from(offersUnique)
         .leftJoin(aiVerdicts, judgedBy(verdictsOf))
-        .where(and(where, shown(filter)))
+        .where(and(where, shown(filter), hidden && not(hidden)))
         .orderBy(...order(filter))
         .limit(size)
         .offset(page * size)
@@ -217,10 +232,16 @@ export async function pageOfJobs(
         .orderBy(...order(filter))
         .limit(size)
         .offset(page * size);
-  const [found, [numbers]] = await Promise.all([
-    rows,
-    db().select(counts(filter, latest)).from(offersUnique).where(where),
-  ]);
+  // the counts need the verdicts only to leave some out
+  const counted =
+    verdictsOf && hidden
+      ? db()
+          .select(counts(filter, latest, hidden))
+          .from(offersUnique)
+          .leftJoin(aiVerdicts, judgedBy(verdictsOf))
+          .where(where)
+      : db().select(counts(filter, latest)).from(offersUnique).where(where);
+  const [found, [numbers]] = await Promise.all([rows, counted]);
   return { rows: found, ...numbers };
 }
 

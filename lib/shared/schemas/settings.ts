@@ -47,6 +47,7 @@ export const storedSettingsSchema: z.ZodMiniType<ScrapeSettings> = z.catch(
     remoteOk: flag(defaults.remoteOk),
     ignore: words(defaults.ignore),
     mute: words(defaults.mute),
+    minFit: z.catch(z.int().check(z.minimum(0), z.maximum(100)), defaults.minFit),
     notify: flag(defaults.notify),
     aiFilter: flag(defaults.aiFilter),
     telegramEnabled: flag(defaults.telegramEnabled),
@@ -77,12 +78,14 @@ export const timeZoneSchema = z.object({
 
 /** The lists come as typed ("React, Vue"); normalizeList is what's kept, on both sides. */
 const list = z.pipe(string(), z.transform(normalizeList));
+const FIT = 'A fit is 0–100%.';
 export const filtersSchema = z.object({
   keywords: list,
   cities: list,
   remoteOk: z.boolean(),
   ignore: list,
   mute: list,
+  minFit: z.int({ error: FIT }).check(z.minimum(0, FIT), z.maximum(100, FIT)),
 });
 
 export const pausedSchema = z.object({ paused: z.boolean() });

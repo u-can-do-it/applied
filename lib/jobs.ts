@@ -53,16 +53,18 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
     ai?: { profileId: string; version: number; rejected: boolean; tier?: ScoredTier };
     /**
      * every job, each with this profile version's verdict when it has one; `usable`: the profile can judge
-     * (lib/ai/profiles.ts isUsable), so a job the scrape is checking with it is `matching`
+     * (lib/ai/profiles.ts isUsable), so a job the scrape is checking with it is `matching`; `minFit`: the
+     * ones it rejected or scored under this (%) left out (the setting)
      */
-    verdictsOf?: { profileId: string; version: number; usable: boolean };
+    verdictsOf?: { profileId: string; version: number; usable: boolean; minFit?: number };
   };
 
 /**
  * One page of the list, how many match in all, how many of those are new (`newCount`), when the
  * run that brought them ran (`latest`; null: no run in the log added offers), how many jobs
- * these filters find among the archived ones (`archivedCount`), and whether it's a search's, best
- * match first (`byMatch`) rather than newest first.
+ * these filters find among the archived ones (`archivedCount`), how many it left out for their fit
+ * (`hiddenCount`, verdictsOf's minFit), and whether it's a search's, best match first (`byMatch`) rather
+ * than newest first.
  */
 export type JobPage = {
   byMatch: boolean;
@@ -70,13 +72,15 @@ export type JobPage = {
   total: number;
   newCount: number;
   archivedCount: number;
+  hiddenCount: number;
   latest: offersRepo.RunWindow | null;
 };
 
 export async function getJobs(opts: Query): Promise<JobPage> {
   // "today", "last 7 days", the day counts: days there
   const [zone, latest] = await Promise.all([appZone(), runsRepo.latestWithNewJobs()]);
-  if (opts.latest && !latest) return { byMatch: false, jobs: [], total: 0, newCount: 0, archivedCount: 0, latest };
+  if (opts.latest && !latest)
+    return { byMatch: false, jobs: [], total: 0, newCount: 0, archivedCount: 0, hiddenCount: 0, latest };
   const narrowed = {
     src: opts.src,
     ...zone.resolveRange(opts),
@@ -89,7 +93,11 @@ export async function getJobs(opts: Query): Promise<JobPage> {
   const marked = (job: ListedJob): ListedJob => (found ? { ...job, marks: found.marks.get(job.jobId) } : job);
   const byMatch = Boolean(found) && !opts.byDate;
   if (!opts.ai) {
-    const verdictsOf = opts.verdictsOf && { profileId: opts.verdictsOf.profileId, version: opts.verdictsOf.version };
+    const verdictsOf = opts.verdictsOf && {
+      profileId: opts.verdictsOf.profileId,
+      version: opts.verdictsOf.version,
+      minFit: opts.verdictsOf.minFit,
+    };
     const [{ rows, ...numbers }, since] = await Promise.all([
       offersRepo.pageOfJobs(filter, opts.page, PAGE_SIZE, zone.tz, latest, verdictsOf),
       opts.verdictsOf?.usable ? matchingSince() : null,

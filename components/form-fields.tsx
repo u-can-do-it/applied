@@ -95,6 +95,7 @@ export function NumberField({
           {...input}
           {...control}
           type="number"
+          className={controlClassName}
           name={field.name}
           value={Number.isNaN(field.state.value) ? '' : field.state.value}
           onChange={(event) =>

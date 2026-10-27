@@ -186,14 +186,32 @@ describe('timeZoneSchema', () => {
 });
 
 describe('filtersSchema', () => {
+  const filters = { keywords: 'React, Vue ;Next.js', cities: '', remoteOk: true, ignore: 'PHP', mute: '', minFit: 50 };
   it('keeps the lists the way they are saved', () => {
-    expect(
-      filtersSchema.parse({ keywords: 'React, Vue ;Next.js', cities: '', remoteOk: true, ignore: 'PHP', mute: '' }),
-    ).toEqual({ keywords: ['React', 'Vue', 'Next.js'], cities: [], remoteOk: true, ignore: ['PHP'], mute: [] });
+    expect(filtersSchema.parse(filters)).toEqual({
+      keywords: ['React', 'Vue', 'Next.js'],
+      cities: [],
+      remoteOk: true,
+      ignore: ['PHP'],
+      mute: [],
+      minFit: 50,
+    });
+  });
+
+  it('takes a minimum fit of 0–100%, whole', () => {
+    for (const minFit of [-1, 101, 50.5, Number.NaN])
+      expect(problem(filtersSchema, { ...filters, minFit })).toBe('A fit is 0–100%.');
   });
 });
 
 describe('storedSettingsSchema', () => {
+  it('reads no minimum fit in a row saved before it existed, or one out of range', () => {
+    const { minFit: _, ...older } = DEFAULT_SETTINGS;
+    expect(storedSettingsSchema.parse(older).minFit).toBe(0);
+    expect(storedSettingsSchema.parse({ ...older, minFit: 140 }).minFit).toBe(0);
+    expect(storedSettingsSchema.parse({ ...older, minFit: 60 }).minFit).toBe(60);
+  });
+
   it('reads Telegram as on in a row saved before the switch existed, and keeps it off once switched off', () => {
     const { telegramEnabled: _, ...older } = DEFAULT_SETTINGS;
     expect(storedSettingsSchema.parse(older).telegramEnabled).toBe(true);

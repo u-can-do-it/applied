@@ -10,7 +10,7 @@ import { FIT_RANGE } from '@/lib/shared/fit';
 import { parseOfferQuery, type SearchParams } from '@/lib/shared/search-params';
 import { withParams } from '@/lib/shared/search-params';
 import { cn } from '@/lib/shared/cn';
-import { appZone } from '@/lib/time-zone';
+import { appSettings, appZone } from '@/lib/time-zone';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { LoadError } from '@/components/load-error';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -60,9 +60,13 @@ export async function Results({
   let data: Awaited<ReturnType<typeof getJobs>> | null = null; // stays null only with ?fit= and no profile
   let all: number | null = null; // whole table, only needed when something is filtered
   let stats: { total: number; checked: number; matched: number } | null = null; // ?fit=: this date range
+  let minFit = 0; // the list without ?fit= leaves out the jobs rejected or scored under this
   try {
     let profiles: Awaited<ReturnType<typeof listProfiles>>;
-    [zone, profiles] = await Promise.all([appZone(), listProfiles()]); // the fit badges are the active profile's
+    let settings: Awaited<ReturnType<typeof appSettings>>;
+    // the fit badges are the active profile's
+    [zone, profiles, settings] = await Promise.all([appZone(), listProfiles(), appSettings()]);
+    minFit = settings.minFit;
     const profile = profiles.at(0);
     const query = { q, src, page, days, from, to, latest, archived, byDate };
     if (fit) {
@@ -75,9 +79,14 @@ export async function Results({
         ]);
       }
     } else {
-      // every job, the judged ones with their fit badge, the ones being judged marked; in parallel, (if
-      // filtered) the unfiltered count
-      const verdictsOf = profile && { profileId: profile.id, version: profile.version, usable: isUsable(profile) };
+      // every job, the judged ones with their fit badge (those under minFit left out), the ones being judged
+      // marked; in parallel, (if filtered) the unfiltered count
+      const verdictsOf = profile && {
+        profileId: profile.id,
+        version: profile.version,
+        usable: isUsable(profile),
+        minFit,
+      };
       [data, all] = await Promise.all([
         getJobs({ ...query, verdictsOf }),
         filtered ? getTotalCount().catch(() => null) : Promise.resolve(null),
@@ -103,6 +112,15 @@ export async function Results({
   const archivedLine = (
     <ArchivedCount archivedCount={data.archivedCount} active={archived} current={current} path={path} />
   );
+  // " · 13 under 50% fit hidden" (Settings → Filters)
+  const hiddenLine = data.hiddenCount > 0 && (
+    <>
+      {' · '}
+      <span title="The AI profile rejected them or scored them lower: Matches and Rejected list them">
+        {fmt(data.hiddenCount)} under {minFit}% fit hidden
+      </span>
+    </>
+  );
 
   return (
     <>
@@ -112,6 +130,7 @@ export async function Results({
           {/* "3 archived offers · last 7 days · show all" */}
           <strong>{fmt(data.total)}</strong> archived {data.total === 1 ? 'offer' : 'offers'}
           {range && ` · ${range}`}
+          {hiddenLine}
           {newLine}
           {archivedLine}
         </p>
@@ -134,6 +153,7 @@ export async function Results({
           <strong>{fmt(data.total)}</strong>
           {filtered && all !== null && <> of {fmt(all)}</>} offers
           {range && ` · ${range}`}
+          {hiddenLine}
           {newLine}
           {archivedLine}
         </p>
@@ -160,6 +180,8 @@ export async function Results({
             ) : (
               'No matches here. See the rejected ones, or loosen the profile in Settings.'
             )
+          ) : data.hiddenCount > 0 ? (
+            `Every offer here is under ${minFit}% fit, or the AI rejected it. Matches and Rejected list them.`
           ) : latest && !data.latest ? (
             'No scrape run has brought new offers lately.'
           ) : filtered ? (

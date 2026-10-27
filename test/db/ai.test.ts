@@ -149,7 +149,24 @@ describeDb('AI verdicts and runs', () => {
     const verdicts = Object.fromEntries(all.jobs.map((job) => [job.jobId, job.ai && [job.ai.match, job.ai.score]]));
     expect(verdicts).toEqual({ [first]: [true, 90], [second]: [false, 20], [third]: undefined });
     expect(all.jobs.find((job) => job.jobId === third)).not.toHaveProperty('ai');
+    expect(all.hiddenCount).toBe(0);
     expect((await getJobs({ q: '', src: '', page: 0 })).jobs.every((job) => !job.ai)).toBe(true);
+
+    // a minimum fit leaves out the rejected ones and those scored under it, never the ones not judged
+    const atLeast = (minFit: number) =>
+      getJobs({ q: '', src: '', page: 0, verdictsOf: { ...ai, usable: true, minFit } });
+    const fitting = await atLeast(90);
+    expect(fitting.jobs.map((job) => job.jobId).sort()).toEqual([first, third].sort());
+    expect([fitting.total, fitting.hiddenCount]).toEqual([2, 1]);
+    expect(fitting.jobs.map((job) => job.dayCount)).toEqual([2, 2]);
+    const strict = await atLeast(91);
+    expect(strict.jobs.map((job) => job.jobId)).toEqual([third]);
+    expect([strict.total, strict.hiddenCount]).toEqual([1, 2]);
+    // archived, a hidden one counts in neither
+    await archive(second);
+    expect((await atLeast(90)).archivedCount).toBe(0);
+    expect((await atLeast(0)).archivedCount).toBe(1);
+    await restore(second);
   });
 
   it("counts each day's good and fair fits, the ones your criteria allow, as the list shows them", async () => {

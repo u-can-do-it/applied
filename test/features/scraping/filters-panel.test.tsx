@@ -43,6 +43,7 @@ describe('FiltersPanel', () => {
       remoteOk: true,
       ignore: '',
       mute: '',
+      minFit: 0,
     });
     expect(toast.success).toHaveBeenCalledWith('Saved. The next run uses them.');
   });

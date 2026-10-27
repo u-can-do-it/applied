@@ -20,6 +20,11 @@ export type ScrapeSettings = {
   ignore: string[];
   /** titles with these words are saved but not notified */
   mute: string[];
+  /**
+   * The offers list leaves out the jobs the active AI profile rejected or scored under this (%); the ones
+   * it hasn't judged stay. 0 = it leaves none out.
+   */
+  minFit: number;
   /** send new offers (every notification channel) */
   notify: boolean;
   /** check new offers against the active AI profile first; the channels get only the matches */
@@ -46,6 +51,7 @@ export const DEFAULT_SETTINGS: ScrapeSettings = {
   remoteOk: true,
   ignore: [],
   mute: ['.net', 'dotnet', 'go', 'golang', 'java'],
+  minFit: 0,
   notify: true,
   aiFilter: true,
   telegramEnabled: true,

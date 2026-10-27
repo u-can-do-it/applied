@@ -136,6 +136,7 @@ describeDb('new in the latest run', () => {
       total: 0,
       newCount: 0,
       archivedCount: 0,
+      hiddenCount: 0,
       latest: null,
     });
   });
