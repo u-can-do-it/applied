@@ -1,10 +1,13 @@
 'use client';
 
-import type { ComponentProps, ReactNode } from 'react';
+import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { XIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
+import { splitList } from '@/lib/listings/settings';
 import { CheckField, Field } from './field';
 import { useFieldContext } from './form-context';
 
@@ -73,6 +76,92 @@ export function TextareaField({
           onChange={(event) => field.handleChange(event.target.value)}
           onBlur={field.handleBlur}
         />
+      )}
+    </Field>
+  );
+}
+
+// the tags field's box, drawn as an Input with the badges and the text box inside it
+const TAGS_BOX =
+  'flex min-h-8 w-full cursor-text flex-wrap items-center gap-1 rounded-lg border border-input bg-transparent px-1.5 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 has-aria-invalid:border-destructive has-aria-invalid:ring-3 has-aria-invalid:ring-destructive/20 dark:bg-input/30';
+
+/**
+ * A list typed a word at a time: a comma (or ;) or Enter turns what's typed into a badge, its × takes it
+ * out, and Backspace in the empty box the last one. A space doesn't: "Zielona Góra" and "React Native"
+ * stay one. The field's value is the list as text ("React, Node", what the schema reads), what's still
+ * being typed last, so Save takes it too.
+ */
+export function TagsField({ label, hint, className, placeholder }: Labelled & { placeholder?: string }) {
+  const field = useFieldContext<string>();
+  const input = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState('');
+  const all = splitList(field.state.value);
+  const typing = draft.trim();
+  // the value came from elsewhere (the saved one, a refreshed page): what was typed isn't in it any more
+  if (typing && all.at(-1) !== typing) setDraft('');
+  const tags = typing && all.at(-1) === typing ? all.slice(0, -1) : all;
+
+  const write = (next: string[], text: string) => {
+    setDraft(text);
+    field.handleChange([...next, text.trim()].filter(Boolean).join(', '));
+  };
+  /** the words added to the badges, the ones already there (in any case) left out */
+  const withWords = (words: string[]) => {
+    const next = [...tags];
+    for (const word of words.map((each) => each.trim()))
+      if (word && !next.some((tag) => tag.toLowerCase() === word.toLowerCase())) next.push(word);
+    return next;
+  };
+
+  return (
+    <Field label={label} hint={hint} error={firstError(field.state.meta.errors)} className={className}>
+      {(control) => (
+        <div className={TAGS_BOX} onClick={() => input.current?.focus()}>
+          {tags.map((tag, i) => (
+            <Badge key={tag} variant="secondary" className="h-6 gap-0.5 pr-0.5 text-[13px] font-normal">
+              {tag}
+              <button
+                type="button"
+                aria-label={`Remove “${tag}”`}
+                className="inline-flex size-4.5 items-center justify-center rounded-full hover:bg-foreground/15"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  write(
+                    tags.filter((_, j) => j !== i),
+                    draft,
+                  );
+                }}
+              >
+                <XIcon className="size-3" />
+              </button>
+            </Badge>
+          ))}
+          <input
+            {...control}
+            ref={input}
+            name={field.name}
+            value={draft}
+            placeholder={tags.length ? undefined : placeholder}
+            className="h-6 min-w-[8ch] flex-1 bg-transparent px-1 text-base text-foreground outline-none placeholder:text-muted-foreground md:text-sm"
+            onChange={(event) => {
+              const parts = event.target.value.split(/[,;\n]/);
+              const text = parts.pop() ?? '';
+              write(parts.length ? withWords(parts) : tags, text);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && typing) {
+                event.preventDefault(); // a badge, not the form's submit
+                write(withWords([typing]), '');
+              } else if (event.key === 'Backspace' && !draft && tags.length) {
+                write(tags.slice(0, -1), '');
+              }
+            }}
+            onBlur={() => {
+              if (typing) write(withWords([typing]), '');
+              field.handleBlur();
+            }}
+          />
+        </div>
       )}
     </Field>
   );

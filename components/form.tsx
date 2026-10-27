@@ -16,7 +16,7 @@ import { LOAD_FAILED } from './lazy-form';
 import { message } from '@/lib/shared/errors';
 import { fail, type Result } from '@/lib/shared/result';
 import { fieldContext, formContext } from './form-context';
-import { CheckboxField, NumberField, SelectField, TextareaField, TextField } from './form-fields';
+import { CheckboxField, NumberField, SelectField, TagsField, TextareaField, TextField } from './form-fields';
 
 // The app's forms are TanStack Form (`useAppForm`), checked with the same Zod schema (zod/mini) as the
 // server action they call: `validators: { onDynamic: schema }` with `validationLogic: checkOnSubmit`.
@@ -26,7 +26,7 @@ import { CheckboxField, NumberField, SelectField, TextareaField, TextField } fro
 export const { useAppForm, withForm } = createFormHook({
   fieldContext,
   formContext,
-  fieldComponents: { TextField, TextareaField, NumberField, SelectField, CheckboxField },
+  fieldComponents: { TextField, TextareaField, NumberField, SelectField, CheckboxField, TagsField },
   formComponents: {},
 });
 

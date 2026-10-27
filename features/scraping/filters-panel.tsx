@@ -71,14 +71,14 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
         >
           <form.AppField name="keywords">
             {(field) => (
-              <field.TextField
+              <field.TagsField
                 label="Keywords"
                 hint={
                   <>
-                    Any of them, separated by commas (“React, Node”): every board is searched once for each (
-                    <Code>{'{keyword}'}</Code> in a scraper’s link), an offer both find saved once, and where a scraper
-                    checks it, the offer’s title or skills must name one. A keyword starts a word: “react” matches
-                    ReactJS, not Preact.
+                    Any of them: a comma or Enter after each makes it a badge. Every board is searched once for each one
+                    (<Code>{'{keyword}'}</Code> in a scraper’s link), and an offer both find is saved once; where a
+                    scraper checks it, the offer’s title or skills must name one. A keyword starts a word: “react”
+                    matches ReactJS, not Preact.
                   </>
                 }
                 placeholder="React, Node"
@@ -87,7 +87,7 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
           </form.AppField>
           <form.AppField name="cities">
             {(field) => (
-              <field.TextField
+              <field.TagsField
                 label="Cities"
                 hint="Part of a name is enough: “warszaw” matches Warszawa and Warszawie. Empty = anywhere. Offers that don’t say where pass."
                 placeholder="warszaw, warsaw"
@@ -99,12 +99,12 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
           </form.AppField>
           <form.AppField name="ignore">
             {(field) => (
-              <field.TextField label="Skip titles with" hint="Not saved at all." placeholder="PHP, Angular" />
+              <field.TagsField label="Skip titles with" hint="Not saved at all." placeholder="PHP, Angular" />
             )}
           </form.AppField>
           <form.AppField name="mute">
             {(field) => (
-              <field.TextField
+              <field.TagsField
                 label="Save, but don’t notify"
                 hint="Whole words: “java” doesn’t hit JavaScript, “.net” also hits ASP.NET."
               />
