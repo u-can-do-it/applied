@@ -17,15 +17,25 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // what counts as a letter of a word: "c#", "c++" and ".net" are words of their own
 const WORD = 'a-z0-9+#';
 
-/** A keyword must start a word: "react" matches React, ReactJS, React.js, but not Preact. */
+/**
+ * Any of the keywords, each of whose words must start a word: "react" matches React, ReactJS, React.js,
+ * but not Preact. A keyword of several words ("React CSS") needs every one of them, each anywhere in
+ * the texts (the title, a skill).
+ */
 export function keywordTest(keywords: string[]) {
-  const parts = keywords
-    .map((keyword) => fold(keyword.trim()))
-    .filter(Boolean)
-    .map(escape);
-  if (!parts.length) return () => true;
-  const re = new RegExp(`(?:^|[^${WORD}])(?:${parts.join('|')})`);
-  return (texts: string[]) => texts.some((text) => re.test(fold(text)));
+  const wanted = keywords
+    .map((keyword) =>
+      fold(keyword)
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => new RegExp(`(?:^|[^${WORD}])${escape(word)}`)),
+    )
+    .filter((words) => words.length);
+  if (!wanted.length) return () => true;
+  return (texts: string[]) => {
+    const folded = texts.map(fold);
+    return wanted.some((words) => words.every((word) => folded.some((text) => word.test(text))));
+  };
 }
 
 /**

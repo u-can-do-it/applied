@@ -75,10 +75,8 @@ export function FiltersPanel({ settings }: { settings: ScrapeSettings }) {
                 label="Keywords"
                 hint={
                   <>
-                    Any of them: a comma or Enter after each makes it a badge. Every board is searched once for each one
-                    (<Code>{'{keyword}'}</Code> in a scraper’s link), and an offer both find is saved once; where a
-                    scraper checks it, the offer’s title or skills must name one. A keyword starts a word: “react”
-                    matches ReactJS, not Preact.
+                    <Code>React, Node</Code>: two searches, offers with React or Node. <Code>React CSS</Code>: one
+                    search, offers with React and CSS.
                   </>
                 }
                 placeholder="React, Node"

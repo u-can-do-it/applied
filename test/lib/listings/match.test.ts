@@ -72,6 +72,15 @@ describe('keywordTest', () => {
     expect(test([])).toBe(false);
   });
 
+  it('a keyword of several words needs each of them, anywhere in the texts', () => {
+    const test = keywordTest(['React CSS', 'Node']);
+    expect(test(['React Developer', 'CSS'])).toBe(true); // the title and a skill
+    expect(test(['CSS and React'])).toBe(true); // in any order
+    expect(test(['React Developer', 'TypeScript'])).toBe(false); // no CSS
+    expect(test(['Node.js Developer'])).toBe(true); // the other keyword
+    expect(keywordTest(['React  CSS'])(['react', 'css'])).toBe(true); // more spaces are one
+  });
+
   it('c#, c++ and .net are words of their own; regex characters are literal', () => {
     expect(keywordTest(['C#'])(['Senior C# Developer'])).toBe(true);
     expect(keywordTest(['C++'])(['C++17 engineer'])).toBe(true);
