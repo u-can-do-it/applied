@@ -30,7 +30,7 @@ async function fileToText(file: File): Promise<string> {
 /** Saves the profile and makes it the active one; answers with its id. */
 export const saveProfileAction = formAction(
   profileSchema,
-  async ({ profileId, name, prompt, file: upload, removeFile, keepVerdicts }) => {
+  async ({ profileId, name, prompt, file: upload, removeFile, recheck }) => {
     let file: Parameters<typeof saveProfile>[0]['file'] = removeFile ? 'remove' : 'keep';
     if (upload) {
       let text: string;
@@ -48,7 +48,21 @@ export const saveProfileAction = formAction(
       file === 'keep' && profileId ? Boolean((await getProfile(profileId))?.fileName) : typeof file === 'object';
     if (!prompt.trim() && !keepsFile) throw new Error('Describe what to look for, or add a file.');
 
-    const id = await saveProfile({ id: profileId, name, prompt, file, keepVerdicts });
+    // only today's offers: their verdicts go, and a run checks them again right away
+    const today = { days: '1' };
+    const range = recheck === 'today' ? (await appZone()).resolveRange(today) : null;
+    const id = await saveProfile({
+      id: profileId,
+      name,
+      prompt,
+      file,
+      recheck: range ?? (recheck === 'none' ? 'none' : 'all'),
+    });
+    const profile = range && (await getProfile(id));
+    if (range && isUsable(profile)) {
+      const run = await startRun(profile, { ...range, label: describeRange(today) });
+      if (run.status === 'running') after(() => continueRun(run.id));
+    }
     refresh();
     return { id };
   },

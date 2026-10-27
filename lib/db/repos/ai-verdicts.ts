@@ -82,6 +82,19 @@ export async function removeOlderThan(profile: ProfileVersion) {
     .where(and(eq(aiVerdicts.profileId, profile.id), lt(aiVerdicts.version, profile.version)));
 }
 
+/** This profile version's verdicts on the jobs first seen in the range, so they're judged again. */
+export async function removeIn(profile: ProfileVersion, range: Range) {
+  await db()
+    .delete(aiVerdicts)
+    .where(
+      and(
+        eq(aiVerdicts.profileId, profile.id),
+        eq(aiVerdicts.version, profile.version),
+        inArray(aiVerdicts.jobId, db().select({ jobId: offersUnique.jobId }).from(offersUnique).where(inRange(range))),
+      ),
+    );
+}
+
 // ---- jobs and their verdicts (offers_unique) --------------------------------------------------
 
 /** This profile version's verdict on the job, as a subquery; `also`: what else it must be. */

@@ -54,7 +54,7 @@ describe('profileSchema', () => {
       prompt: '',
       file: undefined,
       removeFile: false,
-      keepVerdicts: false,
+      recheck: 'all',
     });
   });
 

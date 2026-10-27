@@ -6,20 +6,19 @@ import { PaperclipIcon } from 'lucide-react';
 import { useConfirm } from '@/components/confirm';
 import { answered, checkOnSubmit, FormError, formSchema, useAppForm } from '@/components/form';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { CheckField, FieldError } from '@/components/field';
 import { firstError } from '@/components/form-fields';
 import type { Result } from '@/lib/shared/result';
-import { profileSchema } from '@/lib/shared/schemas/ai';
+import { profileSchema, type Recheck } from '@/lib/shared/schemas/ai';
 import { deleteProfileAction, saveProfileAction, selectProfileAction } from './actions';
 import { NEW, PROFILE_NOTE, type ProfileOption } from './profile-dialog';
 
 /**
  * What the form holds: the action's FormData fields (removeFile: 'on' to remove the saved file,
- * keepVerdicts: 'on' to save a changed text or file without re-checking what was already checked).
+ * recheck: what a changed text or file re-checks of what was already checked).
  */
 type ProfileValues = {
   profileId: string;
@@ -27,8 +26,27 @@ type ProfileValues = {
   prompt: string;
   file: File | undefined;
   removeFile: string;
-  keepVerdicts: string;
+  recheck: Recheck;
 };
+
+/** A changed text or file: what it does with what the profile has checked so far, one of them. */
+const RECHECKS: { value: Recheck; label: string; hint: string }[] = [
+  {
+    value: 'none',
+    label: 'Don’t revalidate',
+    hint: 'what it has checked stays; the change applies to the offers it hasn’t checked yet',
+  },
+  {
+    value: 'today',
+    label: 'Revalidate today',
+    hint: 'today’s offers are checked again now; the older ones keep what it said',
+  },
+  {
+    value: 'all',
+    label: 'Revalidate all',
+    hint: 'what it has checked so far is dropped; “Check …” checks the offers again',
+  },
+];
 
 /** The profile picked in the dialog, to edit (or a new one): saved, it becomes the active profile. */
 export function ProfileForm({
@@ -55,7 +73,7 @@ export function ProfileForm({
     prompt: profile?.prompt ?? '',
     file: undefined,
     removeFile: '',
-    keepVerdicts: '',
+    recheck: 'all',
   };
   const form = useAppForm({
     defaultValues: initial,
@@ -69,7 +87,7 @@ export function ProfileForm({
       data.set('prompt', value.prompt);
       if (value.file) data.set('file', value.file);
       else if (value.removeFile) data.set('removeFile', 'on');
-      if (value.keepVerdicts) data.set('keepVerdicts', 'on');
+      data.set('recheck', value.recheck);
       const answer = await answered(formApi, saveProfileAction(null, data));
       // lands with the refreshed page (the action refreshes it with the new active profile)
       if (answer.ok) startTransition(onClose);
@@ -182,17 +200,27 @@ export function ProfileForm({
       </form.Field>
 
       {criteriaChange && (
-        <form.Field name="keepVerdicts">
+        <form.Field name="recheck">
           {(field) => (
-            <CheckField>
-              <Checkbox
-                name={field.name}
-                checked={field.state.value === 'on'}
-                onCheckedChange={(checked) => field.handleChange(checked === true ? 'on' : '')}
-                onBlur={field.handleBlur}
-              />
-              Keep what it has checked so far – the change applies to the offers it hasn’t checked yet
-            </CheckField>
+            <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+              <legend className="mb-2 text-[13px] text-muted-foreground">What it has checked so far</legend>
+              {RECHECKS.map((option) => (
+                <CheckField key={option.value} className="items-start">
+                  <input
+                    type="radio"
+                    name={field.name}
+                    value={option.value}
+                    checked={field.state.value === option.value}
+                    onChange={() => field.handleChange(option.value)}
+                    onBlur={field.handleBlur}
+                    className="mt-1 size-4 shrink-0 accent-foreground"
+                  />
+                  <span>
+                    {option.label} <span className="text-muted-foreground">– {option.hint}</span>
+                  </span>
+                </CheckField>
+              ))}
+            </fieldset>
           )}
         </form.Field>
       )}

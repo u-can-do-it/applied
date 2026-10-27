@@ -75,9 +75,29 @@ describeDb('AI profiles', () => {
     const [key] = await threeJobs();
     await verdictsRepo.save([verdict({ id, version: 1 }, key, true)]);
 
-    await saveProfile({ id, name: 'P', prompt: 'React, remote or Warsaw', file: 'keep', keepVerdicts: true });
+    await saveProfile({ id, name: 'P', prompt: 'React, remote or Warsaw', file: 'keep', recheck: 'none' });
     expect(await getProfile(id)).toMatchObject({ prompt: 'React, remote or Warsaw', version: 1 });
     expect((await verdictsRepo.forJobs({ id, version: 1 }, [key])).size).toBe(1);
+  });
+
+  it('saves new criteria re-checking only the jobs first seen in a range (today), the others kept', async () => {
+    const id = await saveProfile({ name: 'P', prompt: 'React', file: 'keep' });
+    const [first, second, third] = await threeJobs();
+    await exec(sql`update public.offers set first_seen = now() - interval '3 days' where id = '1'`);
+    await verdictsRepo.save([first, second, third].map((key) => verdict({ id, version: 1 }, key, true)));
+    const today = { gte: new Date(Date.now() - 86_400_000).toISOString() };
+
+    await saveProfile({ id, name: 'P', prompt: 'React, junior Node', file: 'keep', recheck: today });
+    expect(await getProfile(id)).toMatchObject({ prompt: 'React, junior Node', version: 1 });
+    const kept = await verdictsRepo.forJobs({ id, version: 1 }, [first, second, third]);
+    const older = (await offersRepo.findOffer({ src: 'justjoin', id: '1', urls: [] }))?.titleKey;
+    expect([...kept.keys()]).toEqual([older]);
+    expect(await countPending({ id, version: 1 }, today)).toBe(2);
+
+    // nothing changed: nothing re-checked
+    await verdictsRepo.save([second, third].map((key) => verdict({ id, version: 1 }, key, true)));
+    await saveProfile({ id, name: 'P', prompt: 'React, junior Node', file: 'keep', recheck: today });
+    expect((await verdictsRepo.forJobs({ id, version: 1 }, [first, second, third])).size).toBe(3);
   });
 
   it('lists the most recently used first, without the file text', async () => {

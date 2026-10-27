@@ -5,6 +5,9 @@ import { string, text } from './common';
 
 export const PROFILE_FILE_MAX = 5 * 1024 * 1024;
 
+/** What a profile's changed criteria re-check (profileSchema's `recheck`). */
+export type Recheck = 'all' | 'today' | 'none';
+
 /** The AI profile form (FormData: the file is uploaded with it). */
 export const profileSchema = z.object({
   profileId: z.pipe(
@@ -32,10 +35,11 @@ export const profileSchema = z.object({
     z.optional(z.string()),
     z.transform((value: string | undefined) => value === 'on'),
   ),
-  // a changed text or file keeps what the profile has judged so far, instead of re-checking it all
-  keepVerdicts: z.pipe(
+  // what a changed text or file re-checks: everything the profile has judged so far, only today's
+  // offers (at once, the older ones keeping their verdicts), or nothing (the verdicts so far stay)
+  recheck: z.pipe(
     z.optional(z.string()),
-    z.transform((value: string | undefined) => value === 'on'),
+    z.transform((value: string | undefined): Recheck => (value === 'today' || value === 'none' ? value : 'all')),
   ),
 });
 
