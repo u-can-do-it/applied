@@ -82,3 +82,20 @@ export async function record(rows: Pick<AiDupPairRow, 'jobIdA' | 'jobIdB' | 'sam
       set: { same: sql`excluded.same`, reason: sql`excluded.reason`, model: sql`excluded.model` },
     });
 }
+
+/** Records two jobs as the same, in the database's order of their ids (its collation, not JavaScript's). */
+export async function recordSame([a, b]: [string, string], reason: string, model: string) {
+  await db()
+    .insert(aiDupPairs)
+    .values({
+      jobIdA: sql`least(${a}::text, ${b}::text)`,
+      jobIdB: sql`greatest(${a}::text, ${b}::text)`,
+      same: true,
+      reason,
+      model,
+    })
+    .onConflictDoUpdate({
+      target: [aiDupPairs.jobIdA, aiDupPairs.jobIdB],
+      set: { same: true, reason, model, decidedAt: sql`now()` },
+    });
+}

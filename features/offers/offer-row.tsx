@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ApplyButton } from './apply-button';
 import { ArchiveButton, ArchiveRow } from './archive';
 import { detailFacts, JOB_ROW, JobRow } from './job-row';
+import { MergeButton } from './merge';
 import { OfferWindowButton } from './offer-window-button';
 import { SeenItem, SeenMark } from './seen';
 
@@ -28,8 +29,9 @@ const boardsOf = (job: ListedJob) => {
  * searches every offer for it (the other filters dropped), newest first, a click elsewhere opens its window. A job the
  * latest scrape run that brought new jobs brought is marked "new", with a faint tint, so what came in last
  * time stands out; one you opened before has an eye after its title, and then the button of its window
- * (the ad, your note, the fit; once applied to, the application's). The archive button takes it out of the list (or, in the archived
- * list, back into the others). With a mouse, the archive and "Mark applied" buttons show on the row's hover
+ * (the ad, your note, the fit; once applied to, the application's). "Same job as…" merges it with another job
+ * you pick (merge.tsx). The archive button takes it out of the list (or, in the archived
+ * list, back into the others). With a mouse, those and "Mark applied" show on the row's hover
  * (or keyboard focus) only. Under a day's heading the row shows the hour it came in; in a list not grouped
  * by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier this week, "02/10" before, in
  * a wider first column. Its details line: what its ad said (salary, contract, work mode, where), once read.
@@ -50,7 +52,12 @@ export function OfferRow({
       <SeenItem
         jobId={job.jobId}
         seen={job.seen}
-        className={cn('group/offer', job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]')}
+        className={cn(
+          'group/offer',
+          job.isNew && 'bg-success-soft/40 first:rounded-t-[10px] last:rounded-b-[10px]',
+          // picked by "Same job as…" (merge.tsx)
+          'has-[[data-merge-picked]]:relative has-[[data-merge-picked]]:z-10 has-[[data-merge-picked]]:rounded-[10px] has-[[data-merge-picked]]:ring-2 has-[[data-merge-picked]]:ring-brand',
+        )}
         data-new={job.isNew || undefined}
       >
         <JobRow
@@ -109,6 +116,17 @@ export function OfferRow({
           }
           bottom={
             <div className="flex flex-wrap items-center justify-end gap-1">
+              <MergeButton
+                job={{
+                  jobId: job.jobId,
+                  title: job.title,
+                  company: job.company,
+                  firstSeen: job.firstSeen,
+                  when: fullLabel(zone, job.firstSeen),
+                  boards: boardsOf(job).map((board) => labels[board.src] ?? board.src),
+                  applied: Boolean(job.appliedAt),
+                }}
+              />
               <ArchiveButton />
               <ApplyButton
                 jobId={job.jobId}

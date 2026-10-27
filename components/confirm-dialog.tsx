@@ -31,6 +31,7 @@ export default function ConfirmDialog({
           <AlertDialogTitle>{asked.title}</AlertDialogTitle>
           <AlertDialogDescription>{asked.description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {asked.details}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction

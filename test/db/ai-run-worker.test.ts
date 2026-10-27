@@ -3,6 +3,9 @@ import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GET as cronCall } from '@/app/api/cron/scrape/route';
 import { assessJobs, assessWaiting, continueRun, latestRun, startRun } from '@/lib/ai/runs';
+import * as linksRepo from '@/lib/db/repos/job-links';
+import * as queueRepo from '@/lib/db/repos/notify-queue';
+import { mergeNew } from '@/lib/listings/pipeline/dedup';
 import { PROFILE_CHANGED, WAITING_FOR_AD } from '@/lib/ai/run-state';
 import { AI_RUN_LOCK_MS, SLICE_MS } from '@/lib/budgets';
 import * as detailsRepo from '@/lib/db/repos/offer-details';
@@ -40,6 +43,8 @@ let onOtherRequest: () => Response | undefined = () => undefined;
 /** The run's lock as it stood when OpenAI was asked. */
 const locksWhenAsked: (number | null)[] = [];
 const asked: string[] = [];
+/** what OpenAI says of every pair of jobs it's asked about */
+let pairsAreSame = false;
 
 const fakeFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -69,7 +74,7 @@ const fakeFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit
           checks: [],
           bodyLeasing: offer === 2,
         }))
-      : numbers('PAIR').map((pair) => ({ p: pair, same: false, reason: 'different roles' }));
+      : numbers('PAIR').map((pair) => ({ p: pair, same: pairsAreSame, reason: 'the same ad' }));
   return Response.json({ choices: [{ message: { content: JSON.stringify({ results }) } }] });
 });
 
@@ -100,6 +105,7 @@ async function profileAndRun(jobs: ReturnType<typeof job>[], { withAds = true } 
 describeDb('an AI run slice (continueRun)', () => {
   beforeEach(() => {
     asked.length = 0;
+    pairsAreSame = false;
     duringCall = () => {};
     onOtherRequest = () => undefined;
     locksWhenAsked.length = 0;
@@ -344,5 +350,31 @@ describeDb('jobs waiting for their ad (a scrape run, before Telegram and after)'
       [70, true],
       [10, false],
     ]);
+  });
+  it("a scrape run's duplicate check merges a new look-alike into the known job, and doesn't send it", async () => {
+    const offers = [
+      job('justjoin', '1', 'Senior React Developer', 'EPAM'),
+      job('nofluff', '2', 'Senior React.js Developer!', 'EPAM Systems'),
+    ];
+    const added = await offersRepo.ingest(offers); // not in this order
+    const [known, lookAlike] = offers.map((offer) => ({
+      titleKey: added.find((row) => row.src === offer.src)?.titleKey ?? '',
+    }));
+    await exec(sql`update public.offers set first_seen = now() - interval '1 day' where src = 'justjoin'`);
+    await queueRepo.enqueue([{ ...offers[1], location: null, jobId: lookAlike.titleKey }]);
+    pairsAreSame = true;
+
+    // the AI filter off: no OpenAI
+    expect(await mergeNew({ aiFilter: false }, Date.now() + 60_000)).toEqual({ merged: 0, error: null });
+    expect(asked).toEqual([]);
+
+    expect(await mergeNew({ aiFilter: true }, Date.now() + 60_000)).toEqual({ merged: 1, error: null });
+    expect(asked).toHaveLength(1);
+    expect(await linksRepo.jobIdOf(lookAlike.titleKey)).toBe(known.titleKey);
+    expect(await queueRepo.size()).toBe(0);
+
+    // decided: not asked again
+    expect(await mergeNew({ aiFilter: true }, Date.now() + 60_000)).toEqual({ merged: 0, error: null });
+    expect(asked).toHaveLength(1);
   });
 });

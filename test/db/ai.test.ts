@@ -1,9 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { expect, it, vi } from 'vitest';
+import { BY_HAND, mergeByHand } from '@/lib/ai/merge-duplicates';
 import { countPending, latestRun, needsWorker, rangeStats, startRun } from '@/lib/ai/runs';
 import * as pairsRepo from '@/lib/db/repos/ai-dup-pairs';
 import { archive, restore } from '@/lib/db/repos/archived-jobs';
 import * as runsRepo from '@/lib/db/repos/ai-runs';
+import * as linksRepo from '@/lib/db/repos/job-links';
+import * as queueRepo from '@/lib/db/repos/notify-queue';
 import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as verdictsRepo from '@/lib/db/repos/ai-verdicts';
 import * as offersRepo from '@/lib/db/repos/offers';
@@ -328,6 +331,37 @@ describeDb('AI verdicts and runs', () => {
     expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
     const [decided] = await exec(sql`select same, reason from public.ai_dup_pairs`);
     expect(decided).toEqual({ same: false, reason: 'changed' });
+  });
+
+  it('merges two jobs you say are one: the earlier stays, the pair is decided, the later one is not sent', async () => {
+    const offers = [
+      job('nofluff', '1', 'Frontend Developer (React / TypeScript / AWS)', '1dea'),
+      job('adzuna', '2', 'Frontend Dev, React + TS + AWS', '1dea'),
+      job('justjoin', '3', 'Vue Developer', 'Beta'),
+    ];
+    const added = await offersRepo.ingest(offers); // not in this order
+    const [older, newer, other] = offers.map((offer) => ({
+      titleKey: added.find((row) => row.src === offer.src)?.titleKey ?? '',
+    }));
+    await exec(sql`update public.offers set first_seen = now() - interval '1 day' where src = 'nofluff'`);
+    await queueRepo.enqueue(
+      offers.slice(1).map((offer, i) => ({ ...offer, location: null, jobId: [newer, other][i].titleKey })),
+    );
+
+    // picked in either order, the earlier one stays
+    expect(await mergeByHand(newer.titleKey, older.titleKey)).toEqual({
+      kept: offers[0].title,
+      merged: offers[1].title,
+    });
+    expect(await linksRepo.jobIdOf(newer.titleKey)).toBe(older.titleKey);
+    const [pair] = await exec(sql`select key_a, key_b, same, model from public.ai_dup_pairs`);
+    expect(pair).toMatchObject({ same: true, model: BY_HAND });
+    expect([pair.key_a, pair.key_b].sort()).toEqual([older.titleKey, newer.titleKey].sort());
+    expect((await queueRepo.list()).map((row) => row.id)).toEqual(['3']);
+
+    // the list's ids, after the merge: one job already; a job that's gone
+    await expect(mergeByHand(older.titleKey, newer.titleKey)).rejects.toThrow('one job already');
+    await expect(mergeByHand(other.titleKey, '1dea|nosuchjob')).rejects.toThrow('gone');
   });
 
   it('leaves an archived job out of the look-alike pairs, until it is restored', async () => {

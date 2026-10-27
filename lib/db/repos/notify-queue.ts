@@ -1,8 +1,8 @@
 import 'server-only';
-import { asc, count } from 'drizzle-orm';
+import { asc, count, inArray } from 'drizzle-orm';
 import { db } from '../client';
 import { isOneOf } from '../rows';
-import { notifyQueue, type NotifyQueueRow } from '../schema';
+import { jobLinks, notifyQueue, type NotifyQueueRow } from '../schema';
 
 // New jobs waiting to be sent to the notification channels (Telegram, push); while muted, they pile up.
 
@@ -36,6 +36,13 @@ export async function claim(rows: { src: string; id: string }[]): Promise<Queued
     .where(isOneOf(notifyQueue.src, notifyQueue.id, rows))
     .returning();
   return claimed.sort((a, b) => a.queuedAt.localeCompare(b.queuedAt));
+}
+
+/** Takes out the offers whose job was merged into another (its id is now one of that job's title keys). */
+export async function dropMerged() {
+  await db()
+    .delete(notifyQueue)
+    .where(inArray(notifyQueue.jobId, db().select({ titleKey: jobLinks.titleKey }).from(jobLinks)));
 }
 
 export async function size(): Promise<number> {

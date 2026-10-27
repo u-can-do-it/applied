@@ -13,6 +13,8 @@ export type ConfirmOptions = {
   title: string;
   /** what happens, in a sentence */
   description: string;
+  /** shown under it: what it happens to (the two jobs of a merge) */
+  details?: React.ReactNode;
   /** the button that says yes: "Delete", "Unmark" */
   action: string;
   /** a red yes button: something is deleted */

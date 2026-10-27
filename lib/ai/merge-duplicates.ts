@@ -1,6 +1,8 @@
 import 'server-only';
 import * as pairsRepo from '../db/repos/ai-dup-pairs';
 import * as linksRepo from '../db/repos/job-links';
+import * as offersRepo from '../db/repos/offers';
+import * as queueRepo from '../db/repos/notify-queue';
 import { aiConfig, decideDuplicates, type JobForAi } from './openai';
 import { message } from '../shared/errors';
 
@@ -25,6 +27,10 @@ const forAi = (job: pairsRepo.CandidateJob): JobForAi => ({
 });
 
 const pairId = (pair: Candidate) => `${pair.jobIdA}\u0001${pair.jobIdB}`;
+
+/** The job that stays when two are merged: the earliest (on a tie, the smaller id); the other is merged into it. */
+const keepFirst = <T extends { jobId: string; firstSeen: number }>(a: T, b: T): [keep: T, alias: T] =>
+  a.firstSeen < b.firstSeen || (a.firstSeen === b.firstSeen && a.jobId < b.jobId) ? [a, b] : [b, a];
 
 /**
  * One round: up to PAIRS_PER_CALL x PARALLEL pairs. checked = 0 (and no error) means nothing is left.
@@ -79,7 +85,10 @@ export async function mergeDuplicatesRound(range: { gte: string | null; lt: stri
     // every job of a decided pair is in firstSeen
     const seenA = firstSeen.get(a) ?? Infinity,
       seenB = firstSeen.get(b) ?? Infinity;
-    const [keep, alias] = seenA < seenB || (seenA === seenB && a < b) ? [a, b] : [b, a]; // the earliest job stays
+    const [{ jobId: keep }, { jobId: alias }] = keepFirst(
+      { jobId: a, firstSeen: seenA },
+      { jobId: b, firstSeen: seenB },
+    );
     await linksRepo.mergeJobs(keep, alias);
     mergedInto.set(alias, keep);
     firstSeen.set(keep, Math.min(seenA, seenB));
@@ -87,4 +96,29 @@ export async function mergeDuplicatesRound(range: { gte: string | null; lt: stri
   }
 
   return { checked: decided.length, merged, error: decided.length ? null : error };
+}
+
+/** in ai_dup_pairs, a pair you merged yourself */
+export const BY_HAND = 'by hand';
+
+/**
+ * "Same job as…" in the offers: you say two jobs are one, and they're merged as the AI's are (the earliest
+ * stays). The pair is recorded as decided, so the AI never asks about it; a queued offer of the merged-away
+ * job isn't sent. Throws, in words for you, when they're one job already or one is gone.
+ */
+export async function mergeByHand(jobId: string, sameAs: string): Promise<{ kept: string; merged: string }> {
+  // the ids the list showed: either may have been merged into another job since
+  const [idA, idB] = await Promise.all([linksRepo.jobIdOf(jobId), linksRepo.jobIdOf(sameAs)]);
+  if (idA === idB) throw new Error('They are one job already.');
+  const jobs = await offersRepo.jobsById([idA, idB]);
+  const [jobA, jobB] = [idA, idB].map((id) => jobs.find((job) => job.jobId === id));
+  if (!jobA || !jobB) throw new Error('One of the two jobs is gone. Refresh the list and try again.');
+  const [keep, alias] = keepFirst(
+    { jobId: idA, firstSeen: Date.parse(jobA.firstSeen), title: jobA.title },
+    { jobId: idB, firstSeen: Date.parse(jobB.firstSeen), title: jobB.title },
+  );
+  await linksRepo.mergeJobs(keep.jobId, alias.jobId);
+  await pairsRepo.recordSame([idA, idB], 'Merged by hand.', BY_HAND);
+  await queueRepo.dropMerged();
+  return { kept: keep.title, merged: alias.title };
 }

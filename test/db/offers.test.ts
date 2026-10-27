@@ -289,6 +289,25 @@ describeDb('offers', () => {
     expect(await offersRepo.titleKeyOf('Shimi', 'Software Developer n')).not.toBe(plain);
   });
 
+  it('leaves a work mode at the end of the title out of the title key', async () => {
+    const plain = await offersRepo.titleKeyOf('1dea', 'Frontend Developer (React / TypeScript / AWS)');
+    for (const title of [
+      'Frontend Developer (React / TypeScript / AWS) (Remote)',
+      'Frontend Developer (React / TypeScript / AWS) - 100% zdalnie',
+      'Frontend Developer (React / TypeScript / AWS) [Remote]',
+      'Frontend Developer (React / TypeScript / AWS) – Fully Remote',
+      'Frontend Developer (React / TypeScript / AWS) | Remote',
+      'Frontend Developer (React / TypeScript / AWS) (Remote / Hybrid)',
+      'Frontend Developer (React / TypeScript / AWS) - Praca zdalna K/M',
+      'Frontend Developer (React / TypeScript / AWS) - On-site',
+    ])
+      expect(await offersRepo.titleKeyOf('1dea', title), title).toBe(plain);
+    // a work mode that is part of the title, or all of it, stays
+    expect(await offersRepo.titleKeyOf('1dea', 'Remote Sensing Engineer')).toBe('1dea|remotesensingengineer');
+    expect(await offersRepo.titleKeyOf('1dea', 'Head of Remote Work')).toBe('1dea|headofremotework');
+    expect(await offersRepo.titleKeyOf('1dea', '(Remote)')).toBe('1dea|remote');
+  });
+
   it('counts offers per board, and gives timestamps as ISO 8601', async () => {
     await offersRepo.ingest([
       offer('justjoin', '1', 'A', 'X'),

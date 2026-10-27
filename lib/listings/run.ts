@@ -10,6 +10,7 @@ import * as stateRepo from '../db/repos/scrape-state';
 import { log } from '../log';
 import { message } from '../shared/errors';
 import { aiFilter, aiWaiting } from './pipeline/ai-filter';
+import { mergeNew } from './pipeline/dedup';
 import { fetchAlerts } from './pipeline/alerts';
 import { newJobs, selectAnnouncable } from './pipeline/announce';
 import { fetchListings, scrapersToRun } from './pipeline/fetch';
@@ -25,8 +26,8 @@ import type { Trigger } from './triggers';
 export type { RunSummary } from './pipeline/model';
 
 // One run = every enabled scraper, and the jobs LinkedIn's alert emails named: fetch, parse, filter, save
-// new offers, queue the new jobs for the notification channels (Telegram, push), check them against the
-// active AI profile and send the matches (unless muted); then judge the earlier jobs whose ad couldn't be read.
+// new offers, queue the new jobs for the notification channels (Telegram, push), merge the ones the AI finds
+// are known jobs, check the rest against the active AI profile and send the matches (unless muted); then judge the earlier jobs whose ad couldn't be read.
 // A follow-up is a run of only what LinkedIn's scrapers couldn't read a few minutes before (follow-up.ts).
 // The steps are in ./pipeline; this file puts them in order, under the lock, with the run log.
 
@@ -127,7 +128,7 @@ export async function runAll(
 }
 
 /**
- * Steps 6 to 8 (aiFilter → notify → aiWaiting), then what they did into the run log. Returned as a
+ * Steps 6 to 8 (mergeNew, aiFilter → notify → aiWaiting), then what they did into the run log. Returned as a
  * function: it runs now, or after the answer (`background`).
  */
 function aiTail(run: {
@@ -144,6 +145,11 @@ function aiTail(run: {
       if (error && !more.some((had) => had.error === error))
         more.push({ scraper, error, ...(warning && { warning: true as const }) });
     };
+    const deduped = await mergeNew(run.settings, run.deadline);
+    note('AI (duplicates)', deduped.error);
+    if (deduped.merged)
+      log.info('Scrape run: merged duplicate jobs', { scrapeRunId: run.runId, merged: deduped.merged });
+    // a job merged just now has no row of its own any more: it's skipped
     const filtered = await aiFilter(run.settings, run.jobs, run.deadline);
     note('AI', filtered.error);
     const notified: Notified = run.send ? await notify({ deadline: run.deadline }) : { sent: 0, matched: null };

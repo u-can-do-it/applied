@@ -2,10 +2,17 @@
 
 import { refresh } from 'next/cache';
 import { action } from '@/server/action';
+import { mergeByHand } from '@/lib/ai/merge-duplicates';
 import { archive, restore } from '@/lib/db/repos/archived-jobs';
 import { markSeen } from '@/lib/db/repos/seen-jobs';
 import { assessJobFit, setJobAd, setJobAdFromLink, setJobNote } from '@/lib/offer-window';
-import { jobIdSchema, setAdFromLinkSchema, setAdSchema, setNoteSchema } from '@/lib/shared/schemas/applications';
+import {
+  jobIdSchema,
+  mergeJobsSchema,
+  setAdFromLinkSchema,
+  setAdSchema,
+  setNoteSchema,
+} from '@/lib/shared/schemas/applications';
 
 /** An offer opened from a list (its title or a board's link): the job is seen. No refresh: the row shows it at once. */
 export const markSeenAction = action(jobIdSchema, async ({ jobId }) => {
@@ -22,6 +29,13 @@ export const archiveAction = action(jobIdSchema, async ({ jobId }) => {
 export const restoreAction = action(jobIdSchema, async ({ jobId }) => {
   await restore(jobId);
   refresh();
+});
+
+/** "Same job as…": the two jobs become one (the earliest stays, the other's marks follow); answers with both titles. */
+export const mergeJobsAction = action(mergeJobsSchema, async ({ jobId, sameAs }) => {
+  const merged = await mergeByHand(jobId, sameAs);
+  refresh();
+  return merged;
 });
 
 /**

@@ -85,8 +85,12 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 5. **`recordOutcomes`** (`outcomes.ts` pure, `persist.ts` writes): each scraper's last status, counts and new
    mark; the run's counts go into `scrape_runs`. The announced offers go into `notify_queue` when sending is on
    and a notification channel is ready (Telegram set up and switched on, or push set up with a subscribed device).
-6. **`aiFilter`** (`ai-filter.ts`): every new job (announced or not) is judged against the active AI profile,
-   if the AI filter is on, a profile is usable and `OPENAI_API_KEY` is set. No new batch after `AI_BUDGET_MS`.
+6. **`mergeNew`** (`dedup.ts`), then **`aiFilter`** (`ai-filter.ts`): first the AI's
+   [duplicate check](#ai-runs) on the last 3 days' jobs (two rounds of up to 30 pairs, each pair asked once):
+   a new job that is a known one under a title its key misses is merged into it, and its queued offer taken
+   out of `notify_queue`. Then every new job (announced or not) is judged against the active AI profile.
+   Both only if the AI filter is on and `OPENAI_API_KEY` is set; the judging also needs a usable profile.
+   No new batch after `AI_BUDGET_MS`.
 7. **`notify`** (`notify.ts`): what waits in the queue goes, as one batch, to every ready
    [channel](#notification-channels): matches listed with their fit, the rest counted. An offer without a
    verdict waits for the next run, and after 20 minutes is sent anyway, marked "not checked". While muted
@@ -141,7 +145,7 @@ through their APIs (Himalayas' job pages turn servers away), Built In and Linked
 
 A run checks a date range against one profile version ([`lib/ai/runs.ts`](../lib/ai/runs.ts)):
 
-1. **Duplicates** (phase `dedup`): `ai_dup_candidates` proposes pairs of jobs the title key misses (same company
+1. **Duplicates** (phase `dedup`; every scrape run does it too, on the last 3 days, [step 6](#the-scrape-pipeline)): `ai_dup_candidates` proposes pairs of jobs the title key misses (same company
    or one a prefix of the other, similar titles by `pg_trgm`, at most 45 days apart, neither archived). The AI (low effort)
    decides each pair once (`ai_dup_pairs`); same pairs are merged (`jw_merge_jobs`: `job_links`, and the
    verdicts, application, note, seen and archived marks move to the kept job, the earliest).
@@ -238,7 +242,7 @@ live in [`lib/db/repos/`](../lib/db/repos), one file per table; the rules on top
 | -------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `offers`             | every board's posting, keyed by `src` + `id`; `dup_key` (title key) generated | `lib/listings/pipeline/persist.ts` (`ingest` → `jw_ingest_offers`)                                                                                           |
 | `job_links`          | title keys merged into another job                                            | `lib/ai/merge-duplicates.ts` (`jw_merge_jobs`)                                                                                                               |
-| `ai_dup_pairs`       | every pair the AI was asked about, and its answer                             | `lib/ai/merge-duplicates.ts`                                                                                                                                 |
+| `ai_dup_pairs`       | every pair the AI was asked about, and its answer; the ones you merged        | `lib/ai/merge-duplicates.ts` (`mergeByHand` too)                                                                                                             |
 | `applications`       | yours, per job: snapshot, ad text, status, history, note                      | `lib/applications.ts` (mark, add, edit, status, note, ghosting, ad text); `jw_merge_jobs` moves them                                                         |
 | `ai_profiles`        | criteria, CV text, version                                                    | `lib/ai/profiles.ts`                                                                                                                                         |
 | `ai_verdicts`        | one per profile version and job                                               | `lib/ai/runs.ts` (`assessBatch`); `lib/ai/profiles.ts` drops older versions' on edit (unless kept); `jw_merge_jobs` moves them                               |
@@ -251,7 +255,7 @@ live in [`lib/db/repos/`](../lib/db/repos), one file per table; the rules on top
 | `keyword_misses`     | offers whose ad named none of the keywords, per keyword set (two weeks)       | `lib/listings/pipeline/ad-check.ts` (`checkAds`)                                                                                                             |
 | `scrape_seeds`       | which seeds were added (`board:<id>` markers), so deleted ones stay deleted   | `lib/db/seed.ts`, `0003_seed`, `0004_board_seeds`                                                                                                            |
 | `scrape_runs`        | the run log (two weeks)                                                       | `lib/listings/run.ts`                                                                                                                                        |
-| `notify_queue`       | new jobs waiting to be sent (every channel)                                   | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what no channel sent)                                        |
+| `notify_queue`       | new jobs waiting to be sent (every channel)                                   | `lib/listings/run.ts` (enqueue), `lib/listings/pipeline/notify.ts` (claims = deletes; puts back what no channel sent), `dropMerged` after a merge            |
 | `push_subscriptions` | the browsers that get push notifications: endpoint, keys, device              | `features/notifications/actions.ts` (enable, disable), `lib/push.ts` (removes one the push service says is gone)                                             |
 | `seen_jobs`          | the jobs you opened from a list (title or board link), per job id             | `features/offers/actions.ts` (`markSeenAction`, on a click in the row, `features/offers/seen.tsx`); `jw_merge_jobs` moves them                               |
 | `archived_jobs`      | the jobs you archived from a list, per job id                                 | `features/offers/actions.ts` (`archiveAction`, `restoreAction`, from the row's button, `features/offers/archive.tsx`); `jw_merge_jobs` moves them            |
@@ -401,8 +405,8 @@ the entry says so (_stored as_): those names stay (production data and applied m
   into it. The offer lists show jobs (`ListedJob`), each once, with its earliest offer and every board's link.
   Since 08.10.2026 a board's own offer stands for it over an aggregator's (`aggregator` in `lib/boards/`: Eldorado,
   Adzuna), and comes first among its offers; it is still dated by its earliest. _Stored as:_ `offers_unique` (one row per job).
-- **title key** (`titleKey`): An offer's company (without legal suffix) + title (without gender tags),
-  normalised: the database computes it. Offers with the same title key are one job.
+- **title key** (`titleKey`): An offer's company (without legal suffix) + title (without gender tags, nor a
+  work mode at its end: "(Remote)", "- 100% zdalnie"), normalised: the database computes it. Offers with the same title key are one job.
   _Stored as:_ `offers.dup_key` (generated by `jw_dup_key`), `job_links.dup_key`.
 - **job id** (`jobId`): Which job something belongs to. A job's id is one of its title keys: its own, or, after
   an AI merge, the kept job's. An application, a verdict and a queued notification point at a job by its id.
@@ -421,7 +425,8 @@ the entry says so (_stored as_): those names stay (production data and applied m
   _Stored as:_ `archived_jobs`.
 - **channel**: Where new offers are sent: Telegram or push (`lib/channels/`, `Channel`). A **device** is one
   browser subscribed to push. _Stored as:_ `push_subscriptions`.
-- **merge**: The AI deciding two jobs are one (`lib/ai/merge-duplicates.ts`): the later one's title keys then
+- **merge**: The AI deciding two jobs are one (`lib/ai/merge-duplicates.ts`), or you, with a row's "Same job as…"
+  in the offers (`features/offers/merge.tsx`, recorded in `ai_dup_pairs` as `by hand`): the later one's title keys then
   point at the kept job's id (`job_links`), and its verdicts, application, note, seen and archived marks follow. Not to be confused with
   `supabase/scripts/remove-duplicates.sql`, a one-off cleanup of duplicate rows.
   _Stored as:_ `job_links`, `ai_dup_pairs`, `jw_merge_jobs`.

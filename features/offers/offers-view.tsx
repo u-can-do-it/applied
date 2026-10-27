@@ -6,6 +6,7 @@ import { filterBoards, boardOptions } from '@/lib/listings/board-filter';
 import { appTimeZone } from '@/lib/time-zone';
 import { Controls, ControlsFallback } from './controls';
 import { Header } from '@/features/shell/header';
+import { MergeProvider } from './merge';
 import { NavProvider } from './nav';
 import { Results, ResultsSkeleton } from './results';
 import { ResultsBoundary } from './results-boundary';
@@ -55,13 +56,16 @@ async function OffersBody({ searchParams }: { searchParams: SearchParams }) {
   const tz = appTimeZone().catch(() => DEFAULT_TZ);
   return (
     <NavProvider>
-      <Controls boards={boards} tz={tz} />
-      <div className={RESULTS}>
-        {/* the only part that waits for Supabase */}
-        <ResultsBoundary fallback={<ResultsSkeleton />}>
-          <Results searchParams={searchParams} boards={boards} />
-        </ResultsBoundary>
-      </div>
+      {/* a job picked by "Same job as…" stays picked while you search and page for the other one */}
+      <MergeProvider>
+        <Controls boards={boards} tz={tz} />
+        <div className={RESULTS}>
+          {/* the only part that waits for Supabase */}
+          <ResultsBoundary fallback={<ResultsSkeleton />}>
+            <Results searchParams={searchParams} boards={boards} />
+          </ResultsBoundary>
+        </div>
+      </MergeProvider>
     </NavProvider>
   );
 }

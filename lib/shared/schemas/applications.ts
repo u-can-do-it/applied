@@ -14,6 +14,9 @@ const outcome = (error?: string) => z.custom<OutcomeId>(isOutcome, error);
 
 export const jobIdSchema = z.object({ jobId });
 
+/** "Same job as…" in the offers: the job picked first, and the one picked as the same. */
+export const mergeJobsSchema = z.object({ jobId, sameAs: jobId });
+
 /** "Mark applied" on an offer: the job, and the offer that was clicked (its board and id). */
 export const applySchema = z.object({ jobId, src: z.string(), id: z.string() });
 
