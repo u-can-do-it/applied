@@ -1,6 +1,6 @@
 'use client';
 
-import type { ComponentProps, MouseEvent, ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, type ComponentProps, type MouseEvent, type ReactNode } from 'react';
 import { PanelRightOpenIcon } from 'lucide-react';
 import { cn } from '@/lib/shared/cn';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 // A job's row, the offers' or the Applied tab's: a click on it that isn't on one of its links or buttons
 // (the title, the company, a board, the fit…) opens the job's window, as its window button does: it
 // clicks that button (`data-opens-window`), so it counts as opening the job (seen) as the button does.
+// Pointing at the row starts loading the window (the button's `onPrefetch`), so the click finds it in.
 
 // what a click is its own on: the row leaves it alone
 const OWN_CLICK = 'a[href], button, input, select, textarea, label, [role="button"]';
@@ -40,6 +41,7 @@ export function RowBox({
         className,
       )}
       aria-current={active || undefined}
+      data-row
       onClick={openWindow}
     >
       {children}
@@ -50,10 +52,26 @@ export function RowBox({
 /**
  * After the title: opens the job's window (the ad, your note, the fit; or the application). Not shown: a
  * click on the row clicks it; the keyboard reaches it (Tab), and it shows while it has the focus.
+ * `onPrefetch`: the pointer came onto its row, or the keyboard to it (the button itself is too small to point at).
  */
-export function WindowButton({ title, ...props }: { title: string } & ComponentProps<typeof Button>) {
+export function WindowButton({
+  title,
+  onPrefetch,
+  ...props
+}: { title: string; onPrefetch?: () => void } & ComponentProps<typeof Button>) {
+  const button = useRef<HTMLButtonElement>(null);
+  const prefetch = useEffectEvent(() => onPrefetch?.());
+  useEffect(() => {
+    const row = button.current?.closest('[data-row]');
+    if (!row) return;
+    const listener = () => prefetch();
+    row.addEventListener('pointerenter', listener);
+    return () => row.removeEventListener('pointerenter', listener);
+  }, []);
   return (
     <Button
+      ref={button}
+      onFocus={onPrefetch}
       type="button"
       variant="ghost"
       size="icon-xs"

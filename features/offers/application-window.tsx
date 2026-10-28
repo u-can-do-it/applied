@@ -5,21 +5,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { TimeZone } from '@/components/time-zone';
 import type { ApplicationWithContent } from '@/lib/applications';
 import { message } from '@/lib/shared/errors';
-import { applicationKey, loadApplication } from '@/features/applications/use-application';
+import { applicationQuery } from '@/features/applications/use-application';
 
 // The application's window (as on the Applied tab) loads when it's first opened: the offers don't
 // need its editors until then. It loads alongside the application, so it's in when that is.
 const loadSheet = () => import('@/features/applications/application-sheet');
 const ApplicationSheet = lazy(() => loadSheet().then((module) => ({ default: module.ApplicationSheet })));
-
-// fetched as you point at what opens it (or tab to it), so the click finds it in: younger than this, the
-// click uses it; the window then checks it again as it opens, as on the Applied tab
-const PREFETCHED_FOR_MS = 30_000;
-const applicationQuery = (jobId: string) => ({
-  queryKey: applicationKey(jobId),
-  queryFn: () => loadApplication(jobId),
-  staleTime: PREFETCHED_FOR_MS,
-});
 
 /**
  * An applied offer's window, the application's: `prefetch` on pointing at what opens it, `open` on its

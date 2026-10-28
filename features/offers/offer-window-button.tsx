@@ -9,7 +9,7 @@ import type { OfferJob } from './offer-sheet';
 import { WindowButton } from './row-box';
 import { offerQuery } from './use-offer';
 
-// The offer's window loads when it's first wanted: as you point at its button (or tab to it), its
+// The offer's window loads when it's first wanted: as you point at its row (or tab to its button), its
 // code and what it shows (the ad, fetched then the first time) start on their way.
 const loadSheet = () => import('./offer-sheet');
 const OfferSheet = lazy(() => loadSheet().then((module) => ({ default: module.OfferSheet })));
@@ -37,7 +37,7 @@ function OfferOnlyWindowButton({ job, labels, tz }: Props) {
 
   return (
     <>
-      <WindowButton title={job.title} onPointerEnter={prefetch} onFocus={prefetch} onClick={() => setOpen(true)} />
+      <WindowButton title={job.title} onPrefetch={prefetch} onClick={() => setOpen(true)} />
       {open && (
         <TimeZone tz={tz}>
           <Suspense fallback={null}>
@@ -61,8 +61,7 @@ function ApplicationWindowButton({ job, labels, tz }: Props) {
     <>
       <WindowButton
         title={job.title}
-        onPointerEnter={application.prefetch}
-        onFocus={application.prefetch}
+        onPrefetch={application.prefetch}
         onClick={() => void application.open()}
         aria-busy={application.opening || undefined}
       />

@@ -29,6 +29,7 @@ export function ApplicationRow({
   marks,
   active = false,
   onOpen,
+  onPrefetch,
   onCompany,
   companyApplied,
 }: {
@@ -39,6 +40,8 @@ export function ApplicationRow({
   /** its window is open */
   active?: boolean;
   onOpen: () => void;
+  /** the pointer came onto it (or the keyboard to its window button): its window is likely next */
+  onPrefetch?: () => void;
   /** a click on the company: the list searching for it */
   onCompany?: (company: string) => void;
   /** your applications at its company, this one among them */
@@ -60,7 +63,7 @@ export function ApplicationRow({
       marks={marks}
       boards={[{ src: app.src, url: app.url || undefined }]}
       labels={labels}
-      after={<WindowButton title={app.title} onClick={onOpen} />}
+      after={<WindowButton title={app.title} onPrefetch={onPrefetch} onClick={onOpen} />}
       top={
         <div className="flex flex-wrap items-center justify-end gap-1">
           <StatusChip stage={app.stage} outcome={app.outcome} />

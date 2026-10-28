@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
@@ -17,6 +18,7 @@ import { AddApplication } from './add-application';
 import { AppliedStats } from './applied-stats';
 import { ApplicationRow } from './application-row';
 import { ApplicationSheet, type SheetHandle } from './application-sheet';
+import { applicationQuery } from './use-application';
 import { useAppliedQuery } from './use-applied-query';
 
 // The Applied tab: the search, statistics, the list (by the day you applied, like the offer lists), and
@@ -109,6 +111,14 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
     }
     setSwitched(Boolean(open));
     setOpen(app);
+  };
+
+  // pointing at an application: its ad text and verdict on the way before the click (the window shows the
+  // list's copy until they're in, and checks again as it opens). Not the open one's: that window has it.
+  const queryClient = useQueryClient();
+  const prefetch = (jobId: string) => {
+    if (open?.jobId === jobId) return;
+    void queryClient.query(applicationQuery(jobId)).catch(() => {}); // a failure shows in the window
   };
 
   // ad texts are scraped in the background right after marking: refresh until they're in
@@ -234,6 +244,7 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
                     marks={marks?.get(app.jobId)}
                     active={open?.jobId === app.jobId}
                     onOpen={() => void show(app)}
+                    onPrefetch={() => prefetch(app.jobId)}
                     onCompany={searchAll}
                     companyApplied={appliedAtCompany(app)}
                   />

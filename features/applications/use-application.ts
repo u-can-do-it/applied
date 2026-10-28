@@ -25,6 +25,17 @@ export async function loadApplication(jobId: string) {
   return (await res.json()) as ApplicationWithContent & { fit: Fit | null };
 }
 
+// fetched as you point at what opens it (or tab to it), so the click finds it in: younger than this, the
+// click uses it (from the offers); the window then checks it again as it opens. Not opened by then, it's
+// dropped: a window opened later shouldn't flash an old status first.
+const PREFETCHED_FOR_MS = 30_000;
+export const applicationQuery = (jobId: string) => ({
+  queryKey: applicationKey(jobId),
+  queryFn: () => loadApplication(jobId),
+  staleTime: PREFETCHED_FOR_MS,
+  gcTime: PREFETCHED_FOR_MS,
+});
+
 /**
  * One application's window: its saved ad and its current status. The ad text is fetched in the
  * background right after marking: while it is (`pending`), it's asked for again 3 s after the last

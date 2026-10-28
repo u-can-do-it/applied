@@ -98,6 +98,21 @@ it('a click on the row opens its window; one on a link, a button or the company 
   expect(open).toHaveBeenCalledTimes(3);
 });
 
+it('pointing at the row, or tabbing to its window button, starts loading the window', () => {
+  const prefetch = vi.fn();
+  row({
+    facts: [{ key: 'salary', text: '20 000 PLN / month' }],
+    after: <WindowButton title="Frontend Developer" onPrefetch={prefetch} />,
+  });
+  const button = screen.getByRole('button', { name: 'Details of Frontend Developer' });
+  const rowBox = button.closest('[data-row]');
+  expect(rowBox).not.toBeNull();
+  fireEvent.pointerEnter(rowBox as Element);
+  expect(prefetch).toHaveBeenCalledOnce();
+  fireEvent.focus(button);
+  expect(prefetch).toHaveBeenCalledTimes(2);
+});
+
 it('the details line: salary (the first), contract, work mode, where; else the listing’s remote', () => {
   const texts = (facts: ReturnType<typeof detailFacts>) => facts.map((fact) => fact.text);
   expect(
