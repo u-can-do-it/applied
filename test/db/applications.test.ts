@@ -16,6 +16,7 @@ import {
   setNote,
   setRentADev,
   setStatus,
+  setTalentPool,
   unmarkApplied,
   updateApplication,
 } from '@/lib/applications';
@@ -216,19 +217,18 @@ describeDb('applications', () => {
       'submitted/pending',
       'submitted/passed (auto)',
       'invited/passed (auto)',
-      'screening/passed (auto)',
       'technical/pending',
       'technical/passed',
     ]);
-    expect(app?.history[1].at).toBe(app?.history[4].at); // the same statement
-    expect(app?.history[5].at).toMatch(ISO);
+    expect(app?.history[1].at).toBe(app?.history[3].at); // the same statement
+    expect(app?.history[4].at).toMatch(ISO);
     expect(app?.stageUpdatedAt).toMatch(ISO);
 
     // the step clicked a moment ago carries the browser's time: found by stage and state; the passed ones stay
     expect(await removeStatusStep(jobId, { stage: 'technical', state: 'pending', at: 'not the same' })).toEqual({});
     app = await getApplication(jobId);
-    expect(app).toMatchObject({ stage: 'screening', outcome: 'passed' });
-    expect(app?.history).toHaveLength(4);
+    expect(app).toMatchObject({ stage: 'invited', outcome: 'passed' });
+    expect(app?.history).toHaveLength(3);
     expect(
       (await removeStatusStep(jobId, app?.history[0] ?? { stage: 'submitted', state: 'pending', at: '' })).error,
     ).toMatch(/first step/);
@@ -263,10 +263,6 @@ describeDb('applications', () => {
       { stage: 'technical', state: 'failed', at: at(9) },
     ]);
     const waiting = await old('Waiting', [{ stage: 'submitted', state: 'ghosted', at: at(1) }]);
-    const pool = await old('Pool', [
-      { stage: 'submitted', state: 'pending', at: at(1) },
-      { stage: 'screening', state: 'pool', at: at(2) },
-    ]);
     const migrate = sql.raw(readFileSync('drizzle/0028_passed_before.sql', 'utf8'));
     await exec(migrate);
     await exec(migrate);
@@ -285,7 +281,53 @@ describeDb('applications', () => {
     ]);
     expect(app?.history.slice(3, 7).every((step) => step.auto && step.at === at(9))).toBe(true);
     expect((await getApplication(waiting))?.history).toHaveLength(1);
-    expect((await getApplication(pool))?.history).toHaveLength(2);
+  });
+
+  it('0031: the talent pool outcome becomes the mark, In progress at the same stage', async () => {
+    // as before it: "pool" a status
+    await exec(sql`alter table public.applications drop constraint applications_stage_state_check`);
+    const old = async (title: string, history: object[], stageUpdatedAt: string) => {
+      const { jobId = '' } = await addApplication(typed(title), utc);
+      const last = history.at(-1) as { stage: string; state: string };
+      await exec(
+        sql`update public.applications set history = ${JSON.stringify(history)}::jsonb, stage = ${last.stage},
+              stage_state = ${last.state}, stage_updated_at = ${stageUpdatedAt} where dup_key = ${jobId}`,
+      );
+      return jobId;
+    };
+    const at = (day: number) => `2026-09-0${day}T10:00:00.000Z`;
+    const pool = await old(
+      'Pool',
+      [
+        { stage: 'submitted', state: 'pending', at: at(1) },
+        { stage: 'screening', state: 'pool', at: at(2) },
+      ],
+      at(2),
+    );
+    const movedOn = await old(
+      'Moved on',
+      [
+        { stage: 'submitted', state: 'pool', at: at(1) },
+        { stage: 'technical', state: 'failed', at: at(3) },
+      ],
+      at(3),
+    );
+    const migrate = sql.raw(readFileSync('drizzle/0031_talent_pool_mark.sql', 'utf8'));
+    await exec(migrate);
+    await exec(migrate);
+
+    const app = await getApplication(pool);
+    expect(app).toMatchObject({ stage: 'screening', outcome: 'pending', talentPool: true });
+    expect(app?.history.map((step) => `${step.stage}/${step.state}`)).toEqual([
+      'submitted/pending',
+      'screening/pending',
+    ]);
+    // the code before it would ghost it after a month: its year counts from now
+    expect(Date.now() - Date.parse(app?.stageUpdatedAt ?? '')).toBeLessThan(60_000);
+    const other = await getApplication(movedOn);
+    expect(other).toMatchObject({ stage: 'technical', outcome: 'failed', talentPool: false });
+    expect(Date.parse(other?.stageUpdatedAt ?? '')).toBe(Date.parse(at(3)));
+    expect(other?.history[0].state).toBe('pending');
   });
 
   it('ghosts what waited a month for an answer, and nothing else', async () => {
@@ -306,6 +348,27 @@ describeDb('applications', () => {
     expect(app?.history.at(-1)).toMatchObject({ stage: 'submitted', state: 'ghosted', auto: true });
     expect((await getApplication(offer))?.outcome).toBe('pending');
     expect((await getApplication(rejected))?.outcome).toBe('failed');
+  });
+
+  it('ghosts one in the talent pool after a year, not a month', async () => {
+    const month = (await addApplication(typed('A month in the pool'), utc)).jobId ?? '';
+    const year = (await addApplication(typed('A year in the pool'), utc)).jobId ?? '';
+    await setTalentPool(month, true);
+    await setTalentPool(year, true);
+    await exec(
+      sql`update public.applications set stage_updated_at = now() - interval '31 days' where dup_key = ${month}`,
+    );
+    await exec(
+      sql`update public.applications set stage_updated_at = now() - interval '366 days' where dup_key = ${year}`,
+    );
+
+    expect(await ghostStale()).toBe(1);
+    expect(await getApplication(year)).toMatchObject({ outcome: 'ghosted', talentPool: true });
+    expect(await getApplication(month)).toMatchObject({ outcome: 'pending', talentPool: true });
+    // out of the pool: a month again
+    await setTalentPool(month, false);
+    expect(await ghostStale()).toBe(1);
+    expect((await getApplication(month))?.outcome).toBe('ghosted');
   });
 
   it('saves a note only over the version it was written on', async () => {

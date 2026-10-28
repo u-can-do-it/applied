@@ -7,11 +7,11 @@ import {
   isStage,
   isUnanswered,
   outcomeAt,
-  outcomeHeading,
   outcomeLabel,
   outcomesFor,
   reached,
   stageOf,
+  TALENT_POOL,
   type OutcomeId,
   type StageId,
 } from '@/lib/stages';
@@ -31,7 +31,7 @@ export const TILES = {
   positive: { label: 'Positive replies', test: isPositive },
   rejected: { label: 'Rejected', test: isRejected },
   ghosted: { label: 'Ghosted', test: (app) => app.outcome === 'ghosted' },
-  pool: { label: outcomeHeading('pool'), test: (app) => app.outcome === 'pool' },
+  pool: { label: TALENT_POOL.label, test: (app) => app.talentPool },
 } satisfies Record<string, Omit<Filter, 'id'>>;
 export type TileId = keyof typeof TILES;
 
@@ -51,7 +51,7 @@ export function filterOf(id: string | null): Filter | null {
   if (parts.length === 1) return { id, label: stageOf(stage).label, test: (app) => app.stage === stage };
   if (outcome === TOTAL)
     return { id, label: `${stageOf(stage).short} · ${TOTAL_HEADING}`, test: (app) => reached(app).has(stage) };
-  // an offer has no ghosted or talent pool
+  // an offer has no ghosted
   if (!isOutcome(outcome) || !outcomesFor(stage).some((possible) => possible.id === outcome)) return null;
   return {
     id,

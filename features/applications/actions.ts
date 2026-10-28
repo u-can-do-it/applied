@@ -14,6 +14,7 @@ import {
   saveContent,
   setNote,
   setRentADev,
+  setTalentPool,
   setStatus,
   unmarkApplied,
   updateApplication,
@@ -35,6 +36,7 @@ import {
   removeStepSchema,
   setNoteSchema,
   setRentADevSchema,
+  setTalentPoolSchema,
   setStatusSchema,
   updateApplicationSchema,
 } from '@/lib/shared/schemas/applications';
@@ -85,6 +87,12 @@ export const setApplicationStatusAction = action(setStatusSchema, async ({ jobId
 /** Marks an application a Rent-a-dev job, or not one, by hand (over the AI's call). */
 export const setRentADevAction = action(setRentADevSchema, async ({ jobId, rentADev }) => {
   await setRentADev(jobId, rentADev);
+  refresh();
+});
+
+/** Puts an application in the talent pool, or takes it out. */
+export const setTalentPoolAction = action(setTalentPoolSchema, async ({ jobId, talentPool }) => {
+  await setTalentPool(jobId, talentPool);
   refresh();
 });
 

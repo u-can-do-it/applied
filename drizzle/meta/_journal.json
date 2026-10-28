@@ -211,6 +211,20 @@
       "when": 1793110609369,
       "tag": "0029_repost_own_job",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793119848525,
+      "tag": "0030_online_test_stage",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793194345616,
+      "tag": "0031_talent_pool_mark",
+      "breakpoints": true
     }
   ]
 }

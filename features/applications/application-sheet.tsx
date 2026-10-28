@@ -15,6 +15,7 @@ import {
   setApplicationNoteAction,
   setApplicationStatusAction,
   setRentADevAction,
+  setTalentPoolAction,
   unapplyAction,
 } from './actions';
 import { isRentADev } from '@/features/offers/rent-a-dev';
@@ -122,6 +123,14 @@ export function ApplicationSheet({
     show({ ...app, bodyLeasing: rentADev });
     act(async () => {
       unwrap(await setRentADevAction({ jobId, rentADev }));
+      await reload();
+    });
+  };
+
+  const setTalentPool = (talentPool: boolean) => {
+    show({ ...app, talentPool });
+    act(async () => {
+      unwrap(await setTalentPoolAction({ jobId, talentPool }));
       await reload();
     });
   };
@@ -245,6 +254,7 @@ export function ApplicationSheet({
             rentADev={isRentADev(app) === true}
             onStatus={setStatus}
             onRentADev={setRentADev}
+            onTalentPool={setTalentPool}
             onRemoveStep={(i) => void removeStep(i)}
           />
           <NoteEditor

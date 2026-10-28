@@ -107,12 +107,12 @@ export async function setStatus(jobId: string, stage: StageId, outcome: OutcomeI
 }
 
 /**
- * No news for `days` since the last status change (or since applying): ghosted, at the same
- * stage. Only what still waits for an answer: in progress, or passed and waiting for the next step
- * (not rejected, not the talent pool: those are answers). Never an offer (the decision is yours).
- * The history entry says it was automatic, to take it back. Returns how many it changed.
+ * No news for `days` since the last status change (or since applying), `poolDays` for one in the
+ * talent pool: ghosted, at the same stage. Only what still waits for an answer: in progress, or
+ * passed and waiting for the next step (not rejected: that's an answer). Never an offer (the
+ * decision is yours). The history entry says it was automatic, to take it back. Returns how many it changed.
  */
-export async function ghostStale(days: number): Promise<number> {
+export async function ghostStale(days: number, poolDays: number): Promise<number> {
   const ghosted = await db()
     .update(applications)
     .set({
@@ -126,7 +126,7 @@ export async function ghostStale(days: number): Promise<number> {
         ne(applications.stage, 'offer'),
         lt(
           sql`coalesce(${applications.stageUpdatedAt}, ${applications.appliedAt})`,
-          sql`now() - make_interval(days => ${days}::int)`,
+          sql`now() - make_interval(days => case when ${applications.talentPool} then ${poolDays}::int else ${days}::int end)`,
         ),
       ),
     )

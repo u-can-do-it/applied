@@ -23,13 +23,15 @@ import {
   type StageId,
   type OutcomeId,
   type WithStatus,
+  TALENT_POOL,
 } from '@/lib/stages';
 
-const app = (stage: StageId, outcome: OutcomeId, history: HistoryEntry[] = []): WithStatus => ({
-  stage,
-  outcome,
-  history,
-});
+const app = (
+  stage: StageId,
+  outcome: OutcomeId,
+  history: HistoryEntry[] = [],
+  talentPool = false,
+): WithStatus & { talentPool: boolean } => ({ stage, outcome, history, talentPool });
 const step = (stage: StageId, state: OutcomeId = 'passed'): HistoryEntry => ({
   stage,
   state,
@@ -37,7 +39,7 @@ const step = (stage: StageId, state: OutcomeId = 'passed'): HistoryEntry => ({
 });
 
 describe('stage and state names', () => {
-  it('an offer has its own outcomes, and no ghosted or talent pool', () => {
+  it('an offer has its own outcomes, and no ghosted', () => {
     expect(outcomesFor('offer')).toEqual([
       { id: 'pending', label: OFFER_LABELS.pending },
       { id: 'passed', label: OFFER_LABELS.passed },
@@ -45,11 +47,11 @@ describe('stage and state names', () => {
     ]);
   });
 
-  it('other stages have every outcome, with hints where there are any', () => {
+  it('other stages have every outcome; the talent pool is none (a mark), with its hint', () => {
     const states = outcomesFor('technical');
     expect(states.map((outcome) => outcome.id)).toEqual(OUTCOMES.map((outcome) => outcome.id));
-    expect(states.find((outcome) => outcome.id === 'pool')?.hint).toMatch(/CV do bazy/);
-    expect(states.find((outcome) => outcome.id === 'pending')?.hint).toBeUndefined();
+    expect(isOutcome('pool')).toBe(false);
+    expect(TALENT_POOL.hint).toMatch(/CV do bazy/);
   });
 
   it('outcomeLabel names the outcome at that stage; outcomeHeading is its name as a heading', () => {
@@ -58,7 +60,7 @@ describe('stage and state names', () => {
     expect(outcomeLabel('offer', 'ghosted')).toBe(outcomeOf('ghosted').label); // not an offer outcome: the general name
     expect(outcomeLabel('hr', 'passed')).toBe(outcomeOf('passed').label);
     expect(outcomeLabel('hr', 'failed')).toBe(outcomeOf('failed').label);
-    expect(outcomeHeading('pool')).toBe(outcomeOf('pool').label);
+    expect(outcomeHeading('ghosted')).toBe(outcomeOf('ghosted').label);
     expect(outcomeHeading('pending')).toBe(outcomeOf('pending').label);
   });
 
@@ -78,7 +80,7 @@ describe('isActive / isInProcess / isUnanswered / isRejected', () => {
     expect(isActive(app('technical', 'passed'))).toBe(true);
     expect(isActive(app('technical', 'failed'))).toBe(false);
     expect(isActive(app('hr', 'ghosted'))).toBe(false);
-    expect(isActive(app('screening', 'pool'))).toBe(false);
+    expect(isActive(app('screening', 'pending', [], true))).toBe(true); // the talent pool is a mark
   });
 
   it('an offer is active only while undecided', () => {
@@ -105,7 +107,6 @@ describe('isActive / isInProcess / isUnanswered / isRejected', () => {
     expect(isPositive(app('submitted', 'passed'))).toBe(false);
     expect(isPositive(app('hr', 'failed', [step('hr', 'passed')]))).toBe(false);
     expect(isPositive(app('technical', 'ghosted'))).toBe(false);
-    expect(isPositive(app('screening', 'pool'))).toBe(false);
     for (const outcome of ['pending', 'passed', 'failed'] as const)
       expect(isPositive(app('offer', outcome))).toBe(true);
   });
@@ -132,6 +133,7 @@ describe('reached', () => {
   it('includes every stage from the history, in any order', () => {
     const application = app('technical', 'pending', [step('submitted'), step('hr'), step('screening')]);
     expect(reached(application)).toEqual(new Set(['submitted', 'technical', 'hr', 'screening', 'invited']));
+    expect(reached(app('test', 'pending'))).toEqual(new Set(['submitted', 'test', 'invited']));
   });
 });
 
@@ -178,7 +180,7 @@ describe('stats', () => {
       app('submitted', 'failed'), // rejected without a word: not positive
       app('submitted', 'ghosted'),
       app('invited', 'pending'),
-      app('screening', 'pool'),
+      app('screening', 'pending', [], true), // in the talent pool: still in progress
       app('technical', 'passed'),
       app('technical', 'failed'),
       app('hr', 'ghosted'),
@@ -188,28 +190,30 @@ describe('stats', () => {
     ];
     const totals = stats(apps);
     expect(totals.sent).toBe(11);
-    expect(totals.positive).toBe(5); // invited/pending, technical/passed and the offers
+    expect(totals.positive).toBe(6); // invited/pending, screening/pending, technical/passed and the offers
     expect(totals.offers).toBe(3);
-    expect(totals.inProcess).toBe(3); // invited/pending, technical/passed, offer/pending
+    expect(totals.inProcess).toBe(4); // invited/pending, screening/pending, technical/passed, offer/pending
     expect(totals.unanswered).toBe(1); // submitted/pending
     expect(totals.rejected).toBe(2);
     expect(totals.ghosted).toBe(2);
-    expect(totals.pool).toBe(1);
+    expect(totals.pool).toBe(1); // a mark: in a bucket of its status too
     // a decided offer is in none of the buckets
-    expect(totals.inProcess + totals.unanswered + totals.rejected + totals.ghosted + totals.pool).toBe(totals.sent - 2);
+    expect(totals.inProcess + totals.unanswered + totals.rejected + totals.ghosted).toBe(totals.sent - 2);
     expect(totals.now).toEqual([
       { stage: 'submitted', count: 3 },
       { stage: 'invited', count: 1 },
       { stage: 'screening', count: 1 },
+      { stage: 'test', count: 0 },
       { stage: 'technical', count: 2 },
       { stage: 'hr', count: 1 },
       { stage: 'offer', count: 3 },
     ]);
     // the table: every stage each one got to; the ones past Submitted passed it, and Initial contact
-    expect(totals.byStage.submitted).toEqual({ pending: 1, passed: 8, failed: 1, ghosted: 1, pool: 0 });
-    expect(totals.byStage.invited).toEqual({ pending: 1, passed: 7, failed: 0, ghosted: 0, pool: 0 });
-    expect(totals.byStage.technical).toEqual({ pending: 0, passed: 1, failed: 1, ghosted: 0, pool: 0 });
-    expect(totals.byStage.offer).toEqual({ pending: 1, passed: 1, failed: 1, ghosted: 0, pool: 0 });
+    expect(totals.byStage.submitted).toEqual({ pending: 1, passed: 8, failed: 1, ghosted: 1 });
+    expect(totals.byStage.invited).toEqual({ pending: 1, passed: 7, failed: 0, ghosted: 0 });
+    expect(totals.byStage.screening).toEqual({ pending: 1, passed: 0, failed: 0, ghosted: 0 });
+    expect(totals.byStage.technical).toEqual({ pending: 0, passed: 1, failed: 1, ghosted: 0 });
+    expect(totals.byStage.offer).toEqual({ pending: 1, passed: 1, failed: 1, ghosted: 0 });
   });
 
   it('the tiles and the funnel go by where it is now; the table by the stages it got to', () => {
@@ -226,38 +230,40 @@ describe('passedBefore / withStatus', () => {
 
   it('getting past Submitted passes the stages before it, skipped ones too', () => {
     const history = [step('submitted', 'pending'), step('screening', 'pending')];
-    for (const outcome of ['pending', 'passed', 'failed', 'ghosted'] as const)
-      expect(passedBefore(history, 'technical', outcome)).toEqual(['submitted', 'invited', 'screening']);
+    expect(passedBefore(history, 'technical')).toEqual(['submitted', 'invited', 'screening']);
   });
 
-  it('not at Submitted, not into the talent pool, not what is already passed', () => {
-    expect(passedBefore([step('submitted', 'pending')], 'submitted', 'failed')).toEqual([]);
-    expect(passedBefore([step('submitted', 'pending')], 'technical', 'pool')).toEqual([]);
+  it('not at Submitted, not what is already passed', () => {
+    expect(passedBefore([step('submitted', 'pending')], 'submitted')).toEqual([]);
     const passed = [step('submitted', 'pending'), step('submitted'), step('invited'), step('screening')];
-    expect(passedBefore(passed, 'technical', 'failed')).toEqual([]);
+    expect(passedBefore(passed, 'technical')).toEqual([]);
   });
 
-  it('a stage ghosted, rejected or in the talent pool before you got further is passed now', () => {
-    const history = [step('submitted', 'ghosted'), step('invited', 'failed'), step('screening', 'pool')];
-    expect(passedBefore(history, 'technical', 'pending')).toEqual(['submitted', 'invited', 'screening']);
+  it('a stage ghosted, rejected or in progress before you got further is passed now', () => {
+    const history = [step('submitted', 'ghosted'), step('invited', 'failed'), step('screening', 'pending')];
+    expect(passedBefore(history, 'technical')).toEqual(['submitted', 'invited', 'screening']);
   });
 
   it('technical and HR come in either order: the other one only if it was there', () => {
     const base = [step('submitted')];
-    expect(passedBefore(base, 'hr', 'pending')).toEqual(['invited', 'screening']);
-    expect(passedBefore([...base, step('hr', 'pending')], 'technical', 'pending')).toEqual([
-      'invited',
-      'screening',
-      'hr',
-    ]);
-    expect(passedBefore(base, 'offer', 'pending')).toEqual(['invited', 'screening']);
-    expect(passedBefore([...base, step('technical', 'pending')], 'offer', 'passed')).toEqual([
-      'invited',
-      'screening',
-      'technical',
-    ]);
+    expect(passedBefore(base, 'hr')).toEqual(['invited']);
+    expect(passedBefore([...base, step('hr', 'pending')], 'technical')).toEqual(['invited', 'hr']);
+    expect(passedBefore(base, 'offer')).toEqual(['invited']);
+    expect(passedBefore([...base, step('technical', 'pending')], 'offer')).toEqual(['invited', 'technical']);
     // an earlier stage doesn't pass a later one
-    expect(passedBefore([...base, step('technical', 'pending')], 'screening', 'pending')).toEqual(['invited']);
+    expect(passedBefore([...base, step('technical', 'pending')], 'screening')).toEqual(['invited']);
+  });
+
+  it('screening and the online test come in either order: each only if it was there', () => {
+    const base = [step('submitted')];
+    expect(passedBefore(base, 'test')).toEqual(['invited']);
+    expect(passedBefore([...base, step('test', 'pending')], 'screening')).toEqual(['invited', 'test']);
+    expect(passedBefore([...base, step('screening', 'pending')], 'technical')).toEqual(['invited', 'screening']);
+    expect(passedBefore([...base, step('screening', 'pending'), step('test', 'pending')], 'hr')).toEqual([
+      'invited',
+      'screening',
+      'test',
+    ]);
   });
 
   it('withStatus adds the passed stages (automatic) before the change, at its time', () => {

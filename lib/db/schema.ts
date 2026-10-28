@@ -134,13 +134,17 @@ export const applications = pgTable(
     // a software house / body leasing firm hiring for a client's project: the latest call on it (a
     // fit check's, or one made by hand); null: none made, the active profile's verdict says
     bodyLeasing: boolean('body_leasing'),
+    // "we'll keep your CV in our talent pool" (lib/stages.ts TALENT_POOL): a mark, ghosted after a year
+    talentPool: boolean('talent_pool').notNull().default(false),
   },
   (table) => [
     index('applications_applied_at_idx').on(table.appliedAt.desc().nullsFirst()),
     check('applications_content_status_check', sql`content_status in ('pending', 'ok', 'empty', 'failed')`),
-    check('applications_stage_check', sql`stage in ('submitted', 'invited', 'screening', 'technical', 'hr', 'offer')`),
-    // pool: "we'll keep your CV in our talent pool"
-    check('applications_stage_state_check', sql`stage_state in ('pending', 'passed', 'failed', 'ghosted', 'pool')`),
+    check(
+      'applications_stage_check',
+      sql`stage in ('submitted', 'invited', 'screening', 'test', 'technical', 'hr', 'offer')`,
+    ),
+    check('applications_stage_state_check', sql`stage_state in ('pending', 'passed', 'failed', 'ghosted')`),
     check('applications_note_length', sql`length(note) <= 10000`),
   ],
 ).enableRLS();

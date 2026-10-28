@@ -14,7 +14,7 @@ export const StatusFields = withForm({
         <form.AppField
           name="stage"
           listeners={{
-            // an offer has no "ghosted" or talent pool
+            // an offer has no "ghosted"
             onChange: ({ value }) => {
               if (!outcomesFor(value).some((possible) => possible.id === form.getFieldValue('outcome')))
                 form.setFieldValue('outcome', 'pending');

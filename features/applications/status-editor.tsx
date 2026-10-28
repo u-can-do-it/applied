@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckIcon } from 'lucide-react';
-import { reached, STAGES, outcomesFor, type StageId, type OutcomeId } from '@/lib/stages';
+import { reached, STAGES, outcomesFor, TALENT_POOL, type StageId, type OutcomeId } from '@/lib/stages';
 import { cn } from '@/lib/shared/cn';
 import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -20,12 +20,12 @@ const OUTCOME_ON: Record<OutcomeId, string> = {
     'data-[state=on]:border-destructive data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground',
   ghosted:
     'data-[state=on]:border-muted-foreground data-[state=on]:bg-muted-foreground data-[state=on]:text-background',
-  pool: 'data-[state=on]:border-pool data-[state=on]:bg-pool data-[state=on]:text-pool-foreground',
 };
 
 /**
  * An application's status: its stage, that stage's outcome, and how it got there; after the outcomes,
- * whether it's a Rent-a-dev job (`rentADev`, your call or else the AI's), which a click turns around.
+ * its marks, each turned around by a click: whether it's a Rent-a-dev job (`rentADev`, your call or
+ * else the AI's) and whether it's in the talent pool (app.talentPool).
  */
 export function StatusEditor({
   app,
@@ -33,6 +33,7 @@ export function StatusEditor({
   rentADev,
   onStatus,
   onRentADev,
+  onTalentPool,
   onRemoveStep,
 }: {
   app: Shown;
@@ -40,6 +41,7 @@ export function StatusEditor({
   rentADev: boolean;
   onStatus: (stage: StageId, outcome: OutcomeId) => void;
   onRentADev: (rentADev: boolean) => void;
+  onTalentPool: (talentPool: boolean) => void;
   onRemoveStep: (i: number) => void;
 }) {
   const been = reached(app);
@@ -90,12 +92,7 @@ export function StatusEditor({
           onValueChange={(outcome) => outcome && onStatus(app.stage, outcome as OutcomeId)}
         >
           {outcomesFor(app.stage).map((outcome) => (
-            <ToggleGroupItem
-              key={outcome.id}
-              value={outcome.id}
-              title={outcome.hint}
-              className={cn(STEP, OUTCOME_ON[outcome.id])}
-            >
+            <ToggleGroupItem key={outcome.id} value={outcome.id} className={cn(STEP, OUTCOME_ON[outcome.id])}>
               {outcome.label}
             </ToggleGroupItem>
           ))}
@@ -111,6 +108,17 @@ export function StatusEditor({
           )}
         >
           {RENT_A_DEV.label}
+        </Toggle>
+        <Toggle
+          pressed={app.talentPool}
+          onPressedChange={onTalentPool}
+          title={TALENT_POOL.hint}
+          className={cn(
+            STEP,
+            'data-[state=on]:border-pool data-[state=on]:bg-pool data-[state=on]:text-pool-foreground',
+          )}
+        >
+          {TALENT_POOL.label}
         </Toggle>
       </div>
       {app.history.length > 0 && <StatusTimeline history={app.history} busy={busy} onRemove={onRemoveStep} />}

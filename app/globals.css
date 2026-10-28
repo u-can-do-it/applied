@@ -41,7 +41,7 @@
   --warning: #b26b00; /* paused, a scraper's warning, a middling fit */
   --warning-strong: #a35f00; /* text on --warning-soft (a middling fit) */
   --warning-soft: #fff3dc;
-  --pool: #7d4fc4; /* the "talent pool" outcome */
+  --pool: #7d4fc4; /* the "talent pool" mark */
   --pool-foreground: #ffffff;
   --pool-border: #c9b5ec;
   --highlight: #ffe45c; /* the words a search found, marked in the list */

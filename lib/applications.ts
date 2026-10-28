@@ -23,7 +23,15 @@ import {
 } from './application-details';
 import { message } from './shared/errors';
 import { NOTE_CONFLICT, NOTE_MAX } from './shared/schemas/applications';
-import { GHOST_AFTER_DAYS, passedBefore, withStatus, type HistoryEntry, type OutcomeId, type StageId } from './stages';
+import {
+  GHOST_AFTER_DAYS,
+  POOL_GHOST_AFTER_DAYS,
+  passedBefore,
+  withStatus,
+  type HistoryEntry,
+  type OutcomeId,
+  type StageId,
+} from './stages';
 
 // Jobs you applied to: the rules (which offer is kept, when the applied date may move, how the job
 // changes on an edit, what a scrape may overwrite). The queries are in lib/db/repos/applications.ts.
@@ -78,8 +86,8 @@ export async function markApplied(jobId: string, clicked: { src: string; id: str
   if (note) await jobNotesRepo.take(jobId);
 }
 
-/** Open applications without news for a month become ghosted. Returns how many just did. */
-export const ghostStale = (): Promise<number> => applicationsRepo.ghostStale(GHOST_AFTER_DAYS);
+/** Open applications without news for a month (a year in the talent pool) become ghosted. Returns how many just did. */
+export const ghostStale = (): Promise<number> => applicationsRepo.ghostStale(GHOST_AFTER_DAYS, POOL_GHOST_AFTER_DAYS);
 
 /**
  * Moves the application to a stage / outcome; the change is added to its history, after the
@@ -88,12 +96,15 @@ export const ghostStale = (): Promise<number> => applicationsRepo.ghostStale(GHO
 export async function setStatus(jobId: string, stage: StageId, outcome: OutcomeId) {
   const app = await getApplication(jobId);
   if (!app) return;
-  await applicationsRepo.setStatus(jobId, stage, outcome, passedBefore(app.history, stage, outcome));
+  await applicationsRepo.setStatus(jobId, stage, outcome, passedBefore(app.history, stage));
 }
 
 /** Your own call on whether it's a Rent-a-dev job (body leasing), over the verdict's, until the next fit check. */
 export const setRentADev = (jobId: string, rentADev: boolean) =>
   applicationsRepo.patch(jobId, { bodyLeasing: rentADev });
+
+/** In the talent pool or not: a mark, which makes it wait a year for news before it's ghosted, not a month. */
+export const setTalentPool = (jobId: string, talentPool: boolean) => applicationsRepo.patch(jobId, { talentPool });
 
 /**
  * Takes a step out of the status history together with every step after it (a mistaken click

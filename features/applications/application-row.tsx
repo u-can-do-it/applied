@@ -8,6 +8,7 @@ import { JobRow, detailFacts, type CompanyApplied } from '@/features/offers/job-
 import { isRentADev } from '@/features/offers/rent-a-dev';
 import { WindowButton } from '@/features/offers/row-box';
 import { StatusChip } from './status-chip';
+import { TalentPool } from './talent-pool';
 
 const CONTENT_COLOUR: Record<Application['contentStatus'], string> = {
   pending: 'text-muted-foreground',
@@ -19,7 +20,7 @@ const CONTENT_COLOUR: Record<Application['contentStatus'], string> = {
 /**
  * One application in the list (under the day you applied: no date of its own), as JobRow shows a job on
  * either tab: its title opens the ad, its company searches every application for it (`onCompany`), a click elsewhere
- * opens its window. Its status above the badges, its note's first line under the verdict's. "Rent-a-dev": a
+ * opens its window. Its status above the badges (and the talent pool, when it's in it), its note's first line under the verdict's. "Rent-a-dev": a
  * software house's / body leasing firm's job, by the application's own call, or else the verdict's.
  */
 export function ApplicationRow({
@@ -60,7 +61,12 @@ export function ApplicationRow({
       boards={[{ src: app.src, url: app.url || undefined }]}
       labels={labels}
       after={<WindowButton title={app.title} onClick={onOpen} />}
-      top={<StatusChip stage={app.stage} outcome={app.outcome} />}
+      top={
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          <StatusChip stage={app.stage} outcome={app.outcome} />
+          {app.talentPool && <TalentPool />}
+        </div>
+      }
       bottom={
         <span className={cn('text-xs whitespace-nowrap', CONTENT_COLOUR[app.contentStatus])}>
           {app.contentStatus === 'ok' && <FileTextIcon />} <Check size="8px" />

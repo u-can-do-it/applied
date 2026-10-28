@@ -1,7 +1,14 @@
 'use client';
 
 import { XIcon } from 'lucide-react';
-import { GHOST_AFTER_DAYS, stageOf, outcomeLabel, type HistoryEntry, type OutcomeId } from '@/lib/stages';
+import {
+  GHOST_AFTER_DAYS,
+  POOL_GHOST_AFTER_DAYS,
+  stageOf,
+  outcomeLabel,
+  type HistoryEntry,
+  type OutcomeId,
+} from '@/lib/stages';
 import { Button } from '@/components/ui/button';
 import { useDay } from './use-day';
 
@@ -11,7 +18,6 @@ const OUTCOME_TEXT: Record<OutcomeId, string> = {
   passed: 'text-success',
   failed: 'text-destructive',
   ghosted: 'text-muted-foreground',
-  pool: 'text-pool',
 };
 
 /**
@@ -49,7 +55,11 @@ export function StatusTimeline({
               <span className={OUTCOME_TEXT[step.state]}>{outcomeLabel(step.stage, step.state)}</span>
               {step.auto && (
                 <span
-                  title={step.state === 'passed' ? 'You got to a later stage' : `No news for ${GHOST_AFTER_DAYS} days`}
+                  title={
+                    step.state === 'passed'
+                      ? 'You got to a later stage'
+                      : `No news for ${GHOST_AFTER_DAYS} days (${POOL_GHOST_AFTER_DAYS} in the talent pool)`
+                  }
                 >
                   (auto)
                 </span>

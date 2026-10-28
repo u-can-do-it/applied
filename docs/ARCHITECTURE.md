@@ -45,7 +45,7 @@ Session pooler ([ADR 0001](decisions/0001-drizzle-over-postgrest.md)).
 | Settings → AI filter / "Check …"            | server render, action       | Starts an AI run, and on every render (and every 4 s while a run is open) continues a paused one in `after()`.                                                                                                                                                                                                                                     |
 | "Mark applied", "Add", "Fetch again"        | server actions              | Save the application, then fetch its ad text in `after()`.                                                                                                                                                                                                                                                                                         |
 | An offer's window (Offers, after its title) | `GET /api/offer`            | Asked as you point at its button: the job's complete ad with the board's details (fetched then the first time, saved in `offer_details`), your note on it (`job_notes`) and the verdict. "Mark applied" there takes the note to the application.                                                                                                   |
-| Opening the Applied tab                     | server render               | Marks applications with no news for 30 days as ghosted.                                                                                                                                                                                                                                                                                            |
+| Opening the Applied tab                     | server render               | Marks applications with no news for 30 days (a year in the talent pool) as ghosted.                                                                                                                                                                                                                                                                |
 | Any page, once a minute                     | `GET /api/changes`          | `AutoRefresh` compares a fingerprint (last run, newest offer, queue size, lock, mute) and refreshes the page only when it changed.                                                                                                                                                                                                                 |
 | The Gmail script, every 10 minutes          | `POST /api/alerts/linkedin` | Checks its secret (derived from the cron one), takes one LinkedIn job alert email and queues the jobs it links to in `alert_jobs` for the next run (`lib/listings/alert-email.ts` reads only their ids).                                                                                                                                           |
 
@@ -438,16 +438,19 @@ the entry says so (_stored as_): those names stay (production data and applied m
   _Stored as:_ `job_links`, `ai_dup_pairs`, `jw_merge_jobs`.
 - **application**: Yours, per job: you applied to it. Keeps a snapshot of the ad (title, company, link, the
   full text), its status, its history and your note. _Stored as:_ `applications`, keyed by the job id.
-- **stage**: How far an application got: submitted, initial contact, screening, technical, HR, offer
+- **stage**: How far an application got: submitted, initial contact, screening, online test, technical, HR, offer
   (`STAGES`). _Stored as:_ `applications.stage`.
-- **outcome**: How the current stage went: in progress, passed, rejected, ghosted, talent pool (`OUTCOMES`).
+- **outcome**: How the current stage went: in progress, passed, rejected, ghosted (`OUTCOMES`).
   The offer stage names them received / accepted / rejected.
   _Stored as:_ `applications.stage_state`; `state` in each history entry (jsonb).
 - **status**: An application's stage + outcome together (the history is the list of its statuses). Elsewhere,
   a record's stored lifecycle value: an AI run's `status`, an ad text's `contentStatus`, a scraper's
   `lastStatus`.
 - **ghosted**: No news for 30 days since the last change: the application's outcome becomes ghosted by itself
-  (`GHOST_AFTER_DAYS`), marked "(auto)" in its history.
+  (`GHOST_AFTER_DAYS`), marked "(auto)" in its history. A year (`POOL_GHOST_AFTER_DAYS`) in the talent pool.
+- **talent pool**: "We'll keep your CV": a mark on an application, not a status, set with its chip after the
+  outcomes in its window, like Rent-a-dev; a badge by the status in the list (`TALENT_POOL`).
+  _Stored as:_ `applications.talent_pool`.
 - **profile**: What the AI judges jobs against: a prompt and, optionally, your CV as text. The most recently
   used one is active. _Stored as:_ `ai_profiles`.
 - **version**: A profile's version number, bumped when its prompt or file changes (unless saved keeping its

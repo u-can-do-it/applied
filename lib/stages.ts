@@ -1,7 +1,8 @@
 // Application pipeline, shared by server and client. Stage = how far it got; outcome = how that
 // stage went (stored as stage_state, and as `state` in the history). Together they are the
 // application's status. The statistics go by the last status; the check marks in the window by the
-// history (technical / HR come in either order, so not by the position in this list).
+// history (screening / online test and technical / HR come in either order, so not by the position in
+// this list).
 
 // "invited" is the id of Initial contact (its first name): kept, so stored statuses stay valid
 export const STAGES = [
@@ -12,12 +13,8 @@ export const STAGES = [
     short: 'Initial contact',
     hint: 'they got back to you: a call, a message, an invitation',
   },
-  {
-    id: 'screening',
-    label: 'Screening / online test',
-    short: 'Screening / test',
-    hint: 'a screening call, an online test or a task',
-  },
+  { id: 'screening', label: 'Screening', short: 'Screening', hint: 'a screening call' },
+  { id: 'test', label: 'Online test', short: 'Online test', hint: 'an online test or a task' },
   { id: 'technical', label: 'Technical interview', short: 'Technical' },
   { id: 'hr', label: 'HR interview', short: 'HR' },
   { id: 'offer', label: 'Offer', short: 'Offer' },
@@ -28,14 +25,17 @@ export const OUTCOMES = [
   { id: 'passed', label: 'Passed' },
   { id: 'failed', label: 'Rejected' },
   { id: 'ghosted', label: 'Ghosted' },
-  // "we'll keep your CV in our talent pool": an answer, so it never turns into "ghosted" by itself.
-  // The hint keeps the Polish joke ("your CV into the database, you out the door"); the id is what's stored.
-  {
-    id: 'pool',
-    label: 'Talent shit pool',
-    hint: '“CV do bazy, ty do dupy”: they keep your CV, there’s no job',
-  },
 ] as const;
+
+/**
+ * "We'll keep your CV in our talent pool": a mark on the application, not a status (stored as
+ * applications.talent_pool). It waits a year, not a month, before it's ghosted (POOL_GHOST_AFTER_DAYS).
+ * The hint keeps the Polish joke ("your CV into the database, you out the door").
+ */
+export const TALENT_POOL = {
+  label: 'Talent shit pool',
+  hint: '“CV do bazy, ty do dupy”: they keep your CV, there’s no job',
+};
 
 export type StageId = (typeof STAGES)[number]['id'];
 export type OutcomeId = (typeof OUTCOMES)[number]['id'];
@@ -45,6 +45,8 @@ export type HistoryEntry = { stage: StageId; state: OutcomeId; at: string; auto?
 
 /** No news this long since the last status change: ghosted (lib/db/repos/applications.ts, ghostStale). */
 export const GHOST_AFTER_DAYS = 30;
+/** …and this long for one in the talent pool (TALENT_POOL). */
+export const POOL_GHOST_AFTER_DAYS = 365;
 export type WithStatus = { stage: StageId; outcome: OutcomeId; history: HistoryEntry[] };
 
 // The Offer stage has outcomes of its own: received (still deciding), accepted, rejected. It's
@@ -55,18 +57,14 @@ export const OFFER_LABELS: Partial<Record<OutcomeId, string>> = {
   failed: 'Rejected',
 };
 
-/** The outcomes a stage can have, by their name there (an offer has no talent pool either). */
-export function outcomesFor(stage: StageId): { id: OutcomeId; label: string; hint?: string }[] {
+/** The outcomes a stage can have, by their name there. */
+export function outcomesFor(stage: StageId): { id: OutcomeId; label: string }[] {
   return stage === 'offer'
     ? OUTCOMES.flatMap((outcome) => {
         const label = OFFER_LABELS[outcome.id];
         return label ? [{ id: outcome.id, label }] : [];
       })
-    : OUTCOMES.map((outcome) => ({
-        id: outcome.id,
-        label: outcome.label,
-        hint: 'hint' in outcome ? outcome.hint : undefined,
-      }));
+    : OUTCOMES.map((outcome) => ({ id: outcome.id, label: outcome.label }));
 }
 /** An outcome's name as a heading (a column, a tile). */
 export const outcomeHeading = (id: OutcomeId): string => outcomeOf(id).label;
@@ -85,7 +83,7 @@ export const isRejected = (app: { stage: StageId; outcome: OutcomeId }) =>
   app.outcome === 'failed' && app.stage !== 'offer';
 /**
  * They got back to you and it's still good: past Submitted and going on, or an offer (taken or not).
- * By the last status only: rejected, ghosted or "in the talent pool" after an interview isn't.
+ * By the last status only: rejected or ghosted after an interview isn't.
  */
 export const isPositive = (app: { stage: StageId; outcome: OutcomeId }) => app.stage === 'offer' || isInProcess(app);
 
@@ -101,8 +99,7 @@ export function reached(app: WithStatus): Set<StageId> {
   const stages = new Set<StageId>(['submitted', app.stage]);
   for (const step of app.history) stages.add(step.stage);
   // got to a later stage = there was an initial contact, even if it was skipped in the app
-  if (stages.has('screening') || stages.has('technical') || stages.has('hr') || stages.has('offer'))
-    stages.add('invited');
+  if (STAGES.some(({ id }) => id !== 'submitted' && id !== 'invited' && stages.has(id))) stages.add('invited');
   return stages;
 }
 
@@ -118,25 +115,32 @@ export function outcomeAt(app: WithStatus, stage: StageId): OutcomeId | null {
   return !last || last === 'pending' ? 'passed' : last;
 }
 
-// an interview after which another may come or have come: technical and HR come in either order
-const INTERVIEWS: StageId[] = ['technical', 'hr'];
+// stages there may or may not be, in either order: a screening call and an online test, the
+// technical and HR interviews
+const PAIRS: StageId[][] = [
+  ['screening', 'test'],
+  ['technical', 'hr'],
+];
+const index = (stage: StageId) => STAGES.findIndex((each) => each.id === stage);
 
 /**
  * The stages a status change marks passed: getting to a stage past Submitted (in progress, passed,
- * rejected or ghosted there; not the talent pool) means the ones before it went well. Those are
- * the stages before it in STAGES, even skipped ones, except an interview, which is passed only if
- * the history has it (technical / HR come in either order); a stage whose last step was already
- * Passed isn't marked again. In STAGES order. drizzle/0028_passed_before.sql did this to the
- * applications saved before.
+ * rejected or ghosted there) means the ones before it went well. Those are
+ * the stages before it in STAGES, even skipped ones, except one of a pair (PAIRS), which is passed
+ * only if the history has it, at the other one of its pair or past both; a stage whose last step
+ * was already Passed isn't marked again. In STAGES order. drizzle/0028_passed_before.sql did this
+ * to the applications saved before (Screening / online test one stage then, marked like Initial contact;
+ * the talent pool an outcome then, which marked none).
  */
-export function passedBefore(history: HistoryEntry[], stage: StageId, outcome: OutcomeId): StageId[] {
-  if (stage === 'submitted' || outcome === 'pool') return [];
+export function passedBefore(history: HistoryEntry[], stage: StageId): StageId[] {
+  if (stage === 'submitted') return [];
   const last = new Map(history.map((step) => [step.stage, step.state]));
-  const at = STAGES.findIndex((each) => each.id === stage);
-  const pastInterviews = INTERVIEWS.includes(stage) || stage === 'offer';
+  const at = index(stage);
   return STAGES.filter(({ id }, i) => {
     if (id === stage || last.get(id) === 'passed') return false;
-    return INTERVIEWS.includes(id) ? pastInterviews && last.has(id) : i < at;
+    const pair = PAIRS.find((each) => each.includes(id));
+    if (!pair) return i < at;
+    return last.has(id) && (pair.includes(stage) || pair.every((each) => index(each) < at));
   }).map(({ id }) => id);
 }
 
@@ -144,7 +148,7 @@ export function passedBefore(history: HistoryEntry[], stage: StageId, outcome: O
 export function withStatus(history: HistoryEntry[], stage: StageId, outcome: OutcomeId, at: string): HistoryEntry[] {
   return [
     ...history,
-    ...passedBefore(history, stage, outcome).map((id): HistoryEntry => ({
+    ...passedBefore(history, stage).map((id): HistoryEntry => ({
       stage: id,
       state: 'passed',
       at,
@@ -162,14 +166,14 @@ export type Stats = {
   unanswered: number; // sent, no answer yet (isUnanswered)
   rejected: number; // they said no (isRejected)
   ghosted: number;
-  pool: number; // kept "in the talent pool"
+  pool: number; // marked "in the talent pool" (TALENT_POOL), whatever their status
   /** how many are at each stage now (their last status) */
   now: { stage: StageId; count: number }[];
   /** how many got to each stage (reached), by how it went there (outcomeAt) */
   byStage: Record<StageId, Record<OutcomeId, number>>;
 };
 
-export function stats(apps: WithStatus[]): Stats {
+export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
   const byStage = Object.fromEntries(
     STAGES.map((stage) => [stage.id, Object.fromEntries(OUTCOMES.map((outcome) => [outcome.id, 0]))]),
   ) as Stats['byStage'];
@@ -191,7 +195,7 @@ export function stats(apps: WithStatus[]): Stats {
     else if (isUnanswered(app)) unanswered++;
     else if (isRejected(app)) rejected++;
     else if (app.outcome === 'ghosted') ghosted++;
-    else if (app.outcome === 'pool') pool++;
+    if (app.talentPool) pool++;
   }
   return {
     sent: apps.length,

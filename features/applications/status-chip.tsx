@@ -7,7 +7,6 @@ const OUTCOME_BADGE = {
   passed: 'success',
   failed: 'danger',
   ghosted: 'dashed',
-  pool: 'pool',
 } as const satisfies Record<OutcomeId, string>;
 
 export function StatusChip({ stage, outcome }: { stage: StageId; outcome: OutcomeId }) {

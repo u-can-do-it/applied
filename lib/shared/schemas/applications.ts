@@ -28,6 +28,7 @@ export const setStatusSchema = z.object({
 
 /** "Rent-a-dev" in an application's window, on or off. */
 export const setRentADevSchema = z.object({ jobId, rentADev: z.boolean() });
+export const setTalentPoolSchema = z.object({ jobId, talentPool: z.boolean() });
 
 /** One step of the history, as the window has it (as stored: the outcome is `state`). */
 export const removeStepSchema = z.object({
