@@ -48,6 +48,8 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
     archived?: boolean;
     /** a search's jobs newest first rather than best match first (?order=new) */
     byDate?: boolean;
+    /** by day still, each day's best fit first (?order=fit), a search's too */
+    byFit?: boolean;
     /** ?fit=: the jobs this profile version judged, its matches (with `tier`, only its good or fair ones) or the rejected ones */
     ai?: { profileId: string; version: number; rejected: boolean; tier?: ScoredTier };
     /**
@@ -63,7 +65,7 @@ type Query = { q: string; src: string; page: number } & DateFilter & {
  * run that brought them ran (`latest`; null: no run in the log added offers), how many jobs
  * these filters find among the archived ones (`archivedCount`), how many it left out for their fit
  * (`hiddenCount`, verdictsOf's minFit), and whether it's a search's, best match first (`byMatch`) rather
- * than newest first.
+ * than by day (newest first, or each day's best fit first).
  */
 export type JobPage = {
   byMatch: boolean;
@@ -88,9 +90,14 @@ export async function getJobs(opts: Query): Promise<JobPage> {
   // a search: the jobs the rest of the filter leaves, ranked here (lib/shared/search.ts), the list
   // then only those, in that order
   const found = opts.q ? rank(await offersRepo.searchable(narrowed), opts.q) : null;
-  const filter = { ...narrowed, archived: opts.archived, ...(found && { ranked: found.ids, byDate: opts.byDate }) };
+  const filter = {
+    ...narrowed,
+    archived: opts.archived,
+    byFit: opts.byFit,
+    ...(found && { ranked: found.ids, byDate: opts.byDate }),
+  };
   const marked = (job: ListedJob): ListedJob => (found ? { ...job, marks: found.marks.get(job.jobId) } : job);
-  const byMatch = Boolean(found) && !opts.byDate;
+  const byMatch = Boolean(found) && !opts.byDate && !opts.byFit;
   if (!opts.ai) {
     const verdictsOf = opts.verdictsOf && {
       profileId: opts.verdictsOf.profileId,

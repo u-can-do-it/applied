@@ -15,9 +15,12 @@ export function SearchBox({ query }: { query: URLSearchParams }) {
   const [value, setValue] = useState(queryText);
   const lastSent = useRef(queryText);
   // reads the latest filters/navigate without restarting the debounce on every render; a search typed
-  // anew is best match first again (a company's link asks for newest first, ?order=new)
+  // anew is best match first again (a company's link asks for newest first, ?order=new), unless you
+  // order by fit (?order=fit), which stays
   const search = useEffectEvent((next: string) =>
-    navigate(withParams(query, { q: next, order: null }, path), { replace: true }),
+    navigate(withParams(query, { q: next, order: query.get('order') === 'fit' ? 'fit' : null }, path), {
+      replace: true,
+    }),
   );
 
   // follow the URL when it changes from outside (back/forward, a chip click keeps q)

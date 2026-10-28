@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { seconds } from '@/lib/shared/format';
-import { one, parseOfferQuery } from '@/lib/shared/search-params';
+import { one, orderOf, parseOfferQuery } from '@/lib/shared/search-params';
 
 describe('one', () => {
   it('reads the first value of a repeated parameter, and a missing one as empty', () => {
@@ -25,12 +25,19 @@ describe('parseOfferQuery', () => {
       latest: true,
       archived: true,
       byDate: false,
+      byFit: false,
     });
   });
 
   it("orders a search's jobs newest first with ?order=new, and only a search's", () => {
     expect(parseOfferQuery({ q: 'Acme', order: 'new' }).byDate).toBe(true);
     expect(parseOfferQuery({ order: 'new' }).byDate).toBe(false);
+  });
+
+  it("orders by fit with ?order=fit, a search's jobs too", () => {
+    expect(parseOfferQuery({ order: 'fit' })).toMatchObject({ byFit: true, byDate: false });
+    expect(parseOfferQuery({ q: 'Acme', order: 'fit' })).toMatchObject({ byFit: true, byDate: false });
+    expect(parseOfferQuery({ order: 'best' }).byFit).toBe(false);
   });
 
   it('keeps a fit tier', () => {
@@ -60,6 +67,7 @@ describe('parseOfferQuery', () => {
       latest: false,
       archived: false,
       byDate: false,
+      byFit: false,
     });
   });
 
@@ -74,6 +82,14 @@ describe('parseOfferQuery', () => {
       from: '2026-10-01',
       to: '2026-10-02',
     });
+  });
+});
+
+describe('orderOf', () => {
+  it("lights up the order the list has: a search's best match first unless asked otherwise, else newest first", () => {
+    expect([orderOf(null, true), orderOf('new', true), orderOf('fit', true)]).toEqual(['', 'new', 'fit']);
+    expect([orderOf(null, false), orderOf('new', false), orderOf('fit', false)]).toEqual(['new', 'new', 'fit']);
+    expect(orderOf('nonsense', false)).toBe('new');
   });
 });
 

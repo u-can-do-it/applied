@@ -27,6 +27,21 @@ export const FITS = [
 export type Fit = (typeof FITS)[number]['fit'];
 const isFit = (value: string): value is Fit => FITS.some((option) => option.fit === value);
 
+/**
+ * The list's order, as ?order=: a search's best match first (only with a search: '', its default), by day
+ * newest first ('new'; without a search, '' too), or by day, each day's best AI fit first ('fit').
+ */
+export const ORDERS = [
+  { order: '', label: 'Best match', search: true },
+  { order: 'new', label: 'Newest', search: false },
+  { order: 'fit', label: 'Best fit', search: false },
+] as const;
+/** the order the URL asks for, as its chip: `searching`, the list has a search */
+export function orderOf(order: string | null, searching: boolean) {
+  if (order === 'fit') return 'fit';
+  return searching && order !== 'new' ? '' : 'new';
+}
+
 export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'fit' | 'new' | 'archived' | 'order';
 type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
 
@@ -73,5 +88,7 @@ export function parseOfferQuery(params: Params) {
     archived: one(params.archived) === '1',
     // a search's jobs newest first, by day, instead of best match first (?order=new: a company's link)
     byDate: Boolean(text) && one(params.order) === 'new',
+    // still by day, but each day's best AI fit first (?order=fit), with a search or without
+    byFit: one(params.order) === 'fit',
   };
 }

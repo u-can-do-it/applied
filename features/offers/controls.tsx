@@ -1,7 +1,7 @@
 'use client';
 
 import { use } from 'react';
-import { CalendarIcon, SearchIcon, SparklesIcon, XIcon } from 'lucide-react';
+import { ArrowDownWideNarrowIcon, CalendarIcon, SearchIcon, SparklesIcon, XIcon } from 'lucide-react';
 import { DateRangePicker, RANGE_PLACEHOLDER } from '@/components/date-range-picker';
 import { searchBox, searchInput } from '@/components/search-field';
 import { TimeZone } from '@/components/time-zone';
@@ -9,7 +9,7 @@ import { toggleVariants } from '@/components/ui/toggle';
 import { validDay } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
 import type { BoardOption } from '@/lib/listings/board-filter';
-import { DAY_PRESETS, FITS, withParams } from '@/lib/shared/search-params';
+import { DAY_PRESETS, FITS, ORDERS, orderOf, withParams } from '@/lib/shared/search-params';
 import { NavLink, useNav } from './nav';
 import { MinFit } from './min-fit';
 import { SearchBox } from './search-box';
@@ -52,9 +52,37 @@ const FIT_LABEL = (
   </span>
 );
 
+const ORDER_LABEL = (
+  <span className="flex items-center gap-1 pr-0.5 text-[13px] text-muted-foreground">
+    <ArrowDownWideNarrowIcon /> Order
+  </span>
+);
+
+/** The list's order (?order=): by day, newest first or each day's best fit first; a search's best match first too. */
+function OrderChips({ query, path }: { query: URLSearchParams; path: string }) {
+  const searching = Boolean(query.get('q'));
+  const order = orderOf(query.get('order'), searching);
+  return (
+    <nav className={cn(CHIPS, 'items-center')} aria-label="Order">
+      {ORDER_LABEL}
+      {ORDERS.filter((option) => searching || !option.search).map((option) => (
+        <NavLink
+          key={option.order}
+          className={CHIP}
+          aria-current={order === option.order ? 'true' : undefined}
+          // newest first is the order without a search: the URL leaves it out
+          href={withParams(query, { order: option.order === 'new' && !searching ? null : option.order }, path)}
+        >
+          {option.label}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
 /**
  * The AI's verdict (the active profile's): every offer, its matches or the ones it rejected; then the
- * minimum fit, which leaves the low ones out of every offer (a setting, not the URL's).
+ * minimum fit, which leaves the low ones out of every offer (a setting, not the URL's); then the order.
  */
 function FitChips({ query, path, minFit }: { query: URLSearchParams; path: string; minFit: number }) {
   const raw = query.get('fit') ?? '';
@@ -75,6 +103,7 @@ function FitChips({ query, path, minFit }: { query: URLSearchParams; path: strin
         ))}
       </nav>
       <MinFit minFit={minFit} />
+      <OrderChips query={query} path={path} />
     </div>
   );
 }
@@ -187,6 +216,14 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
           ))}
         </div>
         <span className="h-7" />
+        <div className={cn(CHIPS, 'items-center')}>
+          {ORDER_LABEL}
+          {ORDERS.filter((option) => !option.search).map((option) => (
+            <span key={option.order} className={CHIP}>
+              {option.label}
+            </span>
+          ))}
+        </div>
       </div>
     </>
   );

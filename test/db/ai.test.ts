@@ -228,6 +228,58 @@ describeDb('AI verdicts and runs', () => {
     ]);
   });
 
+  it("orders each day's best fit first, the days still newest first, when asked", async () => {
+    const id = await saveProfile({ name: 'P', prompt: 'React', file: 'keep' });
+    const profile = { id, version: 1 };
+    const added = await offersRepo.ingest([
+      job('justjoin', 'fair', 'React Developer', 'Acme'),
+      job('justjoin', 'good', 'Vue Developer', 'Beta'),
+      job('justjoin', 'unjudged', 'Angular Developer', 'Gamma'),
+      job('justjoin', 'ruled-out', 'Svelte Developer', 'Delta'),
+      job('justjoin', 'rejected', 'Ember Developer', 'Epsilon'),
+      job('justjoin', 'day-before', 'Solid Developer', 'Zeta'),
+    ]);
+    const key = Object.fromEntries(added.map((row) => [row.id, row.jobKey]));
+    const seenAt = (id: string, at: string) =>
+      exec(sql`update public.offers set first_seen = ${at}::timestamptz where id = ${id}`);
+    // the newest first by time, the best fit last; "fair" already the 5th in Warsaw (no setting: the default)
+    await seenAt('rejected', '2026-10-05T12:00:00Z');
+    await seenAt('ruled-out', '2026-10-05T11:00:00Z');
+    await seenAt('unjudged', '2026-10-05T10:00:00Z');
+    await seenAt('good', '2026-10-05T09:00:00Z');
+    await seenAt('fair', '2026-10-04T22:30:00Z');
+    await seenAt('day-before', '2026-10-04T21:30:00Z'); // the 4th there: the best fit of all, on the day before
+    await verdictsRepo.save([
+      { ...verdict(profile, key.fair, true), score: 60 },
+      { ...verdict(profile, key.good, true), score: 90 },
+      { ...verdict(profile, key['ruled-out'], false), score: 95 }, // rejected: after the ones not judged
+      { ...verdict(profile, key.rejected, false), score: 20 },
+      { ...verdict(profile, key['day-before'], true), score: 99 },
+    ]);
+    const ids = (page: { jobs: { id: string }[] }) => page.jobs.map((row) => row.id);
+
+    const ai = { profileId: id, version: 1 };
+    const all = await getJobs({ q: '', src: '', page: 0, byFit: true, verdictsOf: { ...ai, usable: true } });
+    expect([all.byMatch, ids(all)]).toEqual([
+      false,
+      ['good', 'fair', 'unjudged', 'ruled-out', 'rejected', 'day-before'],
+    ]);
+    const matches = await getJobs({ q: '', src: '', page: 0, byFit: true, ai: { ...ai, rejected: false } });
+    expect(ids(matches)).toEqual(['good', 'fair', 'day-before']);
+    // a search's jobs too, by day rather than best match first
+    const found = await getJobs({ q: 'developer', src: '', page: 0, byFit: true, verdictsOf: { ...ai, usable: true } });
+    expect([found.byMatch, ids(found)]).toEqual([false, ids(all)]);
+    // no verdicts to go by: newest first
+    expect(ids(await getJobs({ q: '', src: '', page: 0, byFit: true }))).toEqual([
+      'rejected',
+      'ruled-out',
+      'unjudged',
+      'good',
+      'fair',
+      'day-before',
+    ]);
+  });
+
   it('marks the jobs a scrape run is still checking as matching, until judged or the run lets go', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test');
     const id = await saveProfile({ name: 'P', prompt: 'React', file: 'keep' });
