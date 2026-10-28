@@ -15,6 +15,14 @@ vi.mock('next/navigation', () => ({
 
 afterEach(cleanup);
 
+// Radix measures the company's hover; jsdom has no ResizeObserver
+class NoResize {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal('ResizeObserver', NoResize);
+
 const verdict = { match: true, score: 72, summary: 'React fits.', checks: [], hadDescription: true };
 
 const row = (props: Partial<ComponentProps<typeof JobRow>>) =>
@@ -134,17 +142,38 @@ it('the details line: salary (the first), contract, work mode, where; else the l
 });
 
 describe('appliedHere', () => {
+  const app = (title: string, self = false) => ({ title, day: '12.10.2026', self });
   it('says how many applications you have at the company, none too', () => {
-    expect(appliedHere({ count: 0, last: null, self: false })).toBe('No applications here');
-    expect(appliedHere({ count: 1, last: '12.10.2026', self: true })).toBe(
-      '1 application here (this job), on 12.10.2026',
-    );
-    expect(appliedHere({ count: 1, last: '12.10.2026', self: false })).toBe('1 application here, on 12.10.2026');
-    expect(appliedHere({ count: 3, last: '12.10.2026', self: true })).toBe(
-      '3 applications here (this job among them), the latest on 12.10.2026',
-    );
-    expect(appliedHere({ count: 2, last: '12.10.2026', self: false })).toBe(
-      '2 applications here, the latest on 12.10.2026',
+    expect(appliedHere([])).toBe('No applications here');
+    expect(appliedHere([app('React Developer', true)])).toBe('1 application here');
+    expect(appliedHere([app('React Developer'), app('Vue Developer', true), app('Go Developer')])).toBe(
+      '3 applications here',
     );
   });
+});
+
+it('the company’s hover lists your applications there as given (the latest first), this job’s own marked', () => {
+  row({
+    onCompany: vi.fn(),
+    companyApplied: [
+      { title: 'Senior React Developer', day: '24.10.2026', self: false },
+      { title: 'Frontend Developer', day: '12.09.2026', self: true },
+    ],
+  });
+  fireEvent.focus(screen.getByRole('button', { name: 'Acme' }));
+  const hover = screen.getByRole('tooltip');
+  expect(hover.textContent).toContain('2 applications here');
+  const items = [...document.querySelectorAll('[data-slot=tooltip-content] li')].map((li) => li.textContent);
+  expect(items).toEqual(['24.10.2026Senior React Developer', '12.09.2026Frontend Developer· this job']);
+  expect(hover.textContent).toContain('A click searches for Acme');
+});
+
+it('the hover lists five applications, and counts the rest', () => {
+  row({
+    onCompany: vi.fn(),
+    companyApplied: Array.from({ length: 7 }, (_, i) => ({ title: `Job ${i}`, day: '01.10.2026', self: false })),
+  });
+  fireEvent.focus(screen.getByRole('button', { name: 'Acme' }));
+  const items = [...document.querySelectorAll('[data-slot=tooltip-content] li')].map((li) => li.textContent);
+  expect(items.slice(-2)).toEqual(['01.10.2026Job 4', 'and 2 more']);
 });

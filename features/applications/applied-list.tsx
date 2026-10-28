@@ -124,22 +124,21 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
   // ad texts are scraped in the background right after marking: refresh until they're in
   useRefreshWhile(pending, 3000, fromServer);
 
-  // your applications per company, all of them whatever the filters: the company's hover says how many
+  // your applications per company, all of them whatever the filters, the latest first: the company's hover lists them
   const atCompany = useMemo(() => {
-    const counts = new Map<string, { count: number; last: string }>();
-    for (const app of apps) {
+    const byCompany = new Map<string, Application[]>();
+    for (const app of apps.toSorted((a, b) => Date.parse(b.appliedAt) - Date.parse(a.appliedAt))) {
       const key = companyKeyOf(app.jobId);
-      if (!key) continue;
-      const before = counts.get(key);
-      const last = before && before.last > app.appliedAt ? before.last : app.appliedAt;
-      counts.set(key, { count: (before?.count ?? 0) + 1, last });
+      if (key) byCompany.set(key, [...(byCompany.get(key) ?? []), app]);
     }
-    return counts;
+    return byCompany;
   }, [apps]);
-  const appliedAtCompany = (app: Application) => {
-    const found = atCompany.get(companyKeyOf(app.jobId));
-    return found && { count: found.count, last: zone.formatDayOf(found.last), self: true };
-  };
+  const appliedAtCompany = (app: Application) =>
+    atCompany.get(companyKeyOf(app.jobId))?.map((there) => ({
+      title: there.title,
+      day: zone.formatDayOf(there.appliedAt),
+      self: there.jobId === app.jobId,
+    }));
 
   // the ones you applied for in the dates: the statistics count these, the list shows them
   const inRange = useMemo(() => (range ? apps.filter(range.test) : apps), [apps, range]);

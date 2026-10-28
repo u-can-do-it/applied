@@ -109,16 +109,20 @@ const scoredIn = (tier: ScoredTier) =>
     ? gte(aiVerdicts.score, GOOD_FIT)
     : and(gte(aiVerdicts.score, FAIR_FIT), lt(aiVerdicts.score, GOOD_FIT));
 
+/** One of your applications at a job's company: its title, when, and whether it's that job's own (`self`). */
+export type AppliedThere = { title: string; appliedAt: string; self: boolean };
+
 /**
  * Per job: your applications at its company (an application's job id has the company's part before the
- * "|", as the job's company_key), how many and the latest; none for a job without a company.
+ * "|", as the job's company_key), the latest first; none for a job without a company. The application's
+ * job id goes by another name in there, so the job's own (unqualified "dup_key") isn't taken for it.
  */
-const atCompany = (column: SQL) =>
-  sql`(select ${column} from public.applications a
-       where ${offersUnique.companyKey} <> '' and split_part(a.dup_key, '|', 1) = ${offersUnique.companyKey})`;
 const appliedAtCompany = {
-  companyApplied: sql<number>`${atCompany(sql`count(*)::int`)}`,
-  companyLastApplied: sql<string | null>`${atCompany(sql`max(a.applied_at)`)}`,
+  companyApplied: sql<AppliedThere[]>`(select coalesce(json_agg(json_build_object(
+         'title', a.title, 'appliedAt', a.applied_at, 'self', a.app_id = ${offersUnique.jobId}
+       ) order by a.applied_at desc), '[]')
+       from (select dup_key as app_id, title, applied_at from public.applications) a
+       where ${offersUnique.companyKey} <> '' and split_part(a.app_id, '|', 1) = ${offersUnique.companyKey})`,
 };
 
 /** a search's jobs as {job id: its place}, one parameter however many there are */
@@ -192,7 +196,7 @@ const verdictColumns = {
  * One page of jobs, and how many match in all (the pager needs the exact number), each marked new if
  * first seen in `latest`, the latest run that brought a new job, and with how many match on its day
  * in time zone `tz` (`dayCount`), and how many good and fair fits (`dayGood`, `dayFair`), and your applications at its
- * company (`companyApplied`, the latest `companyLastApplied`); `newCount`: how many of all were;
+ * company (`companyApplied`, the latest first); `newCount`: how many of all were;
  * `archivedCount`: how many jobs these filters find among the archived ones. With `verdictsOf`, each
  * with that profile version's verdict, when it has one (its fields null when not), and with its `minFit`
  * the ones it rejected or scored lower left out, counted in `hiddenCount`.

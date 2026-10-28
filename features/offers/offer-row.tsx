@@ -75,11 +75,11 @@ export function OfferRow({
           href={job.url}
           company={job.company}
           companyHref={job.company ? withParams('', { q: job.company, order: 'new' }) : undefined}
-          companyApplied={{
-            count: job.companyApplied,
-            last: job.companyLastApplied && zone.formatDayOf(job.companyLastApplied),
-            self: Boolean(job.appliedAt),
-          }}
+          companyApplied={job.companyApplied.map((app) => ({
+            title: app.title,
+            day: zone.formatDayOf(app.appliedAt),
+            self: app.self,
+          }))}
           facts={detailFacts(job.details, job.remote)}
           verdict={job.ai}
           matching={job.matching}

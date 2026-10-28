@@ -97,7 +97,7 @@ describeDb('applications', () => {
     expect('content' in (await listApplications())[0]).toBe(false);
   });
 
-  it("counts your applications at each listed job's company, its legal form and case aside", async () => {
+  it("lists your applications at each listed job's company, its legal form and case aside", async () => {
     const jobId = await scrapedJob();
     await offersRepo.ingest([
       {
@@ -125,13 +125,20 @@ describeDb('applications', () => {
       Object.fromEntries(
         (await getJobs({ q: '', src: '', page: 0 })).jobs.map((job) => [
           job.title,
-          [job.companyApplied, job.companyLastApplied !== null],
+          job.companyApplied.map((app) => [app.title, app.self, typeof app.appliedAt]),
         ]),
       );
+    // the latest first (the one added by hand is dated earlier); the job's own marked
     expect(await atCompany()).toEqual({
-      'React Developer': [2, true],
-      'Vue Developer': [2, true],
-      'Go Developer': [0, false],
+      'React Developer': [
+        ['React Developer', true, 'string'],
+        ['Angular Developer', false, 'string'],
+      ],
+      'Vue Developer': [
+        ['React Developer', false, 'string'],
+        ['Angular Developer', false, 'string'],
+      ],
+      'Go Developer': [],
     });
   });
 

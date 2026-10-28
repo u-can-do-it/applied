@@ -61,18 +61,20 @@ type Verdict = {
 /** A board the job is on: a link to its offer when there's `url`. */
 export type Board = { src: string; url?: string };
 
-/** Your applications at the job's company: how many (this job's own among them: `self`), and the latest's day. */
-export type CompanyApplied = { count: number; last: string | null; self: boolean };
+/** One of your applications at the job's company: its title, its day, whether it's this job's own (`self`). */
+export type AppliedThere = { title: string; day: string; self: boolean };
 
-/** "No applications here"; "1 application here (this job), on 26.10.2026"; "3 applications here, the latest on …". */
-export function appliedHere({ count, last, self }: CompanyApplied): string {
-  if (count <= 0) return 'No applications here';
-  if (count === 1) return `1 application here${self ? ' (this job)' : ''}, on ${last}`;
-  return `${count} applications here${self ? ' (this job among them)' : ''}, the latest on ${last}`;
+/** Your applications at the job's company, the latest first. */
+export type CompanyApplied = AppliedThere[];
+
+/** "No applications here"; "1 application here"; "3 applications here": the hover's heading, the list under it. */
+export function appliedHere(apps: CompanyApplied): string {
+  if (!apps.length) return 'No applications here';
+  return apps.length === 1 ? '1 application here' : `${apps.length} applications here`;
 }
 
 /** applications there besides this job's own: the company is underlined with dots */
-const appliedElsewhere = ({ count, self }: CompanyApplied) => count - (self ? 1 : 0) > 0;
+const appliedElsewhere = (apps: CompanyApplied) => apps.some((app) => !app.self);
 
 /** The note's first line, with the search's marks in it. */
 function NoteLine({ note, marks }: { note: string; marks?: number[] }) {
@@ -182,6 +184,7 @@ export function JobRow({
             <span>
               <CompanyHover
                 applied={applied}
+                apps={companyApplied}
                 search={companyHref || onCompany ? `A click searches for ${company}` : null}
               >
                 {companyHref ? (
