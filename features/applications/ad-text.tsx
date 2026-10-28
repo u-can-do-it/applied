@@ -10,6 +10,29 @@ import { useDay } from './use-day';
 export type ShownAd = Pick<Shown, 'content' | 'contentStatus' | 'contentError' | 'scrapedAt'>;
 
 /**
+ * The text by lines, a bullet's wrapped lines under its text, not under the "•". A text saved before
+ * htmlToText read source line breaks as spaces has its "•" on a line of its own, a blank line before
+ * it: shown as it is saved now.
+ */
+function AdLines({ text }: { text: string }) {
+  return text
+    .replace(/\n+•\n+/g, '\n• ')
+    .split('\n')
+    .map((line, i) =>
+      line.startsWith('• ') ? (
+        <div key={i} className="pl-[1.1em] -indent-[1.1em]">
+          <span className="inline-block w-[1.1em] indent-0">• </span>
+          {line.slice(2)}
+        </div>
+      ) : (
+        <div key={i} className="min-h-[1lh]">
+          {line}
+        </div>
+      ),
+    );
+}
+
+/**
  * The saved ad text. It loads into this box, which has the same place and size before and after; it
  * fills what's left, so a short ad or the placeholder look the same as a long one. `onEdit`: an
  * offer's window lets you change it, or paste one the board page doesn't give.
@@ -17,7 +40,8 @@ export type ShownAd = Pick<Shown, 'content' | 'contentStatus' | 'contentError' |
 export function AdText({ ad: app, loadError, onEdit }: { ad: ShownAd; loadError: string | null; onEdit?: () => void }) {
   const day = useDay();
   const waiting = app.content === undefined || app.contentStatus === 'pending';
-  const hasText = app.contentStatus === 'ok' && !!app.content;
+  const text = app.contentStatus === 'ok' && app.content;
+  const hasText = !!text;
   return (
     <>
       <div
@@ -39,7 +63,7 @@ export function AdText({ ad: app, loadError, onEdit }: { ad: ShownAd; loadError:
             </div>
           )
         ) : hasText ? (
-          app.content
+          <AdLines text={text} />
         ) : (
           <p className="m-0 text-[13px] text-destructive">
             {app.contentStatus === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'}{' '}

@@ -26,6 +26,9 @@ const ESCAPED_TAG = /&lt;\/?[a-z!][^<>]*?&gt;/gi;
 const count = (text: string, re: RegExp) => text.match(re)?.length ?? 0;
 // comments and <?xml …?> go first: a "<" or ">" inside them would cut the tag pass short
 const dropComments = (text: string) => text.replace(/<!--[\s\S]*?-->|<\?[\s\S]*?\?>/g, ' ');
+// HTML that marks its own lines: there, a line break in the source is a space, as a browser shows it
+// ("<li>\n<p>Text" is "• Text", not a bullet on a line of its own); text without them keeps its lines
+const LINE_TAG = /<(p|br|li|div|h\d|ul|ol|tr)\b[^<>]*>/i;
 
 /** HTML (possibly entity-escaped, as inside JSON-LD) -> readable plain text with line breaks and bullets */
 export function htmlToText(html: unknown): string {
@@ -37,15 +40,23 @@ export function htmlToText(html: unknown): string {
   // decoded after the tags go
   const escaped = count(text, ESCAPED_TAG);
   if (escaped && escaped >= count(text, TAG)) text = dropComments(decodeEntities(text));
+  text = text.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ');
+  if (LINE_TAG.test(text)) text = text.replace(/\s+/g, ' ');
   text = text
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<li[^>]*>/gi, '\n• ')
-    .replace(/<(br|\/p|\/div|\/h\d|\/li|\/ul|\/ol|\/tr)[^>]*>/gi, '\n')
+    // paragraphs, headings and lists stand apart by a blank line, as on the board's page; a line
+    // break, a <div> or a table row is one line
+    .replace(/<(h\d|\/p|\/h\d|\/ul|\/ol)\b[^>]*>/gi, '\n\n')
+    .replace(/<(br|\/div|\/li|\/tr)\b[^>]*>/gi, '\n')
     .replace(TAG, ' ');
-  return decodeEntities(text)
-    .replace(/[ \t ]+/g, ' ')
-    .replace(/ *\n */g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/\n{2,}(?=• )/g, '\n') // <li><p>…</p></li> would leave a blank line between bullets
-    .trim();
+  return (
+    decodeEntities(text)
+      .replace(/[ \t ]+/g, ' ')
+      .replace(/ *\n */g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      // no blank line between bullets (<li><p>…</p></li>), nor before a list's first: it follows the
+      // line that introduces it
+      .replace(/\n{2,}(?=• )/g, '\n')
+      .trim()
+  );
 }

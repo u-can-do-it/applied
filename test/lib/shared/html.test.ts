@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { htmlToText } from '@/lib/shared/html';
 
 describe('htmlToText', () => {
-  it('paragraphs and line breaks become lines', () => {
-    expect(htmlToText('<p>First</p><p>Second<br>third<br/>fourth</p>')).toBe('First\nSecond\nthird\nfourth');
-    expect(htmlToText('<h2>About</h2><div>We build</div><div>things</div>')).toBe('About\nWe build\nthings');
+  it('paragraphs and headings stand apart by a blank line, line breaks and divs are lines', () => {
+    expect(htmlToText('<p>First</p><p>Second<br>third<br/>fourth</p>')).toBe('First\n\nSecond\nthird\nfourth');
+    expect(htmlToText('<h2>About</h2><div>We build</div><div>things</div>')).toBe('About\n\nWe build\nthings');
+    expect(htmlToText('<div>We build</div><h2>Benefits</h2><div>Remote</div>')).toBe('We build\n\nBenefits\n\nRemote');
   });
 
   it('list items become bullets, without blank lines between them', () => {
@@ -13,6 +14,15 @@ describe('htmlToText', () => {
       'Requirements:\n• React\n• TypeScript\n\nNice',
     );
     expect(htmlToText('<ul><li><p>React</p></li><li><p>Node</p></li></ul>')).toBe('• React\n• Node');
+  });
+
+  it('line breaks in the HTML source are spaces, as a browser shows them', () => {
+    // Jobicy's pretty-printed HTML: the bullet stays with its text
+    expect(htmlToText('<p>Requirements:</p>\n<ul>\n  <li>\n    <p><em>React</em>\n and more</p>\n  </li>\n</ul>')).toBe(
+      'Requirements:\n• React and more',
+    );
+    // text without tags that mark lines keeps its own
+    expect(htmlToText('First line\nSecond with <b>bold</b>')).toBe('First line\nSecond with bold');
   });
 
   it('inline tags become spaces, whitespace collapses', () => {
@@ -71,7 +81,7 @@ describe('htmlToText', () => {
 
   it('drops comments and <?…?>, also with "<" or ">" inside', () => {
     expect(htmlToText('<p>a<!-- note <b>x</b> -->b</p>')).toBe('a b');
-    expect(htmlToText('<p>a</p><!-- x < y --><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!-- x < y --><p>b</p>')).toBe('a\n\nb');
     expect(htmlToText('<?xml version="1.0" encoding="UTF-8"?><p>Text</p>')).toBe('Text');
     expect(htmlToText('&lt;!-- x &lt; y --&gt;&lt;p&gt;Text&lt;/p&gt;')).toBe('Text');
   });

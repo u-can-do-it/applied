@@ -44,7 +44,7 @@ describe('the page', () => {
 
   it("reads the <main>, else the <article>, as text; a tag left open doesn't lose it", () => {
     expect(mainText('<nav>Menu</nav><main class="x"><h1>Dev</h1><p>We need <b>you</b>.</p></main>')).toBe(
-      'Dev\nWe need you .',
+      'Dev\n\nWe need you .',
     );
     expect(mainText('<body><article><p>Only an article</p></article></body>')).toBe('Only an article');
     expect(mainText('<body><main><p>Hi<li>React</main></body>')).toBe('Hi\n• React');
