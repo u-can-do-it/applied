@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GHOST_AFTER_DAYS,
   isActive,
   isInProcess,
   isPositive,
@@ -14,9 +15,11 @@ import {
   OFFER_LABELS,
   outcomeOf,
   outcomeHeading,
+  outcomeHint,
   outcomeLabel,
   outcomesFor,
   passedBefore,
+  POOL_GHOST_AFTER_DAYS,
   stats,
   withStatus,
   type HistoryEntry,
@@ -52,6 +55,14 @@ describe('stage and state names', () => {
     expect(states.map((outcome) => outcome.id)).toEqual(OUTCOMES.map((outcome) => outcome.id));
     expect(isOutcome('pool')).toBe(false);
     expect(TALENT_POOL.hint).toMatch(/CV do bazy/);
+  });
+
+  it('Ghosted says what it means: a silent no, set by the app after GHOST_AFTER_DAYS; the others need no hint', () => {
+    const hint = outcomeHint('ghosted');
+    expect(hint).toMatch(/silent no/);
+    expect(hint).toContain(`${GHOST_AFTER_DAYS} days`);
+    expect(hint).toContain(`${POOL_GHOST_AFTER_DAYS} in the talent pool`);
+    for (const outcome of OUTCOMES) if (outcome.id !== 'ghosted') expect(outcomeHint(outcome.id)).toBeUndefined();
   });
 
   it('outcomeLabel names the outcome at that stage; outcomeHeading is its name as a heading', () => {

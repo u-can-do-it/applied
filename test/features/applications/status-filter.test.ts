@@ -1,7 +1,15 @@
 import { expect, it } from 'vitest';
 import type { Application } from '@/lib/applications';
-import { outcomeLabel, stageOf, type HistoryEntry, type OutcomeId, type StageId } from '@/lib/stages';
-import { cellId, filterOf, TILES, TOTAL, TOTAL_HEADING } from '@/features/applications/status-filter';
+import { outcomeHint, outcomeLabel, stageOf, type HistoryEntry, type OutcomeId, type StageId } from '@/lib/stages';
+import {
+  cellId,
+  filterOf,
+  TILES,
+  tileTitle,
+  TOTAL,
+  TOTAL_HEADING,
+  type TileId,
+} from '@/features/applications/status-filter';
 
 const app = (stage: StageId, outcome: OutcomeId, history: HistoryEntry[] = []) =>
   ({ stage, outcome, history }) as unknown as Application;
@@ -23,6 +31,11 @@ it('a tile: its label, and its applications by the last status', () => {
   expect(filterOf('process')?.test(app('submitted', 'pending'))).toBe(false);
   expect(filterOf('unanswered')?.test(app('submitted', 'pending'))).toBe(true);
   expect(filterOf('unanswered')?.test(app('hr', 'passed'))).toBe(false);
+});
+
+it('a tile’s tooltip: Ghosted’s name with what it counts (the outcome’s hint); the others have none', () => {
+  expect(tileTitle('ghosted')).toBe(`${TILES.ghosted.label}: ${outcomeHint('ghosted')}`);
+  for (const id of Object.keys(TILES) as TileId[]) if (id !== 'ghosted') expect(tileTitle(id)).toBeUndefined();
 });
 
 it('a funnel bar: the stage the last status is at', () => {

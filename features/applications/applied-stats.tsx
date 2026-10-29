@@ -20,7 +20,7 @@ import { Card } from '@/components/ui/card';
 import { isRentADev, RENT_A_DEV } from '@/features/offers/rent-a-dev';
 import { Funnel } from './funnel';
 import { StageTable } from './stage-table';
-import { TILES, type TileId } from './status-filter';
+import { TILES, tileTitle, type TileId } from './status-filter';
 import { useTileOrder, writeTileOrder } from './tile-order';
 
 const LEASING = 'leasing';
@@ -80,6 +80,7 @@ export function AppliedStats({
           type="button"
           className="flex h-full flex-col items-start px-2.5 py-1.5 text-left focus-visible:outline-offset-[-2px]"
           aria-pressed={tile.id ? on(tile.id) : undefined}
+          title={tile.id ? tileTitle(tile.id) : undefined}
           onClick={() => (tile.id ? pick(tile.id) : setFilter(null))}
         >
           <span className="text-[17px] leading-[1.2] font-bold tabular-nums">{tile.value}</span>

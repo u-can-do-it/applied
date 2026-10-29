@@ -7,6 +7,7 @@ import {
   isStage,
   isUnanswered,
   outcomeAt,
+  outcomeHint,
   outcomeLabel,
   outcomesFor,
   reached,
@@ -21,7 +22,8 @@ import {
 // rejected…), a stage from the funnel (hr), or from the table a stage and how it went there
 // (hr-failed) or all that got to it (hr-total).
 
-export type Filter = { id: string; label: string; test: (app: Application) => boolean };
+/** hint: what it counts, where the label doesn't say (Ghosted: a silent no); shown as the tile's title (tileTitle) */
+export type Filter = { id: string; label: string; hint?: string; test: (app: Application) => boolean };
 
 /** the tiles (Sent shows them all) */
 export const TILES = {
@@ -30,10 +32,16 @@ export const TILES = {
   offers: { label: 'Offers', test: (app) => app.stage === 'offer' },
   positive: { label: 'Positive replies', test: isPositive },
   rejected: { label: 'Rejected', test: isRejected },
-  ghosted: { label: 'Ghosted', test: (app) => app.outcome === 'ghosted' },
+  ghosted: { label: 'Ghosted', hint: outcomeHint('ghosted'), test: (app) => app.outcome === 'ghosted' },
   pool: { label: TALENT_POOL.label, test: (app) => app.talentPool },
 } satisfies Record<string, Omit<Filter, 'id'>>;
 export type TileId = keyof typeof TILES;
+
+/** A tile's tooltip (title): its name and what it counts, for the ones whose name doesn't say (Ghosted). */
+export function tileTitle(id: TileId): string | undefined {
+  const tile: Omit<Filter, 'id'> = TILES[id];
+  return tile.hint ? `${tile.label}: ${tile.hint}` : undefined;
+}
 
 /** the stage table's column of all that got to a stage */
 export const TOTAL = 'total';

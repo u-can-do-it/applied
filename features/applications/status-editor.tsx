@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckIcon } from 'lucide-react';
-import { reached, STAGES, outcomesFor, TALENT_POOL, type StageId, type OutcomeId } from '@/lib/stages';
+import { reached, STAGES, outcomeHint, outcomesFor, TALENT_POOL, type StageId, type OutcomeId } from '@/lib/stages';
 import { cn } from '@/lib/shared/cn';
 import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -91,11 +91,19 @@ export function StatusEditor({
           value={app.outcome}
           onValueChange={(outcome) => outcome && onStatus(app.stage, outcome as OutcomeId)}
         >
-          {outcomesFor(app.stage).map((outcome) => (
-            <ToggleGroupItem key={outcome.id} value={outcome.id} className={cn(STEP, OUTCOME_ON[outcome.id])}>
-              {outcome.label}
-            </ToggleGroupItem>
-          ))}
+          {outcomesFor(app.stage).map((outcome) => {
+            const hint = outcomeHint(outcome.id);
+            return (
+              <ToggleGroupItem
+                key={outcome.id}
+                value={outcome.id}
+                title={hint ? `${outcome.label}: ${hint}` : outcome.label}
+                className={cn(STEP, OUTCOME_ON[outcome.id])}
+              >
+                {outcome.label}
+              </ToggleGroupItem>
+            );
+          })}
         </ToggleGroup>
         <span className="mx-1 h-4 w-px bg-border" aria-hidden />
         <Toggle

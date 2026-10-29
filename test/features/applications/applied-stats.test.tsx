@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import type { ListedApplication } from '@/lib/applications';
 import { AppliedStats } from '@/features/applications/applied-stats';
 import { RENT_A_DEV } from '@/features/offers/rent-a-dev';
+import { TILES, tileTitle } from '@/features/applications/status-filter';
 
 afterEach(cleanup);
 
@@ -30,4 +31,11 @@ it('counts Rent-a-dev / normal in a last tile that is no filter', () => {
   expect(tile?.querySelector('button')).toBeNull();
   // the last of the tiles
   expect(tile?.parentElement?.lastElementChild).toBe(tile);
+});
+
+it('the Ghosted tile says what it counts (its title); the others’ names say it', () => {
+  render(<AppliedStats apps={[app(null)]} filter={null} setFilter={vi.fn()} />);
+  const tile = (label: string) => screen.getByRole('button', { name: new RegExp(label) });
+  expect(tile(TILES.ghosted.label).getAttribute('title')).toBe(tileTitle('ghosted'));
+  expect(tile(TILES.rejected.label).getAttribute('title')).toBeNull();
 });

@@ -20,11 +20,23 @@ export const STAGES = [
   { id: 'offer', label: 'Offer', short: 'Offer' },
 ] as const;
 
+/** No news this long since the last status change: ghosted (lib/db/repos/applications.ts, ghostStale). */
+export const GHOST_AFTER_DAYS = 30;
+/** …and this long for one in the talent pool (TALENT_POOL). */
+export const POOL_GHOST_AFTER_DAYS = 365;
+
+// Ghosted is a silent no: they went quiet. The app sets it by itself after GHOST_AFTER_DAYS without
+// news (ghostStale), which is why it isn't Rejected: nobody said no, and they may yet get back to you
+// (an automatic one is taken back like any step). Its hint says so where it's picked and counted.
 export const OUTCOMES = [
   { id: 'pending', label: 'In progress' },
   { id: 'passed', label: 'Passed' },
   { id: 'failed', label: 'Rejected' },
-  { id: 'ghosted', label: 'Ghosted' },
+  {
+    id: 'ghosted',
+    label: 'Ghosted',
+    hint: `a silent no, they went quiet; the app sets it by itself after ${GHOST_AFTER_DAYS} days without news (${POOL_GHOST_AFTER_DAYS} in the talent pool)`,
+  },
 ] as const;
 
 /**
@@ -43,10 +55,6 @@ export type OutcomeId = (typeof OUTCOMES)[number]['id'];
 // auto: set by the app (ghosted after a month, or passed as you got to a later stage: passedBefore)
 export type HistoryEntry = { stage: StageId; state: OutcomeId; at: string; auto?: boolean };
 
-/** No news this long since the last status change: ghosted (lib/db/repos/applications.ts, ghostStale). */
-export const GHOST_AFTER_DAYS = 30;
-/** …and this long for one in the talent pool (TALENT_POOL). */
-export const POOL_GHOST_AFTER_DAYS = 365;
 export type WithStatus = { stage: StageId; outcome: OutcomeId; history: HistoryEntry[] };
 
 // The Offer stage has outcomes of its own: received (still deciding), accepted, rejected. It's
@@ -93,6 +101,12 @@ export const isOutcome = (value: unknown): value is OutcomeId => OUTCOMES.some((
 export const stageOf = (id: StageId) => STAGES.find((stage) => stage.id === id)!;
 export const outcomeOf = (id: OutcomeId) => OUTCOMES.find((outcome) => outcome.id === id)!;
 /* eslint-enable @typescript-eslint/no-non-null-assertion */
+
+/** What an outcome means, where its name doesn't say it (Ghosted): its tooltip, as a stage's hint is. */
+export const outcomeHint = (id: OutcomeId): string | undefined => {
+  const outcome = outcomeOf(id);
+  return 'hint' in outcome ? outcome.hint : undefined;
+};
 
 /** Every stage this application has been at (always including "submitted"). */
 export function reached(app: WithStatus): Set<StageId> {
