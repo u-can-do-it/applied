@@ -1,4 +1,5 @@
-// pracuj.pl: its listing: lib/listings/parsers/pracuj.ts; its ads: the page's JobPosting.
+// pracuj.pl: its listing: lib/listings/parsers/pracuj.ts; its ads: lib/ads/grupa-pracuj.ts (the page's JobPosting,
+// its salaries from the page's data, as The Protocol's).
 import { pathOf } from './links.ts';
 import type { ScrapedBoard } from './types.ts';
 

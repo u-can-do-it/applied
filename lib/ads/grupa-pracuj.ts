@@ -1,13 +1,14 @@
 import 'server-only';
 import { parsePage, scriptById, type Page } from '../dom';
-import { arr, isObj, str, type Obj } from '../listings/extract';
+import { arr, isObj, nameOf, str, type Obj } from '../listings/extract';
 import { money, unique, type Ad, type AdReader } from './details';
 import { get } from './fetch';
 import { findJobPosting, fromJobPosting } from './job-posting';
 
-// The Protocol: the page's JobPosting, as for any board; but its salary is one range for all the contracts,
-// without the period or whether it's gross, so the salaries (and so the contracts) come from the page's
-// __NEXT_DATA__ (offer.attributes.employment.typesOfContracts), one a contract, as the page shows them.
+// Grupa Pracuj's boards, The Protocol and Pracuj.pl: the page's JobPosting, as for any board; but its salary is
+// one range for all the contracts, without the period or whether it's gross ("16 000–19 000 PLN" for a job also
+// paying 90–125 PLN / hour on B2B), so the salaries (and so the contracts) come from the page's __NEXT_DATA__
+// (the offer's attributes.employment.typesOfContracts), one a contract, as the page shows them.
 
 /** Its contracts' names, in the ad's language ("umowa o pracę", "kontrakt B2B"…): ours, and the salary's note. */
 const CONTRACTS: [RegExp, string, string][] = [
@@ -33,12 +34,12 @@ const contractOf = (name: string) => {
   return known ? { name: known[1], note: known[2] } : { name, note: name };
 };
 
+// The Protocol's forms are words ("mies."), Pracuj.pl's are { name: "mies." }; its id on the salary, or on its unit
 const periodOf = (salary: Obj) => {
-  const unit = isObj(salary.timeUnit) ? `${str(salary.timeUnit.shortForm)} ${str(salary.timeUnit.longForm)}` : '';
-  return (
-    PERIODS.find(([pattern]) => pattern.test(unit))?.[1] ??
-    (typeof salary.timeUnitId === 'number' ? PERIOD_IDS[salary.timeUnitId] : undefined)
-  );
+  const timeUnit = isObj(salary.timeUnit) ? salary.timeUnit : {};
+  const unit = `${nameOf(timeUnit.shortForm)} ${nameOf(timeUnit.longForm)}`;
+  const id = salary.timeUnitId ?? timeUnit.id;
+  return PERIODS.find(([pattern]) => pattern.test(unit))?.[1] ?? (typeof id === 'number' ? PERIOD_IDS[id] : undefined);
 };
 
 /** "brutto" → "gross", "netto (+ VAT)" → "net + VAT". */
@@ -56,9 +57,14 @@ function salaryOf(salary: unknown, contract: string) {
         ? `${from === null ? 'up to ' : ''}${money(from ?? to)}`
         : '';
   if (!range) return undefined;
-  const currency = str(salary.currencyCode) || str(salary.currencySymbol);
+  // The Protocol's on the salary (currencyCode, kindCode), Pracuj.pl's in objects (currency.code, salaryKind.name)
+  const currency =
+    str(salary.currencyCode) ||
+    str(salary.currencySymbol) ||
+    (isObj(salary.currency) ? str(salary.currency.code) || str(salary.currency.symbol) : '');
+  const kind = str(salary.kindCode) || str(salary.kindName) || nameOf(salary.salaryKind);
   const period = periodOf(salary);
-  return [range, CURRENCIES[currency] ?? currency, kindOf(str(salary.kindCode) || str(salary.kindName))]
+  return [range, CURRENCIES[currency] ?? currency, kindOf(kind)]
     .filter(Boolean)
     .join(' ')
     .concat(period ? ` / ${period}` : '', ` (${contract})`)
@@ -73,7 +79,14 @@ function contractsOf(page: Page): { salary?: string; contract?: string } {
   } catch {
     // not JSON: nothing in it
   }
-  const offer = isObj(data) && isObj(data.props) && isObj(data.props.pageProps) ? data.props.pageProps.offer : null;
+  const props = isObj(data) && isObj(data.props) && isObj(data.props.pageProps) ? data.props.pageProps : {};
+  // The Protocol's: the page's offer; Pracuj.pl's: the data of its dehydrated query that has the offer's attributes
+  const queries = isObj(props.dehydratedState) ? arr(props.dehydratedState.queries) : [];
+  const offer =
+    props.offer ??
+    queries
+      .map((query) => (isObj(query) && isObj(query.state) ? query.state.data : null))
+      .find((found) => isObj(found) && isObj(found.attributes));
   const attributes = isObj(offer) && isObj(offer.attributes) ? offer.attributes : {};
   const employment = isObj(attributes.employment) ? attributes.employment : {};
   const contracts = arr(employment.typesOfContracts)
@@ -86,7 +99,7 @@ function contractsOf(page: Page): { salary?: string; contract?: string } {
   };
 }
 
-export const readTheprotocol: AdReader = async ({ url }) => {
+export const readGrupaPracuj: AdReader = async ({ url }) => {
   const page = parsePage(await (await get(url, 'text/html')).text());
   const jp = findJobPosting(page);
   const ad: Ad = jp ? fromJobPosting(jp) : { text: '', details: {} };
