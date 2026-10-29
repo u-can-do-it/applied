@@ -20,11 +20,12 @@ function list(offers: Outgoing[]) {
 /**
  * One notification for the whole batch: how many new offers, the ones worth a look named (all of
  * them without the AI filter, its matches with it, and what it couldn't check), the rest counted.
- * Null when there's nothing in it.
+ * Null when there's nothing in it, or nothing worth a look: a batch the AI matched none of (or none
+ * at the notifications' minimum fit) doesn't buzz the phone; Telegram still counts it.
  */
 export function formatPush(batch: Batch): PushPayload | null {
   const total = offersOf(batch).length;
-  if (!total) return null;
+  if (!total || (batch.profile !== null && !batch.matched.length && !batch.unchecked.length)) return null;
   const lines: string[] = [];
   let title = plural(total, 'new offer');
   if (batch.profile === null) lines.push(list(batch.matched));
@@ -32,7 +33,7 @@ export function formatPush(batch: Batch): PushPayload | null {
     if (batch.matched.length) {
       title = `${title}, ${batch.matched.length} matching “${batch.profile}”`;
       lines.push(list(batch.matched));
-    } else if (!batch.unchecked.length) lines.push('No matches.');
+    }
     if (batch.unchecked.length) lines.push(`Not checked by the AI: ${list(batch.unchecked)}`);
   }
   if (batch.held) lines.push('Held while muted.');

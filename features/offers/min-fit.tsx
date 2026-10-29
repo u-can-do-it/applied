@@ -1,13 +1,14 @@
 'use client';
 
-import { useId, useOptimistic, useState } from 'react';
+import { useId, useOptimistic, useRef, useState } from 'react';
 import { XIcon } from 'lucide-react';
 import { ActionError, useAction } from '@/components/use-action';
 import { cn } from '@/lib/shared/cn';
 import { setMinFitAction } from './actions';
 
 // The list's minimum AI fit (lib/listings/settings.ts minFit), next to the AI fit chips: a setting, not
-// part of the URL, so it stays while you filter and page, until you clear it here.
+// part of the URL, so it stays while you filter and page, until you clear it here. A number typed is
+// saved with Enter, Hide, or by leaving the box.
 
 const BOX = 'flex items-center gap-1.5 text-[13px] text-muted-foreground';
 const PILL = 'inline-flex h-7 items-center rounded-full border px-2.5 text-[13px]';
@@ -17,11 +18,17 @@ export function MinFit({ minFit }: { minFit: number }) {
   const { busy, error, run } = useAction();
   const [shown, setShown] = useOptimistic(minFit);
   const [text, setText] = useState('');
+  const sent = useRef<string | null>(null); // the text last saved, so leaving the box again (or Hide) doesn't save it twice
   const save = (value: number) =>
     run(
       () => setMinFitAction({ minFit: value }),
       () => setShown(value),
     );
+  const commit = () => {
+    if (!text.trim() || text === sent.current) return;
+    sent.current = text;
+    save(Number(text));
+  };
 
   return (
     <div className={BOX} aria-busy={busy || undefined}>
@@ -47,7 +54,7 @@ export function MinFit({ minFit }: { minFit: number }) {
           noValidate // the action's schema says what's wrong ("A fit is 0–100%."), as the Settings forms do
           onSubmit={(event) => {
             event.preventDefault();
-            if (text.trim()) save(Number(text));
+            commit();
           }}
         >
           <label htmlFor={id}>Hide under</label>
@@ -60,7 +67,11 @@ export function MinFit({ minFit }: { minFit: number }) {
             step={5}
             placeholder="50"
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              setText(event.target.value);
+              sent.current = null;
+            }}
+            onBlur={commit}
             className={cn(PILL, 'w-16 bg-card text-foreground placeholder:text-muted-foreground/60')}
           />
           %

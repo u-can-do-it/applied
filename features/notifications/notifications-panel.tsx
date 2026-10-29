@@ -198,7 +198,8 @@ function NotifyMinFit({ minFit, run }: { minFit: number; run: ReturnType<typeof 
         </Button>
       )}
       <span className="basis-full text-xs text-muted-foreground">
-        The ones under it are only counted in the message. Empty or 0: every match is sent.
+        The ones under it are only counted in Telegram’s message, and a push comes only when one is at it. Empty or 0:
+        every match is sent.
       </span>
     </form>
   );
