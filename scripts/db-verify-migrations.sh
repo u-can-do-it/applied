@@ -163,9 +163,13 @@ ADDED_KINDS='ats'
 # the ingest, the view and the pairs again, and its new index): their entries are left out of the comparison; (b)
 # checks them against a fresh database's
 REDEFINED='jw_dup_key[(]|offers_unique;|jw_merge_jobs[(]|ai_dup_candidates[(]|jw_ingest_offers[(]|offers_job_key_idx;'
+# check constraints a later migration defines anew (0030_online_test_stage: the stages, 0031_talent_pool_mark and
+# 0032_withdrawn_outcome: the outcomes): their lines are left out of their tables' entries; (b) checks them against
+# a fresh database's
+REDEFINED_CHECKS='applications_stage_check|applications_stage_state_check'
 entries_without_dropped_functions() {
   awk -v names="$DROPPED_FUNCTIONS" -v tables="$ADDED_TABLES" -v columns="$ADDED_COLUMNS" -v boards="$ADDED_BOARDS" \
-    -v kinds="$ADDED_KINDS" -v redefined="$REDEFINED" '
+    -v kinds="$ADDED_KINDS" -v redefined="$REDEFINED" -v checks="$REDEFINED_CHECKS" '
     function flush() { if (entry != "" && !skip) print entry; entry = "" }
     /^-- Name: / {
       flush()
@@ -178,6 +182,7 @@ entries_without_dropped_functions() {
     }
     # comments, blank lines, and the SETs pg_dump puts before whichever entry comes before the first table
     /^--/ || /^$/ || /^SET default_table/ { next }
+    $1 == "CONSTRAINT" && $2 ~ ("^(" checks ")$") { next }
     table != "" {
       column = $1
       gsub(/"/, "", column)

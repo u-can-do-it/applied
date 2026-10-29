@@ -7,6 +7,7 @@ import {
   isStage,
   isUnanswered,
   outcomeAt,
+  outcomeHeading,
   outcomeHint,
   outcomeLabel,
   outcomesFor,
@@ -33,11 +34,16 @@ export const TILES = {
   positive: { label: 'Positive replies', test: isPositive },
   rejected: { label: 'Rejected', test: isRejected },
   ghosted: { label: 'Ghosted', hint: outcomeHint('ghosted'), test: (app) => app.outcome === 'ghosted' },
+  withdrawn: {
+    label: outcomeHeading('withdrawn'),
+    hint: outcomeHint('withdrawn'),
+    test: (app) => app.outcome === 'withdrawn',
+  },
   pool: { label: TALENT_POOL.label, test: (app) => app.talentPool },
 } satisfies Record<string, Omit<Filter, 'id'>>;
 export type TileId = keyof typeof TILES;
 
-/** A tile's tooltip (title): its name and what it counts, for the ones whose name doesn't say (Ghosted). */
+/** A tile's tooltip (title): its name and what it counts, for the ones whose name doesn't say (Ghosted, Withdrawn). */
 export function tileTitle(id: TileId): string | undefined {
   const tile: Omit<Filter, 'id'> = TILES[id];
   return tile.hint ? `${tile.label}: ${tile.hint}` : undefined;

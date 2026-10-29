@@ -11,7 +11,7 @@ export const STAGES = [
     id: 'invited',
     label: 'Initial contact',
     short: 'Initial contact',
-    hint: 'they got back to you: a call, a message, an invitation',
+    hint: 'they got back to you, with no next step named yet (a call, a message); an invitation to a screening, a test or an interview is that stage, and this one is then marked passed by itself; a plain no with no talk before it stays at Submitted, as Rejected',
   },
   { id: 'screening', label: 'Screening', short: 'Screening', hint: 'a screening call' },
   { id: 'test', label: 'Online test', short: 'Online test', hint: 'an online test or a task' },
@@ -27,7 +27,9 @@ export const POOL_GHOST_AFTER_DAYS = 365;
 
 // Ghosted is a silent no: they went quiet. The app sets it by itself after GHOST_AFTER_DAYS without
 // news (ghostStale), which is why it isn't Rejected: nobody said no, and they may yet get back to you
-// (an automatic one is taken back like any step). Its hint says so where it's picked and counted.
+// (an automatic one is taken back like any step). Withdrawn is your own no: you pulled out, or turned
+// the offer down. Never set by the app, never ghosted, not counted as rejected. Their hints say so where
+// they're picked and counted.
 export const OUTCOMES = [
   { id: 'pending', label: 'In progress' },
   { id: 'passed', label: 'Passed' },
@@ -36,6 +38,11 @@ export const OUTCOMES = [
     id: 'ghosted',
     label: 'Ghosted',
     hint: `a silent no, they went quiet; the app sets it by itself after ${GHOST_AFTER_DAYS} days without news (${POOL_GHOST_AFTER_DAYS} in the talent pool)`,
+  },
+  {
+    id: 'withdrawn',
+    label: 'Withdrawn',
+    hint: 'your own no: you pulled out, or turned the offer down; not counted as rejected, never ghosted',
   },
 ] as const;
 
@@ -57,12 +64,14 @@ export type HistoryEntry = { stage: StageId; state: OutcomeId; at: string; auto?
 
 export type WithStatus = { stage: StageId; outcome: OutcomeId; history: HistoryEntry[] };
 
-// The Offer stage has outcomes of its own: received (still deciding), accepted, rejected. It's
-// never "ghosted": the decision is yours. Same ids underneath (pending / passed / failed).
+// The Offer stage names its outcomes its own way: received (still deciding), accepted, taken back
+// (they withdrew it: their no, as Rejected is elsewhere) and declined (yours: Withdrawn). It's never
+// "ghosted": the decision is yours. Same ids underneath (pending / passed / failed / withdrawn).
 export const OFFER_LABELS: Partial<Record<OutcomeId, string>> = {
   pending: 'Received',
   passed: 'Accepted',
-  failed: 'Rejected',
+  failed: 'Taken back',
+  withdrawn: 'Declined',
 };
 
 /** The outcomes a stage can have, by their name there. */
@@ -86,11 +95,10 @@ export const isActive = (app: { stage: StageId; outcome: OutcomeId }) =>
 export const isInProcess = (app: { stage: StageId; outcome: OutcomeId }) => app.stage !== 'submitted' && isActive(app);
 /** Sent, no answer yet (ghosted after GHOST_AFTER_DAYS). With isInProcess, that's all of isActive. */
 export const isUnanswered = (app: { stage: StageId; outcome: OutcomeId }) => app.stage === 'submitted' && isActive(app);
-/** They said no (an offer you turned down isn't that). */
-export const isRejected = (app: { stage: StageId; outcome: OutcomeId }) =>
-  app.outcome === 'failed' && app.stage !== 'offer';
+/** They said no, at any stage: an offer they took back too. Your own no is Withdrawn, not this. */
+export const isRejected = (app: { outcome: OutcomeId }) => app.outcome === 'failed';
 /**
- * They got back to you and it's still good: past Submitted and going on, or an offer (taken or not).
+ * They got back to you and it's still good: past Submitted and going on, or an offer (whatever became of it).
  * By the last status only: rejected or ghosted after an interview isn't.
  */
 export const isPositive = (app: { stage: StageId; outcome: OutcomeId }) => app.stage === 'offer' || isInProcess(app);
@@ -180,6 +188,7 @@ export type Stats = {
   unanswered: number; // sent, no answer yet (isUnanswered)
   rejected: number; // they said no (isRejected)
   ghosted: number;
+  withdrawn: number; // your own no (Withdrawn): you pulled out, or declined an offer
   pool: number; // marked "in the talent pool" (TALENT_POOL), whatever their status
   /** how many are at each stage now (their last status) */
   now: { stage: StageId; count: number }[];
@@ -197,6 +206,7 @@ export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
     unanswered = 0,
     rejected = 0,
     ghosted = 0,
+    withdrawn = 0,
     pool = 0;
   for (const app of apps) {
     for (const stage of reached(app)) {
@@ -209,6 +219,7 @@ export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
     else if (isUnanswered(app)) unanswered++;
     else if (isRejected(app)) rejected++;
     else if (app.outcome === 'ghosted') ghosted++;
+    else if (app.outcome === 'withdrawn') withdrawn++;
     if (app.talentPool) pool++;
   }
   return {
@@ -219,6 +230,7 @@ export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
     unanswered,
     rejected,
     ghosted,
+    withdrawn,
     pool,
     now: STAGES.map((stage) => ({ stage: stage.id, count: now[stage.id] })),
     byStage,

@@ -47,6 +47,7 @@ describe('stage and state names', () => {
       { id: 'pending', label: OFFER_LABELS.pending },
       { id: 'passed', label: OFFER_LABELS.passed },
       { id: 'failed', label: OFFER_LABELS.failed },
+      { id: 'withdrawn', label: OFFER_LABELS.withdrawn },
     ]);
   });
 
@@ -57,12 +58,14 @@ describe('stage and state names', () => {
     expect(TALENT_POOL.hint).toMatch(/CV do bazy/);
   });
 
-  it('Ghosted says what it means: a silent no, set by the app after GHOST_AFTER_DAYS; the others need no hint', () => {
-    const hint = outcomeHint('ghosted');
-    expect(hint).toMatch(/silent no/);
-    expect(hint).toContain(`${GHOST_AFTER_DAYS} days`);
-    expect(hint).toContain(`${POOL_GHOST_AFTER_DAYS} in the talent pool`);
-    for (const outcome of OUTCOMES) if (outcome.id !== 'ghosted') expect(outcomeHint(outcome.id)).toBeUndefined();
+  it('Ghosted and Withdrawn say what they mean: a silent no set by the app, your own no; the others need no hint', () => {
+    const ghosted = outcomeHint('ghosted');
+    expect(ghosted).toMatch(/silent no/);
+    expect(ghosted).toContain(`${GHOST_AFTER_DAYS} days`);
+    expect(ghosted).toContain(`${POOL_GHOST_AFTER_DAYS} in the talent pool`);
+    expect(outcomeHint('withdrawn')).toMatch(/your own no/);
+    const hinted: OutcomeId[] = ['ghosted', 'withdrawn'];
+    for (const outcome of OUTCOMES) if (!hinted.includes(outcome.id)) expect(outcomeHint(outcome.id)).toBeUndefined();
   });
 
   it('outcomeLabel names the outcome at that stage; outcomeHeading is its name as a heading', () => {
@@ -91,6 +94,7 @@ describe('isActive / isInProcess / isUnanswered / isRejected', () => {
     expect(isActive(app('technical', 'passed'))).toBe(true);
     expect(isActive(app('technical', 'failed'))).toBe(false);
     expect(isActive(app('hr', 'ghosted'))).toBe(false);
+    expect(isActive(app('screening', 'withdrawn'))).toBe(false);
     expect(isActive(app('screening', 'pending', [], true))).toBe(true); // the talent pool is a mark
   });
 
@@ -98,6 +102,7 @@ describe('isActive / isInProcess / isUnanswered / isRejected', () => {
     expect(isActive(app('offer', 'pending'))).toBe(true);
     expect(isActive(app('offer', 'passed'))).toBe(false);
     expect(isActive(app('offer', 'failed'))).toBe(false);
+    expect(isActive(app('offer', 'withdrawn'))).toBe(false);
   });
 
   it('active = in a recruitment process (past Submitted) or no answer yet (at Submitted)', () => {
@@ -118,14 +123,17 @@ describe('isActive / isInProcess / isUnanswered / isRejected', () => {
     expect(isPositive(app('submitted', 'passed'))).toBe(false);
     expect(isPositive(app('hr', 'failed', [step('hr', 'passed')]))).toBe(false);
     expect(isPositive(app('technical', 'ghosted'))).toBe(false);
-    for (const outcome of ['pending', 'passed', 'failed'] as const)
+    for (const outcome of ['pending', 'passed', 'failed', 'withdrawn'] as const)
       expect(isPositive(app('offer', outcome))).toBe(true);
+    expect(isPositive(app('screening', 'withdrawn'))).toBe(false);
   });
 
-  it('rejected = they said no; an offer you turned down is not that', () => {
+  it('rejected = they said no, an offer they took back too; your own no (Withdrawn) is not that', () => {
     expect(isRejected(app('hr', 'failed'))).toBe(true);
     expect(isRejected(app('submitted', 'failed'))).toBe(true);
-    expect(isRejected(app('offer', 'failed'))).toBe(false);
+    expect(isRejected(app('offer', 'failed'))).toBe(true); // taken back
+    expect(isRejected(app('offer', 'withdrawn'))).toBe(false); // you declined
+    expect(isRejected(app('screening', 'withdrawn'))).toBe(false);
     expect(isRejected(app('hr', 'ghosted'))).toBe(false);
   });
 });
@@ -179,6 +187,7 @@ describe('stats', () => {
       unanswered: 0,
       rejected: 0,
       ghosted: 0,
+      withdrawn: 0,
       pool: 0,
     });
     expect(totals.now).toEqual(STAGES.map((stage) => ({ stage: stage.id, count: 0 })));
@@ -197,34 +206,39 @@ describe('stats', () => {
       app('hr', 'ghosted'),
       app('offer', 'pending'),
       app('offer', 'passed'),
-      app('offer', 'failed'), // you turned it down
+      app('offer', 'failed'), // they took it back
+      app('offer', 'withdrawn'), // you declined it
+      app('screening', 'withdrawn'), // you pulled out
     ];
     const totals = stats(apps);
-    expect(totals.sent).toBe(11);
-    expect(totals.positive).toBe(6); // invited/pending, screening/pending, technical/passed and the offers
-    expect(totals.offers).toBe(3);
+    expect(totals.sent).toBe(13);
+    expect(totals.positive).toBe(7); // invited/pending, screening/pending, technical/passed and the offers
+    expect(totals.offers).toBe(4);
     expect(totals.inProcess).toBe(4); // invited/pending, screening/pending, technical/passed, offer/pending
     expect(totals.unanswered).toBe(1); // submitted/pending
-    expect(totals.rejected).toBe(2);
+    expect(totals.rejected).toBe(3); // the offer taken back too
     expect(totals.ghosted).toBe(2);
+    expect(totals.withdrawn).toBe(2); // the offer declined too
     expect(totals.pool).toBe(1); // a mark: in a bucket of its status too
-    // a decided offer is in none of the buckets
-    expect(totals.inProcess + totals.unanswered + totals.rejected + totals.ghosted).toBe(totals.sent - 2);
+    // an accepted offer is in none of the buckets
+    expect(totals.inProcess + totals.unanswered + totals.rejected + totals.ghosted + totals.withdrawn).toBe(
+      totals.sent - 1,
+    );
     expect(totals.now).toEqual([
       { stage: 'submitted', count: 3 },
       { stage: 'invited', count: 1 },
-      { stage: 'screening', count: 1 },
+      { stage: 'screening', count: 2 },
       { stage: 'test', count: 0 },
       { stage: 'technical', count: 2 },
       { stage: 'hr', count: 1 },
-      { stage: 'offer', count: 3 },
+      { stage: 'offer', count: 4 },
     ]);
     // the table: every stage each one got to; the ones past Submitted passed it, and Initial contact
-    expect(totals.byStage.submitted).toEqual({ pending: 1, passed: 8, failed: 1, ghosted: 1 });
-    expect(totals.byStage.invited).toEqual({ pending: 1, passed: 7, failed: 0, ghosted: 0 });
-    expect(totals.byStage.screening).toEqual({ pending: 1, passed: 0, failed: 0, ghosted: 0 });
-    expect(totals.byStage.technical).toEqual({ pending: 0, passed: 1, failed: 1, ghosted: 0 });
-    expect(totals.byStage.offer).toEqual({ pending: 1, passed: 1, failed: 1, ghosted: 0 });
+    expect(totals.byStage.submitted).toEqual({ pending: 1, passed: 10, failed: 1, ghosted: 1, withdrawn: 0 });
+    expect(totals.byStage.invited).toEqual({ pending: 1, passed: 9, failed: 0, ghosted: 0, withdrawn: 0 });
+    expect(totals.byStage.screening).toEqual({ pending: 1, passed: 0, failed: 0, ghosted: 0, withdrawn: 1 });
+    expect(totals.byStage.technical).toEqual({ pending: 0, passed: 1, failed: 1, ghosted: 0, withdrawn: 0 });
+    expect(totals.byStage.offer).toEqual({ pending: 1, passed: 1, failed: 1, ghosted: 0, withdrawn: 1 });
   });
 
   it('the tiles and the funnel go by where it is now; the table by the stages it got to', () => {

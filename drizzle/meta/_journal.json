@@ -225,6 +225,13 @@
       "when": 1793194345616,
       "tag": "0031_talent_pool_mark",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793282665202,
+      "tag": "0032_withdrawn_outcome",
+      "breakpoints": true
     }
   ]
 }

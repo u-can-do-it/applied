@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
 import { afterEach, expect, it, vi } from 'vitest';
 import { assessOffers, extractJob } from '@/lib/ai/openai';
@@ -330,6 +330,12 @@ describeDb('applications', () => {
     const migrate = sql.raw(readFileSync('drizzle/0031_talent_pool_mark.sql', 'utf8'));
     await exec(migrate);
     await exec(migrate);
+    // …and the ones after it (each runs twice unharmed), so the tests after this one meet today's schema:
+    // 0031's constraint has no Withdrawn (0032)
+    for (const file of readdirSync('drizzle')
+      .filter((name) => /^\d{4}_.*\.sql$/.test(name))
+      .sort())
+      if (Number(file.slice(0, 4)) > 31) await exec(sql.raw(readFileSync(`drizzle/${file}`, 'utf8')));
 
     const app = await getApplication(pool);
     expect(app).toMatchObject({ stage: 'screening', outcome: 'pending', talentPool: true });
@@ -350,9 +356,11 @@ describeDb('applications', () => {
     const recent = (await addApplication(typed('Recent'), utc)).jobId ?? '';
     const offer = (await addApplication(typed('Offer', { stage: 'offer', outcome: 'pending' }), utc)).jobId ?? '';
     const rejected = (await addApplication(typed('Rejected', { stage: 'hr', outcome: 'failed' }), utc)).jobId ?? '';
+    const withdrawn =
+      (await addApplication(typed('Withdrawn', { stage: 'screening', outcome: 'withdrawn' }), utc)).jobId ?? '';
     const old = sql`now() - interval '31 days'`;
     await exec(
-      sql`update public.applications set stage_updated_at = ${old} where dup_key in (${waiting}, ${offer}, ${rejected})`,
+      sql`update public.applications set stage_updated_at = ${old} where dup_key in (${waiting}, ${offer}, ${rejected}, ${withdrawn})`,
     );
     await exec(sql`update public.applications set stage_updated_at = now() where dup_key = ${recent}`);
 
@@ -363,6 +371,7 @@ describeDb('applications', () => {
     expect(app?.history.at(-1)).toMatchObject({ stage: 'submitted', state: 'ghosted', auto: true });
     expect((await getApplication(offer))?.outcome).toBe('pending');
     expect((await getApplication(rejected))?.outcome).toBe('failed');
+    expect((await getApplication(withdrawn))?.outcome).toBe('withdrawn'); // your own no: no answer awaited
   });
 
   it('ghosts one in the talent pool after a year, not a month', async () => {

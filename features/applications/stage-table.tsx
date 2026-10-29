@@ -55,7 +55,7 @@ export function StageTable({
                 />
               </TableCell>
               {OUTCOMES.map((outcome) => {
-                // an offer has its own outcomes (Received / Accepted / Rejected) and is never ghosted
+                // an offer has its own outcomes (Received / Accepted / Taken back / Declined) and is never ghosted
                 if (!outcomesFor(stage.id).some((possible) => possible.id === outcome.id))
                   return (
                     <TableCell key={outcome.id} className={cn(CELL, 'text-muted-foreground')}>

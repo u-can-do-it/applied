@@ -18,6 +18,7 @@ const OUTCOME_TEXT: Record<OutcomeId, string> = {
   passed: 'text-success',
   failed: 'text-destructive',
   ghosted: 'text-muted-foreground',
+  withdrawn: 'text-foreground',
 };
 
 /**

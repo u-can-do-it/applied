@@ -54,6 +54,7 @@ export function AppliedStats({
     { id: 'positive', value: counts.positive, sub: share(counts.positive), tone: 'good' },
     { id: 'rejected', value: counts.rejected, sub: share(counts.rejected), tone: 'bad' },
     { id: 'ghosted', value: counts.ghosted, sub: share(counts.ghosted), tone: 'bad' },
+    { id: 'withdrawn', value: counts.withdrawn, sub: share(counts.withdrawn), tone: '' }, // your call: neither
     { id: 'pool', value: counts.pool, sub: share(counts.pool), tone: 'bad' },
   ];
 

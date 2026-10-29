@@ -7,6 +7,7 @@ const OUTCOME_BADGE = {
   passed: 'success',
   failed: 'danger',
   ghosted: 'dashed',
+  withdrawn: 'outline',
 } as const satisfies Record<OutcomeId, string>;
 
 export function StatusChip({ stage, outcome }: { stage: StageId; outcome: OutcomeId }) {

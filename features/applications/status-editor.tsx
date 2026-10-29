@@ -20,6 +20,7 @@ const OUTCOME_ON: Record<OutcomeId, string> = {
     'data-[state=on]:border-destructive data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground',
   ghosted:
     'data-[state=on]:border-muted-foreground data-[state=on]:bg-muted-foreground data-[state=on]:text-background',
+  withdrawn: 'data-[state=on]:border-foreground data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground',
 };
 
 /**

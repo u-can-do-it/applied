@@ -33,9 +33,23 @@ it('a tile: its label, and its applications by the last status', () => {
   expect(filterOf('unanswered')?.test(app('hr', 'passed'))).toBe(false);
 });
 
-it('a tile’s tooltip: Ghosted’s name with what it counts (the outcome’s hint); the others have none', () => {
-  expect(tileTitle('ghosted')).toBe(`${TILES.ghosted.label}: ${outcomeHint('ghosted')}`);
-  for (const id of Object.keys(TILES) as TileId[]) if (id !== 'ghosted') expect(tileTitle(id)).toBeUndefined();
+it('a tile’s tooltip: Ghosted’s and Withdrawn’s name with what it counts (the outcome’s hint); the others have none', () => {
+  for (const id of ['ghosted', 'withdrawn'] as const)
+    expect(tileTitle(id)).toBe(`${TILES[id].label}: ${outcomeHint(id)}`);
+  for (const id of Object.keys(TILES) as TileId[])
+    if (id !== 'ghosted' && id !== 'withdrawn') expect(tileTitle(id)).toBeUndefined();
+});
+
+it('Withdrawn is your own no: its tile, not Rejected’s; an offer taken back is Rejected, one declined Withdrawn', () => {
+  expect(filterOf('withdrawn')?.test(app('screening', 'withdrawn'))).toBe(true);
+  expect(filterOf('withdrawn')?.test(app('offer', 'withdrawn'))).toBe(true);
+  expect(filterOf('rejected')?.test(app('screening', 'withdrawn'))).toBe(false);
+  expect(filterOf('rejected')?.test(app('offer', 'failed'))).toBe(true);
+  expect(filterOf('withdrawn')?.test(app('offer', 'failed'))).toBe(false);
+  expect(filterOf(cellId('offer', 'withdrawn'))?.label).toBe(
+    `${stageOf('offer').short} · ${outcomeLabel('offer', 'withdrawn')}`,
+  );
+  expect(filterOf(cellId('screening', 'withdrawn'))?.test(app('screening', 'withdrawn'))).toBe(true);
 });
 
 it('a funnel bar: the stage the last status is at', () => {

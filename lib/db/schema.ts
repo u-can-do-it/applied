@@ -144,7 +144,10 @@ export const applications = pgTable(
       'applications_stage_check',
       sql`stage in ('submitted', 'invited', 'screening', 'test', 'technical', 'hr', 'offer')`,
     ),
-    check('applications_stage_state_check', sql`stage_state in ('pending', 'passed', 'failed', 'ghosted')`),
+    check(
+      'applications_stage_state_check',
+      sql`stage_state in ('pending', 'passed', 'failed', 'ghosted', 'withdrawn')`,
+    ),
     check('applications_note_length', sql`length(note) <= 10000`),
   ],
 ).enableRLS();

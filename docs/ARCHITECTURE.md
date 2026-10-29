@@ -440,14 +440,16 @@ the entry says so (_stored as_): those names stay (production data and applied m
   full text), its status, its history and your note. _Stored as:_ `applications`, keyed by the job id.
 - **stage**: How far an application got: submitted, initial contact, screening, online test, technical, HR, offer
   (`STAGES`). _Stored as:_ `applications.stage`.
-- **outcome**: How the current stage went: in progress, passed, rejected, ghosted (`OUTCOMES`).
-  The offer stage names them received / accepted / rejected.
+- **outcome**: How the current stage went: in progress, passed, rejected, ghosted, withdrawn (`OUTCOMES`).
+  The offer stage names them received / accepted / taken back / declined, and has no ghosted.
   _Stored as:_ `applications.stage_state`; `state` in each history entry (jsonb).
 - **status**: An application's stage + outcome together (the history is the list of its statuses). Elsewhere,
   a record's stored lifecycle value: an AI run's `status`, an ad text's `contentStatus`, a scraper's
   `lastStatus`.
 - **ghosted**: No news for 30 days since the last change: the application's outcome becomes ghosted by itself
   (`GHOST_AFTER_DAYS`), marked "(auto)" in its history. A year (`POOL_GHOST_AFTER_DAYS`) in the talent pool.
+- **withdrawn**: Your own no: you pulled out, or declined an offer. Never set by the app, never ghosted, not
+  counted as rejected (rejected is theirs: a no at any stage, or an offer taken back).
 - **talent pool**: "We'll keep your CV": a mark on an application, not a status, set with its chip after the
   outcomes in its window, like Rent-a-dev; a badge by the status in the list (`TALENT_POOL`).
   _Stored as:_ `applications.talent_pool`.
