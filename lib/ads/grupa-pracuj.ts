@@ -1,7 +1,7 @@
 import 'server-only';
 import { parsePage, scriptById, type Page } from '../dom';
 import { arr, isObj, nameOf, str, type Obj } from '../listings/extract';
-import { money, unique, type Ad, type AdReader } from './details';
+import { contractOf, money, unique, type Ad, type AdReader } from './details';
 import { get } from './fetch';
 import { findJobPosting, fromJobPosting } from './job-posting';
 
@@ -10,15 +10,6 @@ import { findJobPosting, fromJobPosting } from './job-posting';
 // paying 90–125 PLN / hour on B2B), so the salaries (and so the contracts) come from the page's __NEXT_DATA__
 // (the offer's attributes.employment.typesOfContracts), one a contract, as the page shows them.
 
-/** Its contracts' names, in the ad's language ("umowa o pracę", "kontrakt B2B"…): ours, and the salary's note. */
-const CONTRACTS: [RegExp, string, string][] = [
-  [/B2B/i, 'B2B', 'B2B'],
-  [/tymczasow|temporary/i, 'Temporary', 'temporary'], // "umowa o pracę tymczasową", before "o pracę"
-  [/o pracę|employment/i, 'Permanent (UoP)', 'UoP'],
-  [/zleceni|mandate/i, 'Mandate (zlecenie)', 'zlecenie'],
-  [/dzieło|specific/i, 'Specific-task (o dzieło)', 'o dzieło'],
-  [/staż|praktyk|intern/i, 'Internship', 'internship'],
-];
 const CURRENCIES: Partial<Record<string, string>> = { zł: 'PLN', '€': 'EUR', $: 'USD', '£': 'GBP' };
 // its periods by id (0 a month, 1 an hour, as recorded 2026-10-21), else by their words
 const PERIODS: [RegExp, string][] = [
@@ -28,11 +19,6 @@ const PERIODS: [RegExp, string][] = [
   [/rok|roczn|year/i, 'year'],
 ];
 const PERIOD_IDS: Partial<Record<number, string>> = { 0: 'month', 1: 'hour' };
-
-const contractOf = (name: string) => {
-  const known = CONTRACTS.find(([pattern]) => pattern.test(name));
-  return known ? { name: known[1], note: known[2] } : { name, note: name };
-};
 
 // The Protocol's forms are words ("mies."), Pracuj.pl's are { name: "mies." }; its id on the salary, or on its unit
 const periodOf = (salary: Obj) => {

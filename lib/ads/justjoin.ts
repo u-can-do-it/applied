@@ -33,6 +33,7 @@ type Pay = {
   currencySource?: string;
   type?: string;
   unit?: string;
+  gross?: boolean; // false: net (B2B's, usually)
 };
 // the parts of the offer API that are read below; all of it may be missing
 type JustjoinOffer = {
@@ -74,6 +75,7 @@ async function fromApi(slug: string) {
     const value = perUnit ?? monthly;
     return value == null ? undefined : Math.round(value * 100) / 100;
   };
+  const kind = (gross?: boolean) => (gross === true ? 'gross' : gross === false ? 'net' : '');
   const pay = (offer.employmentTypes ?? []).filter((employment) => employment.currencySource !== 'conversion');
   const workplace = asString(offer.workplaceType);
   const details: JobDetails = {
@@ -87,7 +89,7 @@ async function fromApi(slug: string) {
               .map(money)
               .join(
                 '–',
-              )} ${employment.currency?.toUpperCase() ?? ''} / ${unit(employment.unit)} (${CONTRACTS[employment.type ?? ''] ?? employment.type})`.replace(
+              )} ${employment.currency?.toUpperCase() ?? ''} ${kind(employment.gross)} / ${unit(employment.unit)} (${CONTRACTS[employment.type ?? ''] ?? employment.type})`.replace(
               /\s+/g,
               ' ',
             ),

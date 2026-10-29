@@ -29,7 +29,8 @@ type NofluffPosting = {
   basics?: { seniority?: string[] };
   details?: { description?: string };
   essentials?: {
-    originalSalary?: { currency?: string; types?: Record<string, { period?: string; range?: number[] }> };
+    // a contract without an amount is `true` ({ intern: true })
+    originalSalary?: { currency?: string; types?: Record<string, { period?: string; range?: number[] } | true> };
   };
   location?: { places?: { city?: string }[] };
   posted?: number;
@@ -65,6 +66,7 @@ export const readNofluff: AdReader = async ({ id }) => {
   const details: JobDetails = {
     salary:
       types
+        .flatMap(([contract, salary]) => (salary !== true && salary.range?.length ? [[contract, salary] as const] : []))
         .map(([contract, salary]) =>
           `${(salary.range ?? []).map(money).join('–')} ${original?.currency ?? ''} / ${unit(salary.period)} (${CONTRACTS[contract] ?? contract})`.replace(
             /\s+/g,

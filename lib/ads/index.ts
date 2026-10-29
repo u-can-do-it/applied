@@ -1,6 +1,6 @@
 // Full ad text for one offer, from the board itself (the listings only have its title and the like).
 // A board with its own way of reading an ad has a file here; the others' pages have a schema.org
-// JobPosting (Solid.jobs; Bulldog's, when its page has one; Grupa Pracuj's, its salaries aside), and any
+// JobPosting (Bulldog's, when its page has one; Grupa Pracuj's and Solid.jobs', their salaries aside), and any
 // other site gives its <main> text.
 import 'server-only';
 import { byId, type BoardId } from '../boards';
@@ -11,13 +11,14 @@ import { readBulldog } from './bulldog';
 import { isAdText, type Ad, type AdReader, type JobDetails, type OfferLink } from './details';
 import { readEldorado } from './eldorado';
 import { get } from './fetch';
+import { readGrupaPracuj } from './grupa-pracuj';
 import { readHimalayas } from './himalayas';
 import { findJobPosting, fromJobPosting } from './job-posting';
 import { readJustjoin } from './justjoin';
 import { readLinkedin } from './linkedin';
 import { readNofluff } from './nofluff';
 import { readPage } from './page';
-import { readGrupaPracuj } from './grupa-pracuj';
+import { readSolidjobs } from './solidjobs';
 
 export type Scraped = { status: 'ok' | 'empty'; text: string; details: JobDetails };
 
@@ -34,6 +35,7 @@ const READERS: Partial<Record<BoardId, AdReader>> = {
   eldorado: readEldorado,
   theprotocol: readGrupaPracuj,
   pracuj: readGrupaPracuj,
+  solidjobs: readSolidjobs,
 };
 
 function readAd(offer: OfferLink): Promise<Ad> {

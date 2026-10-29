@@ -100,7 +100,22 @@ export const CONTRACTS: Partial<Record<string, string>> = {
   mandate_contract: 'Mandate (zlecenie)',
   specific_task_contract: 'Specific-task (o dzieło)',
   internship: 'Internship',
+  intern: 'Internship',
   any: 'Any',
+};
+/** Contracts' names in an ad's language ("umowa o pracę", "kontrakt B2B"…): ours, and a salary's note. */
+const CONTRACT_NAMES: [RegExp, string, string][] = [
+  [/B2B/i, 'B2B', 'B2B'],
+  [/tymczasow|temporary/i, 'Temporary', 'temporary'], // "umowa o pracę tymczasową", before "o pracę"
+  [/o pracę|employment/i, 'Permanent (UoP)', 'UoP'],
+  [/zleceni|mandate/i, 'Mandate (zlecenie)', 'zlecenie'],
+  [/dzieło|specific/i, 'Specific-task (o dzieło)', 'o dzieło'],
+  [/staż|praktyk|intern/i, 'Internship', 'internship'],
+];
+/** "Umowa o pracę" → "Permanent (UoP)", its salary's note "UoP"; a name it doesn't know stays as it is. */
+export const contractOf = (name: string) => {
+  const known = CONTRACT_NAMES.find(([pattern]) => pattern.test(name));
+  return known ? { name: known[1], note: known[2] } : { name, note: name };
 };
 export const unique = (xs: (string | undefined)[]) => [
   ...new Set(xs.filter((value): value is string => Boolean(value))),

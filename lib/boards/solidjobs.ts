@@ -1,4 +1,5 @@
-// solid.jobs: its listing: lib/listings/parsers/solidjobs.ts; its ads: the page's JobPosting.
+// solid.jobs: its listing: lib/listings/parsers/solidjobs.ts; its ads: lib/ads/solidjobs.ts (the page's JobPosting,
+// its salaries from the page's state).
 import type { ScrapedBoard } from './types.ts';
 
 export const solidjobs: ScrapedBoard<'solidjobs'> = {
