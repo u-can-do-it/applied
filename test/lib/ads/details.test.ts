@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detailsWords } from '@/lib/ads/details';
+import { adsWords, detailsWords } from '@/lib/ads/details';
 
 describe('detailsWords', () => {
   it('the salary (its numbers without spaces too), contract, work mode, where and the skills', () => {
@@ -25,5 +25,18 @@ describe('detailsWords', () => {
     expect(detailsWords({ salary: '20 200 PLN' })).toBe('20 200 PLN · 20200 PLN');
     expect(detailsWords(null)).toBe('');
     expect(detailsWords({})).toBe('');
+  });
+});
+
+describe('adsWords', () => {
+  it("each ad's details, then its text, a line each; what's missing left out", () => {
+    expect(
+      adsWords([
+        { details: { contract: 'B2B' }, text: 'We use Go.' },
+        { details: null, text: null },
+        { text: 'Remote first.' },
+      ]),
+    ).toBe('B2B\nWe use Go.\nRemote first.');
+    expect(adsWords([])).toBe('');
   });
 });

@@ -58,6 +58,8 @@ export async function listApplications() {
   return applicationsRepo.list((await listProfiles()).at(0));
 }
 export const getApplication = (jobId: string) => applicationsRepo.get(jobId);
+/** Every application's ad text, by job id (the list loads none): for the Applied tab's search of everything. */
+export const listAdTexts = () => applicationsRepo.adTexts();
 
 /** The job as the list shows it: its id, title, company and every board's offer. */
 const findJob = (jobId: string) => offersRepo.jobById(jobId);

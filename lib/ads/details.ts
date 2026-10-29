@@ -60,6 +60,13 @@ export function detailsWords(details: JobDetails | null | undefined): string {
   ]).join(' · ');
 }
 
+/** What a search of everything reads in these ads: each one's details (detailsWords), then its text. */
+export const adsWords = (ads: { details?: JobDetails | null; text?: string | null }[]) =>
+  ads
+    .flatMap((ad) => [detailsWords(ad.details), ad.text ?? ''])
+    .filter(Boolean)
+    .join('\n');
+
 /** One offer's ad as read from its board. */
 export type Ad = { text: string; details: JobDetails };
 

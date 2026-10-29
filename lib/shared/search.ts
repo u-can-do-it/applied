@@ -127,11 +127,11 @@ const SNIPPET = 240;
 /**
  * Where the search matched in the note or, if not there, in the rest, for a list that doesn't show them:
  * the text from a little before the first mark, on one line, "…" where it's cut. Undefined when it
- * matched only in the title and the company.
+ * matched only in the title and the company. A list that shows the note itself leaves it out of `job`.
  */
 export function snippetOf(job: Searchable, marks: Marks | undefined): Snippet | undefined {
   if (!marks) return undefined;
-  const of = marks.note.length ? 'note' : marks.more.length ? 'more' : undefined;
+  const of = marks.note.length && job.note ? 'note' : marks.more.length && job.more ? 'more' : undefined;
   const text = of && job[of];
   if (!of || !text) return undefined;
   const first = marks[of][0];

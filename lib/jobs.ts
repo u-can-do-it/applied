@@ -1,7 +1,7 @@
 import 'server-only';
 import { checkingSince, isMatching } from './ai/matching';
 import type { DateFilter } from './dates';
-import { detailsWords, type JobDetails } from './ads/details';
+import { adsWords, type JobDetails } from './ads/details';
 import * as detailsRepo from './db/repos/offer-details';
 import * as offersRepo from './db/repos/offers';
 import * as searchRepo from './db/repos/offer-search';
@@ -143,10 +143,7 @@ async function searchableAll(filter: Parameters<typeof searchRepo.searchableAll>
   const rows = await searchRepo.searchableAll(filter);
   return rows.map(({ ads, ...job }) => ({
     ...job,
-    more: (ads ?? [])
-      .flatMap((ad) => [detailsWords(ad.details), ad.description ?? ''])
-      .filter(Boolean)
-      .join('\n'),
+    more: adsWords((ads ?? []).map((ad) => ({ details: ad.details, text: ad.description }))),
   }));
 }
 

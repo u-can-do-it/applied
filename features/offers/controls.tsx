@@ -3,7 +3,7 @@
 import { use } from 'react';
 import { ArrowDownWideNarrowIcon, CalendarIcon, SearchIcon, SparklesIcon, TextSearchIcon, XIcon } from 'lucide-react';
 import { DateRangePicker, RANGE_PLACEHOLDER } from '@/components/date-range-picker';
-import { searchBox, searchInput } from '@/components/search-field';
+import { everythingChip, searchBox, searchInput, searchPlaceholder } from '@/components/search-field';
 import { TimeZone } from '@/components/time-zone';
 import { toggleVariants } from '@/components/ui/toggle';
 import { validDay } from '@/lib/dates';
@@ -12,7 +12,7 @@ import type { BoardOption } from '@/lib/listings/board-filter';
 import { DAY_PRESETS, FITS, ORDERS, orderOf, withParams } from '@/lib/shared/search-params';
 import { NavLink, useNav } from './nav';
 import { MinFit } from './min-fit';
-import { EVERYTHING, PLACEHOLDER, SearchBox } from './search-box';
+import { SearchBox } from './search-box';
 
 // The board and date chips: links that change the list's filter in the URL (NavLink: prefetched, middle-click
 // opens a new tab, without JS a plain link; navigate() lights the chip up on the click frame), in a <nav>
@@ -182,8 +182,8 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
     <>
       <div className={searchBox} aria-hidden="true">
         <SearchIcon className="size-4.5" />
-        <input disabled placeholder={PLACEHOLDER.some} className={searchInput} />
-        <span className={EVERYTHING}>
+        <input disabled placeholder={searchPlaceholder(false)} className={searchInput} />
+        <span className={everythingChip}>
           <TextSearchIcon className="size-3.5" /> Everything
         </span>
       </div>

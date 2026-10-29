@@ -80,6 +80,19 @@ it('the search filters at once and is in ?q= once you stop typing, in place (no 
   expect(window.location.search).toBe('?status=rejected');
 });
 
+it('searching everything is ?in=all, a step Back takes back, as on the offers', () => {
+  window.history.replaceState(null, '', '/applied?q=kubernetes');
+  const { result } = renderHook(() => useAppliedQuery());
+  expect(result.current.everything).toBe(false);
+  const entries = window.history.length;
+  act(() => result.current.setEverything(true));
+  expect(window.location.search).toBe('?q=kubernetes&in=all');
+  expect(window.history.length).toBe(entries + 1);
+  expect(result.current.everything).toBe(true);
+  act(() => result.current.setEverything(false));
+  expect(window.location.search).toBe('?q=kubernetes');
+});
+
 it('follows the URL when it changes from outside (Back)', () => {
   const { result } = renderHook(() => useAppliedQuery());
   act(() => window.history.replaceState(null, '', '/applied?q=java&status=positive'));

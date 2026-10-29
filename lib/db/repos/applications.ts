@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, desc, eq, getTableColumns, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { SavedDetails } from '../../applications';
 import type { OutcomeId, StageId } from '../../stages';
 import { db } from '../client';
@@ -62,6 +62,14 @@ export async function list(judgedBy?: { id: string; version: number }): Promise<
 
 export async function get(jobId: string): Promise<ApplicationWithContent | null> {
   return first(await db().select().from(applications).where(eq(applications.jobId, jobId)));
+}
+
+/** Every application's ad text, where it has one: what the Applied tab's search of everything reads. */
+export function adTexts(): Promise<{ jobId: string; content: string }[]> {
+  return db()
+    .select({ jobId: applications.jobId, content: sql<string>`${applications.content}` })
+    .from(applications)
+    .where(isNotNull(applications.content));
 }
 
 export async function insert(row: NewApplicationRow) {

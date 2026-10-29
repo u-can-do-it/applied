@@ -7,10 +7,11 @@ import { SearchIcon, XIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
 import { companyKeyOf } from '@/lib/shared/company-key';
-import { rank } from '@/lib/shared/search';
+import { adsWords } from '@/lib/ads/details';
+import { rank, snippetOf } from '@/lib/shared/search';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
-import { searchBox, searchInput } from '@/components/search-field';
+import { EverythingToggle, searchBox, searchInput, searchPlaceholder } from '@/components/search-field';
 import { TimeZone, useZone } from '@/components/time-zone';
 import { useRefreshWhile } from '@/components/use-refresh-while';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { AddApplication } from './add-application';
 import { AppliedStats } from './applied-stats';
 import { ApplicationRow } from './application-row';
 import { ApplicationSheet, type SheetHandle } from './application-sheet';
+import { useAdTexts } from './use-ad-texts';
 import { applicationQuery } from './use-application';
 import { useAppliedQuery } from './use-applied-query';
 
@@ -48,7 +50,9 @@ export function AppliedList({
 
 function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels: Record<string, string> }) {
   const zone = useZone();
-  const { search, setSearch, searchAll, filter, setFilter, range, setRange } = useAppliedQuery(); // in the URL
+  const { search, setSearch, searchAll, everything, setEverything, filter, setFilter, range, setRange } =
+    useAppliedQuery(); // in the URL
+  const adTexts = useAdTexts(everything); // the list has none: loaded when the search reads everything
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
   const [switched, setSwitched] = useState(false); // …in place of another one
   const sheet = useRef<SheetHandle>(null);
@@ -143,14 +147,26 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
   // the ones you applied for in the dates: the statistics count these, the list shows them
   const inRange = useMemo(() => (range ? apps.filter(range.test) : apps), [apps, range]);
 
-  // the search is the offers' (lib/shared/search.ts), its words marked in the rows; the list stays by day
-  const { shown, marks } = useMemo(() => {
+  // the search is the offers' (lib/shared/search.ts), its words marked in the rows; the list stays by day.
+  // Searching everything, the ad too (its details, and its text once loaded), and where it matched there
+  // (the row shows the note itself)
+  const texts = adTexts.data;
+  const { shown, marks, snippets } = useMemo(() => {
     const filtered = filter ? inRange.filter((app) => filter.test(app)) : inRange;
-    const found = search.trim() ? rank(filtered, search) : null;
-    if (!found) return { shown: filtered, marks: undefined };
+    const searched = everything
+      ? filtered.map((app) => ({ ...app, more: adsWords([{ details: app.details, text: texts?.get(app.jobId) }]) }))
+      : filtered;
+    const found = search.trim() ? rank(searched, search) : null;
+    if (!found) return { shown: filtered, marks: undefined, snippets: undefined };
     const ids = new Set(found.ids);
-    return { shown: filtered.filter((app) => ids.has(app.jobId)), marks: found.marks };
-  }, [inRange, search, filter]);
+    const snippets = new Map(
+      searched.flatMap((app) => {
+        const snippet = everything && snippetOf({ ...app, note: null }, found.marks.get(app.jobId));
+        return snippet ? [[app.jobId, snippet] as const] : [];
+      }),
+    );
+    return { shown: filtered.filter((app) => ids.has(app.jobId)), marks: found.marks, snippets };
+  }, [inRange, search, filter, everything, texts]);
 
   if (!apps.length) {
     return (
@@ -174,9 +190,10 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
             className={searchInput}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search title, company or note…"
+            placeholder={searchPlaceholder(everything, true)}
             aria-label="Search applied offers"
           />
+          <EverythingToggle checked={everything} onChange={setEverything} />
         </div>
         <AddApplication />
       </div>
@@ -206,6 +223,10 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
       <p className="mt-1 mb-0 min-h-[19px] text-[13px] text-muted-foreground tabular-nums">
         <strong className="font-semibold text-foreground">{shown.length}</strong>
         {shown.length !== apps.length && <> of {apps.length}</>} applied
+        {everything && search.trim() && adTexts.isPending && ' · reading the ads…'}
+        {everything && search.trim() && adTexts.isError && (
+          <span className="text-destructive"> · the ads’ text didn’t load: searched without it</span>
+        )}
         {filter && (
           <>
             {' · '}
@@ -241,6 +262,7 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
                     app={app}
                     labels={labels}
                     marks={marks?.get(app.jobId)}
+                    snippet={snippets?.get(app.jobId)}
                     active={open?.jobId === app.jobId}
                     onOpen={() => void show(app)}
                     onPrefetch={() => prefetch(app.jobId)}

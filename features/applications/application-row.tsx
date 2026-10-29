@@ -3,7 +3,7 @@
 import { Check, FileTextIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
-import type { Marks } from '@/lib/shared/search';
+import type { Marks, Snippet } from '@/lib/shared/search';
 import { JobRow, detailFacts, type CompanyApplied } from '@/features/offers/job-row';
 import { isRentADev } from '@/features/offers/rent-a-dev';
 import { WindowButton } from '@/features/offers/row-box';
@@ -27,6 +27,7 @@ export function ApplicationRow({
   app,
   labels,
   marks,
+  snippet,
   active = false,
   onOpen,
   onPrefetch,
@@ -37,6 +38,8 @@ export function ApplicationRow({
   labels: Record<string, string>;
   /** where the search matched */
   marks?: Marks;
+  /** searching everything, a piece of the ad where it matched */
+  snippet?: Snippet;
   /** its window is open */
   active?: boolean;
   onOpen: () => void;
@@ -61,6 +64,7 @@ export function ApplicationRow({
       rentADev={Boolean(isRentADev(app))}
       note={app.note}
       marks={marks}
+      snippet={snippet}
       boards={[{ src: app.src, url: app.url || undefined }]}
       labels={labels}
       after={<WindowButton title={app.title} onPrefetch={onPrefetch} onClick={onOpen} />}

@@ -7,7 +7,8 @@ import { validDay } from '@/lib/dates';
 import { useZone } from '@/components/time-zone';
 import { filterOf } from './status-filter';
 
-// The Applied tab's search, status filter and dates, kept in the URL (?q=, ?status=, ?from=, ?to=): a
+// The Applied tab's search, status filter and dates, kept in the URL (?q=, ?in=all: the search reads
+// everything, ?status=, ?from=, ?to=): a
 // reload, a link or Back shows the same list. Written with the History API, which Next's router follows
 // (useSearchParams) without asking the server for the page again: the list is filtered here.
 
@@ -20,6 +21,9 @@ export function useAppliedQuery() {
   const status = params.get('status');
   const filter = useMemo(() => filterOf(status), [status]);
   const [search, setSearch] = useSearchText(params.get('q') ?? '');
+  // the search reads the note and the ad too (its details and text), as the offers' does with ?in=all
+  const everything = params.get('in') === 'all';
+  const setEverything = (on: boolean) => writeParams({ in: on ? 'all' : null }, { push: true });
   // a step that Back takes back, like the offers' chips
   const setFilter = (id: string | null) => writeParams({ status: id }, { push: true });
 
@@ -50,7 +54,7 @@ export function useAppliedQuery() {
     setSearch(text);
   };
 
-  return { search, setSearch, searchAll, filter, setFilter, range, setRange };
+  return { search, setSearch, searchAll, everything, setEverything, filter, setFilter, range, setRange };
 }
 
 /**
@@ -82,7 +86,7 @@ function useSearchText(fromUrl: string) {
   return [text, setText] as const;
 }
 
-type Param = 'q' | 'status' | 'from' | 'to';
+type Param = 'q' | 'in' | 'status' | 'from' | 'to';
 
 /** Sets (or, empty, removes) parameters of the page's URL, keeping the others. */
 function writeParams(values: Partial<Record<Param, string | null>>, { push = false } = {}) {

@@ -8,6 +8,7 @@ import {
   assessFit,
   getApplication,
   ghostStale,
+  listAdTexts,
   listApplications,
   markApplied,
   readDetailsFromText,
@@ -154,6 +155,13 @@ describeDb('applications', () => {
       appliedAt: '2026-09-30T12:00:00+00:00',
     });
     expect(app?.noteUpdatedAt).toMatch(ISO);
+  });
+
+  it('gives every ad text, by job id, for the search of everything (the list has none)', async () => {
+    const ad = 'The whole ad, as copied from the board. '.repeat(3);
+    const full = await addApplication(typed('Full', { url: 'https://example.test/job/1', content: ad }), utc);
+    await addApplication(typed('Bare'), utc);
+    expect(await listAdTexts()).toEqual([{ jobId: full.jobId, content: ad.trim() }]);
   });
 
   it('saves the ad text as its state machine says, and asks for a fetch when one is due', async () => {

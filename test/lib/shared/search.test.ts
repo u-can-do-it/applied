@@ -140,4 +140,13 @@ describe('snippetOf', () => {
     expect(snippetOf(job, rank([job], 'acme developer')?.marks.get('a'))).toBeUndefined();
     expect(snippetOf(job, undefined)).toBeUndefined();
   });
+
+  it('the rest, when the list shows the note itself (left out of the job)', () => {
+    const both = { ...job, note: 'React, they said' };
+    const marks = rank([both], 'react')?.marks.get('a');
+    expect(marks?.note).toEqual([0, 5]);
+    expect(snippetOf({ ...both, note: null }, marks)).toBeUndefined(); // only the note matched
+    const anywhere = rank([{ ...both, note: 'Remote' }], 'react')?.marks.get('a');
+    expect(snippetOf({ ...both, note: null }, anywhere)?.of).toBe('more');
+  });
 });
