@@ -9,8 +9,8 @@ import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
 import { describeDb, exec } from './database';
 
 // A fresh install's scrapers: the ones the SQL migrations inserted (0003_seed.sql, history now), as later
-// ones updated them (0019_linkedin_since.sql), and those lib/db/seed.ts adds after them, for any board not
-// seeded yet. All must be the registry's.
+// ones updated them (0019_linkedin_since.sql, 0033_eldorado_mcp_seed.sql), and those lib/db/seed.ts adds
+// after them, for any board not seeded yet. All must be the registry's.
 
 const migrations = (JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as { entries: { tag: string }[] })
   .entries;
@@ -78,6 +78,32 @@ describeDb('seeds', () => {
         .filter((scraper) => scraper.src === 'linkedin')
         .map((scraper, index) => ({ ...scraper, position: last + 1 + index })),
     );
+  });
+
+  it('0033 moves an Eldorado search still on its page’s link to its MCP search, once, and leaves one you changed', async () => {
+    await exec(sql`delete from public.scrape_seeds`);
+    await migrateAndSeed();
+    const eldorado = registry.find((scraper) => scraper.kind === 'eldorado');
+    const page = 'https://czyjesteldorado.pl/search?tag%5B%5D={keyword}&sort=newest';
+    const yours = 'https://czyjesteldorado.pl/_mcp?phrase={keyword}&sortOrder=newest&workModes=remote';
+    // as 0003 left it, having run (a mark, a follow-up); and a second one you pointed at your own search
+    await exec(sql`update public.scrapers
+                      set config = config || ${JSON.stringify({ url: page, checkKeyword: false })}::jsonb,
+                          mark = 1, follow_up = '{}'::jsonb
+                    where kind = 'eldorado'`);
+    await exec(sql`insert into public.scrapers (position, name, src, kind, config, mark)
+                   values (99, 'Eldorado – remote', 'eldorado', 'eldorado',
+                           ${JSON.stringify({ ...eldorado?.config, url: yours })}::jsonb, 1)`);
+    const migration = sql.raw(readFileSync('drizzle/0033_eldorado_mcp_seed.sql', 'utf8'));
+    await exec(migration);
+    await exec(migration);
+
+    const [seeded, remote] = await exec(
+      sql`select name, config, mark, follow_up from public.scrapers where kind = 'eldorado' order by position`,
+    );
+    // the registry's search; its next run only saves, as after an edit in Settings
+    expect(seeded).toEqual({ name: eldorado?.name, config: eldorado?.config, mark: null, follow_up: null });
+    expect(remote).toMatchObject({ config: { url: yours }, mark: 1 });
   });
 
   it('scrapers you deleted stay deleted', async () => {

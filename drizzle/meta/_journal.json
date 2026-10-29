@@ -232,6 +232,13 @@
       "when": 1793282665202,
       "tag": "0032_withdrawn_outcome",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793284422045,
+      "tag": "0033_eldorado_mcp_seed",
+      "breakpoints": true
     }
   ]
 }
