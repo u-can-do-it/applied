@@ -12,6 +12,7 @@ import { withParams } from '@/lib/shared/search-params';
 import { cn } from '@/lib/shared/cn';
 import { appSettings, appZone } from '@/lib/time-zone';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
+import { ListSearch } from '@/components/list-search';
 import { LoadError } from '@/components/load-error';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DayFits } from './day-fits';
@@ -126,7 +127,8 @@ export async function Results({
   );
 
   return (
-    <>
+    // the offers' windows mark the search's words too
+    <ListSearch query={q} everything={everything}>
       <RefreshWhileMatching matching={data.jobs.flatMap((job) => (job.matching ? job.jobId : []))} />
       {archived ? (
         <p className={COUNT}>
@@ -253,7 +255,7 @@ export async function Results({
           )}
         </nav>
       )}
-    </>
+    </ListSearch>
   );
 }
 

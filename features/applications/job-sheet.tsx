@@ -6,8 +6,10 @@ import { cn } from '@/lib/shared/cn';
 import { useReturnFocus } from '@/components/return-focus';
 import { keepOpenOnToast } from '@/components/toasts';
 import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Marked } from '@/components/marked';
 import { buttonVariants } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import type { Find } from '@/lib/shared/search';
 import { ApplicationFit, FitSummary, type ShownFit } from './application-fit';
 
 // One job's window, an offer's or an application's: the same side panel, header, scrolling body and
@@ -82,6 +84,7 @@ export function JobSheet({
 /**
  * The title, "company · board · `when`", and the AI's fit: its score (or a button that asks for it) and
  * its one-line reason. `plain`: another title is the window's (a form over it), this one only shows.
+ * `find`: the list's search, its words marked in the title and the company.
  */
 export function JobSheetHeader({
   title,
@@ -92,6 +95,7 @@ export function JobSheetHeader({
   checking,
   onCheck,
   plain = false,
+  find,
 }: {
   title: string;
   company: string | null;
@@ -101,21 +105,27 @@ export function JobSheetHeader({
   checking: boolean;
   onCheck: () => void;
   plain?: boolean;
+  find?: Find;
 }) {
   const subtitle = (
     <>
-      {company && <>{company} · </>}
+      {company && (
+        <>
+          <Marked text={company} marks={find?.(company)} /> ·{' '}
+        </>
+      )}
       {board} · {when}
     </>
   );
+  const shownTitle = <Marked text={title} marks={find?.(title)} />;
   return (
     <SheetHeader className="group/header gap-0.5 border-b px-3.5 pt-3.5 pr-12 pb-2.5 sm:px-5 sm:pt-4.5 sm:pr-12 sm:pb-3">
       <div className="flex items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {plain ? (
-            <h2 className="m-0 text-lg font-semibold">{title}</h2>
+            <h2 className="m-0 text-lg font-semibold">{shownTitle}</h2>
           ) : (
-            <SheetTitle className="text-lg font-semibold">{title}</SheetTitle>
+            <SheetTitle className="text-lg font-semibold">{shownTitle}</SheetTitle>
           )}
           {plain ? (
             <p className="m-0 text-[13px] text-muted-foreground">{subtitle}</p>

@@ -1,11 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type ComponentProps, type Ref } from 'react';
 import { CheckIcon } from 'lucide-react';
 import { NOTE_CONFLICT } from '@/lib/shared/application-messages';
 import { cn } from '@/lib/shared/cn';
 import type { Result } from '@/lib/shared/result';
+import type { Find } from '@/lib/shared/search';
+import { Marked } from '@/components/marked';
 import { useAutosave, type AutosaveSave, type AutosaveStatus } from '@/components/use-autosave';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -51,6 +53,7 @@ export function NoteEditor({
   seenAt,
   editedAt,
   placeholder = APPLICATION_PLACEHOLDER,
+  find,
   onSaved,
   onStale,
   ref,
@@ -62,6 +65,8 @@ export function NoteEditor({
   seenAt: string | null;
   editedAt: string | null;
   placeholder?: string;
+  /** the list's search: its words marked in the note */
+  find?: Find;
   onSaved: (note: string | null, at: string) => void;
   /** the note was changed elsewhere: the list's copy of it is outdated */
   onStale: () => void;
@@ -168,7 +173,8 @@ export function NoteEditor({
             </span>
           )}
         </span>
-        <Textarea
+        <MarkedTextarea
+          find={find}
           rows={3}
           maxLength={10_000}
           className="max-h-[40vh] min-h-[4.6em] resize-y bg-background text-sm text-foreground md:text-sm dark:bg-background"
@@ -189,6 +195,49 @@ export function NoteEditor({
         </p>
       )}
       {theirs && <Conflict theirs={theirs} problem={problem} onPick={pick} />}
+    </div>
+  );
+}
+
+// the box the text is in, the same in the textarea and the layer under it, so the text lines up
+const NOTE_TEXT = 'rounded-lg border px-2.5 py-2 text-sm [scrollbar-gutter:stable]';
+
+/**
+ * The note's textarea; with a search (`find`), its words marked. A textarea can't mark its text: a layer
+ * under it shows the text with the marks, the textarea's own text left clear (its caret, its selection
+ * shown). The layer scrolls with it.
+ */
+function MarkedTextarea({
+  find,
+  className,
+  ...props
+}: ComponentProps<typeof Textarea> & { find?: Find; value: string }) {
+  const under = useRef<HTMLDivElement>(null);
+  if (!find) return <Textarea className={className} {...props} />;
+  return (
+    <div className="relative grid">
+      <div
+        ref={under}
+        aria-hidden
+        className={cn(
+          NOTE_TEXT,
+          'pointer-events-none absolute inset-0 overflow-hidden border-transparent bg-background whitespace-pre-wrap text-foreground [overflow-wrap:break-word]',
+        )}
+      >
+        <Marked text={props.value} marks={find(props.value)} tight />
+        {/* a last empty line, as the textarea has after a line break */}{' '}
+      </div>
+      <Textarea
+        className={cn(
+          className,
+          NOTE_TEXT,
+          'relative bg-transparent text-transparent caret-foreground selection:text-foreground dark:bg-transparent',
+        )}
+        onScroll={(event) => {
+          if (under.current) under.current.scrollTop = event.currentTarget.scrollTop;
+        }}
+        {...props}
+      />
     </div>
   );
 }

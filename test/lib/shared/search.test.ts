@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { marksWithin, rank, snippetOf } from '@/lib/shared/search';
+import { finderOf, marksWithin, rank, snippetOf } from '@/lib/shared/search';
 
 // newest first, as lib/db/repos/offer-search.ts searchable() lists them
 const jobs = [
@@ -148,5 +148,36 @@ describe('snippetOf', () => {
     expect(snippetOf({ ...both, note: null }, marks)).toBeUndefined(); // only the note matched
     const anywhere = rank([{ ...both, note: 'Remote' }], 'react')?.marks.get('a');
     expect(snippetOf({ ...both, note: null }, anywhere)?.of).toBe('more');
+  });
+});
+
+describe('finderOf', () => {
+  /** what `query` marks in `text`, the window's texts `texts` */
+  const marked = (query: string, text: string, texts: string[] | null = [text]) => {
+    const marks = finderOf(query, texts)?.(text) ?? [];
+    return marks.flatMap((at, i) => (i % 2 ? [] : [text.slice(at, marks[i + 1])]));
+  };
+
+  it('every place each word is, any case, accents ignored; a short word only at a word’s start', () => {
+    const note = 'My name is Maria, this is Łódź. My call.';
+    expect(marked('my name is mari', note)).toEqual(['My', 'name', 'is', 'Mari', 'is', 'My']);
+    expect(marked('lodz', note)).toEqual(['Łódź']);
+  });
+
+  it('a phrase in quotes as one; a word with # + or . as it is; a word left out isn’t marked', () => {
+    expect(marked('"name is" c#', 'My name is Bob, C# and .NET')).toEqual(['name is', 'C#']);
+    expect(marked('.net -bob', 'My name is Bob, C# and .NET')).toEqual(['.NET']);
+  });
+
+  it('a word in none of the window’s texts as typed: with a typo; till they’re all in, none', () => {
+    expect(marked('pyhton', 'Python, python')).toEqual(['Python', 'python']);
+    expect(marked('pyhton', 'Python', ['Python', 'pyhton notes'])).toEqual([]); // there as typed, elsewhere
+    expect(marked('pyhton', 'Python', null)).toEqual([]);
+    expect(marked('kubernetes', 'Software AI Engineer')).toEqual([]);
+  });
+
+  it('overlapping words as one mark; nothing to look for: null', () => {
+    expect(finderOf('react rea', null)?.('React')).toEqual([0, 5]);
+    expect(finderOf('-- "', null)).toBeNull();
   });
 });

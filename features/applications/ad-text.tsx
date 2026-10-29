@@ -1,6 +1,8 @@
 'use client';
 
 import { PencilIcon } from 'lucide-react';
+import type { Find } from '@/lib/shared/search';
+import { Marked } from '@/components/marked';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Shown } from './use-application';
@@ -12,9 +14,9 @@ export type ShownAd = Pick<Shown, 'content' | 'contentStatus' | 'contentError' |
 /**
  * The text by lines, a bullet's wrapped lines under its text, not under the "•". A text saved before
  * htmlToText read source line breaks as spaces has its "•" on a line of its own, a blank line before
- * it: shown as it is saved now.
+ * it: shown as it is saved now. `find`: the list's search, its words marked (a line at a time).
  */
-function AdLines({ text }: { text: string }) {
+function AdLines({ text, find }: { text: string; find?: Find }) {
   return text
     .replace(/\n+•\n+/g, '\n• ')
     .split('\n')
@@ -22,11 +24,11 @@ function AdLines({ text }: { text: string }) {
       line.startsWith('• ') ? (
         <div key={i} className="pl-[1.1em] -indent-[1.1em]">
           <span className="inline-block w-[1.1em] indent-0">• </span>
-          {line.slice(2)}
+          <Marked text={line.slice(2)} marks={find?.(line.slice(2))} />
         </div>
       ) : (
         <div key={i} className="min-h-[1lh]">
-          {line}
+          <Marked text={line} marks={find?.(line)} />
         </div>
       ),
     );
@@ -35,9 +37,20 @@ function AdLines({ text }: { text: string }) {
 /**
  * The saved ad text. It loads into this box, which has the same place and size before and after; it
  * fills what's left, so a short ad or the placeholder look the same as a long one. `onEdit`: an
- * offer's window lets you change it, or paste one the board page doesn't give.
+ * offer's window lets you change it, or paste one the board page doesn't give. `find`: the list's
+ * search, its words marked.
  */
-export function AdText({ ad: app, loadError, onEdit }: { ad: ShownAd; loadError: string | null; onEdit?: () => void }) {
+export function AdText({
+  ad: app,
+  loadError,
+  onEdit,
+  find,
+}: {
+  ad: ShownAd;
+  loadError: string | null;
+  onEdit?: () => void;
+  find?: Find;
+}) {
   const day = useDay();
   const waiting = app.content === undefined || app.contentStatus === 'pending';
   const text = app.contentStatus === 'ok' && app.content;
@@ -63,7 +76,7 @@ export function AdText({ ad: app, loadError, onEdit }: { ad: ShownAd; loadError:
             </div>
           )
         ) : hasText ? (
-          <AdLines text={text} />
+          <AdLines text={text} find={find} />
         ) : (
           <p className="m-0 text-[13px] text-destructive">
             {app.contentStatus === 'empty' ? 'The board page had no ad text.' : 'Couldn’t fetch the ad.'}{' '}

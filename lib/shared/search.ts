@@ -161,3 +161,77 @@ export function marksWithin(marks: number[] | undefined, start: number, end: num
   }
   return inside;
 }
+
+/** Where a search's words are in a text: its marks there. */
+export type Find = (text: string) => number[];
+
+/** a word shorter than this is marked only at a word's start: "is" not in "this" */
+const SHORT = 3;
+
+/** the words `query` looks for (not the ones it leaves out), a phrase in quotes as one, accents dropped */
+function termsOf(query: string) {
+  const wanted = keepPunctuation(query).replace(/(^|\s)-("[^"]*"?|\S*)/g, '$1');
+  return exact
+    .split(uFuzzy.latinize(wanted))
+    .map((term) => term.replace(/^"|"$/g, ''))
+    .filter(Boolean);
+}
+
+/** every place `term` is, as typed (any case) */
+const asTyped = (term: string) =>
+  new RegExp((term.length < SHORT ? '(?<![\\p{L}\\p{N}])' : '') + term.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'), 'giu');
+
+/** the words with `term` in them, a typo forgiven: where it is in each */
+function withTypo(text: string, term: string) {
+  const words = [...text.matchAll(/[\p{L}\p{N}#+.']+/gu)];
+  const [idxs, info] = uf.search(
+    words.map((word) => word[0]),
+    term,
+    0,
+    Infinity,
+  );
+  // none found: info is {}
+  if (!idxs?.length || !info) return [];
+  // a word's ranges: pairs, more than one when the typo splits it
+  return info.idx.flatMap((i, found) => info.ranges[found].map((at) => words[i].index + at));
+}
+
+/** the pairs in order, those that overlap or touch as one */
+function merged(ranges: number[]) {
+  const pairs: [number, number][] = [];
+  for (let i = 0; i < ranges.length; i += 2) pairs.push([ranges[i], ranges[i + 1]]);
+  pairs.sort((a, b) => a[0] - b[0]);
+  const out: number[] = [];
+  for (const [start, end] of pairs) {
+    if (out.length && start <= out[out.length - 1]) out[out.length - 1] = Math.max(out[out.length - 1], end);
+    else out.push(start, end);
+  }
+  return out;
+}
+
+/**
+ * Where `query`'s words are in the texts of a job's window, shown whole: every place each one is, a
+ * word shorter than 3 letters only at a word's start. A word that's in none of `texts` (the window's)
+ * as typed is looked for with a typo, as the list forgives one (`texts` null: not all in yet, no typos
+ * till they are). Null when the query looks for nothing.
+ */
+export function finderOf(query: string, texts: readonly (string | null | undefined)[] | null): Find | null {
+  const terms = termsOf(query);
+  if (!terms.length) return null;
+  const all = texts && uFuzzy.latinize(texts.filter(Boolean).join('\n'));
+  // a phrase or a short word isn't looked for with a typo: it would be found nearly anywhere
+  const typos = new Set(
+    terms.filter((term) => all !== null && !asTyped(term).test(all) && term.length >= SHORT && !term.includes(' ')),
+  );
+  return (text) => {
+    // accents are replaced one letter for one: the offsets are the text's
+    const latin = uFuzzy.latinize(text);
+    return merged(
+      terms.flatMap((term) =>
+        typos.has(term)
+          ? withTypo(latin, term)
+          : [...latin.matchAll(asTyped(term))].flatMap((found) => [found.index, found.index + found[0].length]),
+      ),
+    );
+  };
+}

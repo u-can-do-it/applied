@@ -5,10 +5,12 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import type { ListedJob } from '@/lib/jobs';
 import type { OfferAd, OfferWindow } from '@/lib/offer-window';
+import { detailsWords } from '@/lib/ads/details';
 import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useFind } from '@/components/list-search';
 import { useBackCloses } from '@/components/use-back-closes';
 import { applyAction } from '@/features/applications/actions';
 import { AdDetails } from '@/features/applications/ad-details';
@@ -66,6 +68,10 @@ export function OfferSheet({
     fit.check();
   }, [data, fit]);
   const board = labels[job.src] ?? job.src;
+  const { find, findMore } = useFind(
+    [job.title, job.company, data?.note],
+    data && [detailsWords(data.details), data.content],
+  );
   // the list's verdict until the window's is in; the ad text and the note load into their places
   const shown: ShownFit & ShownAd = {
     fit: data ? data.fit : (job.ai ?? undefined),
@@ -131,6 +137,7 @@ export function OfferSheet({
         fit={shown}
         checking={fit.checking}
         onCheck={fit.check}
+        find={find}
       />
 
       <JobSheetBody>
@@ -148,6 +155,7 @@ export function OfferSheet({
             placeholder={NOTE_PLACEHOLDER}
             onSaved={() => {}}
             onStale={() => {}}
+            find={find}
           />
         ) : (
           !loaded.error && (
@@ -157,7 +165,7 @@ export function OfferSheet({
             </div>
           )
         )}
-        <AdDetails details={data?.details ?? null} />
+        <AdDetails details={data?.details ?? null} find={findMore} />
         {editing && data ? (
           <AdEditor
             ref={adEditor}
@@ -171,6 +179,7 @@ export function OfferSheet({
             ad={shown}
             loadError={loaded.error ? message(loaded.error) : null}
             onEdit={data ? editAd : undefined}
+            find={findMore}
           />
         )}
       </JobSheetBody>

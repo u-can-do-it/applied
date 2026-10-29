@@ -7,7 +7,9 @@ import { stageOf, outcomeLabel, withStatus, type StageId, type OutcomeId } from 
 import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { cn } from '@/lib/shared/cn';
+import { detailsWords } from '@/lib/ads/details';
 import { useConfirm } from '@/components/confirm';
+import { useFind } from '@/components/list-search';
 import { useBackCloses } from '@/components/use-back-closes';
 import {
   assessFitAction,
@@ -83,6 +85,11 @@ export function ApplicationSheet({
   const app: Shown = loaded.data ?? initial;
   const fit = useFitCheck(applicationKey(jobId), () => assessFitAction({ jobId }), setActionError);
   const gone = useRef(false); // unmarked: there's no note to save any more
+  const { find, findMore } = useFind(
+    [app.title, app.company, app.note],
+    // the ad text loads into the window
+    app.content === undefined ? undefined : [detailsWords(app.details), app.content],
+  );
 
   // shown at once; a load already on its way would bring the old state back, so it's dropped
   const show = (next: Shown, id = jobId) => {
@@ -254,6 +261,7 @@ export function ApplicationSheet({
           onCheck={fit.check}
           // the form has the window's title while it's open
           plain={editing}
+          find={find}
         />
 
         <JobSheetBody>
@@ -278,9 +286,10 @@ export function ApplicationSheet({
             editedAt={app.noteUpdatedAt}
             onSaved={(text, at) => onNoteSaved(jobId, text, at)}
             onStale={() => onNoteStale(jobId)}
+            find={find}
           />
-          <AdDetails details={app.details} />
-          <AdText ad={app} loadError={loaded.error ? message(loaded.error) : null} />
+          <AdDetails details={app.details} find={findMore} />
+          <AdText ad={app} loadError={loaded.error ? message(loaded.error) : null} find={findMore} />
         </JobSheetBody>
 
         <ApplicationFooter

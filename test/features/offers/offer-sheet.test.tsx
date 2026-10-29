@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ListSearch } from '@/components/list-search';
 import { TimeZone } from '@/components/time-zone';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { applyAction } from '@/features/applications/actions';
@@ -64,7 +65,11 @@ const window: OfferWindow = {
   noteUpdatedAt: AT,
 };
 
-function open({ inRow = false, shown = window } = {}) {
+function open({
+  inRow = false,
+  shown = window,
+  search = { query: '', everything: false },
+}: { inRow?: boolean; shown?: OfferWindow; search?: { query: string; everything: boolean } } = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn(() => Promise.resolve(Response.json(shown))),
@@ -77,15 +82,17 @@ function open({ inRow = false, shown = window } = {}) {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <TimeZone tz="Europe/Warsaw">
-          {inRow ? (
-            <ul>
-              <ArchiveRow jobId={JOB} title={job.title} archived={false}>
-                <li>{sheet}</li>
-              </ArchiveRow>
-            </ul>
-          ) : (
-            sheet
-          )}
+          <ListSearch {...search}>
+            {inRow ? (
+              <ul>
+                <ArchiveRow jobId={JOB} title={job.title} archived={false}>
+                  <li>{sheet}</li>
+                </ArchiveRow>
+              </ul>
+            ) : (
+              sheet
+            )}
+          </ListSearch>
         </TimeZone>
       </TooltipProvider>
     </QueryClientProvider>,
@@ -117,6 +124,17 @@ describe('an offer window', () => {
     expect(screen.getByText('B2B')).toBeTruthy();
     expect(note().value).toBe('Ask about the WMS');
     expect(screen.getByRole('link', { name: /Open on Eldorado/ }).getAttribute('href')).toBe(job.url);
+  });
+
+  it('the list’s search: its words marked in what it searched, the ad too when it read everything', () => {
+    const marked = () => [...document.querySelectorAll('mark')].map((mark) => mark.textContent);
+    open({ search: { query: 'rossmann wms c# warszawa', everything: false } });
+    // the note's under its textarea, which can't mark its own text
+    expect(marked()).toEqual(['Rossmann', 'WMS']);
+    cleanup();
+    open({ search: { query: 'rossmann wms c# warszawa', everything: true } });
+    expect(marked()).toEqual(['Rossmann', 'WMS', 'Warszawa', 'C#']);
+    expect(note().value).toBe('Ask about the WMS'); // the textarea's text as it was
   });
 
   it('"Mark applied" saves what you typed first: the note goes with it to the application', async () => {

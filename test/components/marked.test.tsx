@@ -21,6 +21,11 @@ describe('Marked', () => {
     expect(marked(container)).toEqual(['PRETIUS SOFTWARE SP. Z O.O.', 'Kraków']);
   });
 
+  it('tight: no room around a mark (the text where it would be)', () => {
+    const { container } = render(<Marked text="Senior React" marks={[7, 12]} tight />);
+    expect(container.querySelector('mark')?.className).not.toContain('px-');
+  });
+
   it('no marks: just the text', () => {
     const { container } = render(<Marked text="Developer" />);
     expect(container.innerHTML).toBe('Developer');

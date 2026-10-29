@@ -11,6 +11,7 @@ import { adsWords } from '@/lib/ads/details';
 import { rank, snippetOf } from '@/lib/shared/search';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
+import { ListSearch } from '@/components/list-search';
 import { EverythingToggle, searchBox, searchInput, searchPlaceholder } from '@/components/search-field';
 import { TimeZone, useZone } from '@/components/time-zone';
 import { useRefreshWhile } from '@/components/use-refresh-while';
@@ -277,20 +278,22 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
       </div>
 
       {open && (
-        <ApplicationSheet
-          ref={sheet}
-          key={open.jobId}
-          initial={open}
-          labels={labels}
-          switched={switched}
-          onClose={(note, jobId) => {
-            setOpen(null);
-            keepNote(jobId, note, open.note);
-          }}
-          onNoteSaved={(jobId, note, at) => setNotes((cur) => ({ ...cur, [jobId]: { note, at } }))}
-          // changed elsewhere: what the window saved before is outdated, the list shows the database's
-          onNoteStale={(jobId) => setNotes((cur) => ({ ...cur, [jobId]: undefined }))}
-        />
+        <ListSearch query={search} everything={everything}>
+          <ApplicationSheet
+            ref={sheet}
+            key={open.jobId}
+            initial={open}
+            labels={labels}
+            switched={switched}
+            onClose={(note, jobId) => {
+              setOpen(null);
+              keepNote(jobId, note, open.note);
+            }}
+            onNoteSaved={(jobId, note, at) => setNotes((cur) => ({ ...cur, [jobId]: { note, at } }))}
+            // changed elsewhere: what the window saved before is outdated, the list shows the database's
+            onNoteStale={(jobId) => setNotes((cur) => ({ ...cur, [jobId]: undefined }))}
+          />
+        </ListSearch>
       )}
     </>
   );

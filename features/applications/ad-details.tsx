@@ -2,13 +2,15 @@ import type { Application } from '@/lib/applications';
 import { SKILL_LEVELS, skillLevelText, workModeText, type Skill } from '@/lib/ads/details';
 import { formatDay } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
+import type { Find } from '@/lib/shared/search';
+import { Marked } from '@/components/marked';
 
 /**
  * What the ad says about the job: salary, contract, where and how, when, and its tech stack. The
  * first four always show ("not given" when the ad doesn't say: Edit can fill them in); the dates and
- * the skills only when there are any.
+ * the skills only when there are any. `find`: the list's search, its words marked.
  */
-export function AdDetails({ details }: { details: Application['details'] }) {
+export function AdDetails({ details, find }: { details: Application['details']; find?: Find }) {
   const rows: [string, string | undefined, 'always'?][] = [
     ['Salary', details?.salary, 'always'],
     ['Contract', details?.contract, 'always'],
@@ -29,7 +31,7 @@ export function AdDetails({ details }: { details: Application['details'] }) {
               {value ? (
                 value.split('; ').map((line, i) => (
                   <span key={i} className="block">
-                    {line}
+                    <Marked text={line} marks={find?.(line)} />
                   </span>
                 ))
               ) : (
@@ -38,7 +40,7 @@ export function AdDetails({ details }: { details: Application['details'] }) {
             </dd>
           </div>
         ))}
-      {details?.skills?.length ? <TechStack skills={details.skills} /> : null}
+      {details?.skills?.length ? <TechStack skills={details.skills} find={find} /> : null}
     </dl>
   );
 }
@@ -46,7 +48,7 @@ export function AdDetails({ details }: { details: Application['details'] }) {
 const labelClass = 'text-[11px] tracking-[0.05em] text-muted-foreground uppercase';
 
 /** A row of its own: each skill with its level in words and as dots (1–5), JustJoin's way. */
-function TechStack({ skills }: { skills: Skill[] }) {
+function TechStack({ skills, find }: { skills: Skill[]; find?: Find }) {
   return (
     <div className="col-span-full">
       <dt className={labelClass}>Tech stack</dt>
@@ -57,7 +59,7 @@ function TechStack({ skills }: { skills: Skill[] }) {
             return (
               <li key={`${skill.name}-${i}`} className="min-w-0">
                 <span className="block truncate text-sm font-semibold" title={skill.name}>
-                  {skill.name}
+                  <Marked text={skill.name} marks={find?.(skill.name)} />
                 </span>
                 {level && <span className="block text-[11px] text-muted-foreground">{level}</span>}
                 {skill.level ? (
