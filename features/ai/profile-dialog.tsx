@@ -6,6 +6,7 @@ import { useReturnFocus } from '@/components/return-focus';
 import { keepOpenOnToast } from '@/components/toasts';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useBackCloses } from '@/components/use-back-closes';
 
 export type ProfileOption = { id: string; name: string; prompt: string; fileName: string | null; version: number };
 
@@ -34,6 +35,7 @@ export function ProfileDialog({
   const focus = useReturnFocus();
   const [selected, setSelected] = useState<string>(activeId ?? NEW);
   const [formKey, setFormKey] = useState(0); // a fresh form with the chosen profile's values
+  useBackCloses(open, 'profile', () => setOpen(false));
 
   const choose = (id: string) => {
     setSelected(id);

@@ -8,6 +8,7 @@ import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { cn } from '@/lib/shared/cn';
 import { useConfirm } from '@/components/confirm';
+import { useBackCloses } from '@/components/use-back-closes';
 import {
   assessFitAction,
   refetchContentAction,
@@ -181,6 +182,14 @@ export function ApplicationSheet({
     closedWith.current = gone.current ? undefined : note.current?.flush();
     setOpen(false);
   };
+  // as Escape: editing, back to the window
+  useBackCloses(open, 'application', () => {
+    if (editing) {
+      stopEditing();
+      return false;
+    }
+    close();
+  });
 
   useImperativeHandle(ref, () => ({
     leave: async () => {

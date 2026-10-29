@@ -6,6 +6,7 @@ import { useReturnFocus } from '@/components/return-focus';
 import { keepOpenOnToast } from '@/components/toasts';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { useBackCloses } from '@/components/use-back-closes';
 import { LazyApplicationForm, loadApplicationForm } from './lazy-application-form';
 
 // "+ Add application": an application you sent somewhere the scrapers don't see (or before they
@@ -35,8 +36,9 @@ export function AddApplication() {
 function AddDialog({ onClose }: { onClose: () => void }) {
   const [open, setOpen] = useState(true);
   const focus = useReturnFocus();
+  useBackCloses(open, 'add-application', () => setOpen(false));
   return (
-    // Escape, a click outside and Cancel close it (what was typed goes with it, as before)
+    // Escape, Back, a click outside and Cancel close it (what was typed goes with it, as before)
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent
         className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]"

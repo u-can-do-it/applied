@@ -8,6 +8,7 @@ import { useReturnFocus } from '@/components/return-focus';
 import { keepOpenOnToast } from '@/components/toasts';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useBackCloses } from '@/components/use-back-closes';
 import { isGeneric, kindOf, type KindId } from '@/lib/listings/kinds';
 import { message } from '@/lib/shared/errors';
 import { fail, type Result } from '@/lib/shared/result';
@@ -30,6 +31,7 @@ export function ScraperEditor({
   onClose: () => void;
 }) {
   const [open, setOpen] = useState(true);
+  useBackCloses(open, 'scraper', () => setOpen(false));
   const confirm = useConfirm();
   const focus = useReturnFocus();
   const [test, setTest] = useState<Result<TestResult> | null>(null);
@@ -108,7 +110,7 @@ export function ScraperEditor({
   // A side panel: a long form whose test result (the offers it found, a sample) reads best at full height,
   // with the list of scrapers still in view beside it on a wide screen
   return (
-    // Escape, a click outside and Cancel close it
+    // Escape, Back, a click outside and Cancel close it
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent
         className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[760px]"

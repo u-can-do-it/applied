@@ -9,6 +9,7 @@ import { message } from '@/lib/shared/errors';
 import { unwrap } from '@/lib/shared/result';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useBackCloses } from '@/components/use-back-closes';
 import { applyAction } from '@/features/applications/actions';
 import { AdDetails } from '@/features/applications/ad-details';
 import { AdText, type ShownAd } from '@/features/applications/ad-text';
@@ -97,6 +98,7 @@ export function OfferSheet({
       void adEditor.current?.settle().then((why) => why && toast.error(`The ad wasn’t saved: ${why}`));
     setOpen(false);
   };
+  useBackCloses(open, 'offer', close);
 
   const markApplied = () =>
     start(async () => {

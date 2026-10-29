@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { addDays, dateToDay, dayToDate, describeRange } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
 import { useZone } from './time-zone';
+import { useBackCloses } from './use-back-closes';
 
 // A range of days picked in one calendar (shadcn's date range picker): the first click is the first day,
 // the second the last (or the same day again: just that day). The range is committed once both ends are
@@ -34,6 +35,7 @@ export function DateRangePicker({
   onCommit: (range: { from: string; to: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
+  useBackCloses(open, 'calendar', () => setOpen(false));
   const [draft, setDraft] = useState<DateRange | undefined>();
   const zone = useZone();
   const today = zone.day(); // in the app's time zone, not the device's

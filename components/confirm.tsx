@@ -2,9 +2,10 @@
 
 import { createContext, lazy, Suspense, use, useRef, useState } from 'react';
 import { useReturnFocus } from './return-focus';
+import { useBackCloses } from './use-back-closes';
 
 // "Are you sure?" before something that can't be undone: `if (!(await confirm({ … }))) return;`.
-// One AlertDialog for the whole app (in the root layout); Escape and Cancel answer no. Focus goes
+// One AlertDialog for the whole app (in the root layout); Escape, Back and Cancel answer no. Focus goes
 // back to the button that asked. The dialog's code loads with the first question.
 
 const ConfirmDialog = lazy(() => import('./confirm-dialog'));
@@ -37,6 +38,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     answer.current = null;
     setOpen(false);
   };
+  useBackCloses(open, 'confirm', () => reply(false));
   const ask: Ask = (options) =>
     new Promise((resolve) => {
       answer.current?.(false); // a question still open is a no

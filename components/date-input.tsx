@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { dateToDay, dayToDate, formatDay, parseDay } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
 import { useZone } from './time-zone';
+import { useBackCloses } from './use-back-closes';
 
 // A day as dd.mm.rrrr text, typed with the dots filled in automatically, or picked in a calendar
 // (the button). A native <input type="date"> would show the browser's own format (mm/dd/yyyy in an
@@ -47,6 +48,7 @@ export function DateInput({
 }) {
   const [text, setText] = useState(formatDay(value));
   const [picking, setPicking] = useState(false);
+  useBackCloses(picking, 'calendar', () => setPicking(false));
   const zone = useZone();
   const commit = useEffectEvent(onCommit);
 

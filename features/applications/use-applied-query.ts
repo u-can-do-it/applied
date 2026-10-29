@@ -98,7 +98,8 @@ function writeParams(values: Partial<Record<Param, string | null>>, { push = fal
     else params.delete(name);
   }
   const query = params.toString();
-  const url = query ? `?${query}` : window.location.pathname;
+  // the hash too: a window open over the list (use-back-closes.ts) stays in the URL
+  const url = (query ? `?${query}` : window.location.pathname) + window.location.hash;
   if (push) window.history.pushState(null, '', url);
   else window.history.replaceState(null, '', url);
 }
