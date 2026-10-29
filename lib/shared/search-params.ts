@@ -42,7 +42,7 @@ export function orderOf(order: string | null, searching: boolean) {
   return searching && order !== 'new' ? '' : 'new';
 }
 
-export type FilterKey = 'q' | 'src' | 'days' | 'from' | 'to' | 'page' | 'fit' | 'new' | 'archived' | 'order';
+export type FilterKey = 'q' | 'src' | 'in' | 'days' | 'from' | 'to' | 'page' | 'fit' | 'new' | 'archived' | 'order';
 type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
 
 // Builds a link from the current query, changing only the given keys
@@ -75,6 +75,8 @@ export function parseOfferQuery(params: Params) {
   const text = one(params.q).slice(0, 200);
   return {
     q: text,
+    // the search reads everything (?in=all): your note and the ad (its text, salary, contract, skills…) too
+    everything: one(params.in) === 'all',
     src: BOARD_RE.test(src) ? src : '', // an unknown board just finds nothing
     page: Math.max(0, Math.floor(Number(one(params.page)) || 0)),
     days: preset,

@@ -64,6 +64,15 @@ it('one the AI isn’t checking (it can’t, or it failed): neither', () => {
   expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Copy the title']);
 });
 
+it('where a search of everything matched in the ad or the note: that piece, marked, and where it is', () => {
+  row({ snippet: { of: 'more', text: '…We run Kubernetes on AWS', marks: [8, 18] } });
+  expect(screen.getByText('Kubernetes').tagName).toBe('MARK');
+  expect(screen.getByTitle('In the ad').textContent.trim()).toBe('In the ad: …We run Kubernetes on AWS');
+  cleanup();
+  row({ snippet: { of: 'note', text: 'Ask about Kubernetes', marks: [10, 20] } });
+  expect(screen.getByTitle('In your note').textContent.trim()).toBe('In your note: Ask about Kubernetes');
+});
+
 it('with companyHref, the company links there', () => {
   row({ companyHref: '/?src=solid&q=Acme' });
   expect(screen.getByRole('link', { name: 'Acme' }).getAttribute('href')).toBe('/?src=solid&q=Acme');

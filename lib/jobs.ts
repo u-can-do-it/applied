@@ -1,9 +1,10 @@
 import 'server-only';
 import { checkingSince, isMatching } from './ai/matching';
 import type { DateFilter } from './dates';
-import type { JobDetails } from './ads/details';
+import { detailsWords, type JobDetails } from './ads/details';
 import * as detailsRepo from './db/repos/offer-details';
 import * as offersRepo from './db/repos/offers';
+import * as searchRepo from './db/repos/offer-search';
 import * as runsRepo from './db/repos/scrape-runs';
 import * as settingsRepo from './db/repos/scrape-settings';
 import * as stateRepo from './db/repos/scrape-state';
@@ -11,7 +12,7 @@ import { first } from './db/rows';
 import { env } from './env';
 import type { AiVerdictRow } from './db/schema';
 import type { ScoredTier } from './shared/fit';
-import { rank, type Marks } from './shared/search';
+import { rank, snippetOf, type Marks, type Snippet } from './shared/search';
 import { appZone } from './time-zone';
 
 /**
@@ -21,7 +22,8 @@ import { appZone } from './time-zone';
  * (`dayCount`, in the app's time zone) and how many of those are good and fair fits (`dayGood`,
  * `dayFair`, lib/shared/fit.ts; none without verdicts); the active profile's verdict, if it judged it, or whether the AI
  * is matching it right now (`matching`, lib/ai/matching.ts); where the search matched its title and
- * company (`marks`), when there's a search; what a board said about it besides (`details`: salary,
+ * company (`marks`), when there's a search, and, searching everything, a piece of the note or the ad where
+ * it matched there (`snippet`); what a board said about it besides (`details`: salary,
  * contract, work mode, where), from the first of its offers whose ad was read.
  */
 export type ListedJob = offersRepo.Job & {
@@ -34,6 +36,7 @@ export type ListedJob = offersRepo.Job & {
   /** your applications at its company (this job's too), the latest first */
   companyApplied: offersRepo.AppliedThere[];
   marks?: Marks;
+  snippet?: Snippet;
   matching?: boolean;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription' | 'bodyLeasing'>;
   details?: JobDetails;
@@ -42,6 +45,8 @@ export type ListedJob = offersRepo.Job & {
 export const PAGE_SIZE = 50;
 
 type Query = { q: string; src: string; page: number } & DateFilter & {
+    /** the search reads everything: your note and the ads (the text, salary, contract, skills…) too (?in=all) */
+    everything?: boolean;
     /** only the jobs the latest scrape run that brought new jobs brought (?new=1) */
     latest?: boolean;
     /** the archived jobs instead of the others (?archived=1) */
@@ -89,14 +94,22 @@ export async function getJobs(opts: Query): Promise<JobPage> {
   };
   // a search: the jobs the rest of the filter leaves, ranked here (lib/shared/search.ts), the list
   // then only those, in that order
-  const found = opts.q ? rank(await offersRepo.searchable(narrowed), opts.q) : null;
+  const searched = opts.q ? await (opts.everything ? searchableAll(narrowed) : searchRepo.searchable(narrowed)) : [];
+  const found = opts.q ? rank(searched, opts.q) : null;
+  const texts = new Map(opts.everything ? searched.map((job) => [job.jobId, job]) : []);
   const filter = {
     ...narrowed,
     archived: opts.archived,
     byFit: opts.byFit,
     ...(found && { ranked: found.ids, byDate: opts.byDate }),
   };
-  const marked = (job: ListedJob): ListedJob => (found ? { ...job, marks: found.marks.get(job.jobId) } : job);
+  const marked = (job: ListedJob): ListedJob => {
+    if (!found) return job;
+    const marks = found.marks.get(job.jobId);
+    const text = texts.get(job.jobId);
+    const snippet = text && snippetOf(text, marks);
+    return { ...job, marks, ...(snippet && { snippet }) };
+  };
   const byMatch = Boolean(found) && !opts.byDate && !opts.byFit;
   if (!opts.ai) {
     const verdictsOf = opts.verdictsOf && {
@@ -123,6 +136,18 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     latest,
   );
   return { byMatch, jobs: await withDetails(rows.map(withVerdict).map(marked)), ...numbers, latest };
+}
+
+/** The jobs as a search of everything reads them: the note, then each ad's details and text (lib/ads/details.ts). */
+async function searchableAll(filter: Parameters<typeof searchRepo.searchableAll>[0]) {
+  const rows = await searchRepo.searchableAll(filter);
+  return rows.map(({ ads, ...job }) => ({
+    ...job,
+    more: (ads ?? [])
+      .flatMap((ad) => [detailsWords(ad.details), ad.description ?? ''])
+      .filter(Boolean)
+      .join('\n'),
+  }));
 }
 
 /** Each job with what a board said about it besides the text: its first offer (as listed) with any. */

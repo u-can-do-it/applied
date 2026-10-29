@@ -79,7 +79,12 @@ it('Rent-a-dev: by the verdict, unless the application has its own call on it', 
 });
 
 it('a search’s words marked, as on the offers: in the title, the company and the note’s first line', () => {
-  const button = row(null, null, { title: [0, 5], company: [0, 2], note: [6, 11, 12, 16] }, '  Ask Scala team\nlater');
+  const button = row(
+    null,
+    null,
+    { title: [0, 5], company: [0, 2], note: [6, 11, 12, 16], more: [] },
+    '  Ask Scala team\nlater',
+  );
   const marked = [...button.querySelectorAll('mark')].map((mark) => mark.textContent);
   expect(marked).toEqual(['Front', 'Ac', 'Scala team']); // two words, one mark
 });

@@ -16,6 +16,7 @@ describe('parseOfferQuery', () => {
       parseOfferQuery({ q: 'react', src: 'justjoin', page: '2', days: '7', fit: 'rejected', new: '1', archived: '1' }),
     ).toEqual({
       q: 'react',
+      everything: false,
       src: 'justjoin',
       page: 2,
       days: '7',
@@ -40,6 +41,11 @@ describe('parseOfferQuery', () => {
     expect(parseOfferQuery({ order: 'best' }).byFit).toBe(false);
   });
 
+  it('searches everything with ?in=all', () => {
+    expect(parseOfferQuery({ q: 'kubernetes', in: 'all' }).everything).toBe(true);
+    expect(parseOfferQuery({ q: 'kubernetes', in: 'some' }).everything).toBe(false);
+  });
+
   it('keeps a fit tier', () => {
     expect(parseOfferQuery({ fit: 'good' }).fit).toBe('good');
     expect(parseOfferQuery({ fit: 'fair' }).fit).toBe('fair');
@@ -58,6 +64,7 @@ describe('parseOfferQuery', () => {
       }),
     ).toEqual({
       q: 'x'.repeat(200),
+      everything: false,
       src: '',
       page: 0,
       days: '',

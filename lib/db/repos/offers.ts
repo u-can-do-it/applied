@@ -1,24 +1,9 @@
 import 'server-only';
-import {
-  and,
-  arrayContains,
-  count,
-  desc,
-  eq,
-  gte,
-  inArray,
-  lt,
-  lte,
-  max,
-  not,
-  or,
-  sql,
-  type SQL,
-} from 'drizzle-orm';
+import { and, arrayContains, count, desc, eq, gte, inArray, lt, lte, max, not, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../client';
 import { first } from '../rows';
 import { isArchived } from './archived-jobs';
-import { dayOf, newestFirst, order, placeIn } from './offer-order';
+import { dayOf, order, placeIn } from './offer-order';
 import { isSeen } from './seen-jobs';
 import { FAIR_FIT, GOOD_FIT, type ScoredTier } from '../../shared/fit';
 import {
@@ -128,7 +113,7 @@ const appliedAtCompany = {
 };
 
 /** What the filter asks for, archived or not. */
-function matching(filter: JobFilter): SQL | undefined {
+export function matching(filter: JobFilter): SQL | undefined {
   return and(
     filter.src ? arrayContains(offersUnique.boards, [filter.src]) : undefined,
     filter.ranked ? sql`${placeIn(filter.ranked)} is not null` : undefined,
@@ -280,18 +265,6 @@ export async function pageOfJudgedJobs(
     db().select(counts(filter, latest)).from(offersUnique).innerJoin(aiVerdicts, judged).where(where),
   ]);
   return { rows, ...numbers };
-}
-
-/**
- * What a search looks through: every job the rest of the filter leaves (archived or not: the list
- * counts the archived ones it finds too), its title and company, newest first.
- */
-export function searchable(filter: Omit<JobFilter, 'ranked' | 'byDate' | 'byFit' | 'archived'>) {
-  return db()
-    .select({ jobId: offersUnique.jobId, title: offersUnique.title, company: offersUnique.company })
-    .from(offersUnique)
-    .where(matching(filter))
-    .orderBy(...newestFirst);
 }
 
 /**

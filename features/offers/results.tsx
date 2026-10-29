@@ -35,7 +35,9 @@ export async function Results({
   boards: Promise<BoardOption[]>;
 }) {
   const path = '/';
-  const { q, src, page, days, from, to, latest, archived, fit, byDate, byFit } = parseOfferQuery(await searchParams);
+  const { q, everything, src, page, days, from, to, latest, archived, fit, byDate, byFit } = parseOfferQuery(
+    await searchParams,
+  );
   const tier = fit === 'good' || fit === 'fair' ? fit : undefined; // ?fit= narrowed to a fit tier
   const filtered = Boolean(q || src || days || from || to || latest);
   const range = describeRange({ days, from, to });
@@ -46,6 +48,7 @@ export async function Results({
   const current = new URLSearchParams();
   const params = {
     q,
+    in: everything ? 'all' : '',
     src,
     days,
     from,
@@ -68,7 +71,7 @@ export async function Results({
     [zone, profiles, settings] = await Promise.all([appZone(), listProfiles(), appSettings()]);
     minFit = settings.minFit;
     const profile = profiles.at(0);
-    const query = { q, src, page, days, from, to, latest, archived, byDate, byFit };
+    const query = { q, everything, src, page, days, from, to, latest, archived, byDate, byFit };
     if (fit) {
       // only the jobs the active profile judged, matches (or its good or fair ones) or rejected
       if (isUsable(profile)) {

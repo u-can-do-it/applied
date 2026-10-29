@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { ExternalLinkIcon, NotebookPenIcon, SparklesIcon } from 'lucide-react';
+import { ExternalLinkIcon, NotebookPenIcon, SparklesIcon, TextSearchIcon } from 'lucide-react';
 import { workModeOf, workModeText, type JobDetails } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
-import { marksWithin, type Marks } from '@/lib/shared/search';
+import { marksWithin, type Marks, type Snippet } from '@/lib/shared/search';
 import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
 import { CompanyHover } from './company-hover';
@@ -87,10 +87,23 @@ function NoteLine({ note, marks }: { note: string; marks?: number[] }) {
   );
 }
 
+const SNIPPET_OF = { note: 'In your note', more: 'In the ad' } as const;
+
+/** Where a search of everything matched in the note or the ad, which the row doesn't show otherwise. */
+function SnippetLine({ snippet }: { snippet: Snippet }) {
+  const Icon = snippet.of === 'note' ? NotebookPenIcon : TextSearchIcon;
+  return (
+    <span className="mt-[3px] block truncate text-[13px] text-muted-foreground" title={SNIPPET_OF[snippet.of]}>
+      <Icon aria-hidden /> <span className="sr-only">{SNIPPET_OF[snippet.of]}: </span>
+      <Marked text={snippet.text} marks={snippet.marks} />
+    </span>
+  );
+}
+
 /**
  * The row: `leading` (the offers' time), then the title (`before` and `after` it: a "new" badge, a seen
  * mark, the window's button, which a click on the row clicks), the company and `facts`, the verdict's line,
- * the note's first line; then the badges: `top`, the Rent-a-dev, fit (or, while the AI is `matching` the
+ * the note's first line, or where a search of everything matched in the note or the ad (`snippet`); then the badges: `top`, the Rent-a-dev, fit (or, while the AI is `matching` the
  * job, its "matching…") and board badges, `bottom`. A search's words are marked in the title, the company
  * and the note. The company is a link with `companyHref` (the list searching for it), or a button with
  * `onCompany`. `className`: the row's grid (JOB_ROW, or a wider one with `leading`).
@@ -111,6 +124,7 @@ export function JobRow({
   rentADev,
   note,
   marks,
+  snippet,
   boards,
   labels,
   before,
@@ -139,6 +153,7 @@ export function JobRow({
   rentADev: boolean;
   note?: string | null;
   marks?: Marks;
+  snippet?: Snippet;
   boards: Board[];
   labels: Record<string, string>;
   before?: ReactNode;
@@ -218,6 +233,7 @@ export function JobRow({
           </div>
         )}
         {note?.trim() && <NoteLine note={note} marks={marks?.note} />}
+        {snippet && <SnippetLine snippet={snippet} />}
       </div>
       <div className="flex flex-col items-end gap-1.5 max-[560px]:max-w-[42vw]">
         {top}

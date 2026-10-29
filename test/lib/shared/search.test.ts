@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { marksWithin, rank } from '@/lib/shared/search';
+import { marksWithin, rank, snippetOf } from '@/lib/shared/search';
 
-// newest first, as lib/db/repos/offers.ts searchable() lists them
+// newest first, as lib/db/repos/offer-search.ts searchable() lists them
 const jobs = [
   { jobId: 'java', title: 'Java Developer', company: 'Acme' },
   { jobId: 'advocate', title: 'Developer Advocate', company: 'Devtools' },
@@ -54,8 +54,13 @@ describe('rank', () => {
 
   it('says where it matched, in the title and the company', () => {
     const found = rank(jobs, 'pyhton lodz');
-    expect(found?.marks.get('python')).toEqual({ title: [0, 6], company: [0, 4], note: [] });
-    expect(rank(jobs, 'acme react')?.marks.get('react')).toEqual({ title: [27, 32], company: [0, 4], note: [] });
+    expect(found?.marks.get('python')).toEqual({ title: [0, 6], company: [0, 4], note: [], more: [] });
+    expect(rank(jobs, 'acme react')?.marks.get('react')).toEqual({
+      title: [27, 32],
+      company: [0, 4],
+      note: [],
+      more: [],
+    });
   });
 
   it('an application’s note is searched too, and marked', () => {
@@ -65,8 +70,31 @@ describe('rank', () => {
     ];
     const found = rank(apps, 'scala');
     expect(found?.ids).toEqual(['scala']);
-    expect(found?.marks.get('scala')).toEqual({ title: [], company: [], note: [16, 21] });
-    expect(rank(apps, 'scan')?.marks.get('scala')).toEqual({ title: [], company: [0, 4], note: [] });
+    expect(found?.marks.get('scala')).toEqual({ title: [], company: [], note: [16, 21], more: [] });
+    expect(rank(apps, 'scan')?.marks.get('scala')).toEqual({ title: [], company: [0, 4], note: [], more: [] });
+  });
+
+  it('searching everything, the rest too: the ad, what the board says besides', () => {
+    const ads = [
+      { jobId: 'k8s', title: 'Backend Developer', company: 'Acme', more: 'Salary 25000 PLN\nWe run Kubernetes on AWS' },
+      {
+        jobId: 'noted',
+        title: 'Backend Developer',
+        company: null,
+        note: 'Kubernetes mentioned on the call',
+        more: null,
+      },
+      { jobId: 'plain', title: 'Kubernetes Engineer', company: 'Beta', more: '' },
+    ];
+    expect(rank(ads, 'kubernets')?.ids).toEqual(['plain', 'noted', 'k8s']); // the title's first
+    expect(rank(ads, 'kubernetes aws')?.marks.get('k8s')).toEqual({
+      title: [],
+      company: [],
+      note: [],
+      more: [24, 34, 38, 41],
+    });
+    expect(rank(ads, 'kubernetes')?.marks.get('noted')).toEqual({ title: [], company: [], note: [0, 10], more: [] });
+    expect(rank(ads, 'backend 25000')?.ids).toEqual(['k8s']);
   });
 
   it('nothing to look for: null, the list stays as it is', () => {
@@ -80,5 +108,36 @@ describe('marksWithin', () => {
     expect(marksWithin([0, 3, 5, 9, 12, 14], 4, 10)).toEqual([1, 5]);
     expect(marksWithin([2, 8], 4, 6)).toEqual([0, 2]);
     expect(marksWithin(undefined, 0, 5)).toEqual([]);
+  });
+});
+
+describe('snippetOf', () => {
+  const ad = 'We are a small team.\nOur stack:\n• TypeScript and React\n• Kubernetes on AWS, Terraform';
+  const job = { jobId: 'a', title: 'Developer', company: 'Acme', more: ad };
+  const marked = (snippet: ReturnType<typeof snippetOf>) =>
+    snippet && snippet.marks.length ? snippet.text.slice(snippet.marks[0], snippet.marks[1]) : undefined;
+
+  it('the rest from a word a little before the first mark, on one line, its marks moved with it', () => {
+    const marks = rank([job], 'terraform')?.marks.get('a');
+    const snippet = snippetOf(job, marks);
+    expect(snippet).toMatchObject({ of: 'more', text: '…Kubernetes on AWS, Terraform' });
+    expect(marked(snippet)).toBe('Terraform');
+  });
+
+  it('the start as it is, and "…" where a long text is cut', () => {
+    const long = { ...job, more: 'Kubernetes ' + 'x'.repeat(400) };
+    const snippet = snippetOf(long, rank([long], 'kubernetes')?.marks.get('a'));
+    expect(snippet?.text.startsWith('Kubernetes x')).toBe(true);
+    expect(snippet?.text.endsWith('x…')).toBe(true);
+    expect(snippet?.marks).toEqual([0, 10]);
+  });
+
+  it('the note first; none when only the title or the company matched', () => {
+    const noted = { ...job, note: 'Ask about React Native' };
+    const snippet = snippetOf(noted, rank([noted], 'react')?.marks.get('a'));
+    expect(snippet).toMatchObject({ of: 'note', text: 'Ask about React Native' });
+    expect(marked(snippet)).toBe('React');
+    expect(snippetOf(job, rank([job], 'acme developer')?.marks.get('a'))).toBeUndefined();
+    expect(snippetOf(job, undefined)).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { expect, it } from 'vitest';
 import * as linksRepo from '@/lib/db/repos/job-links';
 import * as jobNotesRepo from '@/lib/db/repos/job-notes';
+import * as detailsRepo from '@/lib/db/repos/offer-details';
 import * as offersRepo from '@/lib/db/repos/offers';
 import { archive, restore } from '@/lib/db/repos/archived-jobs';
 import { markSeen } from '@/lib/db/repos/seen-jobs';
@@ -25,10 +26,19 @@ const seenAt = (src: string, id: string, at: string) =>
 const page = (
   query = '',
   src = '',
-  extra: { days?: string; from?: string; to?: string; page?: number; archived?: boolean; byDate?: boolean } = {},
+  extra: {
+    days?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    archived?: boolean;
+    byDate?: boolean;
+    everything?: boolean;
+  } = {},
 ) =>
   getJobs({
     q: query,
+    everything: extra.everything,
     src,
     page: extra.page ?? 0,
     days: extra.days,
@@ -189,7 +199,7 @@ describeDb('offers', () => {
     expect(typo.byMatch).toBe(true);
     expect(typo.jobs.map((job) => job.id).sort()).toEqual(['1', '2', '4']);
     expect((await page('pyhton lodz')).jobs.map((job) => [job.id, job.marks])).toEqual([
-      ['3', { title: [0, 6], company: [0, 4] }],
+      ['3', { title: [0, 6], company: [0, 4], note: [], more: [] }],
     ]);
     // a whole word at the start of the title before one inside a word, though older
     expect((await page('dev')).jobs.map((job) => job.id)).toEqual(['2', '1', '4']);
@@ -200,6 +210,35 @@ describeDb('offers', () => {
     expect((await page('')).byMatch).toBe(false);
     // nothing to look for: not filtered
     expect((await page('%%')).jobs).toHaveLength(4);
+  });
+
+  it('searching everything, reads your note and every offer’s ad too, and shows where it matched', async () => {
+    const [acme, , beta] = await offersRepo.ingest([
+      offer('justjoin', '1', 'Backend Developer', 'Acme'),
+      offer('nofluff', '2', 'Backend Developer', 'Acme'), // the same job on another board, its ad read
+      offer('justjoin', '3', 'Frontend Developer', 'Beta'),
+      offer('justjoin', '4', 'Data Engineer', 'Gamma'),
+    ]);
+    await detailsRepo.saveText({
+      src: 'nofluff',
+      id: '2',
+      description: 'We run Kubernetes on AWS.',
+      details: { salary: '25 000 PLN / month', skills: [{ name: 'Terraform' }] },
+    });
+    await jobNotesRepo.setIfUnchanged(beta.jobKey, 'Recruiter: Kubernetes later', null);
+
+    // the title and the company only, unless asked
+    expect((await page('kubernetes')).jobs).toEqual([]);
+    const found = await page('kubernetes', '', { everything: true });
+    const snippets = new Map(found.jobs.map((job) => [job.jobId, job.snippet]));
+    expect([...snippets.keys()].sort()).toEqual([acme.jobKey, beta.jobKey].sort());
+    expect(snippets.get(beta.jobKey)).toEqual({ of: 'note', text: 'Recruiter: Kubernetes later', marks: [11, 21] });
+    expect(snippets.get(acme.jobKey)).toMatchObject({ of: 'more' });
+    expect(snippets.get(acme.jobKey)?.text).toContain('We run Kubernetes on AWS.');
+    // the board's details: the salary, its number without the space too, the skills
+    expect((await page('25000 terraform', '', { everything: true })).jobs.map((job) => job.id)).toEqual(['1']);
+    // a match in the title: no snippet
+    expect((await page('frontend', '', { everything: true })).jobs.map((job) => job.snippet)).toEqual([undefined]);
   });
 
   it("lists a search's jobs newest first when asked (a company's link), the same ones", async () => {

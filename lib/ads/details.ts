@@ -42,6 +42,24 @@ export function workModeText(details: JobDetails | null | undefined) {
   return days ? `${WORK_MODE_LABELS[mode]} (${days})` : WORK_MODE_LABELS[mode];
 }
 
+/**
+ * What the board said, as words a search finds: the salary (its numbers also without the spaces in them,
+ * so "25000" finds "25 000"), the contract, the work mode, where, the skills.
+ */
+export function detailsWords(details: JobDetails | null | undefined): string {
+  if (!details) return '';
+  const salary = details.salary;
+  const joined = salary?.replace(/(\d)\s+(?=\d{3}(?!\d))/g, '$1');
+  return unique([
+    salary,
+    joined,
+    details.contract,
+    workModeText(details),
+    details.location,
+    ...(details.skills ?? []).map((skill) => skill.name),
+  ]).join(' · ');
+}
+
 /** One offer's ad as read from its board. */
 export type Ad = { text: string; details: JobDetails };
 

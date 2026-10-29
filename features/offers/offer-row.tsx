@@ -35,6 +35,7 @@ const boardsOf = (job: ListedJob) => {
  * (or keyboard focus) only. Under a day's heading the row shows the hour it came in; in a list not grouped
  * by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier this week, "02/10" before, in
  * a wider first column. Its details line: what its ad said (salary, contract, work mode, where), once read.
+ * A search of everything (?in=all) that matched in the ad or your note shows that piece of it, last.
  */
 export function OfferRow({
   job,
@@ -85,6 +86,7 @@ export function OfferRow({
           matching={job.matching}
           rentADev={Boolean(job.ai?.bodyLeasing)}
           marks={job.marks}
+          snippet={job.snippet}
           boards={boardsOf(job)}
           labels={labels}
           before={
