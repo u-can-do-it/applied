@@ -9,11 +9,18 @@ import { message } from '../shared/errors';
 type Candidate = pairsRepo.Candidate;
 
 // AI duplicate check for one run's date range. The database proposes pairs of jobs whose ids
-// differ but look alike (same / prefix company, similar title, < 30 days apart, never asked
-// before); the model says same or not; same pairs are merged into one job (job_links), verdicts follow.
+// differ but look alike (same / prefix company, similar title, < 180 days apart, never asked
+// before); the model says same or not; same pairs under 30 days apart are merged into one job (job_links),
+// verdicts follow. A same pair further apart is a repost and its earlier job: not merged (a repost is a job of
+// its own, as an exact one is), its verdict links them (lib/db/repos/reposts.ts).
 
 const PAIRS_PER_CALL = 15;
 const PARALLEL = 2;
+/** first seen this many days apart or more, the same job is a repost: linked, not merged (as jw_ingest_offers splits an exact one) */
+export const REPOST_DAYS = 30;
+/** how far apart a pair's jobs may be: a repost further on isn't looked for */
+const PAIR_DAYS = 180;
+const DAY = 86_400_000;
 
 // the field names are what the prompt shows the model
 const forAi = (job: pairsRepo.CandidateJob): JobForAi => ({
@@ -26,6 +33,10 @@ const forAi = (job: pairsRepo.CandidateJob): JobForAi => ({
   excerpt: job.excerpt,
 });
 
+/** the jobs were first seen REPOST_DAYS or more apart: the later one is a repost of the other */
+const isRepost = (pair: Candidate) =>
+  Math.abs(Date.parse(pair.a.firstSeen) - Date.parse(pair.b.firstSeen)) >= REPOST_DAYS * DAY;
+
 const pairId = (pair: Candidate) => `${pair.jobIdA}\u0001${pair.jobIdB}`;
 
 /** The job that stays when two are merged: the earliest (on a tie, the smaller id); the other is merged into it. */
@@ -37,7 +48,7 @@ const keepFirst = <T extends { jobId: string; firstSeen: number }>(a: T, b: T): 
  * `asked` holds pairs already sent in this slice, so a stale read can't loop.
  */
 export async function mergeDuplicatesRound(range: { gte: string | null; lt: string | null }, asked: Set<string>) {
-  const pending = (await pairsRepo.candidates(range, 80)).filter((pair) => !asked.has(pairId(pair)));
+  const pending = (await pairsRepo.candidates(range, 80, PAIR_DAYS)).filter((pair) => !asked.has(pairId(pair)));
   if (!pending.length) return { checked: 0, merged: 0, error: null as string | null };
 
   const take = pending.slice(0, PAIRS_PER_CALL * PARALLEL);
@@ -65,7 +76,7 @@ export async function mergeDuplicatesRound(range: { gte: string | null; lt: stri
     decided.map(({ pair, same, reason }) => ({ jobIdA: pair.jobIdA, jobIdB: pair.jobIdB, same, reason, model })),
   );
 
-  // merge the "same" pairs; within this round, follow earlier merges so A=B, B=C ends up as one job
+  // merge the "same" pairs (a repost's aside); within this round, follow earlier merges so A=B, B=C ends up as one job
   const mergedInto = new Map<string, string>();
   const firstSeen = new Map<string, number>();
   for (const { pair } of decided) {
@@ -78,7 +89,7 @@ export async function mergeDuplicatesRound(range: { gte: string | null; lt: stri
   };
   let merged = 0;
   for (const { pair, same } of decided) {
-    if (!same) continue;
+    if (!same || isRepost(pair)) continue;
     const a = root(pair.jobIdA),
       b = root(pair.jobIdB);
     if (a === b) continue;

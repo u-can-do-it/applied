@@ -3,9 +3,11 @@
 import { Check, FileTextIcon } from 'lucide-react';
 import type { Application, ListedApplication } from '@/lib/applications';
 import { cn } from '@/lib/shared/cn';
+import { useZone } from '@/components/time-zone';
 import type { Marks, Snippet } from '@/lib/shared/search';
 import { JobRow, detailFacts, type CompanyApplied } from '@/features/offers/job-row';
 import { isRentADev } from '@/features/offers/rent-a-dev';
+import { RepostBadge } from '@/features/offers/repost-badge';
 import { WindowButton } from '@/features/offers/row-box';
 import { StatusChip } from './status-chip';
 import { TalentPool } from './talent-pool';
@@ -21,7 +23,8 @@ const CONTENT_COLOUR: Record<Application['contentStatus'], string> = {
  * One application in the list (under the day you applied: no date of its own), as JobRow shows a job on
  * either tab: its title opens the ad, its company searches every application for it (`onCompany`), a click elsewhere
  * opens its window. Its status above the badges (and the talent pool, when it's in it), its note's first line under the verdict's. "Rent-a-dev": a
- * software house's / body leasing firm's job, by the application's own call, or else the verdict's.
+ * software house's / body leasing firm's job, by the application's own call, or else the verdict's. A repost's
+ * badge opens the job it was posted as before.
  */
 export function ApplicationRow({
   app,
@@ -51,6 +54,7 @@ export function ApplicationRow({
   companyApplied?: CompanyApplied;
 }) {
   const company = app.company;
+  const { tz } = useZone();
   return (
     <JobRow
       active={active}
@@ -62,6 +66,7 @@ export function ApplicationRow({
       facts={detailFacts(app.details)}
       verdict={app.fit}
       rentADev={Boolean(isRentADev(app))}
+      repost={app.repostOf && <RepostBadge of={app.repostOf} labels={labels} tz={tz} />}
       note={app.note}
       marks={marks}
       snippet={snippet}

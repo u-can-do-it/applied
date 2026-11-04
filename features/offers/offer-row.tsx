@@ -8,6 +8,7 @@ import { ArchiveButton, ArchiveRow } from './archive';
 import { detailFacts, JOB_ROW, JobRow } from './job-row';
 import { MergeButton } from './merge';
 import { OfferWindowButton } from './offer-window-button';
+import { RepostBadge } from './repost-badge';
 import { SeenItem, SeenMark } from './seen';
 
 // shared with the skeleton, so the rows don't move when the list comes in
@@ -35,7 +36,8 @@ const boardsOf = (job: ListedJob) => {
  * (or keyboard focus) only. Under a day's heading the row shows the hour it came in; in a list not grouped
  * by day (a search's), its day instead: "Today", "Yesterday", "Tue" earlier this week, "02/10" before, in
  * a wider first column. Its details line: what its ad said (salary, contract, work mode, where), once read.
- * A search of everything (?in=all) that matched in the ad or your note shows that piece of it, last.
+ * A search of everything (?in=all) that matched in the ad or your note shows that piece of it, last. A repost's
+ * badge opens the job it was posted as before.
  */
 export function OfferRow({
   job,
@@ -85,6 +87,7 @@ export function OfferRow({
           verdict={job.ai}
           matching={job.matching}
           rentADev={Boolean(job.ai?.bodyLeasing)}
+          repost={job.repostOf && <RepostBadge of={job.repostOf} labels={labels} tz={zone.tz} />}
           marks={job.marks}
           snippet={job.snippet}
           boards={boardsOf(job)}

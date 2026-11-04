@@ -393,15 +393,42 @@ describeDb('AI verdicts and runs', () => {
     expect(await detailsRepo.forOffers([])).toEqual([]);
   });
 
-  it('pairs look-alike jobs first seen under 30 days apart only: a reworded repost after that is a job of its own', async () => {
+  it('pairs look-alike jobs first seen under so many days apart: 30 as the code before asked, 180 to find reposts', async () => {
     await offersRepo.ingest([
       job('justjoin', '1', 'Senior React Developer', 'EPAM'),
       job('nofluff', '2', 'Senior React.js Developer!', 'EPAM Systems'),
     ]);
     await exec(sql`update public.offers set first_seen = now() - interval '31 days' where src = 'nofluff'`);
-    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 30)).toEqual([]);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 180)).toHaveLength(1);
+    await exec(sql`update public.offers set first_seen = now() - interval '181 days' where src = 'nofluff'`);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 180)).toEqual([]);
     await exec(sql`update public.offers set first_seen = now() - interval '29 days' where src = 'nofluff'`);
-    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toHaveLength(1);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 30)).toHaveLength(1);
+    // the code before this called it with three arguments: 30 days
+    const [{ n }] = await exec(sql`select count(*)::int as n from public.ai_dup_candidates(null, null, 60)`);
+    expect(n).toBe(1);
+  });
+
+  it('pairs an archived job only 30+ days from the other, and never an exact repost with its earlier job', async () => {
+    const [archived] = await offersRepo.ingest([
+      job('justjoin', '1', 'Senior React Developer', 'EPAM'),
+      job('nofluff', '2', 'Senior React.js Developer!', 'EPAM Systems'),
+    ]);
+    await archive(archived.jobKey);
+    await exec(sql`update public.offers set first_seen = now() - interval '29 days' where src = 'justjoin'`);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 180)).toEqual([]);
+    // a repost of a job you archived: never merged, but its earlier job is looked for
+    await exec(sql`update public.offers set first_seen = now() - interval '31 days' where src = 'justjoin'`);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 180)).toHaveLength(1);
+
+    // the same title again: a repost of its own (jw_ingest_offers), the earlier job known without the AI
+    await exec(sql`truncate public.offers, public.archived_jobs cascade`);
+    await offersRepo.ingest([job('justjoin', '1', 'Senior React Developer', 'EPAM')]);
+    await exec(sql`update public.offers set first_seen = now() - interval '40 days'`);
+    const [repost] = await offersRepo.ingest([job('nofluff', '2', 'Senior React Developer', 'EPAM')]);
+    expect(repost.jobKey).toMatch(/~/);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 180)).toEqual([]);
   });
 
   it('proposes look-alike jobs once, until the pair is decided', async () => {
@@ -411,7 +438,7 @@ describeDb('AI verdicts and runs', () => {
       job('bulldog', '3', 'Accountant', 'EPAM'),
     ]);
     await exec(sql`update public.offers set first_seen = now() - interval '1 day' where src = 'nofluff'`);
-    const pairs = await pairsRepo.candidates({ gte: null, lt: null }, 60);
+    const pairs = await pairsRepo.candidates({ gte: null, lt: null }, 60, 30);
     expect(pairs).toHaveLength(1);
     const [pair] = pairs;
     const keys = added
@@ -428,7 +455,7 @@ describeDb('AI verdicts and runs', () => {
     await pairsRepo.record([
       { jobIdA: pair.jobIdA, jobIdB: pair.jobIdB, same: false, reason: 'changed', model: 'test' },
     ]);
-    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 30)).toEqual([]);
     const [decided] = await exec(sql`select same, reason from public.ai_dup_pairs`);
     expect(decided).toEqual({ same: false, reason: 'changed' });
   });
@@ -470,9 +497,9 @@ describeDb('AI verdicts and runs', () => {
       job('nofluff', '2', 'Senior React.js Developer!', 'EPAM Systems'),
     ]);
     await archive(archived.jobKey);
-    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toEqual([]);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 30)).toEqual([]);
 
     await restore(archived.jobKey);
-    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60)).toHaveLength(1);
+    expect(await pairsRepo.candidates({ gte: null, lt: null }, 60, 30)).toHaveLength(1);
   });
 });

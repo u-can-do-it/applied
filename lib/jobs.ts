@@ -4,6 +4,7 @@ import type { DateFilter } from './dates';
 import { adsWords, type JobDetails } from './ads/details';
 import * as detailsRepo from './db/repos/offer-details';
 import * as offersRepo from './db/repos/offers';
+import * as repostsRepo from './db/repos/reposts';
 import * as searchRepo from './db/repos/offer-search';
 import * as runsRepo from './db/repos/scrape-runs';
 import * as settingsRepo from './db/repos/scrape-settings';
@@ -24,7 +25,8 @@ import { appZone } from './time-zone';
  * is matching it right now (`matching`, lib/ai/matching.ts); where the search matched its title and
  * company (`marks`), when there's a search, and, searching everything, a piece of the note or the ad where
  * it matched there (`snippet`); what a board said about it besides (`details`: salary,
- * contract, work mode, where), from the first of its offers whose ad was read.
+ * contract, work mode, where), from the first of its offers whose ad was read; for a repost, the job it was
+ * posted as before (`repostOf`, lib/db/repos/reposts.ts).
  */
 export type ListedJob = offersRepo.Job & {
   isNew: boolean;
@@ -40,6 +42,7 @@ export type ListedJob = offersRepo.Job & {
   matching?: boolean;
   ai?: Pick<AiVerdictRow, 'match' | 'score' | 'summary' | 'checks' | 'hadDescription' | 'bodyLeasing'>;
   details?: JobDetails;
+  repostOf?: repostsRepo.RepostOf;
 };
 
 export const PAGE_SIZE = 50;
@@ -123,7 +126,7 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     ]);
     const matched = (job: ListedJob): ListedJob => (isMatching(job, since) ? { ...job, matching: true } : job);
     const jobs = rows.map(withVerdict).map(matched).map(marked);
-    return { byMatch, jobs: await withDetails(jobs), ...numbers, latest };
+    return { byMatch, jobs: await withMore(jobs), ...numbers, latest };
   }
   const { profileId, version, rejected, tier } = opts.ai;
   const verdicts = { profileId, version, match: !rejected, tier };
@@ -135,7 +138,7 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     verdicts,
     latest,
   );
-  return { byMatch, jobs: await withDetails(rows.map(withVerdict).map(marked)), ...numbers, latest };
+  return { byMatch, jobs: await withMore(rows.map(withVerdict).map(marked)), ...numbers, latest };
 }
 
 /** The jobs as a search of everything reads them: the note, then each ad's details and text (lib/ads/details.ts). */
@@ -145,6 +148,12 @@ async function searchableAll(filter: Parameters<typeof searchRepo.searchableAll>
     ...job,
     more: adsWords((ads ?? []).map((ad) => ({ details: ad.details, text: ad.description }))),
   }));
+}
+
+/** Each job with its details (withDetails) and, a repost, its earlier job. */
+async function withMore(jobs: ListedJob[]): Promise<ListedJob[]> {
+  const [detailed, reposts] = await Promise.all([withDetails(jobs), repostsRepo.withReposts(jobs)]);
+  return detailed.map((job, i) => ({ ...job, ...(reposts[i].repostOf && { repostOf: reposts[i].repostOf }) }));
 }
 
 /** Each job with what a board said about it besides the text: its first offer (as listed) with any. */

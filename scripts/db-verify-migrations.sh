@@ -160,9 +160,9 @@ ADDED_BOARDS='adzuna|himalayas|remotive|jobicy|remoteok|theprotocol|pracuj'
 ADDED_KINDS='ats'
 # what a later migration defines anew (0013_title_key_gender_tags: the title key, 0014_offers_unique_own_board_first:
 # the view, 0025_merge_moves_marks: the merge, 0026_dedup_skips_archived: the AI's duplicate pairs, 0029_repost_own_job:
-# the ingest, the view and the pairs again, and its new index): their entries are left out of the comparison; (b)
+# the ingest, the view and the pairs again, and its new index; 0034_repost_links: the pairs, with a 4th argument, so their grants' entry too): their entries are left out of the comparison; (b)
 # checks them against a fresh database's
-REDEFINED='jw_dup_key[(]|offers_unique;|jw_merge_jobs[(]|ai_dup_candidates[(]|jw_ingest_offers[(]|offers_job_key_idx;'
+REDEFINED='jw_dup_key[(]|offers_unique;|jw_merge_jobs[(]|ai_dup_candidates[(]|FUNCTION ai_dup_candidates[(]|jw_ingest_offers[(]|offers_job_key_idx;'
 # check constraints a later migration defines anew (0030_online_test_stage: the stages, 0031_talent_pool_mark and
 # 0032_withdrawn_outcome: the outcomes): their lines are left out of their tables' entries; (b) checks them against
 # a fresh database's

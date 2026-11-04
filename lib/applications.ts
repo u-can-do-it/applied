@@ -7,6 +7,7 @@ import * as detailsRepo from './db/repos/offer-details';
 import * as jobNotesRepo from './db/repos/job-notes';
 import * as linksRepo from './db/repos/job-links';
 import * as offersRepo from './db/repos/offers';
+import * as repostsRepo from './db/repos/reposts';
 import type { NewApplicationRow } from './db/schema';
 import { scrapeOfferFull } from './ads';
 import { workModeOf, type JobDetails } from './ads/details';
@@ -53,9 +54,12 @@ export {
   type TypedField,
 } from './application-details';
 
-/** Newest first, each with the active AI profile's verdict on the job, as the window has it (fitOf). */
-export async function listApplications() {
-  return applicationsRepo.list((await listProfiles()).at(0));
+/**
+ * Newest first, each with the active AI profile's verdict on the job, as the window has it (fitOf), and, for
+ * a repost, the job it was posted as before (`repostOf`, lib/db/repos/reposts.ts).
+ */
+export async function listApplications(): Promise<ListedApplication[]> {
+  return repostsRepo.withReposts(await applicationsRepo.list((await listProfiles()).at(0)));
 }
 export const getApplication = (jobId: string) => applicationsRepo.get(jobId);
 /** Every application's ad text, by job id (the list loads none): for the Applied tab's search of everything. */

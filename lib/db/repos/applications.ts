@@ -6,14 +6,15 @@ import { db } from '../client';
 import { first } from '../rows';
 import { aiVerdicts, applications, type ApplicationRow, type NewApplicationRow } from '../schema';
 import type { Fit } from './ai-verdicts';
+import type { RepostOf } from './reposts';
 
 // Jobs you applied to: one row per job (its id in dup_key), with a snapshot of the ad.
 
 /** An application as the list has it: everything but the ad text. */
 export type Application = Omit<ApplicationRow, 'content'>;
 export type ApplicationWithContent = ApplicationRow;
-/** …and a profile version's verdict on the job (null: it hasn't judged it). */
-export type ListedApplication = Application & { fit: Fit | null };
+/** …and a profile version's verdict on the job (null: it hasn't judged it), and a repost's earlier job (lib/applications.ts). */
+export type ListedApplication = Application & { fit: Fit | null; repostOf?: RepostOf };
 
 const { content: _content, ...listColumns } = getTableColumns(applications);
 

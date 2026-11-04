@@ -103,7 +103,7 @@ function SnippetLine({ snippet }: { snippet: Snippet }) {
 /**
  * The row: `leading` (the offers' time), then the title (`before` and `after` it: a "new" badge, a seen
  * mark, the window's button, which a click on the row clicks), the company and `facts`, the verdict's line,
- * the note's first line, or where a search of everything matched in the note or the ad (`snippet`); then the badges: `top`, the Rent-a-dev, fit (or, while the AI is `matching` the
+ * the note's first line, or where a search of everything matched in the note or the ad (`snippet`); then the badges: `top`, a repost's (`repost`), the Rent-a-dev, fit (or, while the AI is `matching` the
  * job, its "matching…") and board badges, `bottom`. A search's words are marked in the title, the company
  * and the note. The company is a link with `companyHref` (the list searching for it), or a button with
  * `onCompany`. `className`: the row's grid (JOB_ROW, or a wider one with `leading`).
@@ -122,6 +122,7 @@ export function JobRow({
   verdict,
   matching = false,
   rentADev,
+  repost,
   note,
   marks,
   snippet,
@@ -151,6 +152,8 @@ export function JobRow({
   /** no verdict yet, and the AI is judging it now */
   matching?: boolean;
   rentADev: boolean;
+  /** a repost's badge (repost-badge.tsx) */
+  repost?: ReactNode;
   note?: string | null;
   marks?: Marks;
   snippet?: Snippet;
@@ -238,6 +241,7 @@ export function JobRow({
       <div className="flex flex-col items-end gap-1.5 max-[560px]:max-w-[42vw]">
         {top}
         <div className="flex flex-wrap items-center justify-end gap-1">
+          {repost}
           {rentADev && <RentADev />}
           {!verdict && matching && <MatchingBadge />}
           {verdict && (

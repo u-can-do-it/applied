@@ -51,16 +51,17 @@ const side = (row: CandidateRow, prefix: 'a' | 'b'): CandidateJob => ({
 });
 
 /**
- * Pairs worth asking about, most alike first: jobs in the range against any job under 30 days
- * apart, same or prefix company, similar title, never decided, neither archived (pg_trgm; see the
- * function).
+ * Pairs worth asking about, most alike first: jobs in the range against any job first seen under `maxDays`
+ * apart, same or prefix company, similar title, never decided, two title keys (an exact repost's earlier job
+ * is known), neither archived when under 30 days apart (pg_trgm; see the function).
  */
 export async function candidates(
   range: { gte: string | null; lt: string | null },
   limit: number,
+  maxDays: number,
 ): Promise<Candidate[]> {
   const rows = await db().execute<CandidateRow>(
-    sql`select * from public.ai_dup_candidates(${range.gte}::timestamptz, ${range.lt}::timestamptz, ${limit}::int)`,
+    sql`select * from public.ai_dup_candidates(${range.gte}::timestamptz, ${range.lt}::timestamptz, ${limit}::int, ${maxDays}::int)`,
   );
   return Array.from(rows, (row) => ({
     jobIdA: row.key_a,

@@ -1,6 +1,6 @@
 'use client';
 
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { TimeZone } from '@/components/time-zone';
@@ -16,16 +16,31 @@ const OfferSheet = lazy(() => loadSheet().then((module) => ({ default: module.Of
 
 type Props = { job: OfferJob; labels: Record<string, string>; tz: string };
 
+/** What opens a job's window: `onPrefetch` when it's likely next, `onClick` opens it, `busy` while it loads. */
+export type WindowTrigger = (props: { onClick: () => void; onPrefetch: () => void; busy: boolean }) => ReactNode;
+
 /**
  * After an offer's title: opens its window (the ad, your note, the fit), as a click on the row does; counts
  * as opening it (seen).
  * Once it's applied to, the window is the application's (its note went there), as from the Applied badge.
  */
-export function OfferWindowButton({ applied, ...props }: Props & { applied: boolean }) {
-  return applied ? <ApplicationWindowButton {...props} /> : <OfferOnlyWindowButton {...props} />;
+export function OfferWindowButton(props: Props & { applied: boolean }) {
+  return (
+    <JobWindow
+      {...props}
+      trigger={({ onClick, onPrefetch, busy }) => (
+        <WindowButton title={props.job.title} onPrefetch={onPrefetch} onClick={onClick} aria-busy={busy || undefined} />
+      )}
+    />
+  );
 }
 
-function OfferOnlyWindowButton({ job, labels, tz }: Props) {
+/** A job's window, the offer's or (`applied`) the application's, opened by what `trigger` renders. */
+export function JobWindow({ applied, ...props }: Props & { applied: boolean; trigger: WindowTrigger }) {
+  return applied ? <ApplicationWindow {...props} /> : <OfferOnlyWindow {...props} />;
+}
+
+function OfferOnlyWindow({ job, labels, tz, trigger }: Props & { trigger: WindowTrigger }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -37,7 +52,7 @@ function OfferOnlyWindowButton({ job, labels, tz }: Props) {
 
   return (
     <>
-      <WindowButton title={job.title} onPrefetch={prefetch} onClick={() => setOpen(true)} />
+      {trigger({ onClick: () => setOpen(true), onPrefetch: prefetch, busy: false })}
       {open && (
         <TimeZone tz={tz}>
           <Suspense fallback={null}>
@@ -49,7 +64,7 @@ function OfferOnlyWindowButton({ job, labels, tz }: Props) {
   );
 }
 
-function ApplicationWindowButton({ job, labels, tz }: Props) {
+function ApplicationWindow({ job, labels, tz, trigger }: Props & { trigger: WindowTrigger }) {
   const application = useApplicationWindow({
     jobId: job.jobId,
     labels,
@@ -59,12 +74,11 @@ function ApplicationWindowButton({ job, labels, tz }: Props) {
 
   return (
     <>
-      <WindowButton
-        title={job.title}
-        onPrefetch={application.prefetch}
-        onClick={() => void application.open()}
-        aria-busy={application.opening || undefined}
-      />
+      {trigger({
+        onClick: () => void application.open(),
+        onPrefetch: application.prefetch,
+        busy: application.opening,
+      })}
       {application.window}
     </>
   );

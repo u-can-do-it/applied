@@ -52,11 +52,12 @@ describeDb('new in the latest run', () => {
 
   it('a run that only added another board’s offer of a known job brought no new job: it isn’t the one', async () => {
     await offersRepo.ingest([offer('jj-1', 'React Developer'), offer('old', 'Java Developer')]);
+    // the same job cross-posted on another board, saved by the next run (saved before the dates go back: a
+    // job first seen 30+ days ago would make it a repost)
+    await offersRepo.ingest([offer('nf-1', 'React Developer', 'nofluff')]);
     await seenAt('old', '2026-10-01T09:00:00Z');
     await seenAt('jj-1', '2026-10-01T10:00:10Z');
     await run('2026-10-01T10:00:00Z', '2026-10-01T10:00:30Z', 1);
-    // the same job cross-posted on another board, saved by the next run
-    await offersRepo.ingest([offer('nf-1', 'React Developer', 'nofluff')]);
     await exec(sql`update public.offers set first_seen = '2026-10-01T11:00:10Z' where id = 'nf-1'`);
     await run('2026-10-01T11:00:00Z', '2026-10-01T11:00:30Z', 1);
 

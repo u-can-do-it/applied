@@ -98,6 +98,34 @@ describeDb('applications', () => {
     expect('content' in (await listApplications())[0]).toBe(false);
   });
 
+  it('lists an application to a repost with the job it was posted as before, applied to or not', async () => {
+    const offer = (src: string, id: string, title: string, company: string) => ({
+      src,
+      id,
+      title,
+      company,
+      seniority: null,
+      remote: false,
+      url: `https://${src}.example/${id}`,
+    });
+    const [earlier] = await offersRepo.ingest([offer('justjoin', 'j1', 'React Developer', 'Acme')]);
+    await markApplied(earlier.jobKey, { src: 'justjoin', id: 'j1' });
+    await exec(sql`update public.offers set first_seen = now() - interval '40 days'`);
+    const [repost] = await offersRepo.ingest([offer('nofluff', 'n1', 'React Developer', 'Acme')]);
+    await markApplied(repost.jobKey, { src: 'nofluff', id: 'n1' });
+
+    const apps = await listApplications();
+    const applied = await getApplication(earlier.jobKey);
+    expect(apps.map((app) => [app.jobId, app.repostOf?.jobId])).toEqual([
+      [repost.jobKey, earlier.jobKey],
+      [earlier.jobKey, undefined],
+    ]);
+    expect(apps[0].repostOf?.appliedAt).toBe(applied?.appliedAt);
+    // the offers list's row too
+    const { jobs } = await getJobs({ q: '', src: '', page: 0 });
+    expect(jobs[0].repostOf).toMatchObject({ jobId: earlier.jobKey, appliedAt: applied?.appliedAt });
+  });
+
   it("lists your applications at each listed job's company, its legal form and case aside", async () => {
     const jobId = await scrapedJob();
     await offersRepo.ingest([

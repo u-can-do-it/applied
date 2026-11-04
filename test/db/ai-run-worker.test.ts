@@ -6,6 +6,7 @@ import { assessJobs, assessWaiting, continueRun, latestRun, startRun } from '@/l
 import * as linksRepo from '@/lib/db/repos/job-links';
 import * as queueRepo from '@/lib/db/repos/notify-queue';
 import { mergeNew } from '@/lib/listings/pipeline/dedup';
+import { getJobs } from '@/lib/jobs';
 import { PROFILE_CHANGED, WAITING_FOR_AD } from '@/lib/ai/run-state';
 import { AI_RUN_LOCK_MS, SLICE_MS } from '@/lib/budgets';
 import * as detailsRepo from '@/lib/db/repos/offer-details';
@@ -376,5 +377,31 @@ describeDb('jobs waiting for their ad (a scrape run, before Telegram and after)'
     // decided: not asked again
     expect(await mergeNew({ aiFilter: true }, Date.now() + 60_000)).toEqual({ merged: 0, error: null });
     expect(asked).toHaveLength(1);
+  });
+
+  it("a reworded repost, 30+ days after its earlier job: not merged, the list's row points at that job", async () => {
+    const offers = [
+      job('justjoin', '1', 'Middle Full-Stack Developer (Node.js/ Python, React)', 'Exadel'),
+      job('linkedin', '2', 'Middle Full-Stack Software Engineer (Node.js/ Python, React)', 'Exadel'),
+    ];
+    const added = await offersRepo.ingest(offers); // not in this order
+    const [earlier, repost] = offers.map((offer) => added.find((row) => row.src === offer.src)?.jobKey ?? '');
+    await exec(sql`update public.offers set first_seen = now() - interval '40 days' where src = 'justjoin'`);
+    await queueRepo.enqueue([{ ...offers[1], location: null, jobId: repost }]);
+    pairsAreSame = true;
+
+    expect(await mergeNew({ aiFilter: true }, Date.now() + 60_000)).toEqual({ merged: 0, error: null });
+    expect(asked).toEqual(['duplicates']);
+    expect(await linksRepo.jobIdOf(repost)).toBe(repost);
+    expect(await queueRepo.size()).toBe(1); // a repost is news
+    const [pair] = await exec(sql`select same from public.ai_dup_pairs`);
+    expect(pair).toEqual({ same: true });
+
+    const { jobs } = await getJobs({ q: '', src: '', page: 0 });
+    expect(jobs.map((row) => [row.jobId, row.repostOf?.jobId])).toEqual([
+      [repost, earlier],
+      [earlier, undefined],
+    ]);
+    expect(jobs[0].repostOf).toMatchObject({ title: offers[0].title, src: 'justjoin', id: '1', appliedAt: null });
   });
 });

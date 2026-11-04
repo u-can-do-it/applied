@@ -98,6 +98,8 @@ describeDb('offers', () => {
     expect(jobs.map((job) => [job.jobId, job.archived, job.seen, job.offers.length])).toEqual([
       [repost, false, false, 2],
     ]);
+    // …but its row points at the earlier job, archived or not
+    expect(jobs[0].repostOf).toMatchObject({ jobId: original.jobKey, title: 'React Developer', appliedAt: null });
     expect((await page('', '', { archived: true })).jobs.map((job) => job.jobId)).toEqual([original.jobKey]);
     // the next offer joins the repost, the title key's latest job
     expect(await offersRepo.ingest([offer('pracuj', '5', 'React Developer', 'Acme')])).toEqual([
@@ -118,6 +120,12 @@ describeDb('offers', () => {
     const [again] = await offersRepo.ingest([offer('bulldog', '3', 'Front-end Engineer (React)', 'Acme')]);
     expect(again.jobKey).toBe(`${merged.jobKey}~${new Date().toISOString().slice(0, 10)}`);
     expect(again.seenBefore).toBe(false);
+    // its earlier job is the one its title key was merged into
+    const { jobs } = await page();
+    expect(jobs.map((job) => [job.jobId, job.repostOf?.jobId])).toEqual([
+      [again.jobKey, old.jobKey],
+      [old.jobKey, undefined],
+    ]);
   });
 
   it('lists each job once, newest first, with every board it is on', async () => {
