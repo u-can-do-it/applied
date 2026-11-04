@@ -54,6 +54,45 @@ export function holdUntilIdle() {
   waitUntil(idle);
 }
 
+// The pooler's answer when its 15 clients are all taken: "(EMAXCONNSESSION) max clients reached in session
+// mode". It comes when connecting, so the query never reached the database and can simply be sent again.
+// Several instances at once (a page, its server actions, the cron's run) can take them all for a moment,
+// with nothing leaking: each holds its idle connections IDLE_SECONDS before closing them. So a query
+// the pooler turned away is tried again a little later, for a bit longer than that, instead of failing the page.
+const POOL_FULL = /EMAXCONN/;
+const RETRY_DELAYS_MS = [250, 500, 1000, 2000, 4000]; // 7.75 s in all
+
+/** Runs a query, and again while the pooler is full (RETRY_DELAYS_MS); any other error at once. */
+export async function retryWhenPoolFull<T>(query: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await query();
+    } catch (error) {
+      const retry = attempt < RETRY_DELAYS_MS.length && error instanceof Error && POOL_FULL.test(error.message);
+      if (!retry) throw error;
+      if (process.env.VERCEL) holdUntilIdle(); // the retry is a query too
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+    }
+  }
+}
+
+/**
+ * The client with retryWhenPoolFull around client.unsafe(), which Drizzle sends every query through
+ * (awaited, or with .values()). postgres.js runs a query when it's awaited, so each try sends it anew.
+ */
+function retrying(client: postgres.Sql): postgres.Sql {
+  return new Proxy(client, {
+    get(target, key, receiver): unknown {
+      if (key !== 'unsafe') return Reflect.get(target, key, receiver) as unknown;
+      return (...args: Parameters<postgres.Sql['unsafe']>) => ({
+        then: (resolve?: (rows: unknown) => unknown, reject?: (error: unknown) => unknown) =>
+          retryWhenPoolFull(async () => await target.unsafe(...args)).then(resolve, reject),
+        values: () => retryWhenPoolFull(async (): Promise<unknown[][]> => await target.unsafe(...args).values()),
+      });
+    },
+  });
+}
+
 /** The database (Drizzle over postgres.js); throws "SUPABASE_DB_URL is not set" until it is. */
 export function db(): Db {
   const url = env.SUPABASE_DB_URL;
@@ -71,7 +110,7 @@ export function db(): Db {
       // (docs/OPERATIONS.md → "Timeouts and the pooler").
       connection: { application_name: 'jobwatch', statement_timeout: 30_000, lock_timeout: 10_000 },
     });
-    const database = drizzle({ client, schema });
+    const database = drizzle({ client: retrying(client), schema });
     // drizzle() has just told the driver to hand timestamps over as Postgres' text; make that ISO
     // 8601 (schema.ts: timestamps are strings). Raw `sql` queries get the same.
     client.options.parsers[TIMESTAMPTZ_OID] = isoTimestamp;

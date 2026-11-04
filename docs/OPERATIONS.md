@@ -373,8 +373,13 @@ pooling). Fluid compute freezes an instance between requests, timers and all, so
 when it froze would hold one of them for as long as the instance lives; enough of them and every page fails
 with `EMAXCONNSESSION max clients reached in session mode`. So on Vercel each query keeps its request going
 (`waitUntil`) until the idle connections have closed, about 15 s after the last query (`holdUntilIdle`; what
-`@vercel/functions`' `attachDatabasePool` does for `pg`, which doesn't support postgres.js). If it happens
-anyway, the SQL Editor (a direct connection, not through the pooler) shows and frees them:
+`@vercel/functions`' `attachDatabasePool` does for `pg`, which doesn't support postgres.js). Even with
+nothing leaking, a few instances busy at once (a page, its server actions, the cron's run, up to 3
+connections each) can take all 15 for a moment. The pooler turns the next connection away before
+the query reaches the database, so the app sends that query again after 0.25, 0.5, 1, 2 and 4 s
+(`retryWhenPoolFull`) and fails the page only if the pooler is still full after that. If it happens
+often, raise the pool size in Supabase (the database's `max_connections` is 60, and about 7 of them are Supabase's own).
+If a page shows it anyway, the SQL Editor (a direct connection, not through the pooler) shows and frees them:
 
 ```sql
 select application_name, state, count(*) from pg_stat_activity group by 1, 2 order by 3 desc;

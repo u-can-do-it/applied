@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const waitUntil = vi.hoisted(() => vi.fn<(promise: Promise<unknown>) => void>());
 vi.mock('@vercel/functions', () => ({ waitUntil }));
 
-const { db, closeDb, holdUntilIdle } = await import('@/lib/db/client');
+const { db, closeDb, holdUntilIdle, retryWhenPoolFull } = await import('@/lib/db/client');
 
 const settled = async (promise: Promise<unknown>) => {
   let done = false;
@@ -63,5 +63,39 @@ describe('db()', () => {
     vi.stubEnv('VERCEL', '');
     db();
     expect(waitUntil).not.toHaveBeenCalled();
+  });
+});
+
+// The pooler takes 15 clients: when several instances have them all for a moment, it turns a new
+// connection away, and the query is sent again a little later instead of failing the page.
+describe('retryWhenPoolFull', () => {
+  const full = () =>
+    new Error('(EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15');
+
+  it('sends the query again while the pooler is full', async () => {
+    const query = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(full())
+      .mockRejectedValueOnce(full())
+      .mockResolvedValue('rows');
+    const result = retryWhenPoolFull(query);
+    await vi.advanceTimersByTimeAsync(750);
+    await expect(result).resolves.toBe('rows');
+    expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up after about 8 s with the pooler’s error', async () => {
+    const query = vi.fn<() => Promise<string>>().mockRejectedValue(full());
+    const result = retryWhenPoolFull(query);
+    const failed = expect(result).rejects.toThrow('EMAXCONNSESSION');
+    await vi.advanceTimersByTimeAsync(7_750);
+    await failed;
+    expect(query).toHaveBeenCalledTimes(6);
+  });
+
+  it('any other error at once', async () => {
+    const query = vi.fn<() => Promise<string>>().mockRejectedValue(new Error('relation "offers" does not exist'));
+    await expect(retryWhenPoolFull(query)).rejects.toThrow('does not exist');
+    expect(query).toHaveBeenCalledTimes(1);
   });
 });
