@@ -3,7 +3,7 @@
 import { useRefreshWhile } from '@/components/use-refresh-while';
 
 // an AI batch takes up to two minutes and saves its verdicts as it ends: a score shows within this of it
-export const MATCHING_REFRESH_MS = 15_000;
+export const MATCHING_REFRESH_MS = 5_000;
 
 /**
  * Refreshes the list while any of its jobs is being matched (`matching`: their ids), so their scores come
