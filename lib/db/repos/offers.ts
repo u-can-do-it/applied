@@ -6,6 +6,7 @@ import { isArchived } from './archived-jobs';
 import { dayOf, order, placeIn } from './offer-order';
 import { isSeen } from './seen-jobs';
 import { FAIR_FIT, GOOD_FIT, type ScoredTier } from '../../shared/fit';
+import type { WithStatus } from '../../stages';
 import {
   aiVerdicts,
   archivedJobs,
@@ -40,11 +41,14 @@ export type JobFilter = {
   archived?: boolean;
 };
 
-/** One job as the lists show it. */
+/** An application's status: how far it got, how that went (lib/stages.ts). */
+export type Status = Pick<WithStatus, 'stage' | 'outcome'>;
+
+/** One job as the lists show it; once applied to, its application's status (`status`). */
 export type Job = Pick<
   OfferUniqueRow,
   'src' | 'id' | 'title' | 'company' | 'seniority' | 'remote' | 'url' | 'firstSeen' | 'jobId' | 'offers' | 'appliedAt'
->;
+> & { status: Status | null };
 const jobColumns = {
   src: offersUnique.src,
   id: offersUnique.id,
@@ -57,6 +61,10 @@ const jobColumns = {
   jobId: offersUnique.jobId,
   offers: offersUnique.offers,
   appliedAt: offersUnique.appliedAt,
+  // the inner column renamed: a bare "dup_key" (the view's, as drizzle writes it) would be the application's
+  status: sql<Status | null>`(select json_build_object('stage', a.stage, 'outcome', a.stage_state)
+    from (select dup_key as app_id, stage, stage_state from public.applications) a
+    where a.app_id = ${offersUnique.jobId})`,
 } satisfies Record<keyof Job, unknown>;
 
 /** first_seen in [gte, lt); either end may be open */

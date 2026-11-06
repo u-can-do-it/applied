@@ -8,8 +8,11 @@ import { jobsById, type Job } from './offers';
 // didn't merge them, being that far apart (lib/ai/merge-duplicates.ts, 0034_repost_links.sql). Of several, the
 // latest begun before the job.
 
-/** The earlier job as a repost's badge shows it and opens its window. */
-export type RepostOf = Pick<Job, 'jobId' | 'src' | 'id' | 'title' | 'company' | 'url' | 'firstSeen' | 'appliedAt'>;
+/** The earlier job as a repost's badge shows it (and how your application to it went) and opens its window. */
+export type RepostOf = Pick<
+  Job,
+  'jobId' | 'src' | 'id' | 'title' | 'company' | 'url' | 'firstSeen' | 'appliedAt' | 'status'
+>;
 
 /** Of these jobs, each repost's earlier job, by the repost's id. */
 export async function previousJobs(jobIds: string[]): Promise<Map<string, RepostOf>> {
@@ -56,8 +59,8 @@ export async function previousJobs(jobIds: string[]): Promise<Map<string, Repost
   for (const row of previous) {
     const job = jobs.get(row.previous);
     if (!job) continue;
-    const { jobId, src, id, title, company, url, firstSeen, appliedAt } = job;
-    found.set(row.job_id, { jobId, src, id, title, company, url, firstSeen, appliedAt });
+    const { jobId, src, id, title, company, url, firstSeen, appliedAt, status } = job;
+    found.set(row.job_id, { jobId, src, id, title, company, url, firstSeen, appliedAt, status });
   }
   return found;
 }

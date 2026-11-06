@@ -35,7 +35,7 @@ import { message } from '../shared/errors';
 
 export type AiRun = runsRepo.Run;
 export type Range = { gte?: string; lt?: string; label: string };
-type Pending = Omit<offersRepo.Job, 'appliedAt'>;
+type Pending = Omit<offersRepo.Job, 'appliedAt' | 'status'>;
 
 const BATCH = 4; // offers per OpenAI call (each carries a full ad)
 const PARALLEL = 3; // calls at once

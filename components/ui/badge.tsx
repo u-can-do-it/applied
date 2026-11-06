@@ -21,6 +21,7 @@ const badgeVariants = cva(
         brand: 'border-brand text-brand',
         success: 'border-success text-success',
         danger: 'border-destructive-border text-destructive',
+        warning: 'border-warning text-warning',
         dashed: 'border-dashed border-border text-muted-foreground',
         pool: 'border-pool-border text-pool',
         'success-soft': 'bg-success-soft text-success',

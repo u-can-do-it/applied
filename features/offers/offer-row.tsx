@@ -138,6 +138,7 @@ export function OfferRow({
                 src={job.src}
                 id={job.id}
                 appliedAt={job.appliedAt}
+                status={job.status}
                 labels={labels}
                 tz={zone.tz}
               />

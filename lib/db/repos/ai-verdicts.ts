@@ -137,7 +137,11 @@ const pendingColumns = {
 };
 
 /** Jobs in the range this profile version hasn't judged yet and that may get their ad, newest first. */
-export function unjudgedJobs(profile: ProfileVersion, range: Range, limit: number): Promise<Omit<Job, 'appliedAt'>[]> {
+export function unjudgedJobs(
+  profile: ProfileVersion,
+  range: Range,
+  limit: number,
+): Promise<Omit<Job, 'appliedAt' | 'status'>[]> {
   return db()
     .select(pendingColumns)
     .from(offersUnique)
@@ -160,7 +164,11 @@ export async function countUnjudged(profile: ProfileVersion, range: Range): Prom
  * profile version (their ad couldn't be read yet), or judged on the title alone (before every
  * judgment needed the ad). Not the ones whose ads are known to have no text.
  */
-export function waitingForAd(profile: ProfileVersion, since: string, limit: number): Promise<Omit<Job, 'appliedAt'>[]> {
+export function waitingForAd(
+  profile: ProfileVersion,
+  since: string,
+  limit: number,
+): Promise<Omit<Job, 'appliedAt' | 'status'>[]> {
   return db()
     .select(pendingColumns)
     .from(offersUnique)

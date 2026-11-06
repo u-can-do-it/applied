@@ -27,6 +27,7 @@ beforeEach(() => {
     jobId: JOB,
     offers: [offer],
     appliedAt: null,
+    status: null,
   });
 });
 

@@ -99,7 +99,12 @@ describeDb('offers', () => {
       [repost, false, false, 2],
     ]);
     // …but its row points at the earlier job, archived or not
-    expect(jobs[0].repostOf).toMatchObject({ jobId: original.jobKey, title: 'React Developer', appliedAt: null });
+    expect(jobs[0].repostOf).toMatchObject({
+      jobId: original.jobKey,
+      title: 'React Developer',
+      appliedAt: null,
+      status: null,
+    });
     expect((await page('', '', { archived: true })).jobs.map((job) => job.jobId)).toEqual([original.jobKey]);
     // the next offer joins the repost, the title key's latest job
     expect(await offersRepo.ingest([offer('pracuj', '5', 'React Developer', 'Acme')])).toEqual([

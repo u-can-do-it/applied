@@ -44,6 +44,7 @@ const job = {
   jobId: JOB,
   offers: [JUSTJOIN, ELDORADO],
   appliedAt: null,
+  status: null,
 };
 const AT = '2026-10-09T08:00:00.000Z';
 const saved = (offer: { src: string; id: string }, fields: Partial<detailsRepo.CompleteDetails>) => ({

@@ -7,6 +7,8 @@ import { useConfirm } from '@/components/confirm';
 import { Button } from '@/components/ui/button';
 import { zoneOf } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
+import { isRejected, type WithStatus } from '@/lib/stages';
+import { StatusChip } from '@/features/applications/status-chip';
 import { applyAction, unapplyAction } from '@/features/applications/actions';
 import { applicationKey } from '@/features/applications/use-application';
 import { useApplicationWindow } from './application-window';
@@ -18,13 +20,15 @@ const PILL =
 /**
  * "Mark applied", or once applied, "Applied 02.10.2026" with a check mark - flips on the click frame,
  * the server catches up. A click on "Applied" opens the application's window; its × (shown on the
- * badge's hover or keyboard focus, always on a touch screen) unmarks it.
+ * badge's hover or keyboard focus, always on a touch screen) unmarks it. One they rejected has its status
+ * before it, red, as the Applied tab shows it ("Technical · Rejected"), so a no stands out in the offers too.
  */
 export function ApplyButton({
   jobId,
   src,
   id,
   appliedAt,
+  status,
   labels,
   tz,
 }: {
@@ -32,6 +36,8 @@ export function ApplyButton({
   src: string;
   id: string;
   appliedAt: string | null;
+  /** the application's status, once applied */
+  status?: Pick<WithStatus, 'stage' | 'outcome'> | null;
   labels: Record<string, string>;
   tz: string; // the app's time zone, for the day
 }) {
@@ -72,6 +78,7 @@ export function ApplyButton({
 
   return (
     <>
+      {applied && status && isRejected(status) && <StatusChip stage={status.stage} outcome={status.outcome} />}
       {applied ? (
         <span className="group/applied relative inline-flex h-6 items-center rounded-full border border-success text-success">
           <Button
