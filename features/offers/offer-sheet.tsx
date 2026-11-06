@@ -23,6 +23,7 @@ import { assessJobFitAction, setJobNoteAction } from './actions';
 import { AdEditor, type AdEditorHandle } from './ad-editor';
 import { useArchiveRow } from './archive';
 import { loadOffer, offerKey, useOffer } from './use-offer';
+import { Hint } from '@/components/hint';
 
 // One offer you haven't applied to, read like an application: the ad complete with what the board says
 // besides, your note, the AI's fit; marking it applied, archiving it. Opens with what the list has
@@ -191,16 +192,20 @@ export function OfferSheet({
           </Button>
         )}
         <OpenOnBoard url={job.url} board={board} />
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy || !data}
-          aria-busy={busy || undefined}
-          title={data ? 'Saves that you applied, with the complete ad text and this note' : 'Once the note is in'}
-          onClick={markApplied}
+        <Hint
+          wrap
+          text={data ? 'Saves that you applied, with the complete ad text and this note' : 'Once the note is in'}
         >
-          Mark applied
-        </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || !data}
+            aria-busy={busy || undefined}
+            onClick={markApplied}
+          >
+            Mark applied
+          </Button>
+        </Hint>
         <Button type="button" onClick={close}>
           Close
         </Button>

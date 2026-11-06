@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AlertsPanel } from '@/features/scraping/alerts-panel';
+import { render } from '@/test/render';
 
 // Settings' LinkedIn alert emails: whether they come in, what became of their jobs, the Gmail script.
 

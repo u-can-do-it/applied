@@ -13,6 +13,7 @@ import { applyAction, unapplyAction } from '@/features/applications/actions';
 import { applicationKey } from '@/features/applications/use-application';
 import { useApplicationWindow } from './application-window';
 import { ON_HOVER } from './offer-actions';
+import { Hint } from '@/components/hint';
 
 const PILL =
   'rounded-full bg-transparent font-normal hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent';
@@ -81,54 +82,57 @@ export function ApplyButton({
       {applied && status && isRejected(status) && <StatusChip stage={status.stage} outcome={status.outcome} />}
       {applied ? (
         <span className="group/applied relative inline-flex h-6 items-center rounded-full border border-success text-success">
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            className={cn(PILL, 'border-0 text-success hover:text-success hover:underline')}
-            // marked a moment ago: the application is saved once the server answers
-            disabled={pending}
-            onPointerEnter={() => !pending && application.prefetch()}
-            onFocus={() => !pending && application.prefetch()}
-            onClick={() => void application.open()}
-            aria-haspopup="dialog"
-            aria-busy={pending || application.opening || undefined}
-            title="Open the application"
-          >
-            {/* the × takes its place: the badge keeps its width */}
-            <CheckIcon className="pointer-coarse:invisible pointer-fine:group-hover/applied:invisible pointer-fine:group-focus-within/applied:invisible" />{' '}
-            Applied {zoneOf(tz).formatDayOf(applied)}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className={cn(
-              PILL,
-              // on the check mark: centred where it is (8px in, 12px wide)
-              'absolute inset-y-0 left-1 my-auto size-5 text-destructive hover:text-destructive',
-              'pointer-fine:invisible pointer-fine:group-hover/applied:visible pointer-fine:group-focus-within/applied:visible',
-            )}
-            disabled={pending}
-            onClick={() => void unmark()}
-            aria-label="Unmark as applied"
-            title="Unmark as applied"
-          >
-            <XIcon />
-          </Button>
+          <Hint text="Open the application">
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className={cn(PILL, 'border-0 text-success hover:text-success hover:underline')}
+              // marked a moment ago: the application is saved once the server answers
+              disabled={pending}
+              onPointerEnter={() => !pending && application.prefetch()}
+              onFocus={() => !pending && application.prefetch()}
+              onClick={() => void application.open()}
+              aria-haspopup="dialog"
+              aria-busy={pending || application.opening || undefined}
+            >
+              {/* the × takes its place: the badge keeps its width */}
+              <CheckIcon className="pointer-coarse:invisible pointer-fine:group-hover/applied:invisible pointer-fine:group-focus-within/applied:invisible" />{' '}
+              Applied {zoneOf(tz).formatDayOf(applied)}
+            </Button>
+          </Hint>
+          <Hint text="Unmark as applied">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className={cn(
+                PILL,
+                // on the check mark: centred where it is (8px in, 12px wide)
+                'absolute inset-y-0 left-1 my-auto size-5 text-destructive hover:text-destructive',
+                'pointer-fine:invisible pointer-fine:group-hover/applied:visible pointer-fine:group-focus-within/applied:visible',
+              )}
+              disabled={pending}
+              onClick={() => void unmark()}
+              aria-label="Unmark as applied"
+            >
+              <XIcon />
+            </Button>
+          </Hint>
         </span>
       ) : (
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          className={cn(PILL, 'text-muted-foreground hover:border-muted-foreground hover:text-foreground', ON_HOVER)}
-          onClick={mark}
-          aria-busy={pending || undefined}
-          title="Saves that you applied, with the complete ad text"
-        >
-          Mark applied
-        </Button>
+        <Hint text="Saves that you applied, with the complete ad text">
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className={cn(PILL, 'text-muted-foreground hover:border-muted-foreground hover:text-foreground', ON_HOVER)}
+            onClick={mark}
+            aria-busy={pending || undefined}
+          >
+            Mark applied
+          </Button>
+        </Hint>
       )}
       {error && (
         <span role="alert" className="w-full max-w-56 text-right text-xs text-destructive">

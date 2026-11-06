@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { FitScore } from '@/features/offers/fit-score';
 import { isRentADev, RentADev } from '@/features/offers/rent-a-dev';
 import type { Shown } from './use-application';
+import { Hint } from '@/components/hint';
 
 /** What the fit parts need: an application's, or an offer's (its window names them the same). */
 export type ShownFit = Pick<Shown, 'fit' | 'content' | 'contentStatus' | 'bodyLeasing'>;
@@ -74,19 +75,20 @@ function FitBadge({ app, checking, onCheck }: { app: ShownFit; checking: boolean
   if (app.fit)
     return (
       <>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          // a touch screen can't hover: always there
-          className="text-muted-foreground transition-opacity hover:text-foreground pointer-fine:opacity-0 pointer-fine:group-hover/header:opacity-100 pointer-fine:focus-visible:opacity-100"
-          title={waiting ? 'Once the ad text is in' : 'Check the fit again'}
-          aria-label="Check the fit again"
-          disabled={waiting}
-          onClick={onCheck}
-        >
-          <RotateCwIcon />
-        </Button>
+        <Hint wrap text={waiting ? 'Once the ad text is in' : 'Check the fit again'}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            // a touch screen can't hover: always there
+            className="text-muted-foreground transition-opacity hover:text-foreground pointer-fine:opacity-0 pointer-fine:group-hover/header:opacity-100 pointer-fine:focus-visible:opacity-100"
+            aria-label="Check the fit again"
+            disabled={waiting}
+            onClick={onCheck}
+          >
+            <RotateCwIcon />
+          </Button>
+        </Hint>
         <FitScore
           match={app.fit.match}
           score={app.fit.score}
@@ -97,16 +99,11 @@ function FitBadge({ app, checking, onCheck }: { app: ShownFit; checking: boolean
       </>
     );
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      disabled={waiting}
-      title={waiting ? 'Once the ad text is in' : 'Ask the AI how well this job fits your profile'}
-      onClick={onCheck}
-    >
-      <SparklesIcon /> Check fit
-    </Button>
+    <Hint wrap text={waiting ? 'Once the ad text is in' : 'Ask the AI how well this job fits your profile'}>
+      <Button type="button" variant="outline" size="sm" disabled={waiting} onClick={onCheck}>
+        <SparklesIcon /> Check fit
+      </Button>
+    </Hint>
   );
 }
 

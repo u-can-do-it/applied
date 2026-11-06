@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { Hint } from '@/components/hint';
 
 /** What the badge says, and what it means (its title). */
 export const RENT_A_DEV = {
@@ -16,8 +17,10 @@ export const isRentADev = (app: { bodyLeasing: boolean | null; fit?: { bodyLeasi
  */
 export function RentADev() {
   return (
-    <Badge variant="warning-soft" className="cursor-help" title={RENT_A_DEV.title}>
-      {RENT_A_DEV.label}
-    </Badge>
+    <Hint wrap className="inline-flex" text={RENT_A_DEV.title}>
+      <Badge variant="warning-soft" className="cursor-help">
+        {RENT_A_DEV.label}
+      </Badge>
+    </Hint>
   );
 }

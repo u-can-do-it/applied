@@ -3,6 +3,7 @@
 import { createContext, use, useState, type ComponentProps, type MouseEvent } from 'react';
 import { EyeIcon } from 'lucide-react';
 import { markSeenAction } from './actions';
+import { Hint } from '@/components/hint';
 
 // "Seen": a job whose offer you opened from a list. The row notices a click on any of its links (the
 // title, a board's; a middle click too) or on what opens its offer window (`data-marks-seen`), and
@@ -31,9 +32,11 @@ export function SeenItem({ jobId, seen, children, ...props }: ComponentProps<'li
 export function SeenMark() {
   if (!use(SeenContext)) return null;
   return (
-    <span className="ml-1 inline-flex align-[-2px] text-muted-foreground" title="Opened before">
-      <EyeIcon className="size-3.5" aria-hidden />
-      <span className="sr-only">(seen)</span>
-    </span>
+    <Hint text="Opened before">
+      <span className="ml-1 inline-flex align-[-2px] text-muted-foreground">
+        <EyeIcon className="size-3.5" aria-hidden />
+        <span className="sr-only">(seen)</span>
+      </span>
+    </Hint>
   );
 }

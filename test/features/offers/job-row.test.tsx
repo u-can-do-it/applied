@@ -15,6 +15,7 @@ import {
 } from '@/features/offers/job-row';
 import { WindowButton } from '@/features/offers/row-box';
 import { NavProvider } from '@/features/offers/nav';
+import { hintOf } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -76,10 +77,13 @@ it('one the AI isn’t checking (it can’t, or it failed): neither', () => {
 it('where a search of everything matched in the ad or the note: that piece, marked, and where it is', () => {
   row({ snippet: { of: 'more', text: '…We run Kubernetes on AWS', marks: [8, 18] } });
   expect(screen.getByText('Kubernetes').tagName).toBe('MARK');
-  expect(screen.getByTitle('In the ad').textContent.trim()).toBe('In the ad: …We run Kubernetes on AWS');
+  const line = (where: string) => screen.getByText(`${where}:`).parentElement as HTMLElement;
+  expect(line('In the ad').textContent.trim()).toBe('In the ad: …We run Kubernetes on AWS');
+  expect(hintOf(line('In the ad'))).toBe('In the ad');
   cleanup();
   row({ snippet: { of: 'note', text: 'Ask about Kubernetes', marks: [10, 20] } });
-  expect(screen.getByTitle('In your note').textContent.trim()).toBe('In your note: Ask about Kubernetes');
+  expect(line('In your note').textContent.trim()).toBe('In your note: Ask about Kubernetes');
+  expect(hintOf(line('In your note'))).toBe('In your note');
 });
 
 it('with companyHref, the company links there', () => {

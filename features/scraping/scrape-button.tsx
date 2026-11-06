@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import type { RunSummary } from '@/lib/listings/pipeline/model';
 import { message } from '@/lib/shared/errors';
 import { fail, type Result } from '@/lib/shared/result';
+import { Hint } from '@/components/hint';
 
 /** POST /api/scrape (app/api/scrape/route.ts): every scraper, or the one with this id. */
 async function scrapeNow(id?: string): Promise<Result<RunSummary>> {
@@ -89,9 +90,11 @@ export function ScrapeButton() {
   return (
     <span className="inline-flex items-center gap-2">
       {failure && (
-        <span role="alert" title={failure} className="max-w-[min(40ch,45vw)] truncate text-xs text-destructive">
-          <TriangleAlertIcon /> Scraping failed: {failure}
-        </span>
+        <Hint text={failure}>
+          <span role="alert" className="max-w-[min(40ch,45vw)] truncate text-xs text-destructive">
+            <TriangleAlertIcon /> Scraping failed: {failure}
+          </span>
+        </Hint>
       )}
       <Button
         type="button"

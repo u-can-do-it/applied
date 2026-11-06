@@ -11,6 +11,7 @@ import {
 } from '@/lib/stages';
 import { Button } from '@/components/ui/button';
 import { useDay } from './use-day';
+import { Hint } from '@/components/hint';
 
 // an outcome's colour as its text in the history
 const OUTCOME_TEXT: Record<OutcomeId, string> = {
@@ -55,31 +56,32 @@ export function StatusTimeline({
               <span>{stageOf(step.stage).label} ·</span>
               <span className={OUTCOME_TEXT[step.state]}>{outcomeLabel(step.stage, step.state)}</span>
               {step.auto && (
-                <span
-                  title={
+                <Hint
+                  text={
                     step.state === 'passed'
                       ? 'You got to a later stage'
                       : `No news for ${GHOST_AFTER_DAYS} days (${POOL_GHOST_AFTER_DAYS} in the talent pool)`
                   }
                 >
-                  (auto)
-                </span>
+                  <span>(auto)</span>
+                </Hint>
               )}
               {i > 0 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  // shown on the step under the pointer (or with the keyboard); a touch screen can't
-                  // hover: always there
-                  className="h-5 text-muted-foreground transition-opacity hover:bg-background hover:text-destructive focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover/step:opacity-100 pointer-fine:focus-visible:opacity-100"
-                  title={later ? 'Remove this step and the ones after it' : 'Remove this step (clicked by mistake)'}
-                  aria-label={`Remove “${stageOf(step.stage).label} · ${outcomeLabel(step.stage, step.state)}” of ${day(step.at)}${later ? ` and the ${later} after it` : ''}`}
-                  disabled={busy}
-                  onClick={() => onRemove(i)}
-                >
-                  <XIcon />
-                </Button>
+                <Hint text={later ? 'Remove this step and the ones after it' : 'Remove this step (clicked by mistake)'}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    // shown on the step under the pointer (or with the keyboard); a touch screen can't
+                    // hover: always there
+                    className="h-5 text-muted-foreground transition-opacity hover:bg-background hover:text-destructive focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover/step:opacity-100 pointer-fine:focus-visible:opacity-100"
+                    aria-label={`Remove “${stageOf(step.stage).label} · ${outcomeLabel(step.stage, step.state)}” of ${day(step.at)}${later ? ` and the ${later} after it` : ''}`}
+                    disabled={busy}
+                    onClick={() => onRemove(i)}
+                  >
+                    <XIcon />
+                  </Button>
+                </Hint>
               )}
             </li>
           );

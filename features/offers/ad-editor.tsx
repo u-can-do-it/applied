@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { setJobAdAction, setJobAdFromLinkAction } from './actions';
+import { Hint } from '@/components/hint';
 
 export const AD_PLACEHOLDER = 'Paste the ad as the board shows it: what the role is, the stack, the requirements…';
 export const LINK_PLACEHOLDER = 'Or paste a link to the ad (the company’s page, say): the AI fills it in';
@@ -193,16 +194,17 @@ export function AdEditor({
             </>
           )}
         </span>
-        <Button
-          type="button"
-          size="sm"
-          disabled={reading || finishing}
-          aria-busy={finishing || undefined}
-          title="Saves what’s left, and asks the AI again from the ad if you changed it"
-          onClick={done}
-        >
-          Done
-        </Button>
+        <Hint wrap text="Saves what’s left, and asks the AI again from the ad if you changed it">
+          <Button
+            type="button"
+            size="sm"
+            disabled={reading || finishing}
+            aria-busy={finishing || undefined}
+            onClick={done}
+          >
+            Done
+          </Button>
+        </Hint>
       </div>
     </>
   );

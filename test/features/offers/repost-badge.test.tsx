@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { RepostOf } from '@/lib/db/repos/reposts';
 import { outcomeHeading, stageOf } from '@/lib/stages';
 import { RepostBadge, repostTitle } from '@/features/offers/repost-badge';
+import { hintOf, render } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
@@ -56,7 +57,7 @@ it('says "repost" whatever became of the earlier job; its colour, how your appli
 });
 
 it('its title: when it was first seen, when you applied, and if they said no or went quiet, that', () => {
-  expect(badge(rejected).title).toBe(
+  expect(hintOf(badge(rejected))).toBe(
     `Repost of “React Developer”, first seen Wed 16.09.2026; you applied on 28.10.2026, rejected at ${stageOf('technical').label}. A click opens it.`,
   );
   expect(repostTitle(earlier, TZ)).toBe('Repost of “React Developer”, first seen Wed 16.09.2026. A click opens it.');

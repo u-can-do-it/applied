@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { Hint } from '@/components/hint';
 
 /**
  * Where the browser refuses the clipboard API (an embedded browser, no permission): the old way, a hidden
@@ -36,19 +37,21 @@ export function CopyTitle({ title }: { title: string }) {
     return () => clearTimeout(timer);
   }, [copied]);
   return (
-    <button
-      type="button"
-      title="Copy the title"
-      aria-label={copied ? 'Title copied' : 'Copy the title'}
-      onClick={() =>
-        void navigator.clipboard.writeText(title).then(
-          () => setCopied(true),
-          () => (copyBySelection(title) ? setCopied(true) : toast.error('The browser didn’t let the title be copied.')),
-        )
-      }
-      className="ml-1 inline-flex cursor-pointer align-[-2px] text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 hover:text-foreground focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-    >
-      {copied ? <CheckIcon className="size-3.5 text-success" /> : <CopyIcon className="size-3.5" />}
-    </button>
+    <Hint text={copied ? 'Copied' : 'Copy the title'}>
+      <button
+        type="button"
+        aria-label={copied ? 'Title copied' : 'Copy the title'}
+        onClick={() =>
+          void navigator.clipboard.writeText(title).then(
+            () => setCopied(true),
+            () =>
+              copyBySelection(title) ? setCopied(true) : toast.error('The browser didn’t let the title be copied.'),
+          )
+        }
+        className="ml-1 inline-flex cursor-pointer align-[-2px] text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 hover:text-foreground focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+      >
+        {copied ? <CheckIcon className="size-3.5 text-success" /> : <CopyIcon className="size-3.5" />}
+      </button>
+    </Hint>
   );
 }

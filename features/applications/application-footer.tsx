@@ -5,6 +5,7 @@ import { PencilIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { JobSheetFooter, OpenOnBoard } from './job-sheet';
 import type { Shown } from './use-application';
+import { Hint } from '@/components/hint';
 
 /** The application window's buttons, and what went wrong with the last one. */
 export function ApplicationFooter({
@@ -42,16 +43,11 @@ export function ApplicationFooter({
       >
         Unmark applied
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={busy || waiting}
-        title={waiting ? 'Once the ad text is in' : undefined}
-        ref={editButton}
-        onClick={onEdit}
-      >
-        <PencilIcon /> Edit
-      </Button>
+      <Hint wrap text={waiting ? 'Once the ad text is in' : undefined}>
+        <Button type="button" variant="outline" disabled={busy || waiting} ref={editButton} onClick={onEdit}>
+          <PencilIcon /> Edit
+        </Button>
+      </Hint>
       {!waiting && !hasText && (
         <Button type="button" variant="outline" disabled={busy} aria-busy={busy || undefined} onClick={onFetchAgain}>
           Fetch again

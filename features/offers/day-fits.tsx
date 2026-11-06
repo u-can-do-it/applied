@@ -3,6 +3,7 @@ import { cn } from '@/lib/shared/cn';
 import { FIT_BADGE, FIT_RANGE } from '@/lib/shared/fit';
 import { DAY_PRESETS, withParams } from '@/lib/shared/search-params';
 import { NavLink } from './nav';
+import { Hint } from '@/components/hint';
 
 const fmt = (count: number) => count.toLocaleString('en-GB');
 
@@ -44,28 +45,33 @@ export function DayFits({
           if (!count) return null;
           const active = onDay && current.get('fit') === tier;
           return (
-            <Badge
+            <Hint
               key={tier}
-              variant={FIT_BADGE[tier]}
-              asChild
-              // no taller than the heading's text, so it doesn't grow (the skeleton's is as tall)
-              className={cn(
-                'h-4 py-0 tracking-normal tabular-nums no-underline normal-case hover:brightness-125',
-                active && 'ring-1 ring-current',
-              )}
+              wrap
+              className="inline-flex"
+              text={active ? 'Show every offer again' : `${day.label}: show the matches at ${FIT_RANGE[tier]}`}
             >
-              <NavLink
-                href={withParams(current, active ? all : { fit: tier, ...when }, path)}
-                aria-current={active ? 'true' : undefined}
-                title={active ? 'Show every offer again' : `${day.label}: show the matches at ${FIT_RANGE[tier]}`}
+              <Badge
+                variant={FIT_BADGE[tier]}
+                asChild
+                // no taller than the heading's text, so it doesn't grow (the skeleton's is as tall)
+                className={cn(
+                  'h-4 py-0 tracking-normal tabular-nums no-underline normal-case hover:brightness-125',
+                  active && 'ring-1 ring-current',
+                )}
               >
-                {fmt(count)}
-                <span className="sr-only">
-                  {' '}
-                  {tier} {count === 1 ? 'fit' : 'fits'}
-                </span>
-              </NavLink>
-            </Badge>
+                <NavLink
+                  href={withParams(current, active ? all : { fit: tier, ...when }, path)}
+                  aria-current={active ? 'true' : undefined}
+                >
+                  {fmt(count)}
+                  <span className="sr-only">
+                    {' '}
+                    {tier} {count === 1 ? 'fit' : 'fits'}
+                  </span>
+                </NavLink>
+              </Badge>
+            </Hint>
           );
         })}
       </span>

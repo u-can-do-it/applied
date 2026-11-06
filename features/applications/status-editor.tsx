@@ -8,6 +8,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { RENT_A_DEV } from '@/features/offers/rent-a-dev';
 import { StatusTimeline } from './status-timeline';
 import type { Shown } from './use-application';
+import { Hint } from '@/components/hint';
 
 /** a chip in the status editor (a stage, an outcome) */
 const STEP =
@@ -62,25 +63,30 @@ export function StatusEditor({
         onValueChange={(stage) => stage && onStatus(stage as StageId, 'pending')}
       >
         {STAGES.map((stage) => (
-          <ToggleGroupItem
+          <Hint
             key={stage.id}
-            value={stage.id}
-            title={'hint' in stage ? `${stage.label}: ${stage.hint}` : stage.label}
-            className={cn(
-              STEP,
-              been.has(stage.id) && 'text-foreground',
-              'data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background',
-            )}
+            wrap
+            className="inline-flex"
+            text={'hint' in stage ? `${stage.label}: ${stage.hint}` : stage.label}
           >
-            {been.has(stage.id) && (
-              <CheckIcon
-                className="text-success group-data-[state=on]/toggle:text-current"
-                role="img"
-                aria-label="reached"
-              />
-            )}
-            {stage.short}
-          </ToggleGroupItem>
+            <ToggleGroupItem
+              value={stage.id}
+              className={cn(
+                STEP,
+                been.has(stage.id) && 'text-foreground',
+                'data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background',
+              )}
+            >
+              {been.has(stage.id) && (
+                <CheckIcon
+                  className="text-success group-data-[state=on]/toggle:text-current"
+                  role="img"
+                  aria-label="reached"
+                />
+              )}
+              {stage.short}
+            </ToggleGroupItem>
+          </Hint>
         ))}
       </ToggleGroup>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -95,40 +101,44 @@ export function StatusEditor({
           {outcomesFor(app.stage).map((outcome) => {
             const hint = outcomeHint(outcome.id);
             return (
-              <ToggleGroupItem
+              <Hint
                 key={outcome.id}
-                value={outcome.id}
-                title={hint ? `${outcome.label}: ${hint}` : outcome.label}
-                className={cn(STEP, OUTCOME_ON[outcome.id])}
+                wrap
+                className="inline-flex"
+                text={hint ? `${outcome.label}: ${hint}` : outcome.label}
               >
-                {outcome.label}
-              </ToggleGroupItem>
+                <ToggleGroupItem value={outcome.id} className={cn(STEP, OUTCOME_ON[outcome.id])}>
+                  {outcome.label}
+                </ToggleGroupItem>
+              </Hint>
             );
           })}
         </ToggleGroup>
         <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-        <Toggle
-          pressed={rentADev}
-          onPressedChange={onRentADev}
-          title={RENT_A_DEV.title}
-          className={cn(
-            STEP,
-            'data-[state=on]:border-warning data-[state=on]:bg-warning-soft data-[state=on]:text-warning-strong',
-          )}
-        >
-          {RENT_A_DEV.label}
-        </Toggle>
-        <Toggle
-          pressed={app.talentPool}
-          onPressedChange={onTalentPool}
-          title={TALENT_POOL.hint}
-          className={cn(
-            STEP,
-            'data-[state=on]:border-pool data-[state=on]:bg-pool data-[state=on]:text-pool-foreground',
-          )}
-        >
-          {TALENT_POOL.label}
-        </Toggle>
+        <Hint wrap className="inline-flex" text={RENT_A_DEV.title}>
+          <Toggle
+            pressed={rentADev}
+            onPressedChange={onRentADev}
+            className={cn(
+              STEP,
+              'data-[state=on]:border-warning data-[state=on]:bg-warning-soft data-[state=on]:text-warning-strong',
+            )}
+          >
+            {RENT_A_DEV.label}
+          </Toggle>
+        </Hint>
+        <Hint wrap className="inline-flex" text={TALENT_POOL.hint}>
+          <Toggle
+            pressed={app.talentPool}
+            onPressedChange={onTalentPool}
+            className={cn(
+              STEP,
+              'data-[state=on]:border-pool data-[state=on]:bg-pool data-[state=on]:text-pool-foreground',
+            )}
+          >
+            {TALENT_POOL.label}
+          </Toggle>
+        </Hint>
       </div>
       {app.history.length > 0 && <StatusTimeline history={app.history} busy={busy} onRemove={onRemoveStep} />}
     </section>

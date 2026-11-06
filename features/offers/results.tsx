@@ -20,6 +20,7 @@ import { NavLink } from './nav';
 import { OFFER, OfferRow } from './offer-row';
 import { ArchivedCount, NewCount } from './new-count';
 import { RefreshWhileMatching } from './refresh-while-matching';
+import { Hint } from '@/components/hint';
 
 const fmt = (count: number) => count.toLocaleString('en-GB');
 
@@ -120,9 +121,9 @@ export async function Results({
   const hiddenLine = data.hiddenCount > 0 && (
     <>
       {' · '}
-      <span title="The AI profile rejected them or scored them lower: Matches and Rejected list them">
+      <Hint wrap text="The AI profile rejected them or scored them lower: Matches and Rejected list them">
         {fmt(data.hiddenCount)} under {minFit}% fit hidden
-      </span>
+      </Hint>
     </>
   );
 

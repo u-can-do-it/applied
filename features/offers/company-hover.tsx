@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/shared/cn';
 import { outcomeLabel } from '@/lib/stages';
 import type { CompanyApplied } from './job-row';
 
@@ -9,7 +10,7 @@ import type { CompanyApplied } from './job-row';
 const LISTED = 5;
 
 /**
- * The company, with `applied` (how many applications you have there, or none) on its hover, those
+ * The company, with `applied` (how many applications you have there, or none: then only what a click does) on its hover, those
  * applications (`apps`, the latest first: the day, the title, this job's own marked, how it's going), and what a
  * click does (`search`).
  * A client component so the trigger's `<span>` is made here: one a server component makes reaches the trigger
@@ -26,7 +27,7 @@ export function CompanyHover({
   search: string | null;
   children: ReactNode;
 }) {
-  if (!applied) return children;
+  if (!applied && !search) return children;
   const more = apps.length - LISTED;
   return (
     <Tooltip>
@@ -34,16 +35,14 @@ export function CompanyHover({
         <span>{children}</span>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-sm flex-col items-start gap-0.5">
-        <span>{applied}</span>
+        {applied && <span>{applied}</span>}
         {apps.length > 0 && (
           <ul className="my-0.5 grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-2 gap-y-0.5">
             {apps.slice(0, LISTED).map((app, i) => (
               <li key={i} className="col-span-full grid grid-cols-subgrid">
                 <span className="tabular-nums opacity-70">{app.day}</span>
                 <span className="flex min-w-0 gap-1">
-                  <span className="truncate font-medium" title={app.title}>
-                    {app.title}
-                  </span>
+                  <span className="font-medium">{app.title}</span>
                   {app.self && <span className="shrink-0 opacity-70">· this job</span>}
                 </span>
                 <span className="opacity-70">{outcomeLabel(app.stage, app.outcome)}</span>
@@ -52,7 +51,7 @@ export function CompanyHover({
             {more > 0 && <li className="col-span-full opacity-70">and {more} more</li>}
           </ul>
         )}
-        {search && <span className="opacity-70">{search}</span>}
+        {search && <span className={cn(applied && 'opacity-70')}>{search}</span>}
       </TooltipContent>
     </Tooltip>
   );

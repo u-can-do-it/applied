@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useRef, type ComponentProps, type MouseEvent
 import { PanelRightOpenIcon } from 'lucide-react';
 import { cn } from '@/lib/shared/cn';
 import { Button } from '@/components/ui/button';
+import { Hint } from '@/components/hint';
 
 // A job's row, the offers' or the Applied tab's: a click on it that isn't on one of its links or buttons
 // (the title, the company, a board, the fit…) opens the job's window, as its window button does: it
@@ -69,21 +70,22 @@ export function WindowButton({
     return () => row.removeEventListener('pointerenter', listener);
   }, []);
   return (
-    <Button
-      ref={button}
-      onFocus={onPrefetch}
-      type="button"
-      variant="ghost"
-      size="icon-xs"
-      className="sr-only ml-0.5 align-[-3px] text-muted-foreground hover:text-foreground focus-visible:not-sr-only"
-      data-opens-window
-      data-marks-seen
-      aria-haspopup="dialog"
-      aria-label={`Details of ${title}`}
-      title="Details: the ad, your note, the fit"
-      {...props}
-    >
-      <PanelRightOpenIcon />
-    </Button>
+    <Hint text="Details: the ad, your note, the fit">
+      <Button
+        ref={button}
+        onFocus={onPrefetch}
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        className="sr-only ml-0.5 align-[-3px] text-muted-foreground hover:text-foreground focus-visible:not-sr-only"
+        data-opens-window
+        data-marks-seen
+        aria-haspopup="dialog"
+        aria-label={`Details of ${title}`}
+        {...props}
+      >
+        <PanelRightOpenIcon />
+      </Button>
+    </Hint>
   );
 }

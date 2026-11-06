@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { AdDetails } from '@/features/applications/ad-details';
+import { render } from '@/test/render';
 
 afterEach(cleanup);
 

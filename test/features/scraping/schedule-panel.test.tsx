@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '@/components/confirm';
 import { SchedulePanel } from '@/features/scraping/schedule-panel';
 import { saveScheduleAction } from '@/features/scraping/actions';
 import { loadSettingsSchemas } from '@/features/scraping/settings-schemas';
 import { DEFAULT_SETTINGS } from '@/lib/listings/settings';
+import { render } from '@/test/render';
 
 vi.mock('@/features/scraping/actions', () => ({
   saveScheduleAction: vi.fn(),

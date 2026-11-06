@@ -1,4 +1,5 @@
 import { TextSearchIcon } from 'lucide-react';
+import { Hint } from '@/components/hint';
 
 // The big search box at the top of a list (offers, applied): a magnifier and a borderless input in one
 // rounded box that lights up while you type. A form (offers: it works without JS) or a plain div. At its
@@ -37,16 +38,18 @@ export function EverythingToggle({
   name?: string;
 }) {
   return (
-    <label className={everythingChip} title={EVERYTHING_TITLE}>
-      <input
-        type="checkbox"
-        name={name}
-        value="all"
-        className="sr-only"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <TextSearchIcon aria-hidden className="size-3.5" /> Everything
-    </label>
+    <Hint text={EVERYTHING_TITLE}>
+      <label className={everythingChip}>
+        <input
+          type="checkbox"
+          name={name}
+          value="all"
+          className="sr-only"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <TextSearchIcon aria-hidden className="size-3.5" /> Everything
+      </label>
+    </Hint>
   );
 }

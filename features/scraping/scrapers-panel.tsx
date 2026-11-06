@@ -22,6 +22,7 @@ import { blank, toDraft, type Draft } from './scraper-draft';
 import { LazyScraperEditor, loadEditor } from './lazy-scraper-editor';
 import { ScraperBrief } from './scraper-status';
 import { ScrapingAntCredits } from './scraping-ant-credits';
+import { Hint } from '@/components/hint';
 
 // The scrapers: the built-in boards, plus your own (JSON / HTML / RSS) set up here.
 
@@ -119,40 +120,42 @@ export function ScrapersPanel({
                 />
               </div>
               <div className="flex flex-wrap justify-end gap-1.5 max-[560px]:col-start-2 max-[560px]:justify-start">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  // shown on the row under the pointer (or with the keyboard, or while it runs); a touch screen
-                  // can't hover: always there
-                  className={cn(
-                    'text-muted-foreground transition-opacity hover:text-foreground',
-                    scrape.running !== scraper.id &&
-                      'pointer-fine:opacity-0 pointer-fine:group-hover/scraper:opacity-100 pointer-fine:focus-visible:opacity-100',
-                  )}
-                  title="Run now"
-                  aria-label={`Run ${scraper.name} now`}
-                  disabled={scrape.busy}
-                  aria-busy={scrape.running === scraper.id || undefined}
-                  onClick={() => scrape.run(scraper)}
-                >
-                  {scrape.running === scraper.id ? <RotateCwIcon className="animate-spin" /> : <PlayIcon />}
-                </Button>
+                <Hint text="Run now">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    // shown on the row under the pointer (or with the keyboard, or while it runs); a touch screen
+                    // can't hover: always there
+                    className={cn(
+                      'text-muted-foreground transition-opacity hover:text-foreground',
+                      scrape.running !== scraper.id &&
+                        'pointer-fine:opacity-0 pointer-fine:group-hover/scraper:opacity-100 pointer-fine:focus-visible:opacity-100',
+                    )}
+                    aria-label={`Run ${scraper.name} now`}
+                    disabled={scrape.busy}
+                    aria-busy={scrape.running === scraper.id || undefined}
+                    onClick={() => scrape.run(scraper)}
+                  >
+                    {scrape.running === scraper.id ? <RotateCwIcon className="animate-spin" /> : <PlayIcon />}
+                  </Button>
+                </Hint>
                 <Button type="button" variant="outline" size="sm" onClick={() => edit(toDraft(scraper), true)}>
                   Test
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={() => edit(toDraft(scraper))}>
                   Edit
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  title="A copy, e.g. for another search on the same board"
-                  onClick={() => edit({ ...toDraft(scraper), id: undefined, name: `${scraper.name} (copy)` })}
-                >
-                  Copy
-                </Button>
+                <Hint text="A copy, e.g. for another search on the same board">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => edit({ ...toDraft(scraper), id: undefined, name: `${scraper.name} (copy)` })}
+                  >
+                    Copy
+                  </Button>
+                </Hint>
               </div>
             </li>
           ))}

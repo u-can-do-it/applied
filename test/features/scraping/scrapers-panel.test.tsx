@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
 import { ScraperBrief } from '@/features/scraping/scraper-status';
 import { ScrapersPanel } from '@/features/scraping/scrapers-panel';
 import type { Scraper } from '@/lib/db/repos/scrapers';
 import { fail, ok } from '@/lib/shared/result';
+import { render } from '@/test/render';
 
 vi.mock('@/features/scraping/actions', () => ({ toggleScraperAction: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), info: vi.fn(), warning: vi.fn() } }));

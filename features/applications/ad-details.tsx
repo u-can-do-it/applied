@@ -4,6 +4,7 @@ import { formatDay } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
 import type { Find } from '@/lib/shared/search';
 import { Marked } from '@/components/marked';
+import { Hint } from '@/components/hint';
 
 /**
  * What the ad says about the job: salary, contract, where and how, when, and its tech stack. The
@@ -58,9 +59,9 @@ function TechStack({ skills, find }: { skills: Skill[]; find?: Find }) {
             const level = skillLevelText(skill);
             return (
               <li key={`${skill.name}-${i}`} className="min-w-0">
-                <span className="block truncate text-sm font-semibold" title={skill.name}>
+                <Hint wrap text={skill.name} className="block truncate text-sm font-semibold">
                   <Marked text={skill.name} marks={find?.(skill.name)} />
-                </span>
+                </Hint>
                 {level && <span className="block text-[11px] text-muted-foreground">{level}</span>}
                 {skill.level ? (
                   <span className="mt-1 flex gap-0.5" aria-hidden>

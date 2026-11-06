@@ -3,6 +3,7 @@
 import { CircleHelpIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Hint } from '@/components/hint';
 
 /**
  * A panel's heading with a "?" that opens its help underneath. The panel itself shows controls and
@@ -27,18 +28,19 @@ export function PanelHeading({
           {title}
         </h2>
         {help && (
-          <CollapsibleTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground"
-              aria-label={`About ${title}`}
-              title={`About ${title}`}
-            >
-              <CircleHelpIcon />
-            </Button>
-          </CollapsibleTrigger>
+          <Hint wrap className="inline-flex" text={`About ${title}`}>
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground"
+                aria-label={`About ${title}`}
+              >
+                <CircleHelpIcon />
+              </Button>
+            </CollapsibleTrigger>
+          </Hint>
         )}
         {children && <div className="ml-auto flex items-center gap-2">{children}</div>}
       </div>

@@ -6,6 +6,7 @@ import type { RepostOf } from '@/lib/db/repos/reposts';
 import { isRejected, outcomeHeading, stageOf } from '@/lib/stages';
 import { Badge } from '@/components/ui/badge';
 import { JobWindow } from './offer-window-button';
+import { Hint } from '@/components/hint';
 
 // A repost's badge, on either tab: the job was posted before, 30+ days earlier (lib/db/repos/reposts.ts). A
 // click opens that earlier job's window, the application's if you applied to it. Its colour says how that
@@ -53,20 +54,21 @@ export function RepostBadge({ of, labels, tz }: { of: RepostOf; labels: Record<s
         tz={tz}
         applied={Boolean(of.appliedAt)}
         trigger={({ onClick, onPrefetch, busy }) => (
-          <Badge variant={repostVariant(of)} className="cursor-pointer" asChild>
-            <button
-              type="button"
-              onClick={onClick}
-              onPointerEnter={onPrefetch}
-              onFocus={onPrefetch}
-              aria-busy={busy || undefined}
-              aria-haspopup="dialog"
-              title={repostTitle(of, tz)}
-            >
-              <Repeat2Icon aria-hidden />
-              repost
-            </button>
-          </Badge>
+          <Hint text={repostTitle(of, tz)}>
+            <Badge variant={repostVariant(of)} className="cursor-pointer" asChild>
+              <button
+                type="button"
+                onClick={onClick}
+                onPointerEnter={onPrefetch}
+                onFocus={onPrefetch}
+                aria-busy={busy || undefined}
+                aria-haspopup="dialog"
+              >
+                <Repeat2Icon aria-hidden />
+                repost
+              </button>
+            </Badge>
+          </Hint>
         )}
       />
     </span>

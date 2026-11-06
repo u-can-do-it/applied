@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { archiveAction, restoreAction } from '@/features/offers/actions';
 import { ArchiveButton, ArchiveRow } from '@/features/offers/archive';
 import type { Result } from '@/lib/shared/result';
+import { render } from '@/test/render';
 
 vi.mock('@/features/offers/actions', () => ({ archiveAction: vi.fn(), restoreAction: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));

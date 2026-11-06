@@ -13,6 +13,7 @@ import { MatchingBadge } from './matching-badge';
 import { NavLink } from './nav';
 import { RentADev } from './rent-a-dev';
 import { RowBox } from './row-box';
+import { Hint } from '@/components/hint';
 
 // One job in a list, the offers' or the Applied tab's: the same row in both. Its title opens the ad (a new
 // tab, an icon after it on hover says so; a button after that copies the title), its company searches the list for it, its boards' badges their
@@ -156,10 +157,10 @@ const SNIPPET_OF = { note: 'In your note', more: 'In the ad' } as const;
 function SnippetLine({ snippet }: { snippet: Snippet }) {
   const Icon = snippet.of === 'note' ? NotebookPenIcon : TextSearchIcon;
   return (
-    <span className="mt-[3px] block truncate text-[13px] text-muted-foreground" title={SNIPPET_OF[snippet.of]}>
+    <Hint wrap text={SNIPPET_OF[snippet.of]} className="mt-[3px] block truncate text-[13px] text-muted-foreground">
       <Icon aria-hidden /> <span className="sr-only">{SNIPPET_OF[snippet.of]}: </span>
       <Marked text={snippet.text} marks={snippet.marks} />
-    </span>
+    </Hint>
   );
 }
 
@@ -231,8 +232,6 @@ export function JobRow({
   const companyText = company && <Marked text={company} marks={marks?.company} />;
   const applied = companyApplied && appliedHere(companyApplied);
   const dotted = companyApplied && appliedElsewhere(companyApplied) && APPLIED_HERE;
-  // with applications there, the hover says so (and that a click searches) instead of the plain title
-  const searchTitle = applied ? undefined : `Search for ${company}`;
   return (
     <RowBox className={className} active={active}>
       {leading}
@@ -240,20 +239,21 @@ export function JobRow({
         <div>
           {before}
           {href ? (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Open the offer's page (a new tab)"
-              className="group/title font-semibold no-underline [overflow-wrap:anywhere] visited:text-muted-foreground hover:text-brand hover:underline hover:underline-offset-2"
-            >
-              {titleText}
-              {/* on hover (or keyboard focus): it opens the board's page, not the window */}
-              <ExternalLinkIcon
-                aria-hidden
-                className="ml-1 inline size-3.5 align-[-1px] opacity-0 transition-opacity group-hover/title:opacity-100 group-focus-visible/title:opacity-100"
-              />
-            </a>
+            <Hint wrap text="Open the offer's page (a new tab)">
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group/title font-semibold no-underline [overflow-wrap:anywhere] visited:text-muted-foreground hover:text-brand hover:underline hover:underline-offset-2"
+              >
+                {titleText}
+                {/* on hover (or keyboard focus): it opens the board's page, not the window */}
+                <ExternalLinkIcon
+                  aria-hidden
+                  className="ml-1 inline size-3.5 align-[-1px] opacity-0 transition-opacity group-hover/title:opacity-100 group-focus-visible/title:opacity-100"
+                />
+              </a>
+            </Hint>
           ) : (
             <span className="font-semibold [overflow-wrap:anywhere]">{titleText}</span>
           )}
@@ -269,16 +269,11 @@ export function JobRow({
                 search={companyHref || onCompany ? `A click searches for ${company}` : null}
               >
                 {companyHref ? (
-                  <NavLink href={companyHref} scrollTop title={searchTitle} className={cn(COMPANY_LINK, dotted)}>
+                  <NavLink href={companyHref} scrollTop className={cn(COMPANY_LINK, dotted)}>
                     {companyText}
                   </NavLink>
                 ) : onCompany ? (
-                  <button
-                    type="button"
-                    onClick={onCompany}
-                    title={searchTitle}
-                    className={cn(COMPANY_LINK, dotted, 'cursor-pointer')}
-                  >
+                  <button type="button" onClick={onCompany} className={cn(COMPANY_LINK, dotted, 'cursor-pointer')}>
                     {companyText}
                   </button>
                 ) : (
@@ -336,10 +331,12 @@ function BoardBadge({ board, label }: { board: Board; label: string }) {
     );
   }
   return (
-    <Badge variant="quiet" className="rounded-md no-underline" asChild>
-      <a href={board.url} target="_blank" rel="noopener noreferrer" title={`Open on ${label}`}>
-        {label}
-      </a>
-    </Badge>
+    <Hint wrap className="inline-flex" text={`Open on ${label}`}>
+      <Badge variant="quiet" className="rounded-md no-underline" asChild>
+        <a href={board.url} target="_blank" rel="noopener noreferrer">
+          {label}
+        </a>
+      </Badge>
+    </Hint>
   );
 }

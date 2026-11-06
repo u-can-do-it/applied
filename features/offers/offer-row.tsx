@@ -10,6 +10,7 @@ import { MergeButton } from './merge';
 import { OfferWindowButton } from './offer-window-button';
 import { RepostBadge } from './repost-badge';
 import { SeenItem, SeenMark } from './seen';
+import { Hint } from '@/components/hint';
 
 // shared with the skeleton, so the rows don't move when the list comes in
 export const OFFER = cn(JOB_ROW, 'grid-cols-[44px_1fr_auto] max-[560px]:grid-cols-[1fr_auto]');
@@ -66,13 +67,15 @@ export function OfferRow({
         <JobRow
           className={cn(OFFER, dated && 'grid-cols-[68px_1fr_auto]')}
           leading={
-            <time
-              dateTime={job.firstSeen}
-              title={fullLabel(zone, job.firstSeen)}
-              className="pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full max-[560px]:p-0"
+            <Hint
+              wrap
+              text={fullLabel(zone, job.firstSeen)}
+              className="self-start pt-px text-[13px] text-muted-foreground tabular-nums max-[560px]:col-span-full max-[560px]:p-0"
             >
-              {dated ? zone.shortDay(job.firstSeen) : zone.formatTime(job.firstSeen)}
-            </time>
+              <time dateTime={job.firstSeen}>
+                {dated ? zone.shortDay(job.firstSeen) : zone.formatTime(job.firstSeen)}
+              </time>
+            </Hint>
           }
           title={job.title}
           href={job.url}
@@ -96,9 +99,11 @@ export function OfferRow({
           labels={labels}
           before={
             job.isNew && (
-              <Badge variant="success" className="mr-1.5 align-[1px]" title="Brought by the latest scrape run">
-                new
-              </Badge>
+              <Hint wrap text="Brought by the latest scrape run" className="mr-1.5">
+                <Badge variant="success" className="align-[1px]">
+                  new
+                </Badge>
+              </Hint>
             )
           }
           after={

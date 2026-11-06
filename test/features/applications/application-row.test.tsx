@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ListedApplication } from '@/lib/applications';
 import type { Marks } from '@/lib/shared/search';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ApplicationRow } from '@/features/applications/application-row';
 import { RENT_A_DEV } from '@/features/offers/rent-a-dev';
+import { hintOf, render } from '@/test/render';
 
 afterEach(cleanup);
 
@@ -66,7 +67,7 @@ it('not judged: no badge, no line', () => {
 it('Rent-a-dev: by the verdict, unless the application has its own call on it', () => {
   const fit = { match: true, score: 60, summary: null, checks: [], hadDescription: true, bodyLeasing: true };
   row(fit);
-  expect(screen.getByText(RENT_A_DEV.label).title).toBe(RENT_A_DEV.title);
+  expect(hintOf(screen.getByText(RENT_A_DEV.label).parentElement as HTMLElement)).toBe(RENT_A_DEV.title);
   cleanup();
   row(fit, false); // its own call: not one
   expect(screen.queryByText(RENT_A_DEV.label)).toBeNull();

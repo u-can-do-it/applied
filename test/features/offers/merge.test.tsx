@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useConfirm, type ConfirmOptions } from '@/components/confirm';
 import { mergeJobsAction } from '@/features/offers/actions';
 import { MergeButton, MergeProvider, type MergeJob } from '@/features/offers/merge';
+import { render } from '@/test/render';
 
 vi.mock('@/features/offers/actions', () => ({ mergeJobsAction: vi.fn() }));
 vi.mock('@/components/confirm', () => ({ useConfirm: vi.fn() }));

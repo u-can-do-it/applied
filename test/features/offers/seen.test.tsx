@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { markSeenAction } from '@/features/offers/actions';
 import { SeenItem, SeenMark } from '@/features/offers/seen';
+import { hintOf, render } from '@/test/render';
 
 vi.mock('@/features/offers/actions', () => ({ markSeenAction: vi.fn() }));
 const markSeen = vi.mocked(markSeenAction);
@@ -49,7 +50,7 @@ describe('seen offers', () => {
 
   it('shows the mark for a job seen before without saving it again', () => {
     row(true);
-    expect(screen.getByTitle('Opened before')).toBeTruthy();
+    expect(hintOf(screen.getByText('(seen)').parentElement as HTMLElement)).toBe('Opened before');
     fireEvent.click(screen.getByText('React Developer'));
     expect(markSeen).not.toHaveBeenCalled();
   });

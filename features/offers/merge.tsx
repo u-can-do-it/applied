@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/shared/cn';
 import { mergeJobsAction } from './actions';
 import { ON_HOVER } from './offer-actions';
+import { Hint } from '@/components/hint';
 
 // "Same job as…": you merge two jobs the title key and the AI didn't, as the AI's duplicate check would.
 // The row's button picks the job; a bar at the bottom of the window says so while you scroll, page or
@@ -99,33 +100,35 @@ export function MergeButton({ job }: { job: MergeJob }) {
 
   if (!picked)
     return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        className={cn('rounded-full text-muted-foreground', ON_HOVER)}
-        onClick={() => pick(job)}
-        aria-label={`Same job as…: merge ${job.title} with another job`}
-        title="Same job as…: pick the job this one duplicates, to merge them"
-      >
-        <CombineIcon />
-      </Button>
+      <Hint text="Same job as…: pick the job this one duplicates, to merge them">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className={cn('rounded-full text-muted-foreground', ON_HOVER)}
+          onClick={() => pick(job)}
+          aria-label={`Same job as…: merge ${job.title} with another job`}
+        >
+          <CombineIcon />
+        </Button>
+      </Hint>
     );
 
   if (picked.jobId === job.jobId)
     return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        className="rounded-full text-muted-foreground"
-        onClick={() => pick(null)}
-        aria-label="Cancel the merge"
-        title="Cancel: pick no job"
-        data-merge-picked
-      >
-        <XIcon />
-      </Button>
+      <Hint text="Cancel: pick no job">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="rounded-full text-muted-foreground"
+          onClick={() => pick(null)}
+          aria-label="Cancel the merge"
+          data-merge-picked
+        >
+          <XIcon />
+        </Button>
+      </Hint>
     );
 
   const sameJob = async () => {
@@ -157,16 +160,17 @@ export function MergeButton({ job }: { job: MergeJob }) {
   };
 
   return (
-    <Button
-      type="button"
-      variant="brand"
-      size="xs"
-      className="rounded-full"
-      disabled={pending}
-      onClick={() => void sameJob()}
-      title={`The same job as “${picked.title}”: merge them`}
-    >
-      <CombineIcon /> Same job
-    </Button>
+    <Hint text={`The same job as “${picked.title}”: merge them`}>
+      <Button
+        type="button"
+        variant="brand"
+        size="xs"
+        className="rounded-full"
+        disabled={pending}
+        onClick={() => void sameJob()}
+      >
+        <CombineIcon /> Same job
+      </Button>
+    </Hint>
   );
 }
