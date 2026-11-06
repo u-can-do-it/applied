@@ -104,8 +104,8 @@ const scoredIn = (tier: ScoredTier) =>
     ? gte(aiVerdicts.score, GOOD_FIT)
     : and(gte(aiVerdicts.score, FAIR_FIT), lt(aiVerdicts.score, GOOD_FIT));
 
-/** One of your applications at a job's company: its title, when, and whether it's that job's own (`self`). */
-export type AppliedThere = { title: string; appliedAt: string; self: boolean };
+/** One of your applications at a job's company: its title, when, its status, and whether it's that job's own (`self`). */
+export type AppliedThere = Status & { title: string; appliedAt: string; self: boolean };
 
 /**
  * Per job: your applications at its company (an application's job id has the company's part before the
@@ -114,9 +114,10 @@ export type AppliedThere = { title: string; appliedAt: string; self: boolean };
  */
 const appliedAtCompany = {
   companyApplied: sql<AppliedThere[]>`(select coalesce(json_agg(json_build_object(
-         'title', a.title, 'appliedAt', a.applied_at, 'self', a.app_id = ${offersUnique.jobId}
+         'title', a.title, 'appliedAt', a.applied_at, 'self', a.app_id = ${offersUnique.jobId},
+         'stage', a.stage, 'outcome', a.stage_state
        ) order by a.applied_at desc), '[]')
-       from (select dup_key as app_id, title, applied_at from public.applications) a
+       from (select dup_key as app_id, title, applied_at, stage, stage_state from public.applications) a
        where ${offersUnique.companyKey} <> '' and split_part(a.app_id, '|', 1) = ${offersUnique.companyKey})`,
 };
 

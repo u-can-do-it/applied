@@ -3,6 +3,7 @@ import { ExternalLinkIcon, NotebookPenIcon, SparklesIcon, TextSearchIcon } from 
 import { workModeOf, workModeText, type JobDetails } from '@/lib/ads/details';
 import { cn } from '@/lib/shared/cn';
 import { marksWithin, type Marks, type Snippet } from '@/lib/shared/search';
+import { isRejected, outcomeLabel, type WithStatus } from '@/lib/stages';
 import { Marked } from '@/components/marked';
 import { Badge } from '@/components/ui/badge';
 import { CompanyHover } from './company-hover';
@@ -61,11 +62,73 @@ type Verdict = {
 /** A board the job is on: a link to its offer when there's `url`. */
 export type Board = { src: string; url?: string };
 
-/** One of your applications at the job's company: its title, its day, whether it's this job's own (`self`). */
-export type AppliedThere = { title: string; day: string; self: boolean };
+/** One of your applications at the job's company: its title, its day, its status, whether it's this job's own (`self`). */
+export type AppliedThere = Pick<WithStatus, 'stage' | 'outcome'> & { title: string; day: string; self: boolean };
 
 /** Your applications at the job's company, the latest first. */
 export type CompanyApplied = AppliedThere[];
+
+/**
+ * How your applications at a company went, the counter's ring: how many they rejected (Rejected, an offer taken
+ * back), how many went quiet (Ghosted), and the rest, still going or ended by you (`ok`).
+ */
+export function companyShares(apps: CompanyApplied): { ok: number; rejected: number; ghosted: number } {
+  const rejected = apps.filter(isRejected).length;
+  const ghosted = apps.filter((app) => app.outcome === 'ghosted').length;
+  return { ok: apps.length - rejected - ghosted, rejected, ghosted };
+}
+
+/**
+ * The ring as a conic gradient, clockwise from the top: green for `ok`, red for rejected, yellow for ghosted,
+ * each its share of the circle.
+ */
+export function ringGradient({ ok, rejected, ghosted }: ReturnType<typeof companyShares>): string {
+  const total = ok + rejected + ghosted || 1;
+  const stops: string[] = [];
+  let from = 0;
+  for (const [count, color] of [
+    [ok, 'var(--color-success)'],
+    [rejected, 'var(--color-destructive)'],
+    [ghosted, 'var(--color-warning)'],
+  ] as const) {
+    if (!count) continue;
+    const to = from + (count / total) * 100;
+    stops.push(`${color} ${+from.toFixed(2)}% ${+to.toFixed(2)}%`);
+    from = to;
+  }
+  return `conic-gradient(${stops.join(', ')})`;
+}
+
+/** the gradient cut to a 1.5px ring: transparent inside */
+const RING_MASK = 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px))';
+
+/** "3 applications here: 2 in progress, 1 rejected": the counter's words, each status by its count */
+export function appliedCount(apps: CompanyApplied): string {
+  const counts = new Map<string, number>();
+  for (const app of apps) {
+    const label = outcomeLabel(app.stage, app.outcome).toLowerCase();
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return `${appliedHere(apps)}: ${[...counts].map(([label, count]) => `${count} ${label}`).join(', ')}`;
+}
+
+/**
+ * How many applications you have at the company, after its name, in a ring that's a pie of how they went
+ * (companyShares): green still going, red rejected, yellow ghosted.
+ */
+function AppliedCount({ apps }: { apps: CompanyApplied }) {
+  return (
+    <span className="relative ml-1.5 inline-flex size-[18px] items-center justify-center align-[-1px] text-[11px] leading-none text-muted-foreground tabular-nums">
+      <span
+        aria-hidden
+        className="absolute inset-0 rounded-full"
+        style={{ background: ringGradient(companyShares(apps)), mask: RING_MASK }}
+      />
+      <span aria-hidden>{apps.length}</span>
+      <span className="sr-only">{appliedCount(apps)}</span>
+    </span>
+  );
+}
 
 /** "No applications here"; "1 application here"; "3 applications here": the hover's heading, the list under it. */
 export function appliedHere(apps: CompanyApplied): string {
@@ -221,6 +284,7 @@ export function JobRow({
                 ) : (
                   <span className={cn(dotted)}>{companyText}</span>
                 )}
+                {companyApplied && companyApplied.length > 0 && <AppliedCount apps={companyApplied} />}
               </CompanyHover>
             </span>
           )}

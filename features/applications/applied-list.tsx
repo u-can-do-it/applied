@@ -143,6 +143,8 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
       title: there.title,
       day: zone.formatDayOf(there.appliedAt),
       self: there.jobId === app.jobId,
+      stage: there.stage,
+      outcome: there.outcome,
     }));
 
   // the ones you applied for in the dates: the statistics count these, the list shows them

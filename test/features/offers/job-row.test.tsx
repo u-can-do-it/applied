@@ -3,7 +3,16 @@ import type { ComponentProps } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { appliedHere, detailFacts, JobRow } from '@/features/offers/job-row';
+import { outcomeLabel } from '@/lib/stages';
+import {
+  appliedCount,
+  appliedHere,
+  companyShares,
+  detailFacts,
+  JobRow,
+  ringGradient,
+  type AppliedThere,
+} from '@/features/offers/job-row';
 import { WindowButton } from '@/features/offers/row-box';
 import { NavProvider } from '@/features/offers/nav';
 
@@ -150,39 +159,90 @@ it('the details line: salary (the first), contract, work mode, where; else the l
   expect(texts(detailFacts(null))).toEqual([]);
 });
 
+const SUBMITTED = { stage: 'submitted', outcome: 'pending' } as const;
+const at = (title: string, status: Pick<AppliedThere, 'stage' | 'outcome'> = SUBMITTED, self = false) => ({
+  title,
+  day: '12.10.2026',
+  self,
+  ...status,
+});
+
 describe('appliedHere', () => {
-  const app = (title: string, self = false) => ({ title, day: '12.10.2026', self });
   it('says how many applications you have at the company, none too', () => {
     expect(appliedHere([])).toBe('No applications here');
-    expect(appliedHere([app('React Developer', true)])).toBe('1 application here');
-    expect(appliedHere([app('React Developer'), app('Vue Developer', true), app('Go Developer')])).toBe(
+    expect(appliedHere([at('React Developer', SUBMITTED, true)])).toBe('1 application here');
+    expect(appliedHere([at('React Developer'), at('Vue Developer', SUBMITTED, true), at('Go Developer')])).toBe(
       '3 applications here',
     );
   });
 });
 
-it('the company’s hover lists your applications there as given (the latest first), this job’s own marked', () => {
+describe('the counter after the company', () => {
+  const rejected = { stage: 'technical', outcome: 'failed' } as const;
+  const ghosted = { stage: 'submitted', outcome: 'ghosted' } as const;
+  const withdrawn = { stage: 'hr', outcome: 'withdrawn' } as const;
+  const passed = { stage: 'screening', outcome: 'passed' } as const;
+
+  it('counts how they went: rejected (an offer taken back too), ghosted, and the rest', () => {
+    expect(companyShares([at('A'), at('B', passed), at('C', withdrawn)])).toEqual({ ok: 3, rejected: 0, ghosted: 0 });
+    expect(
+      companyShares([at('A'), at('B', rejected), at('C', ghosted), at('D', { stage: 'offer', outcome: 'failed' })]),
+    ).toEqual({ ok: 1, rejected: 2, ghosted: 1 });
+  });
+
+  it('draws the ring: green, red, yellow, each its share of the circle', () => {
+    expect(ringGradient({ ok: 2, rejected: 1, ghosted: 1 })).toBe(
+      'conic-gradient(var(--color-success) 0% 50%, var(--color-destructive) 50% 75%, var(--color-warning) 75% 100%)',
+    );
+    expect(ringGradient({ ok: 0, rejected: 1, ghosted: 0 })).toBe('conic-gradient(var(--color-destructive) 0% 100%)');
+    expect(ringGradient({ ok: 2, rejected: 0, ghosted: 1 })).toBe(
+      'conic-gradient(var(--color-success) 0% 66.67%, var(--color-warning) 66.67% 100%)',
+    );
+  });
+
+  it('says how many there are, each status counted', () => {
+    expect(appliedCount([at('A'), at('B', rejected), at('C')])).toBe(
+      `3 applications here: 2 ${outcomeLabel('submitted', 'pending').toLowerCase()}, 1 ${outcomeLabel('technical', 'failed').toLowerCase()}`,
+    );
+  });
+
+  it('shows the count after the company, in its ring; none without applications there', () => {
+    row({ onCompany: vi.fn(), companyApplied: [at('A'), at('B', rejected)] });
+    const counter = screen.getByText('2').parentElement as HTMLElement;
+    expect(counter.textContent).toContain(appliedCount([at('A'), at('B', rejected)]));
+    const ring = counter.firstElementChild as HTMLElement;
+    expect(ring.getAttribute('style')).toContain('var(--color-destructive) 50% 100%');
+    cleanup();
+    row({ onCompany: vi.fn(), companyApplied: [] });
+    expect(screen.getByRole('button', { name: 'Acme' }).parentElement?.textContent).toBe('Acme');
+  });
+});
+
+it('the company’s hover lists your applications there as given (the latest first), this job’s own marked, how each went', () => {
   row({
     onCompany: vi.fn(),
     companyApplied: [
-      { title: 'Senior React Developer', day: '24.10.2026', self: false },
-      { title: 'Frontend Developer', day: '12.09.2026', self: true },
+      { title: 'Senior React Developer', day: '24.10.2026', self: false, stage: 'technical', outcome: 'failed' },
+      { title: 'Frontend Developer', day: '12.09.2026', self: true, ...SUBMITTED },
     ],
   });
   fireEvent.focus(screen.getByRole('button', { name: 'Acme' }));
   const hover = screen.getByRole('tooltip');
   expect(hover.textContent).toContain('2 applications here');
   const items = [...document.querySelectorAll('[data-slot=tooltip-content] li')].map((li) => li.textContent);
-  expect(items).toEqual(['24.10.2026Senior React Developer', '12.09.2026Frontend Developer· this job']);
+  expect(items).toEqual([
+    `24.10.2026Senior React Developer${outcomeLabel('technical', 'failed')}`,
+    `12.09.2026Frontend Developer· this job${outcomeLabel('submitted', 'pending')}`,
+  ]);
   expect(hover.textContent).toContain('A click searches for Acme');
 });
 
 it('the hover lists five applications, and counts the rest', () => {
   row({
     onCompany: vi.fn(),
-    companyApplied: Array.from({ length: 7 }, (_, i) => ({ title: `Job ${i}`, day: '01.10.2026', self: false })),
+    companyApplied: Array.from({ length: 7 }, (_, i) => ({ ...at(`Job ${i}`), day: '01.10.2026' })),
   });
   fireEvent.focus(screen.getByRole('button', { name: 'Acme' }));
   const items = [...document.querySelectorAll('[data-slot=tooltip-content] li')].map((li) => li.textContent);
-  expect(items.slice(-2)).toEqual(['01.10.2026Job 4', 'and 2 more']);
+  expect(items.slice(-2)).toEqual([`01.10.2026Job 4${outcomeLabel('submitted', 'pending')}`, 'and 2 more']);
 });

@@ -159,23 +159,24 @@ describeDb('applications', () => {
       },
     ]);
     await markApplied(jobId, { src: 'justjoin', id: 'j1' });
-    await addApplication(typed('Angular Developer', { company: 'Acme' }), utc);
+    const angular = await addApplication(typed('Angular Developer', { company: 'Acme' }), utc);
+    await setStatus(angular.jobId ?? '', 'hr', 'failed');
     const atCompany = async () =>
       Object.fromEntries(
         (await getJobs({ q: '', src: '', page: 0 })).jobs.map((job) => [
           job.title,
-          job.companyApplied.map((app) => [app.title, app.self, typeof app.appliedAt]),
+          job.companyApplied.map((app) => [app.title, app.self, typeof app.appliedAt, app.stage, app.outcome]),
         ]),
       );
-    // the latest first (the one added by hand is dated earlier); the job's own marked
+    // the latest first (the one added by hand is dated earlier); the job's own marked; each one's status
     expect(await atCompany()).toEqual({
       'React Developer': [
-        ['React Developer', true, 'string'],
-        ['Angular Developer', false, 'string'],
+        ['React Developer', true, 'string', 'submitted', 'pending'],
+        ['Angular Developer', false, 'string', 'hr', 'failed'],
       ],
       'Vue Developer': [
-        ['React Developer', false, 'string'],
-        ['Angular Developer', false, 'string'],
+        ['React Developer', false, 'string', 'submitted', 'pending'],
+        ['Angular Developer', false, 'string', 'hr', 'failed'],
       ],
       'Go Developer': [],
     });

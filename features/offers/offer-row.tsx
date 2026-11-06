@@ -82,6 +82,8 @@ export function OfferRow({
             title: app.title,
             day: zone.formatDayOf(app.appliedAt),
             self: app.self,
+            stage: app.stage,
+            outcome: app.outcome,
           }))}
           facts={detailFacts(job.details, job.remote)}
           verdict={job.ai}
