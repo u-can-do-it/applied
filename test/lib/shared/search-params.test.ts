@@ -18,6 +18,7 @@ describe('parseOfferQuery', () => {
       q: 'react',
       everything: false,
       src: 'justjoin',
+      levels: [],
       page: 2,
       days: '7',
       from: '',
@@ -28,6 +29,11 @@ describe('parseOfferQuery', () => {
       byDate: false,
       byFit: false,
     });
+  });
+
+  it('reads the levels, one or more: ?level=mid,senior', () => {
+    expect(parseOfferQuery({ level: 'senior,mid' }).levels).toEqual(['mid', 'senior']);
+    expect(parseOfferQuery({ level: 'none' }).levels).toEqual(['none']);
   });
 
   it("orders a search's jobs newest first with ?order=new, and only a search's", () => {
@@ -61,11 +67,13 @@ describe('parseOfferQuery', () => {
         from: '2026-02-30',
         new: 'y',
         fit: 'yes',
+        level: 'boss',
       }),
     ).toEqual({
       q: 'x'.repeat(200),
       everything: false,
       src: '',
+      levels: [],
       page: 0,
       days: '',
       from: '',

@@ -55,11 +55,13 @@ export {
 } from './application-details';
 
 /**
- * Newest first, each with the active AI profile's verdict on the job, as the window has it (fitOf), and, for
- * a repost, the job it was posted as before (`repostOf`, lib/db/repos/reposts.ts).
+ * Newest first, each with the active AI profile's verdict on the job, as the window has it (fitOf), the job's
+ * level as its board gave it (`seniority`), and, for a repost, the job it was posted as before (`repostOf`,
+ * lib/db/repos/reposts.ts).
  */
 export async function listApplications(): Promise<ListedApplication[]> {
-  return repostsRepo.withReposts(await applicationsRepo.list((await listProfiles()).at(0)));
+  const apps = await applicationsRepo.list((await listProfiles()).at(0));
+  return repostsRepo.withReposts(await applicationsRepo.withSeniority(apps));
 }
 export const getApplication = (jobId: string) => applicationsRepo.get(jobId);
 /** Every application's ad text, by job id (the list loads none): for the Applied tab's search of everything. */

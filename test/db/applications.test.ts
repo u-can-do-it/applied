@@ -98,6 +98,24 @@ describeDb('applications', () => {
     expect('content' in (await listApplications())[0]).toBe(false);
   });
 
+  it("lists each application with its job's level as the board gave it; none for one added by hand", async () => {
+    const [scraped] = await offersRepo.ingest([
+      {
+        src: 'justjoin',
+        id: 'j9',
+        title: 'Go Developer',
+        company: 'Gophers',
+        seniority: 'senior',
+        remote: true,
+        url: 'https://justjoin.it/job-offer/j9',
+      },
+    ]);
+    await markApplied(scraped.jobKey, { src: 'justjoin', id: 'j9' });
+    const byHand = await addApplication(typed('Designer'), utc);
+    const levels = Object.fromEntries((await listApplications()).map((app) => [app.jobId, app.seniority]));
+    expect(levels).toEqual({ [scraped.jobKey]: 'senior', [byHand.jobId ?? '']: null });
+  });
+
   it('lists an application to a repost with the job it was posted as before, applied to or not, and how it went', async () => {
     const offer = (src: string, id: string, title: string, company: string) => ({
       src,

@@ -9,6 +9,8 @@ import { cn } from '@/lib/shared/cn';
 import { companyKeyOf } from '@/lib/shared/company-key';
 import { adsWords } from '@/lib/ads/details';
 import { rank, snippetOf } from '@/lib/shared/search';
+import { levelOf } from '@/lib/shared/seniority';
+import { CHIP, LevelChips } from '@/components/filter-chips';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { DAY_COUNT, DAY_HEADING, DAY_LIST, groupByDay } from '@/components/day-groups';
 import { ListSearch } from '@/components/list-search';
@@ -51,8 +53,19 @@ export function AppliedList({
 
 function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels: Record<string, string> }) {
   const zone = useZone();
-  const { search, setSearch, searchAll, everything, setEverything, filter, setFilter, range, setRange } =
-    useAppliedQuery(); // in the URL
+  const {
+    search,
+    setSearch,
+    searchAll,
+    everything,
+    setEverything,
+    filter,
+    setFilter,
+    range,
+    setRange,
+    levels,
+    setLevels,
+  } = useAppliedQuery(); // in the URL
   const adTexts = useAdTexts(everything); // the list has none: loaded when the search reads everything
   const [open, setOpen] = useState<Application | null>(null); // the window shows this one
   const [switched, setSwitched] = useState(false); // …in place of another one
@@ -147,8 +160,12 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
       outcome: there.outcome,
     }));
 
-  // the ones you applied for in the dates: the statistics count these, the list shows them
-  const inRange = useMemo(() => (range ? apps.filter(range.test) : apps), [apps, range]);
+  // the ones you applied for in the dates, at the levels: the statistics count these, the list shows them
+  const inRange = useMemo(
+    () =>
+      apps.filter((app) => (!range || range.test(app)) && (!levels.length || levels.includes(levelOf(app.seniority)))),
+    [apps, range, levels],
+  );
 
   // the search is the offers' (lib/shared/search.ts), its words marked in the rows; the list stays by day.
   // Searching everything, the ad too (its details, and its text once loaded), and where it matched there
@@ -219,6 +236,15 @@ function List({ apps: fromServer, labels }: { apps: ListedApplication[]; labels:
             <XIcon />
           </Button>
         )}
+        <LevelChips
+          className="ml-2"
+          levels={levels}
+          chip={({ label, on, level }) => (
+            <button type="button" className={CHIP} aria-pressed={on} onClick={() => setLevels(level)}>
+              {label}
+            </button>
+          )}
+        />
       </div>
 
       <AppliedStats apps={inRange} filter={filter?.id ?? null} setFilter={setFilter} />

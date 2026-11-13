@@ -2,6 +2,7 @@
 import { BOARD_RE } from '../boards/links';
 import { validDay } from '../dates';
 import { FIT_RANGE } from './fit';
+import { parseLevels } from './seniority';
 
 // relative presets live in the URL as ?days=N, so a bookmarked "7 days" stays relative
 export const DAY_PRESETS = [
@@ -42,7 +43,8 @@ export function orderOf(order: string | null, searching: boolean) {
   return searching && order !== 'new' ? '' : 'new';
 }
 
-export type FilterKey = 'q' | 'src' | 'in' | 'days' | 'from' | 'to' | 'page' | 'fit' | 'new' | 'archived' | 'order';
+export type FilterKey =
+  'q' | 'src' | 'level' | 'in' | 'days' | 'from' | 'to' | 'page' | 'fit' | 'new' | 'archived' | 'order';
 type Changes = Partial<Record<FilterKey, string | number | null | undefined>>;
 
 // Builds a link from the current query, changing only the given keys
@@ -78,6 +80,8 @@ export function parseOfferQuery(params: Params) {
     // the search reads everything (?in=all): your note and the ad (its text, salary, contract, skills…) too
     everything: one(params.in) === 'all',
     src: BOARD_RE.test(src) ? src : '', // an unknown board just finds nothing
+    // the job's level (lib/shared/seniority.ts), one or more: ?level=mid,senior
+    levels: parseLevels(one(params.level)),
     page: Math.max(0, Math.floor(Number(one(params.page)) || 0)),
     days: preset,
     // a preset wins over a date range

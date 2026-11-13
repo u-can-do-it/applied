@@ -7,6 +7,7 @@ import * as offersRepo from '@/lib/db/repos/offers';
 import { archive, restore } from '@/lib/db/repos/archived-jobs';
 import { markSeen } from '@/lib/db/repos/seen-jobs';
 import { getJobs, getTotalCount, PAGE_SIZE } from '@/lib/jobs';
+import { NO_LEVEL, type Level } from '@/lib/shared/seniority';
 import { describeDb, exec, ISO } from './database';
 
 const offer = (src: string, id: string, title: string, company: string | null, remote = false) => ({
@@ -196,6 +197,36 @@ describeDb('offers', () => {
     expect((await page('', '', { from: '2026-09-24', to: '2026-09-25' })).jobs.map((job) => job.id)).toEqual(['2']);
     expect((await page('', '', { from: '2026-09-26' })).jobs.map((job) => job.id)).toEqual(['3']);
     expect((await page('react', '', { from: '2026-09-24' })).jobs.map((job) => job.id)).toEqual(['2']);
+  });
+
+  it("filters by the job's level, one or more, the boards' words grouped, and counts with it", async () => {
+    const at = (id: string, title: string, seniority: string | null) => ({
+      ...offer('justjoin', id, title, `Company ${id}`),
+      seniority,
+    });
+    await offersRepo.ingest([
+      at('1', 'React Developer', 'Senior'),
+      at('2', 'Java Developer', 'regular'),
+      at('3', 'Go Developer', 'medium'),
+      at('4', 'Team Lead', 'manager'),
+      at('5', 'Vue Developer', 'unknown'),
+      at('6', 'PHP Developer', null),
+      at('7', 'React Intern', 'intern'),
+    ]);
+    const ids = async (levels: Level[], query = '') =>
+      (await getJobs({ q: query, src: '', page: 0, levels })).jobs.map((job) => job.id).sort();
+
+    expect(await ids(['senior'])).toEqual(['1']);
+    expect(await ids(['mid'])).toEqual(['2', '3']);
+    expect(await ids(['mid', 'senior'])).toEqual(['1', '2', '3']);
+    expect(await ids(['lead'])).toEqual(['4']);
+    expect(await ids(['junior'])).toEqual(['7']);
+    expect(await ids([NO_LEVEL.level])).toEqual(['5', '6']);
+    expect(await ids(['junior', NO_LEVEL.level])).toEqual(['5', '6', '7']);
+    expect(await ids([])).toHaveLength(7);
+    // a search, within the levels
+    expect(await ids(['senior', 'junior'], 'react')).toEqual(['1', '7']);
+    expect((await getJobs({ q: '', src: '', page: 0, levels: ['mid'] })).total).toBe(2);
   });
 
   it('forgives a typo, ranks the best match first, and says where it matched', async () => {

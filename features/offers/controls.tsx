@@ -5,11 +5,12 @@ import { ArrowDownWideNarrowIcon, CalendarIcon, SearchIcon, SparklesIcon, TextSe
 import { DateRangePicker, RANGE_PLACEHOLDER } from '@/components/date-range-picker';
 import { everythingChip, searchBox, searchInput, searchPlaceholder } from '@/components/search-field';
 import { TimeZone } from '@/components/time-zone';
-import { toggleVariants } from '@/components/ui/toggle';
+import { CHIP, CHIP_LABEL, CHIPS, LevelChips, LevelChipsFallback } from '@/components/filter-chips';
 import { validDay } from '@/lib/dates';
 import { cn } from '@/lib/shared/cn';
 import type { BoardOption } from '@/lib/listings/board-filter';
 import { DAY_PRESETS, FITS, ORDERS, orderOf, withParams } from '@/lib/shared/search-params';
+import { parseLevels } from '@/lib/shared/seniority';
 import { NavLink, useNav } from './nav';
 import { MinFit } from './min-fit';
 import { SearchBox } from './search-box';
@@ -18,11 +19,6 @@ import { SearchBox } from './search-box';
 // opens a new tab, without JS a plain link; navigate() lights the chip up on the click frame), in a <nav>
 // with aria-current on the one in use. Drawn as shadcn toggles; they are not a ToggleGroup, whose radio
 // buttons would lose all of that.
-const CHIPS = 'flex flex-wrap gap-1.5';
-const CHIP = cn(
-  toggleVariants(),
-  'h-auto min-w-0 rounded-full border bg-card px-2.5 py-1 text-[13px] font-normal text-muted-foreground no-underline hover:bg-card hover:text-foreground aria-[current=true]:border-foreground aria-[current=true]:bg-foreground aria-[current=true]:text-background',
-);
 
 function BoardChips({ query, path, boards }: { query: URLSearchParams; path: string; boards: BoardOption[] }) {
   const raw = query.get('src') ?? '';
@@ -46,14 +42,29 @@ function BoardChips({ query, path, boards }: { query: URLSearchParams; path: str
   );
 }
 
+/** The job's level (?level=mid,senior): any, or one or more of them. */
+function Levels({ query, path }: { query: URLSearchParams; path: string }) {
+  return (
+    <LevelChips
+      className="mb-2"
+      levels={parseLevels(query.get('level'))}
+      chip={({ label, on, level }) => (
+        <NavLink className={CHIP} aria-current={on ? 'true' : undefined} href={withParams(query, { level }, path)}>
+          {label}
+        </NavLink>
+      )}
+    />
+  );
+}
+
 const FIT_LABEL = (
-  <span className="flex items-center gap-1 pr-0.5 text-[13px] text-muted-foreground">
+  <span className={CHIP_LABEL}>
     <SparklesIcon className="text-brand" /> AI fit
   </span>
 );
 
 const ORDER_LABEL = (
-  <span className="flex items-center gap-1 pr-0.5 text-[13px] text-muted-foreground">
+  <span className={CHIP_LABEL}>
     <ArrowDownWideNarrowIcon /> Order
   </span>
 );
@@ -167,6 +178,7 @@ export function Controls({
     <>
       <SearchBox query={query} />
       <BoardChips query={query} path={path} boards={use(boards)} />
+      <Levels query={query} path={path} />
       <TimeZone tz={use(tz)}>
         <DateFilter query={query} path={path} />
       </TimeZone>
@@ -194,6 +206,7 @@ export function ControlsFallback({ labels }: { labels: string[] }) {
           </span>
         ))}
       </div>
+      <LevelChipsFallback className="mb-2" />
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2" aria-hidden="true">
         <div className="flex flex-wrap gap-1.5">
           {DAY_PRESETS.map((preset) => (

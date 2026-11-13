@@ -4,11 +4,12 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Application } from '@/lib/applications';
 import { validDay } from '@/lib/dates';
+import { parseLevels } from '@/lib/shared/seniority';
 import { useZone } from '@/components/time-zone';
 import { filterOf } from './status-filter';
 
-// The Applied tab's search, status filter and dates, kept in the URL (?q=, ?in=all: the search reads
-// everything, ?status=, ?from=, ?to=): a
+// The Applied tab's search, status filter, dates and job levels, kept in the URL (?q=, ?in=all: the search
+// reads everything, ?status=, ?from=, ?to=, ?level=mid,senior as on the offers): a
 // reload, a link or Back shows the same list. Written with the History API, which Next's router follows
 // (useSearchParams) without asking the server for the page again: the list is filtered here.
 
@@ -26,6 +27,11 @@ export function useAppliedQuery() {
   const setEverything = (on: boolean) => writeParams({ in: on ? 'all' : null }, { push: true });
   // a step that Back takes back, like the offers' chips
   const setFilter = (id: string | null) => writeParams({ status: id }, { push: true });
+
+  const level = params.get('level');
+  const levels = useMemo(() => parseLevels(level), [level]);
+  /** `next`: the ?level= a chip leads to (lib/shared/seniority.ts toggleLevel; null: any) */
+  const setLevels = (next: string | null) => writeParams({ level: next }, { push: true });
 
   const from = validDay(params.get('from'));
   const to = validDay(params.get('to'));
@@ -48,13 +54,25 @@ export function useAppliedQuery() {
       push: true,
     });
 
-  /** a company's name as the search, the status filter and the dates dropped (one step Back takes back) */
+  /** a company's name as the search, the status filter, the dates and the levels dropped (one step Back takes back) */
   const searchAll = (text: string) => {
-    writeParams({ status: null, from: null, to: null }, { push: true });
+    writeParams({ status: null, from: null, to: null, level: null }, { push: true });
     setSearch(text);
   };
 
-  return { search, setSearch, searchAll, everything, setEverything, filter, setFilter, range, setRange };
+  return {
+    search,
+    setSearch,
+    searchAll,
+    everything,
+    setEverything,
+    filter,
+    setFilter,
+    range,
+    setRange,
+    levels,
+    setLevels,
+  };
 }
 
 /**
@@ -86,7 +104,7 @@ function useSearchText(fromUrl: string) {
   return [text, setText] as const;
 }
 
-type Param = 'q' | 'in' | 'status' | 'from' | 'to';
+type Param = 'q' | 'in' | 'status' | 'from' | 'to' | 'level';
 
 /** Sets (or, empty, removes) parameters of the page's URL, keeping the others. */
 function writeParams(values: Partial<Record<Param, string | null>>, { push = false } = {}) {

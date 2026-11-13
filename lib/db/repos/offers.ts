@@ -6,6 +6,7 @@ import { isArchived } from './archived-jobs';
 import { dayOf, order, placeIn } from './offer-order';
 import { isSeen } from './seen-jobs';
 import { FAIR_FIT, GOOD_FIT, type ScoredTier } from '../../shared/fit';
+import { KNOWN_WORDS, NO_LEVEL, wordsOf, type Level } from '../../shared/seniority';
 import type { WithStatus } from '../../stages';
 import {
   aiVerdicts,
@@ -28,13 +29,15 @@ export type RunWindow = { startedAt: string; finishedAt: string };
  * What narrows a list of jobs: a board, first_seen in [gte, lt), only the jobs first seen in a run
  * (`newIn`), the archived jobs instead of the others (`archived`), and only the jobs a search found
  * (`ranked`: their ids, best match first, the order the list then has, unless `byDate`: newest first);
- * `byFit`: by day, each day's best fit first, when the list has the verdicts.
+ * `byFit`: by day, each day's best fit first, when the list has the verdicts; `levels`: only the jobs of
+ * these levels (lib/shared/seniority.ts; none: any).
  */
 export type JobFilter = {
   ranked?: string[];
   byDate?: boolean;
   byFit?: boolean;
   src: string;
+  levels?: readonly Level[];
   gte?: string;
   lt?: string;
   newIn?: RunWindow;
@@ -121,10 +124,24 @@ const appliedAtCompany = {
        where ${offersUnique.companyKey} <> '' and split_part(a.app_id, '|', 1) = ${offersUnique.companyKey})`,
 };
 
+/** The jobs of these levels: the board's word for theirs among the levels' (or, NO_LEVEL, none of the known ones). */
+function ofLevels(levels: readonly Level[] | undefined): SQL | undefined {
+  if (!levels?.length) return undefined;
+  const word = sql`lower(trim(${offersUnique.seniority}))`;
+  const words = wordsOf(levels);
+  return or(
+    words.length ? inArray(word, words) : undefined,
+    levels.includes(NO_LEVEL.level)
+      ? sql`(${offersUnique.seniority} is null or ${not(inArray(word, KNOWN_WORDS))})`
+      : undefined,
+  );
+}
+
 /** What the filter asks for, archived or not. */
 export function matching(filter: JobFilter): SQL | undefined {
   return and(
     filter.src ? arrayContains(offersUnique.boards, [filter.src]) : undefined,
+    ofLevels(filter.levels),
     filter.ranked ? sql`${placeIn(filter.ranked)} is not null` : undefined,
     inRange(filter),
     filter.newIn ? firstSeenIn(filter.newIn) : undefined,

@@ -4,7 +4,7 @@ import type { SavedDetails } from '../../applications';
 import type { OutcomeId, StageId } from '../../stages';
 import { db } from '../client';
 import { first } from '../rows';
-import { aiVerdicts, applications, type ApplicationRow, type NewApplicationRow } from '../schema';
+import { aiVerdicts, applications, offersUnique, type ApplicationRow, type NewApplicationRow } from '../schema';
 import type { Fit } from './ai-verdicts';
 import type { RepostOf } from './reposts';
 
@@ -13,10 +13,28 @@ import type { RepostOf } from './reposts';
 /** An application as the list has it: everything but the ad text. */
 export type Application = Omit<ApplicationRow, 'content'>;
 export type ApplicationWithContent = ApplicationRow;
-/** …and a profile version's verdict on the job (null: it hasn't judged it), and a repost's earlier job (lib/applications.ts). */
-export type ListedApplication = Application & { fit: Fit | null; repostOf?: RepostOf };
+/**
+ * …and a profile version's verdict on the job (null: it hasn't judged it), a repost's earlier job, and the job's
+ * level as its board gave it (`seniority`; null: no offer says, one added by hand) (lib/applications.ts).
+ */
+export type ListedApplication = Application & { fit: Fit | null; repostOf?: RepostOf; seniority?: string | null };
 
 const { content: _content, ...listColumns } = getTableColumns(applications);
+
+/**
+ * Your applications, each with its job's level as the board gave it (offers.seniority; null: no offer says,
+ * one added by hand): the Applied tab filters by it.
+ */
+export async function withSeniority<Row extends { jobId: string }>(
+  apps: Row[],
+): Promise<(Row & { seniority: string | null })[]> {
+  const rows = await db()
+    .select({ jobId: offersUnique.jobId, seniority: offersUnique.seniority })
+    .from(offersUnique)
+    .where(sql`${offersUnique.appliedAt} is not null`);
+  const seniority = new Map(rows.map((row) => [row.jobId, row.seniority]));
+  return apps.map((app) => ({ ...app, seniority: seniority.get(app.jobId) ?? null }));
+}
 
 /** Newest first, each with the verdict of `judgedBy` (a profile version), when it has one. */
 export async function list(judgedBy?: { id: string; version: number }): Promise<ListedApplication[]> {

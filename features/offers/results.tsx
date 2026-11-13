@@ -37,11 +37,11 @@ export async function Results({
   boards: Promise<BoardOption[]>;
 }) {
   const path = '/';
-  const { q, everything, src, page, days, from, to, latest, archived, fit, byDate, byFit } = parseOfferQuery(
+  const { q, everything, src, levels, page, days, from, to, latest, archived, fit, byDate, byFit } = parseOfferQuery(
     await searchParams,
   );
   const tier = fit === 'good' || fit === 'fair' ? fit : undefined; // ?fit= narrowed to a fit tier
-  const filtered = Boolean(q || src || days || from || to || latest);
+  const filtered = Boolean(q || src || levels.length || days || from || to || latest);
   const range = describeRange({ days, from, to });
   // the app's time zone is a setting, so it's read with the rest: a database that's down shows the notice below
   let zone = zoneOf(DEFAULT_TZ);
@@ -52,6 +52,7 @@ export async function Results({
     q,
     in: everything ? 'all' : '',
     src,
+    level: levels.join(','),
     days,
     from,
     to,
@@ -73,7 +74,7 @@ export async function Results({
     [zone, profiles, settings] = await Promise.all([appZone(), listProfiles(), appSettings()]);
     minFit = settings.minFit;
     const profile = profiles.at(0);
-    const query = { q, everything, src, page, days, from, to, latest, archived, byDate, byFit };
+    const query = { q, everything, src, levels, page, days, from, to, latest, archived, byDate, byFit };
     if (fit) {
       // only the jobs the active profile judged, matches (or its good or fair ones) or rejected
       if (isUsable(profile)) {
@@ -149,7 +150,7 @@ export async function Results({
           {tier ? `at ${FIT_RANGE[tier]}` : fit === 'rejected' ? 'rejected' : 'match'} of {fmt(stats.checked)} checked
           {unchecked > 0 && <span className="text-warning"> · {fmt(unchecked)} not checked yet</span>}
           {range && ` · ${range}`}
-          {!tier && (q || src || latest) && <> · {fmt(data.total)} shown</>}
+          {!tier && (q || src || levels.length > 0 || latest) && <> · {fmt(data.total)} shown</>}
           {newLine}
           {archivedLine}
         </p>

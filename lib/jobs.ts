@@ -15,6 +15,7 @@ import type { AiVerdictRow } from './db/schema';
 import type { ScoredTier } from './shared/fit';
 import { rank, snippetOf, type Marks, type Snippet } from './shared/search';
 import { appZone } from './time-zone';
+import type { Level } from './shared/seniority';
 
 /**
  * A job as the lists show it: its earliest offer (a board's own over an aggregator's), every board's offer, when you applied, whether it
@@ -48,6 +49,8 @@ export type ListedJob = offersRepo.Job & {
 export const PAGE_SIZE = 50;
 
 type Query = { q: string; src: string; page: number } & DateFilter & {
+    /** only the jobs of these levels (?level=, lib/shared/seniority.ts); none: any */
+    levels?: readonly Level[];
     /** the search reads everything: your note and the ads (the text, salary, contract, skills…) too (?in=all) */
     everything?: boolean;
     /** only the jobs the latest scrape run that brought new jobs brought (?new=1) */
@@ -92,6 +95,7 @@ export async function getJobs(opts: Query): Promise<JobPage> {
     return { byMatch: false, jobs: [], total: 0, newCount: 0, archivedCount: 0, hiddenCount: 0, latest };
   const narrowed = {
     src: opts.src,
+    levels: opts.levels,
     ...zone.resolveRange(opts),
     ...(opts.latest && latest ? { newIn: latest } : {}),
   };

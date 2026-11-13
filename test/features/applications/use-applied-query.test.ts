@@ -135,3 +135,24 @@ it('setting a date is a new history entry; clearing the range takes both away, k
   expect(window.location.search).toBe('?status=rejected');
   expect(result.current.range).toBeNull();
 });
+
+it('the levels from ?level=; a chip is a new history entry, Any takes ?level= away, keeping the rest', () => {
+  window.history.replaceState(null, '', '/applied?status=rejected&level=senior,mid');
+  const { result } = renderHook(() => useAppliedQuery());
+  expect(result.current.levels).toEqual(['mid', 'senior']);
+  const entries = window.history.length;
+  act(() => result.current.setLevels('lead'));
+  expect(window.location.search).toBe('?status=rejected&level=lead');
+  expect(result.current.levels).toEqual(['lead']);
+  expect(window.history.length).toBe(entries + 1);
+  act(() => result.current.setLevels(null));
+  expect(window.location.search).toBe('?status=rejected');
+  expect(result.current.levels).toEqual([]);
+});
+
+it("a company's search drops the levels with the other filters", () => {
+  window.history.replaceState(null, '', '/applied?status=rejected&level=senior');
+  const { result } = renderHook(() => useAppliedQuery());
+  act(() => result.current.searchAll('Acme'));
+  expect(result.current.levels).toEqual([]);
+});
