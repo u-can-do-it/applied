@@ -12,6 +12,12 @@ export const pushSupported = () =>
 export const registerServiceWorker = () =>
   navigator.serviceWorker.register(SW_URL, { scope: '/', updateViaCache: 'none' });
 
+/** Takes down every notification of this app that is still showing (the phone's shade, the desktop's tray). */
+export async function clearNotifications(): Promise<void> {
+  const registration = await navigator.serviceWorker.getRegistration('/');
+  for (const notification of (await registration?.getNotifications()) ?? []) notification.close();
+}
+
 /** The VAPID public key (base64url) as the bytes PushManager.subscribe wants. */
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   const base64 = (base64url + '='.repeat((4 - (base64url.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');

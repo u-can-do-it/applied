@@ -7,7 +7,8 @@ export function NotificationsHelp() {
       <p>
         <strong>Where new offers go:</strong> every channel that’s set up gets them: Telegram (its panel below) and push
         notifications on the devices enabled here. One push notification per scrape run, naming the offers; tapping it
-        opens the list on what that run brought. If one channel fails, the others still send; an offer none of them
+        opens the list on what that run brought, and opening the app clears the notifications still showing on that
+        device. If one channel fails, the others still send; an offer none of them
         could send waits in the queue for the next try.
       </p>
       <p>

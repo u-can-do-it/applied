@@ -212,7 +212,8 @@ set up, new offers are saved but not queued.
 
 One notification per scrape run ("5 new offers", the first offers named); tapping it opens the offers list,
 all of it, as the app opens; the offers the latest run brought are marked **new** (" · 5 new in the last run"
-lists only those).
+lists only those). Opening the app (tapping a notification, or from the home screen) takes down every Jobwatch
+notification still showing on that device: the list has what they said.
 It's sent with high urgency, so it arrives at once even on a phone lying idle (Android holds a normal one until the
 phone wakes). A device whose subscription expired (the app uninstalled, the site's data cleared) is removed the next time the
 push service says so (404 / 410). Enable each device you want on its own; **Disable on this device** removes it.

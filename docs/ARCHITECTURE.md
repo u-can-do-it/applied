@@ -197,7 +197,10 @@ run log (`AI / Notify`); when one failed and another delivered, it's a warning t
 
 The PWA side: `app/manifest.ts` (installable, standalone), the icons in `public/icons/` (`scripts/icons.ts`),
 and `public/sw.js`, registered on every page by `features/shell/service-worker.tsx`: it shows a push and opens
-the app where it points, and caches nothing. Settings → Notifications subscribes this browser
+the app where it points, and caches nothing. The same component takes down the notifications still showing
+(`clearNotifications`) when the app is opened or comes back to the front (`visibilitychange`), so a tapped one
+doesn't leave the earlier ones behind; one that arrives while the app is on the screen stays until the next
+time. Settings → Notifications subscribes this browser
 (`features/notifications/`) and saves it with `pushSubscribeAction`, its subscription checked with
 `lib/shared/schemas/push.ts`.
 
