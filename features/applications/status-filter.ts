@@ -1,8 +1,8 @@
 import type { Application } from '@/lib/applications';
 import {
+  isInitialContact,
   isInProcess,
   isOutcome,
-  isPositive,
   isRejected,
   isStage,
   isUnanswered,
@@ -31,7 +31,7 @@ export const TILES = {
   unanswered: { label: 'No answer yet', test: isUnanswered },
   process: { label: 'In progress', test: isInProcess },
   offers: { label: 'Offers', test: (app) => app.stage === 'offer' },
-  positive: { label: 'Positive replies', test: isPositive },
+  positive: { label: 'Initial contact', test: isInitialContact },
   rejected: { label: 'Rejected', test: isRejected },
   ghosted: { label: 'Ghosted', hint: outcomeHint('ghosted'), test: (app) => app.outcome === 'ghosted' },
   withdrawn: {

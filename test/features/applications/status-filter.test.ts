@@ -21,10 +21,11 @@ it('nothing, or what ?status= can’t be (an old or mistyped link), shows them a
 
 it('a tile: its label, and its applications by the last status', () => {
   for (const [id, tile] of Object.entries(TILES)) expect(filterOf(id)).toMatchObject({ id, label: tile.label });
-  // HR passed, then rejected at the technical interview: rejected, not a positive reply
+  // HR passed, then rejected at the technical interview: rejected, and an initial contact (it got past Submitted)
   const rejectedLater = app('technical', 'failed', [step('hr', 'passed'), step('technical', 'failed')]);
   expect(filterOf('rejected')?.test(rejectedLater)).toBe(true);
-  expect(filterOf('positive')?.test(rejectedLater)).toBe(false);
+  expect(filterOf('positive')?.test(rejectedLater)).toBe(true);
+  expect(filterOf('positive')?.test(app('submitted', 'failed'))).toBe(false);
   expect(filterOf('positive')?.test(app('hr', 'passed'))).toBe(true);
   // In progress: a recruitment process going on; No answer yet: still at Submitted
   expect(filterOf('process')?.test(app('hr', 'passed'))).toBe(true);

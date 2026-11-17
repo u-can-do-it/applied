@@ -52,7 +52,7 @@ export function AppliedStats({
     { id: 'process', value: counts.inProcess, sub: '', tone: '' },
     { id: null, value: counts.sent, sub: '', tone: '' }, // Sent: all of them
     { id: 'offers', value: counts.offers, sub: share(counts.offers), tone: 'good' },
-    { id: 'positive', value: counts.positive, sub: share(counts.positive), tone: 'good' },
+    { id: 'positive', value: counts.contacted, sub: share(counts.contacted), tone: 'good' }, // Initial contact
     { id: 'rejected', value: counts.rejected, sub: share(counts.rejected), tone: 'bad' },
     { id: 'ghosted', value: counts.ghosted, sub: share(counts.ghosted), tone: 'bad' },
     { id: 'withdrawn', value: counts.withdrawn, sub: share(counts.withdrawn), tone: '' }, // your call: neither

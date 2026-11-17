@@ -3,6 +3,7 @@ import {
   GHOST_AFTER_DAYS,
   isActive,
   isInProcess,
+  isInitialContact,
   isPositive,
   isRejected,
   isStage,
@@ -128,6 +129,16 @@ describe('isActive / isInProcess / isUnanswered / isRejected', () => {
     expect(isPositive(app('screening', 'withdrawn'))).toBe(false);
   });
 
+  it('initial contact = got past Submitted, whatever became of it after', () => {
+    for (const outcome of ['pending', 'passed', 'failed', 'ghosted'] as const)
+      expect(isInitialContact(app('submitted', outcome))).toBe(false);
+    expect(isInitialContact(app('invited', 'pending'))).toBe(true);
+    expect(isInitialContact(app('hr', 'failed', [step('hr', 'passed')]))).toBe(true);
+    expect(isInitialContact(app('technical', 'ghosted'))).toBe(true);
+    expect(isInitialContact(app('screening', 'withdrawn'))).toBe(true);
+    expect(isInitialContact(app('offer', 'passed'))).toBe(true);
+  });
+
   it('rejected = they said no, an offer they took back too; your own no (Withdrawn) is not that', () => {
     expect(isRejected(app('hr', 'failed'))).toBe(true);
     expect(isRejected(app('submitted', 'failed'))).toBe(true);
@@ -182,6 +193,7 @@ describe('stats', () => {
     expect(totals).toMatchObject({
       sent: 0,
       positive: 0,
+      contacted: 0,
       offers: 0,
       inProcess: 0,
       unanswered: 0,
@@ -213,6 +225,7 @@ describe('stats', () => {
     const totals = stats(apps);
     expect(totals.sent).toBe(13);
     expect(totals.positive).toBe(7); // invited/pending, screening/pending, technical/passed and the offers
+    expect(totals.contacted).toBe(10); // all but the three still at Submitted
     expect(totals.offers).toBe(4);
     expect(totals.inProcess).toBe(4); // invited/pending, screening/pending, technical/passed, offer/pending
     expect(totals.unanswered).toBe(1); // submitted/pending

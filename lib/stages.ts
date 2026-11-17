@@ -102,6 +102,12 @@ export const isRejected = (app: { outcome: OutcomeId }) => app.outcome === 'fail
  * By the last status only: rejected or ghosted after an interview isn't.
  */
 export const isPositive = (app: { stage: StageId; outcome: OutcomeId }) => app.stage === 'offer' || isInProcess(app);
+/**
+ * They got back to you with something other than a no: it got past Submitted (to Initial contact or further),
+ * whatever became of it after (rejected or ghosted after an interview, or withdrawn there, still is). A no at
+ * Submitted isn't.
+ */
+export const isInitialContact = (app: { stage: StageId }) => app.stage !== 'submitted';
 
 export const isStage = (value: unknown): value is StageId => STAGES.some((stage) => stage.id === value);
 export const isOutcome = (value: unknown): value is OutcomeId => OUTCOMES.some((outcome) => outcome.id === value);
@@ -183,6 +189,7 @@ export function withStatus(history: HistoryEntry[], stage: StageId, outcome: Out
 export type Stats = {
   sent: number;
   positive: number; // the last status is past Submitted and still good (isPositive)
+  contacted: number; // got past Submitted, whatever became of it after (isInitialContact)
   offers: number; // the last status is at the Offer
   inProcess: number; // past Submitted and still going (isInProcess)
   unanswered: number; // sent, no answer yet (isUnanswered)
@@ -202,6 +209,7 @@ export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
   ) as Stats['byStage'];
   const now = Object.fromEntries(STAGES.map((stage) => [stage.id, 0])) as Record<StageId, number>;
   let positive = 0,
+    contacted = 0,
     inProcess = 0,
     unanswered = 0,
     rejected = 0,
@@ -215,6 +223,7 @@ export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
     }
     now[app.stage]++;
     if (isPositive(app)) positive++;
+    if (isInitialContact(app)) contacted++;
     if (isInProcess(app)) inProcess++;
     else if (isUnanswered(app)) unanswered++;
     else if (isRejected(app)) rejected++;
@@ -225,6 +234,7 @@ export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
   return {
     sent: apps.length,
     positive,
+    contacted,
     offers: now.offer,
     inProcess,
     unanswered,
