@@ -157,8 +157,9 @@ export const unmarkApplied = (jobId: string) => applicationsRepo.remove(jobId);
 const patch = (jobId: string, fields: Partial<NewApplicationRow>) => applicationsRepo.patch(jobId, fields);
 
 /**
- * Scrapes the complete ad: the offer that was marked first, then the job's other boards; none giving it,
- * the one its offer window kept (what you pasted there).
+ * The complete ad: the one you gave the job in its offer window (pasted, or read from a link), which no
+ * board's replaces (Eldorado always answers, with what its search lists about the job); else scraped, the
+ * offer that was marked first, then the job's other boards; none giving it, the one the window fetched.
  */
 export async function saveContent(jobId: string) {
   const app = await getApplication(jobId);
@@ -179,13 +180,20 @@ export async function saveContent(jobId: string) {
     await patch(jobId, { ...columnsOf(transition(contentOf(app), event).state), details: merged });
   };
 
+  const kept = (await detailsRepo.forOffers(offers).catch(() => [])).filter(
+    (row) => row.complete && row.status === 'ok' && row.description,
+  );
+  const got = (text: string | null, details: JobDetails | null | undefined) =>
+    save({ type: 'fetchSucceeded', text: text ?? '', at: new Date().toISOString() }, details);
+  for (const row of kept) if (row.yours) return got(row.description, row.details);
+
   let firstEmpty: { details: JobDetails } | null = null;
   let lastError: string | null = offers.length ? null : NO_LINK;
   for (const offer of offers) {
     try {
       const scraped = await scrapeOfferFull(offer);
       if (scraped.status === 'ok') {
-        await save({ type: 'fetchSucceeded', text: scraped.text, at: new Date().toISOString() }, scraped.details);
+        await got(scraped.text, scraped.details);
         return;
       }
       firstEmpty ??= { details: scraped.details };
@@ -193,13 +201,7 @@ export async function saveContent(jobId: string) {
       lastError = message(error);
     }
   }
-  const kept = (await detailsRepo.forOffers(offers).catch(() => [])).find(
-    (row) => row.complete && row.status === 'ok' && row.description,
-  );
-  if (kept?.description) {
-    await save({ type: 'fetchSucceeded', text: kept.description, at: new Date().toISOString() }, kept.details);
-    return;
-  }
+  if (kept.length) return got(kept[0].description, kept[0].details);
   const at = new Date().toISOString();
   await save(
     firstEmpty ? { type: 'fetchFoundNoText', at } : { type: 'fetchFailed', error: lastError, at },

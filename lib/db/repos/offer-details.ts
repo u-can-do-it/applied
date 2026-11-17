@@ -9,7 +9,7 @@ import { offerDetails, type OfferDetailsRow } from '../schema';
 
 export type Details = Pick<OfferDetailsRow, 'src' | 'id' | 'status' | 'description'> &
   Partial<Pick<OfferDetailsRow, 'details'>>;
-export type CompleteDetails = Details & Pick<OfferDetailsRow, 'details' | 'complete' | 'fetchedAt'>;
+export type CompleteDetails = Details & Pick<OfferDetailsRow, 'details' | 'complete' | 'yours' | 'fetchedAt'>;
 
 export async function forOffers(offers: { src: string; id: string }[]): Promise<CompleteDetails[]> {
   if (!offers.length) return [];
@@ -21,6 +21,7 @@ export async function forOffers(offers: { src: string; id: string }[]): Promise<
       description: offerDetails.description,
       details: offerDetails.details,
       complete: offerDetails.complete,
+      yours: offerDetails.yours,
       fetchedAt: offerDetails.fetchedAt,
     })
     .from(offerDetails)
@@ -57,8 +58,8 @@ export async function save(rows: Details[]) {
 }
 
 /** The window's: the complete ad and the board's details, fetched now. */
-export async function saveComplete(row: Omit<CompleteDetails, 'complete' | 'fetchedAt'>) {
-  const values = { ...row, complete: true, fetchedAt: sql`now()` };
+export async function saveComplete(row: Omit<CompleteDetails, 'complete' | 'yours' | 'fetchedAt'>) {
+  const values = { ...row, complete: true, yours: false, fetchedAt: sql`now()` };
   await db()
     .insert(offerDetails)
     .values(values)
@@ -66,13 +67,14 @@ export async function saveComplete(row: Omit<CompleteDetails, 'complete' | 'fetc
 }
 
 /**
- * Your text for the ad (the window's "Edit"): kept as the complete ad, so the window, an AI run and
- * marking it applied have it; what the board said besides (details) stays, unless `details` is given.
+ * Your text for the ad (the window's "Edit"): kept as the complete ad and marked yours, so the window, an
+ * AI run and marking it applied have it (no scrape replaces it); what the board said besides (details)
+ * stays, unless `details` is given.
  */
 export async function saveText(
   row: Pick<CompleteDetails, 'src' | 'id'> & { description: string; details?: CompleteDetails['details'] },
 ) {
-  const values = { ...row, status: 'ok' as const, complete: true, fetchedAt: sql`now()` };
+  const values = { ...row, status: 'ok' as const, complete: true, yours: true, fetchedAt: sql`now()` };
   await db()
     .insert(offerDetails)
     .values(values)

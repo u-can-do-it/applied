@@ -54,6 +54,7 @@ const saved = (offer: { src: string; id: string }, fields: Partial<detailsRepo.C
   description: 'the ad',
   details: null,
   complete: true,
+  yours: false,
   fetchedAt: AT,
   ...fields,
 });

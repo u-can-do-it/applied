@@ -237,6 +237,7 @@ export const offerDetails = pgTable(
     fetchedAt: timestamptz('fetched_at').notNull().defaultNow(),
     details: jsonb('details').$type<JobDetails>(),
     complete: boolean('complete').notNull().default(false), // false: an AI run's, cut at its length
+    yours: boolean('yours').notNull().default(false), // the text is one you pasted or read from a link: no scrape replaces it
   },
   (table) => [
     primaryKey({ name: 'offer_details_pkey', columns: [table.src, table.id] }),

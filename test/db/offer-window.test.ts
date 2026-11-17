@@ -100,10 +100,30 @@ describeDb('the complete ad', () => {
     await detailsRepo.save([{ ...offer, status: 'empty', description: null }]); // an AI run's read
     expect((await detailsRepo.forOffers([offer]))[0]).toMatchObject({ status: 'ok', description: 'React 19, Next.js' });
 
+    // yours stays: the board isn't asked, which would answer (Eldorado always does, with what its search lists)
+    vi.mocked(scrapeOfferFull).mockClear();
     await markApplied(jobId, offer);
-    await saveContent(jobId); // the board doesn't answer
-    expect(vi.mocked(scrapeOfferFull)).toHaveBeenCalled();
+    await saveContent(jobId);
+    expect(vi.mocked(scrapeOfferFull)).not.toHaveBeenCalled();
     expect(await getApplication(jobId)).toMatchObject({ contentStatus: 'ok', content: 'React 19, Next.js' });
+    expect((await detailsRepo.forOffers([offer]))[0]).toMatchObject({ yours: true });
+  });
+
+  it("the ad the window fetched isn't yours: marking the job applied fetches it again, and has it if the board doesn't answer", async () => {
+    const jobId = await anOffer();
+    await detailsRepo.saveComplete({ ...offer, status: 'ok', description: 'the whole ad', details: null });
+    expect((await detailsRepo.forOffers([offer]))[0]).toMatchObject({ yours: false });
+    await markApplied(jobId, offer);
+    vi.mocked(scrapeOfferFull).mockResolvedValueOnce({ status: 'ok', text: 'the ad as it is now', details: {} });
+    await saveContent(jobId);
+    expect(await getApplication(jobId)).toMatchObject({ contentStatus: 'ok', content: 'the ad as it is now' });
+    await saveContent(jobId); // the board doesn't answer
+    expect(await getApplication(jobId)).toMatchObject({ contentStatus: 'ok', content: 'the whole ad' });
+
+    // fetched again by the window after you pasted one (it doesn't, once it's complete): not yours any more
+    await setJobAd(jobId, 'React 19, Next.js');
+    await detailsRepo.saveComplete({ ...offer, status: 'ok', description: 'the whole ad', details: null });
+    expect((await detailsRepo.forOffers([offer]))[0]).toMatchObject({ yours: false });
   });
 
   it('the ad read from a link you pasted: saved as yours; the AI fills in what the board didn’t say', async () => {
