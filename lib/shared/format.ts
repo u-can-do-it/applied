@@ -8,9 +8,14 @@ export const percentOf = (part: number, whole: number) => (whole ? `${Math.round
 
 /** How long ago, roughly: "just now", "12 min ago", "5 h ago" (up to 48 h), then "3 days ago". */
 export function ago(iso: string, now = Date.now()) {
-  const min = Math.round((now - Date.parse(iso)) / 60_000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min} min ago`;
-  if (min < 48 * 60) return `${Math.round(min / 60)} h ago`;
-  return `${Math.round(min / 1440)} days ago`;
+  const ms = now - Date.parse(iso);
+  return ms < 30_000 ? 'just now' : `${duration(ms)} ago`;
+}
+
+/** How long, roughly: "12 min", "5 h" (up to 48 h), then "3 days". */
+export function duration(ms: number) {
+  const min = Math.round(ms / 60_000);
+  if (min < 60) return `${min} min`;
+  if (min < 48 * 60) return `${Math.round(min / 60)} h`;
+  return `${Math.round(min / 1440)} days`;
 }

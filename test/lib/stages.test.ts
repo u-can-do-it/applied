@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  answerTimes,
   GHOST_AFTER_DAYS,
   isActive,
   isInProcess,
@@ -260,6 +261,93 @@ describe('stats', () => {
     expect(totals.now.find((atStage) => atStage.stage === 'technical')?.count).toBe(0);
     expect(totals.byStage.technical.failed).toBe(1);
     expect(totals.byStage.submitted.pending).toBe(1);
+  });
+});
+
+describe('answerTimes', () => {
+  const HOUR = 3600_000;
+  const DAY = 24 * HOUR;
+  const at = (days: number) => new Date(Date.parse('2026-10-01T10:00:00Z') + days * DAY).toISOString();
+  const on = (days: number, stage: StageId, state: OutcomeId, auto?: boolean): HistoryEntry => ({
+    stage,
+    state,
+    at: at(days),
+    ...(auto && { auto }),
+  });
+  const applied = on(0, 'submitted', 'pending');
+
+  it('no answers: none', () => {
+    expect(answerTimes([])).toEqual([]);
+    expect(answerTimes([app('submitted', 'pending', [applied])])).toEqual([]);
+  });
+
+  it('each answer from the step before it, by its status: min, average, max', () => {
+    const times = answerTimes([
+      app('submitted', 'failed', [applied, on(2, 'submitted', 'failed')]),
+      app('submitted', 'failed', [applied, on(10, 'submitted', 'failed')]),
+      app('submitted', 'failed', [applied, on(6, 'submitted', 'failed')]),
+      // invited after 3 days, rejected at the screening 4 days after the invitation
+      app('screening', 'failed', [
+        applied,
+        on(3, 'invited', 'passed', true),
+        on(3, 'screening', 'pending'),
+        on(7, 'screening', 'failed'),
+      ]),
+    ]);
+    expect(times).toEqual([
+      { stage: 'submitted', outcome: 'failed', count: 3, min: 2 * DAY, avg: 6 * DAY, max: 10 * DAY },
+      { stage: 'screening', outcome: 'pending', count: 1, min: 3 * DAY, avg: 3 * DAY, max: 3 * DAY },
+      { stage: 'screening', outcome: 'failed', count: 1, min: 4 * DAY, avg: 4 * DAY, max: 4 * DAY },
+    ]);
+  });
+
+  it('ghosted, your own steps and the app’s aren’t answers; an answer after a silence is timed from before it', () => {
+    const times = answerTimes([
+      // ghosted by the app after a month, then a no after 40 days
+      app('submitted', 'failed', [applied, on(30, 'submitted', 'ghosted', true), on(40, 'submitted', 'failed')]),
+      // you pulled out, then an offer accepted
+      app('screening', 'withdrawn', [applied, on(1, 'screening', 'pending'), on(2, 'screening', 'withdrawn')]),
+      app('offer', 'passed', [applied, on(5, 'offer', 'pending'), on(6, 'offer', 'passed')]),
+    ]);
+    expect(times.map(({ stage, outcome }) => `${stage}-${outcome}`)).toEqual([
+      'submitted-failed',
+      'screening-pending',
+      'offer-pending',
+    ]);
+    expect(times[0]).toMatchObject({ min: 40 * DAY, max: 40 * DAY });
+  });
+
+  it('steps saved in one go are each timed from the step before them all', () => {
+    const later = (days: number, minutes: number) => new Date(Date.parse(at(days)) + minutes * 60_000).toISOString();
+    const times = answerTimes([
+      app('technical', 'failed', [
+        applied,
+        on(4, 'screening', 'pending'),
+        // a week on, the interview and its no saved together
+        { stage: 'technical', state: 'pending', at: later(11, 0) },
+        { stage: 'technical', state: 'failed', at: later(11, 2) },
+      ]),
+      // applied and answered within minutes: the answer was saved with the application, not timed
+      app('submitted', 'failed', [applied, { stage: 'submitted', state: 'failed', at: later(0, 1) }]),
+    ]);
+    expect(times).toEqual([
+      { stage: 'screening', outcome: 'pending', count: 1, min: 4 * DAY, avg: 4 * DAY, max: 4 * DAY },
+      { stage: 'technical', outcome: 'pending', count: 1, min: 7 * DAY, avg: 7 * DAY, max: 7 * DAY },
+      {
+        stage: 'technical',
+        outcome: 'failed',
+        count: 1,
+        min: 7 * DAY + 2 * 60_000,
+        avg: 7 * DAY + 2 * 60_000,
+        max: 7 * DAY + 2 * 60_000,
+      },
+    ]);
+  });
+
+  it('a step dated before the one before it isn’t timed', () => {
+    expect(
+      answerTimes([app('submitted', 'failed', [on(5, 'submitted', 'pending'), on(1, 'submitted', 'failed')])]),
+    ).toEqual([]);
   });
 });
 

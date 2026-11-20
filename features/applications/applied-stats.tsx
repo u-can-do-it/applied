@@ -13,13 +13,14 @@ import {
 import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ListedApplication } from '@/lib/applications';
-import { stageOf, stats } from '@/lib/stages';
+import { answerTimes, stageOf, stats } from '@/lib/stages';
 import { cn } from '@/lib/shared/cn';
 import { percentOf } from '@/lib/shared/format';
 import { Card } from '@/components/ui/card';
 import { isRentADev, RENT_A_DEV } from '@/features/offers/rent-a-dev';
 import { Funnel } from './funnel';
 import { StageTable } from './stage-table';
+import { AnswerTable } from './answer-table';
 import { TILES, tileTitle, type TileId } from './status-filter';
 import { useTileOrder, writeTileOrder } from './tile-order';
 import { Hint } from '@/components/hint';
@@ -37,6 +38,7 @@ export function AppliedStats({
   setFilter: (filter: string | null) => void;
 }) {
   const counts = useMemo(() => stats(apps), [apps]);
+  const times = useMemo(() => answerTimes(apps), [apps]);
   // Rent-a-dev or not; a job nothing said either way about is in neither
   const leasing = useMemo(() => {
     const calls = apps.map(isRentADev);
@@ -152,6 +154,8 @@ export function AppliedStats({
       </details>
 
       <StageTable byStage={counts.byStage} isOn={on} onPick={pick} />
+
+      <AnswerTable times={times} />
     </section>
   );
 }

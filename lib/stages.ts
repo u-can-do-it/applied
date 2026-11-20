@@ -246,3 +246,62 @@ export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
     byStage,
   };
 }
+
+/** How long they took to answer with a status (Rejected at Submitted, Pending at Screening: invited to it…), in ms. */
+export type AnswerTime = { stage: StageId; outcome: OutcomeId; count: number; min: number; avg: number; max: number };
+
+/**
+ * A step that is their answer: not one the app set (auto: passed before, ghosted after a month), no
+ * ghosted at all (a silence, not an answer), none of your own (withdrawn, an offer accepted) and not
+ * applying (Submitted · In progress).
+ */
+const isAnswer = (step: HistoryEntry) =>
+  !step.auto &&
+  step.state !== 'ghosted' &&
+  step.state !== 'withdrawn' &&
+  !(step.stage === 'offer' && step.state === 'passed') &&
+  !(step.stage === 'submitted' && step.state === 'pending');
+
+/** Steps saved this close together were saved in one go (catching up), not answered one after the other. */
+const SAME_SITTING_MS = 5 * 60_000;
+
+/**
+ * How long they took to answer, by the status they answered with: from the step before it (applying,
+ * for the first answer) to it. The steps before are your own and their answers, not the app's or a
+ * ghosted one: an answer after a silence is timed from before it. Steps saved in one go (within
+ * SAME_SITTING_MS of each other) are each timed from the step before them all. In STAGES, then
+ * OUTCOMES order; a status nobody got is left out.
+ */
+export function answerTimes(apps: WithStatus[]): AnswerTime[] {
+  const waits = new Map<string, number[]>();
+  for (const app of apps) {
+    let since: number | null = null; // when the wait began: the step before this sitting
+    let last: number | null = null; // the step before
+    for (const step of app.history) {
+      if (step.auto || step.state === 'ghosted') continue;
+      const at = Date.parse(step.at);
+      if (last !== null && at - last >= SAME_SITTING_MS) since = last;
+      if (since !== null && isAnswer(step) && at >= since) {
+        const key = `${step.stage}-${step.state}`;
+        waits.set(key, [...(waits.get(key) ?? []), at - since]);
+      }
+      last = at;
+    }
+  }
+  return STAGES.flatMap((stage) =>
+    OUTCOMES.flatMap((outcome) => {
+      const all = waits.get(`${stage.id}-${outcome.id}`);
+      if (!all) return [];
+      return [
+        {
+          stage: stage.id,
+          outcome: outcome.id,
+          count: all.length,
+          min: Math.min(...all),
+          avg: all.reduce((sum, wait) => sum + wait, 0) / all.length,
+          max: Math.max(...all),
+        },
+      ];
+    }),
+  );
+}
