@@ -251,16 +251,17 @@ export function stats(apps: (WithStatus & { talentPool: boolean })[]): Stats {
 export type AnswerTime = { stage: StageId; outcome: OutcomeId; count: number; min: number; avg: number; max: number };
 
 /**
- * A step that is their answer: not one the app set (auto: passed before, ghosted after a month), no
- * ghosted at all (a silence, not an answer), none of your own (withdrawn, an offer accepted) and not
- * applying (Submitted · In progress).
+ * A step that is their answer with a result: not one the app set (auto: passed before, ghosted after a
+ * month), no ghosted at all (a silence, not an answer), none of your own (withdrawn, an offer accepted)
+ * and nothing In progress (applying, an invitation): only an offer received is an answer while pending.
+ * The in-progress steps still start the wait for the answer after them.
  */
 const isAnswer = (step: HistoryEntry) =>
   !step.auto &&
   step.state !== 'ghosted' &&
   step.state !== 'withdrawn' &&
   !(step.stage === 'offer' && step.state === 'passed') &&
-  !(step.stage === 'submitted' && step.state === 'pending');
+  (step.state !== 'pending' || step.stage === 'offer');
 
 /** Steps saved this close together were saved in one go (catching up), not answered one after the other. */
 const SAME_SITTING_MS = 5 * 60_000;

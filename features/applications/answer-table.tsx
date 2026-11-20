@@ -49,8 +49,8 @@ export function AnswerTable({ times }: { times: AnswerTime[] }) {
         <p className="mt-1.5 text-[13px] text-muted-foreground">No answers yet.</p>
       )}
       <p className="mt-1 text-[11px] text-muted-foreground">
-        From the step before (applying, for the first answer); ghosted, withdrawn and the steps the app set aren’t
-        answers.
+        From the step before (applying, for the first answer); In progress, ghosted, withdrawn and the steps the app set
+        aren’t answers.
       </p>
     </details>
   );

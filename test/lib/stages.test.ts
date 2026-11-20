@@ -286,7 +286,7 @@ describe('answerTimes', () => {
       app('submitted', 'failed', [applied, on(2, 'submitted', 'failed')]),
       app('submitted', 'failed', [applied, on(10, 'submitted', 'failed')]),
       app('submitted', 'failed', [applied, on(6, 'submitted', 'failed')]),
-      // invited after 3 days, rejected at the screening 4 days after the invitation
+      // invited after 3 days (In progress: not shown, but the wait for the no starts there), rejected 4 days later
       app('screening', 'failed', [
         applied,
         on(3, 'invited', 'passed', true),
@@ -296,7 +296,6 @@ describe('answerTimes', () => {
     ]);
     expect(times).toEqual([
       { stage: 'submitted', outcome: 'failed', count: 3, min: 2 * DAY, avg: 6 * DAY, max: 10 * DAY },
-      { stage: 'screening', outcome: 'pending', count: 1, min: 3 * DAY, avg: 3 * DAY, max: 3 * DAY },
       { stage: 'screening', outcome: 'failed', count: 1, min: 4 * DAY, avg: 4 * DAY, max: 4 * DAY },
     ]);
   });
@@ -311,8 +310,7 @@ describe('answerTimes', () => {
     ]);
     expect(times.map(({ stage, outcome }) => `${stage}-${outcome}`)).toEqual([
       'submitted-failed',
-      'screening-pending',
-      'offer-pending',
+      'offer-pending', // an offer received: In progress elsewhere isn't shown
     ]);
     expect(times[0]).toMatchObject({ min: 40 * DAY, max: 40 * DAY });
   });
@@ -331,8 +329,6 @@ describe('answerTimes', () => {
       app('submitted', 'failed', [applied, { stage: 'submitted', state: 'failed', at: later(0, 1) }]),
     ]);
     expect(times).toEqual([
-      { stage: 'screening', outcome: 'pending', count: 1, min: 4 * DAY, avg: 4 * DAY, max: 4 * DAY },
-      { stage: 'technical', outcome: 'pending', count: 1, min: 7 * DAY, avg: 7 * DAY, max: 7 * DAY },
       {
         stage: 'technical',
         outcome: 'failed',
